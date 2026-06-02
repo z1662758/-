@@ -1,0 +1,46 @@
+<<<<<<< HEAD
+=======
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+.DS_Store
+dist
+dist-ssr
+coverage
+*.local
+
+>>>>>>> 2b126c209366278035df229e96e42e82da5ebe9c
+# Editor directories and files
+.vscode/*
+.vscode/extensions.json
+.github
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+<<<<<<< HEAD
+.claude
+=======
+
+*.tsbuildinfo
+
+.eslintcache
+
+# Cypress
+/cypress/videos/
+/cypress/screenshots/
+
+# Vitest
+__screenshots__/
+>>>>>>> 2b126c209366278035df229e96e42e82da5ebe9c
+
+.agent/
