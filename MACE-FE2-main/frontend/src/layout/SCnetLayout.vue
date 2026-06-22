@@ -42,25 +42,25 @@
             <template #title>石油情报</template>
           </el-menu-item>
 
-          <el-menu-item index="/home/SCnet/knowledgeCreate">
+          <!-- <el-menu-item index="/home/SCnet/knowledgeCreate">
             <el-icon size="18"><FolderOpened/></el-icon>
             <template #title>数据集管理</template>
-          </el-menu-item>
+          </el-menu-item> -->
 
           <el-menu-item index="/home/SCnet/oilSituationAnalysis">
             <el-icon size="18"><Document/></el-icon>
             <template #title>石油知识库</template>
           </el-menu-item>
 
-          <el-menu-item index="/home/SCnet/knowledgeGraph">
+          <!-- <el-menu-item index="/home/SCnet/knowledgeGraph">
             <el-icon size="18"><Collection/></el-icon>
             <template #title>主体网络</template>
-          </el-menu-item>
+          </el-menu-item> -->
 
-          <el-menu-item index="/home/SCnet/openSourceIntelligence">
+          <!-- <el-menu-item index="/home/SCnet/openSourceIntelligence">
             <el-icon size="18"><Search/></el-icon>
             <template #title>开源情报</template>
-          </el-menu-item>
+          </el-menu-item> -->
 
           <el-sub-menu index="during-analysis">
             <template #title>

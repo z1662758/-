@@ -66,3 +66,28 @@ export async function getOwlNetwork() {
 export async function rebuildOwlNetwork() {
   return request({ url: '/ontology/owl/network/rebuild', method: 'post' })
 }
+
+// ===== 铀供应链本体网络 =====
+export async function getUraniumGraph() {
+  return request({ url: '/ontology/uranium/graph', method: 'get' })
+}
+
+export async function getUraniumDynamicGraph() {
+  return request({ url: '/ontology/uranium/dynamic', method: 'get' })
+}
+
+export async function getUraniumDynamicTimeline() {
+  return request({ url: '/ontology/uranium/dynamic/timeline', method: 'get' })
+}
+
+export async function getUraniumDynamicWindow(windowKey) {
+  return request({ url: `/ontology/uranium/dynamic/window/${windowKey}`, method: 'get' })
+}
+
+export async function getUraniumDynamicRoles() {
+  return request({ url: '/ontology/uranium/dynamic/roles', method: 'get' })
+}
+
+export async function rebuildUraniumNetwork() {
+  return request({ url: '/ontology/uranium/rebuild', method: 'post' })
+}
