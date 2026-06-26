@@ -91,3 +91,20 @@ export async function getUraniumDynamicRoles() {
 export async function rebuildUraniumNetwork() {
   return request({ url: '/ontology/uranium/rebuild', method: 'post' })
 }
+
+// ===== 铀 OWL 本体推理 =====
+export async function getUraniumOwlStats() {
+  return request({ url: '/ontology/uranium/owl/stats', method: 'get' })
+}
+
+export async function getUraniumOwlInferred() {
+  return request({ url: '/ontology/uranium/owl/inferred', method: 'get' })
+}
+
+export async function getUraniumOwlRiskPropagation(entity) {
+  return request({ url: '/ontology/uranium/owl/risk-propagation', method: 'get', params: { entity } })
+}
+
+export async function getUraniumOwlNetwork() {
+  return request({ url: '/ontology/uranium/owl/network', method: 'get' })
+}

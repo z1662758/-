@@ -4,9 +4,9 @@
     <div class="glass-panel control-panel">
       <div class="panel-title">
         <span class="glow-dot cyan"></span>
-        <span>汽车供应链周期预测引擎</span>
+        <span>铀矿供应链周期预测引擎</span>
         <el-tooltip
-          content="利用供需关系、库存水位、排产节奏和供应商产能响应，识别汽车供应链中的补库、去库和供需错配周期"
+          content="利用供需关系、库存消费比、产量指引节奏和供应商产能响应，识别铀矿供应链中的补库、去库和供需错配周期"
           placement="top"
           :show-after="200"
         >
@@ -137,7 +137,7 @@
       <div class="panel-title">
         <span class="glow-dot"></span>
         {{ governanceBrief.decomposeTitle }} · {{ currentScenarioMeta.cycleAlias }}
-        <el-tooltip content="将汽车供应链供需压力分解为长期趋势项、周期项和异常残差项" placement="top" :show-after="200">
+        <el-tooltip content="将铀矿供应链供需压力分解为长期趋势项、周期项和异常残差项" placement="top" :show-after="200">
           <el-icon class="help-icon"><QuestionFilled /></el-icon>
         </el-tooltip>
         <span class="badge info-badge">选中候选周期高亮窗口</span>
@@ -150,7 +150,7 @@
       <div class="panel-title">
         <span class="glow-dot orange"></span>
         {{ governanceBrief.heatmapTitle }}
-        <el-tooltip content="以颜色深浅表示不同年份各月供需错配、库存压力或成本波动强度" placement="top" :show-after="200">
+        <el-tooltip content="以颜色深浅表示不同年份各月供需错配、铀库存压力或成本波动强度" placement="top" :show-after="200">
           <el-icon class="help-icon"><QuestionFilled /></el-icon>
         </el-tooltip>
       </div>
@@ -246,9 +246,9 @@ const SCENARIO_FACTOR = {
     cycleAlias: '供需匹配-库存联动周期',
     heatmapTitle: '供需错配热力矩阵',
     phaseTitle: '供需压力相位图',
-    summary: '该场景围绕终端需求、主机厂排产、供应商产能和渠道库存之间的循环关系，识别供不应求、供需平衡和供过于求的阶段切换。',
-    focusTags: ['终端需求', '主机厂排产', '渠道库存', '供应商产能'],
-    strategyFocus: '终端需求、排产计划与库存天数的匹配关系',
+    summary: '该场景围绕终端需求、主机厂产量指引、供应商产能和渠道库存之间的循环关系，识别供给短缺、供需平衡和供给过剩的阶段切换。',
+    focusTags: ['终端需求', '主机厂产量指引', '渠道库存', '供应商产能'],
+    strategyFocus: '终端需求、产量指引计划与库存消费比的匹配关系',
     kpiTitles: {
       dominantCycle: '主导供需周期',
       stability: '供需匹配稳定性',
@@ -267,13 +267,13 @@ const SCENARIO_FACTOR = {
     stabilityBias: -3,
     anomalyBias: 9,
     cycleAlias: '补库-去库切换周期',
-    heatmapTitle: '库存压力热力矩阵',
-    phaseTitle: '库存水位相位图',
-    summary: '该场景关注整车库存、经销商库存、零部件备货和渠道折扣，识别主动补库、被动累库和去库调整的切换节奏。',
-    focusTags: ['库存天数', '周转率', '渠道折扣', '备货节奏'],
-    strategyFocus: '库存天数、渠道折扣与低动销车型排产调整',
+    heatmapTitle: '铀库存压力热力矩阵',
+    phaseTitle: '库存消费比相位图',
+    summary: '该场景关注全球铀商业库存、战略储备、核电业主库存水平和补库紧迫度，识别主动补库、被动累库和去库调整的切换节奏。',
+    focusTags: ['库存消费比', '周转率', '补库紧迫度', '备货节奏'],
+    strategyFocus: '库存消费比、补库紧迫度与高成本现货产量指引调整',
     kpiTitles: {
-      dominantCycle: '主导库存周期',
+      dominantCycle: '主导铀库存周期',
       stability: '库存稳定性',
       anomaly: '被动累库概率'
     }
@@ -289,16 +289,16 @@ const SCENARIO_FACTOR = {
     defaultWindowRange: [12, 100],
     stabilityBias: 2,
     anomalyBias: 4,
-    cycleAlias: '排产-交付节律周期',
-    heatmapTitle: '排产强度热力矩阵',
-    phaseTitle: '排产压力相位图',
-    summary: '该场景关注主机厂月度排产、产能利用率、车型切换和关键零部件到厂情况，识别排产节奏变化对供应链需求的影响。',
-    focusTags: ['月度排产', '产能利用率', '车型切换', '到厂准时率'],
-    strategyFocus: '排产计划、关键物料到厂准时率与车型切换节奏',
+    cycleAlias: '产量指引-交付节律周期',
+    heatmapTitle: '产量指引强度热力矩阵',
+    phaseTitle: '产量指引压力相位图',
+    summary: '该场景关注哈萨克斯坦/加拿大/纳米比亚等主要铀矿山的月度产量、ISL/矿山产能利用率和新矿投产节奏，识别供给变化对铀价和采购策略的影响。',
+    focusTags: ['月度产量指引', 'ISL/矿山产能利用率', '矿山状态切换(停产/重启/爬坡)', '铀精矿到港准时率'],
+    strategyFocus: '产量指引计划、关键物料铀精矿到港准时率与矿山状态切换(停产/重启/爬坡)节奏',
     kpiTitles: {
-      dominantCycle: '主导排产周期',
-      stability: '排产稳定性',
-      anomaly: '排产偏差概率'
+      dominantCycle: '主导矿山生产周期',
+      stability: '产量指引稳定性',
+      anomaly: '产量指引偏差概率'
     }
   },
 
@@ -312,12 +312,12 @@ const SCENARIO_FACTOR = {
     defaultWindowRange: [10, 100],
     stabilityBias: 4,
     anomalyBias: 3,
-    cycleAlias: '材料价格-采购锁价周期',
+    cycleAlias: '材料价格-长协锁量周期',
     heatmapTitle: '材料成本波动热力矩阵',
     phaseTitle: '采购成本相位图',
     summary: '该场景围绕锂、镍、钢、铝、橡胶等关键原材料，识别价格低位、反弹、锁价和成本传导周期。',
-    focusTags: ['锂价', '钢铝价格', '采购锁价', 'BOM成本'],
-    strategyFocus: '关键材料价格、采购锁价窗口与整车BOM成本变化',
+    focusTags: ['锂价', '钢铝价格', '长协锁量', 'BOM成本'],
+    strategyFocus: 'U3O8 现货价/长协价、采购锁量窗口与核燃料到岸成本变化',
     kpiTitles: {
       dominantCycle: '主导成本周期',
       stability: '成本稳定性',
@@ -330,18 +330,18 @@ const DEFAULT_CYCLE_CONTEXT = {
   mandate: {
     value: 'supply_demand',
     label: '供需关系周期分析',
-    desc: '综合终端需求、整车库存、主机厂排产和关键零部件供给能力，判断当前处于供不应求、供需平衡还是供过于求阶段。'
+    desc: '综合核电需求、全球铀库存、主要矿山产量和二次供应能力，判断当前铀市场处于供给短缺、供需平衡还是供给过剩阶段。'
   },
   activeDomainIds: ['terminal_demand', 'channel_inventory', 'production_plan', 'supplier_capacity'],
   activeDomains: [
     { id: 'terminal_demand', label: '终端需求与订单' },
-    { id: 'channel_inventory', label: '渠道库存周期' },
-    { id: 'production_plan', label: '主机厂排产计划' },
+    { id: 'channel_inventory', label: '渠道铀库存周期' },
+    { id: 'production_plan', label: '主机厂产量指引计划' },
     { id: 'supplier_capacity', label: '供应商产能响应' }
   ],
   avgQuality: 79,
   outputTitle: '供需匹配周期判断',
-  outputHint: '后续周期分析将把供需关系作为主线，比较终端需求、排产计划、库存水位和供应商产能响应。'
+  outputHint: '后续周期分析将把供需关系作为主线，比较终端需求、产量指引计划、库存消费比和供应商产能响应。'
 }
 
 const CYCLE_MANDATE_EFFECTS = {
@@ -355,12 +355,12 @@ const CYCLE_MANDATE_EFFECTS = {
     driftShift: 0.02,
     stabilityShift: -2,
     anomalyShift: 7,
-    strategyLead: '优先判断需求恢复速度是否匹配排产和供应商产能释放，避免供给恢复过快造成库存积压。'
+    strategyLead: '优先判断需求恢复速度是否匹配产量指引和供应商产能释放，避免供给恢复过快造成库存积压。'
   },
 
   inventory_cycle: {
     decomposeTitle: '补库/去库周期分解',
-    heatmapTitle: '库存压力热力矩阵',
+    heatmapTitle: '铀库存压力热力矩阵',
     outputTitle: '补库/去库周期定位',
     scenarioKey: 'inventory_cycle',
     periodShift: -1,
@@ -368,20 +368,20 @@ const CYCLE_MANDATE_EFFECTS = {
     driftShift: 0.01,
     stabilityShift: -4,
     anomalyShift: 10,
-    strategyLead: '重点判断当前是主动补库、被动累库还是去库调整，并将库存天数与折扣率联动监测。'
+    strategyLead: '重点判断当前是主动补库、被动累库还是去库调整，并将库存消费比与折扣率联动监测。'
   },
 
   production_rhythm: {
-    decomposeTitle: '主机厂排产周期分解',
-    heatmapTitle: '排产强度热力矩阵',
-    outputTitle: '排产节律识别',
+    decomposeTitle: '主机厂矿山生产周期分解',
+    heatmapTitle: '产量指引强度热力矩阵',
+    outputTitle: '产量指引节律识别',
     scenarioKey: 'production_rhythm',
     periodShift: -2,
     amplitudeShift: 0.6,
     driftShift: 0.03,
     stabilityShift: 2,
     anomalyShift: 5,
-    strategyLead: '优先识别月度排产高峰、车型切换节点和关键零部件到厂偏差，提前调整采购和供应商排程。'
+    strategyLead: '优先识别月度产量指引高峰、矿山状态切换(停产/重启/爬坡)节点和关键铀精矿到厂偏差，提前调整采购和供应商排程。'
   },
 
   material_price_cycle: {
@@ -713,7 +713,7 @@ export default {
       this.cycleCandidates = (data.cycleCandidates || []).map(c => ({
         ...c,
         explain: `${this.governanceBrief.question}呈现 ${Math.round(Math.abs(c.score) * 100)}% 的周期相关性，${cfg.focusTags[0]}与${cfg.focusTags[1]}之间的联动仍是主要驱动。`,
-        strategy: `建议以 ${c.lag} 个月为滚动复盘周期，重点监控${cfg.strategyFocus}，并围绕"${this.governanceBrief.outputTitle}"生成下一轮采购、排产和库存策略。`
+        strategy: `建议以 ${c.lag} 个月为滚动复盘周期，重点监控${cfg.strategyFocus}，并围绕"${this.governanceBrief.outputTitle}"生成下一轮采购、锁量和库存策略。`
       }))
 
       if (!this.selectedCandidate || !this.cycleCandidates.find(c => c.id === this.selectedCandidate.id)) {
@@ -780,7 +780,7 @@ export default {
           score: corr,
           confidence: conf,
           explain: `${this.governanceBrief.question}在当前窗口内呈现 ${Math.round(Math.abs(corr) * 100)}% 的周期相关性，${cfg.focusTags[0]}与${cfg.focusTags[1]}之间的联动仍是主要驱动。`,
-          strategy: `建议以 ${lag} 个月为滚动复盘周期，重点监控${cfg.strategyFocus}，并围绕“${this.governanceBrief.outputTitle}”生成下一轮采购、排产和库存策略。`
+          strategy: `建议以 ${lag} 个月为滚动复盘周期，重点监控${cfg.strategyFocus}，并围绕“${this.governanceBrief.outputTitle}”生成下一轮采购、锁量和库存策略。`
         })
       }
 

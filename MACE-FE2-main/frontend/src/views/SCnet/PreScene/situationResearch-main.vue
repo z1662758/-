@@ -6,7 +6,7 @@
       <div class="gov-header" @click="govCollapsed = !govCollapsed">
         <div class="gov-header-left">
           <span class="gov-status-dot" :class="govStatusClass"></span>
-          <span class="gov-title">分析前置 · 汽车供应链问题设定</span>
+          <span class="gov-title">分析前置 · 铀供应链问题设定</span>
           <span class="gov-phase-tag">{{ activeTabLabel }}</span>
         </div>
         <div class="gov-header-right">
@@ -104,8 +104,8 @@
     <!-- 分析模块切换 -->
     <div class="switch-shell">
       <div class="switch-title-wrap">
-        <div class="switch-title">汽车供应链态势预测引擎</div>
-        <div class="switch-subtitle">趋势、周期、拐点三模块统一视图</div>
+        <div class="switch-title">铀供应链态势预测引擎</div>
+        <div class="switch-subtitle">趋势、周期、拐点三模块统一视图 · 核燃料供应链全链条覆盖</div>
       </div>
 
       <el-radio-group v-model="activeKey" class="switch-group" @change="onTabSwitch">
@@ -155,170 +155,170 @@ const GOVERNANCE_CONFIG = {
   trend: {
     mandateOptions: [
       {
-        value: 'component_pressure',
-        label: '关键零部件供给压力预判',
-        desc: '识别车规芯片、功率器件、传感器、线束等关键零部件未来数月的交付压力变化。'
+        value: 'uranium_price',
+        label: '天然铀价格趋势预判',
+        desc: '跟踪U3O8现货与长协价格、SWU分离功成本、转化服务费变化，判断核燃料成本对核电运营经济性的影响。'
       },
       {
-        value: 'battery_cost',
-        label: '动力电池成本趋势评估',
-        desc: '跟踪锂、镍、钴、磷酸铁锂、电芯与Pack成本变化，判断电池成本对整车利润和定价空间的影响。'
+        value: 'mining_supply',
+        label: '铀矿供给压力评估',
+        desc: '监测哈萨克斯坦、加拿大、纳米比亚、尼日尔、澳大利亚等主产区的产量、地缘风险和出口政策变化。'
       },
       {
-        value: 'inventory_balance',
-        label: '整车库存与渠道压力预测',
-        desc: '观察主机厂库存、经销商库存、库存天数和终端折扣，判断库存压力是否继续抬升。'
+        value: 'enrichment_capacity',
+        label: '浓缩产能瓶颈监测',
+        desc: '观察全球离心浓缩产能分布（俄罗斯占44%）、制裁影响及欧美浓缩产能扩张进度。'
       },
       {
-        value: 'logistics_delay',
-        label: '跨境物流延误趋势监测',
-        desc: '监测港口拥堵、海运周期、关务扰动和零部件到厂准时率，预判物流瓶颈对排产的影响。'
+        value: 'conversion_transport',
+        label: '转化与运输链路趋势',
+        desc: '监测UF6转化产能、黄饼运输通道安全、CASK容器可用性和国际核材料运输合规动态。'
       }
     ],
     dataDomains: [
-      { id: 'chip_supply', label: '车规芯片交期', quality: 86, coverage: '2024.01 – 2025.12 · MCU/功率器件/座舱芯片' },
-      { id: 'battery_material', label: '动力电池材料价格', quality: 88, coverage: '2024.01 – 2025.12 · 锂/镍/钴/磷酸铁锂' },
-      { id: 'vehicle_inventory', label: '整车库存水位', quality: 78, coverage: '2024.01 – 2025.12 · 库存天数/周转率/渠道折扣' },
-      { id: 'logistics_delivery', label: '物流交付时效', quality: 72, coverage: '2024.01 – 2025.12 · 港口/海运/铁路/到厂准时率' }
+      { id: 'u3o8_price', label: 'U3O8 现货/长协价格', quality: 88, coverage: '2023.01 – 2026.06 · 现货价/长协价/SWU成本' },
+      { id: 'mine_output', label: '全球铀矿产量', quality: 85, coverage: '2023.01 – 2026.06 · 哈萨克斯坦/Cameco/Orano/其他' },
+      { id: 'enrichment_swu', label: '浓缩产能与SWU', quality: 82, coverage: '2023.01 – 2026.06 · 离心机/扩散厂/产能利用率' },
+      { id: 'conversion_uf6', label: '转化服务与运输', quality: 76, coverage: '2023.01 – 2026.06 · UF6/黄饼/运输通道' }
     ],
     assumptions: [
-      '车规半导体整体供给较前期改善，但高端MCU、功率器件和智能驾驶芯片仍可能存在结构性紧张',
-      '动力电池材料价格处于相对低位，短期不预设大幅反弹，但关注成本降幅收窄',
-      '整车库存处于中高位区间，终端需求恢复速度决定后续是补库还是去库'
+      '哈萨克斯坦维持全球最大铀矿供应国地位（约45%），但物流通道和地缘关系仍存在不确定性',
+      '俄罗斯浓缩产能占全球约44%，制裁升级可能迫使欧美加速本土浓缩产能建设',
+      '尼日尔政变后铀矿出口恢复进度缓慢，对欧洲核电燃料供应构成结构性风险'
     ],
-    timeRange: '2024.01 – 2025.12（供应链运行基准）+ 未来6个月预测窗口'
+    timeRange: '2023.01 – 2026.06（核燃料供应链运行基准）+ 未来12个月预测窗口'
   },
 
   cycle: {
     mandateOptions: [
       {
-        value: 'supply_demand',
-        label: '供需关系周期分析',
-        desc: '综合终端需求、整车库存、主机厂排产和关键零部件供给能力，判断当前处于供不应求、供需平衡还是供过于求阶段。'
+        value: 'supply_demand_cycle',
+        label: '铀供需关系周期分析',
+        desc: '综合全球核电装机容量、二次铀供应（尾料再浓缩/稀释HEU）、一次铀矿产量，判断供需平衡阶段。'
       },
       {
         value: 'inventory_cycle',
-        label: '补库/去库周期识别',
-        desc: '提取渠道库存、工厂库存和零部件备货的周期性规律，判断当前处于主动补库、被动累库还是去库调整。'
+        label: '战略储备与库存周期识别',
+        desc: '提取核电运营商燃料库存、中间商囤货行为和战略储备释放的周期性规律。'
       },
       {
-        value: 'production_rhythm',
-        label: '主机厂排产节律分析',
-        desc: '观察月度排产、产能利用率、车型切换和节假日因素，识别排产节奏对供应链需求的影响。'
+        value: 'enrichment_cycle',
+        label: '浓缩服务周期判断',
+        desc: '分析SWU价格周期、富集产能投资回报周期和欠料/超料策略对核电运营成本的影响。'
       },
       {
-        value: 'material_price_cycle',
-        label: '原材料价格周期判断',
-        desc: '围绕锂、镍、钢、铝、橡胶等关键投入品，研判成本周期对采购锁价和备货节奏的影响。'
+        value: 'fuel_fabrication_cycle',
+        label: '燃料组件制造节律分析',
+        desc: '观察燃料棒/组件制造周期、换料大修计划和新型事故容错燃料(ATF)导入节奏。'
       }
     ],
     dataDomains: [
-      { id: 'terminal_demand', label: '终端需求与订单', quality: 84, coverage: '2020.01 – 2025.12 · 订单/销量/门店线索' },
-      { id: 'channel_inventory', label: '渠道库存周期', quality: 80, coverage: '2020.01 – 2025.12 · 库存天数/周转率' },
-      { id: 'production_plan', label: '主机厂排产计划', quality: 76, coverage: '2023.01 – 2025.12 · 月度排产/产能利用率' },
-      { id: 'supplier_capacity', label: '供应商产能响应', quality: 74, coverage: '2023.01 – 2025.12 · Tier1/Tier2交付能力' }
+      { id: 'reactor_demand', label: '全球核电装机与需求', quality: 86, coverage: '2020.01 – 2026.06 · 在运/在建/规划机组' },
+      { id: 'secondary_supply', label: '二次铀供应', quality: 80, coverage: '2020.01 – 2026.06 · HEU稀释/尾料再浓缩' },
+      { id: 'fuel_inventory', label: '核燃料库存周期', quality: 78, coverage: '2023.01 – 2026.06 · 运营商库存/中间库存' },
+      { id: 'fabrication_capacity', label: '燃料组件制造产能', quality: 75, coverage: '2023.01 – 2026.06 · 组件产能/换料周期' }
     ],
     assumptions: [
-      '终端需求、排产节奏和库存水位之间存在滞后关系，通常需求变化领先排产调整1–2个月',
-      '新能源车型迭代速度维持高位，部分零部件需求会因平台切换出现阶段性跳变',
-      '若出现重大关税、出口限制或质量召回事件，周期模型需要切换为外部冲击场景'
+      '全球核电装机容量稳中有升，小型模块化反应堆(SMR)部署进度影响中长期铀需求曲线',
+      '二次铀供应（俄HEU稀释协议到期后的替代来源）将在2028年前后出现明显缺口',
+      '燃料组件制造产能集中度较高，少数供应商的产能波动可能影响多个核电运营商的换料计划'
     ],
-    timeRange: '2020.01 – 2025.12（供需周期基准）+ 未来12个月预测窗口'
+    timeRange: '2020.01 – 2026.06（供需周期基准）+ 未来24个月预测窗口'
   },
 
   turning: {
     mandateOptions: [
       {
-        value: 'shortage_turning',
-        label: '供应短缺拐点识别',
-        desc: '识别芯片、电池、热管理、线束等环节从可控紧张转为断供风险的信号组合。'
+        value: 'supply_disruption',
+        label: '供应中断拐点识别',
+        desc: '识别铀矿停产、浓缩厂故障、运输通道封锁等从可控扰动转为实质性供应危机的信号组合。'
       },
       {
-        value: 'cost_rebound',
-        label: '成本反弹拐点预警',
-        desc: '捕捉电池材料、金属、能源和运价等成本因子的快速反弹信号，评估对整车毛利的冲击。'
+        value: 'price_spike',
+        label: '价格暴涨拐点预警',
+        desc: '捕捉U3O8现货价、SWU费用和转化服务费的快速攀升信号，评估对核电发电成本和电价的冲击。'
       },
       {
-        value: 'inventory_overhang',
-        label: '库存积压拐点判断',
-        desc: '判断库存水位是否从合理备货转向渠道压库，并识别可能触发降价促销或减产的阈值。'
+        value: 'geopolitical_break',
+        label: '地缘断供拐点判断',
+        desc: '判断制裁升级、出口管制、海运封锁等事件是否从单一国家影响扩散为全球核燃料供应链断裂风险。'
       },
       {
-        value: 'supplier_break',
-        label: '核心供应商断点风险评估',
-        desc: '监测单一供应商依赖、财务承压、质量事故和地缘扰动，判断供应链断点风险。'
+        value: 'enrichment_dependency',
+        label: '浓缩依赖度断点风险评估',
+        desc: '监测对俄浓缩服务的单一依赖、欧美浓缩替代产能投运延迟和SWU价格溢价风险。'
       }
     ],
     dataDomains: [
-      { id: 'supplier_health', label: '核心供应商健康度', quality: 82, coverage: '2024.01 – 2025.12 · 交付/财务/质量' },
-      { id: 'shortage_signal', label: '短缺预警信号', quality: 85, coverage: '2024.01 – 2025.12 · 交期/报价/库存' },
-      { id: 'cost_signal', label: '成本波动信号', quality: 81, coverage: '2024.01 – 2025.12 · 材料/能源/运价' },
-      { id: 'inventory_alert', label: '库存压力信号', quality: 76, coverage: '2024.01 – 2025.12 · 库存天数/折扣/周转' }
+      { id: 'mine_health', label: '主产铀矿运行健康度', quality: 84, coverage: '2024.01 – 2026.06 · 产量/停产/地缘/ISL酸耗' },
+      { id: 'enrichment_signal', label: '浓缩产能预警信号', quality: 83, coverage: '2024.01 – 2026.06 · SWU价格/产能利用率/交货期' },
+      { id: 'transport_signal', label: '运输安全信号', quality: 79, coverage: '2024.01 – 2026.06 · 航运/铁路/CASK/过境许可' },
+      { id: 'sanction_signal', label: '制裁与政策信号', quality: 81, coverage: '2024.01 – 2026.06 · 俄罗斯/尼日尔/哈萨克斯坦' }
     ],
     assumptions: [
-      '核心供应商短期内不发生大规模停产，但局部交付延迟仍可能影响重点车型排产',
-      '库存风险通常领先价格促销与产量调整出现，可通过库存天数、折扣率和动销速度提前识别',
-      '若材料价格连续上行并叠加物流扰动，成本反弹可能从单点压力扩散为整车毛利压力'
+      '俄罗斯浓缩产能短期内不会完全退出市场，但出口限制和制裁升级可能导致SWU价格大幅波动',
+      '尼日尔政变后铀矿出口恢复的不确定性是欧洲核电燃料安全的重要变量',
+      '若U3O8价格连续突破$80-100/lb并叠加浓缩产能短缺，可能触发核电运营商恐慌性囤货'
     ],
-    timeRange: '2024.01 – 2025.12（高频信号采集）+ 未来3个月拐点窗口'
+    timeRange: '2024.01 – 2026.06（高频信号采集）+ 未来6个月拐点窗口'
   }
 }
 
 const OUTPUT_HINT_MAP = {
   trend: {
-    component_pressure: {
-      title: '供给压力前置预警',
-      hint: '后续趋势曲线将重点展示关键零部件交期、缺口、安全库存和到厂准时率，判断哪些物料可能拖累排产。'
+    uranium_price: {
+      title: '铀价走势前置预警',
+      hint: '后续趋势曲线将重点展示U3O8现货/长协价差、SWU成本和转化服务费变化，判断核电燃料成本压力。'
     },
-    battery_cost: {
-      title: '电池成本趋势研判',
-      hint: '后续分析会强化电芯、材料和Pack成本曲线，输出采购锁价、车型定价和毛利压力提示。'
+    mining_supply: {
+      title: '铀矿供给压力研判',
+      hint: '后续分析会强化主产区产量、地缘风险和出口政策变量，输出供给缺口和替代来源提示。'
     },
-    inventory_balance: {
-      title: '库存水位动态监测',
-      hint: '后续图表将聚焦库存天数、周转率和渠道折扣，判断当前是补库、平衡还是去库阶段。'
+    enrichment_capacity: {
+      title: '浓缩产能瓶颈监测',
+      hint: '后续图表将聚焦全球离心浓缩产能分布、SWU价格趋势和制裁影响评估。'
     },
-    logistics_delay: {
-      title: '物流延误风险扫描',
-      hint: '后续预测将放大运输时效、港口拥堵和运价变量，识别潜在到厂延迟和交付风险。'
+    conversion_transport: {
+      title: '转化与运输链路扫描',
+      hint: '后续预测将放大UF6转化产能、运输通道安全性和CASK容器可用性变量。'
     }
   },
 
   cycle: {
-    supply_demand: {
-      title: '供需匹配周期判断',
-      hint: '后续周期分析将把供需关系作为主线，比较终端需求、排产计划、库存水位和供应商产能响应。'
+    supply_demand_cycle: {
+      title: '铀供需匹配周期判断',
+      hint: '后续周期分析将把一次铀矿产量、二次铀供应和核电需求作为主线，判断供需平衡阶段。'
     },
     inventory_cycle: {
-      title: '补库/去库周期定位',
-      hint: '后续周期分解将优先判断当前库存处于主动补库、被动累库还是去库调整阶段。'
+      title: '库存与战略储备周期定位',
+      hint: '后续周期分解将优先判断当前核燃料库存处于主动补库、被动去库还是战略释放阶段。'
     },
-    production_rhythm: {
-      title: '排产节律识别',
-      hint: '后续分析会结合月度产能、车型切换和节假日因素，识别排产波峰波谷。'
+    enrichment_cycle: {
+      title: '浓缩服务周期识别',
+      hint: '后续分析会结合SWU价格、产能投资周期和欠料/超料策略，识别浓缩服务周期的波峰波谷。'
     },
-    material_price_cycle: {
-      title: '成本周期窗口判断',
-      hint: '后续图表会突出锂、镍、钢、铝等材料价格周期，为采购锁价和备货节奏提供参考。'
+    fuel_fabrication_cycle: {
+      title: '燃料组件制造节律判断',
+      hint: '后续图表会突出燃料组件制造周期、换料大修计划和新型ATF燃料导入节奏。'
     }
   },
 
   turning: {
-    shortage_turning: {
-      title: '断供风险拐点预警',
-      hint: '后续拐点曲线会提高对交期拉长、报价跳升和库存下降组合信号的敏感度。'
+    supply_disruption: {
+      title: '供应中断拐点预警',
+      hint: '后续拐点曲线会提高对铀矿停产、浓缩厂故障和运输通道封锁组合信号的敏感度。'
     },
-    cost_rebound: {
-      title: '成本反弹触发监测',
-      hint: '后续分析会突出材料和运价的快速反弹信号，评估对BOM成本和整车毛利的冲击。'
+    price_spike: {
+      title: '价格暴涨触发监测',
+      hint: '后续分析会突出U3O8、SWU和转化服务费的快速攀升信号，评估对核电发电成本的冲击。'
     },
-    inventory_overhang: {
-      title: '库存积压拐点识别',
-      hint: '后续模型会重点标注库存天数、折扣率和动销速度恶化的临界点。'
+    geopolitical_break: {
+      title: '地缘断供拐点识别',
+      hint: '后续模型会重点标注制裁升级、出口管制和海运封锁从局部扩散为全局断链的临界点。'
     },
-    supplier_break: {
-      title: '供应商断点风险评估',
-      hint: '后续分析会围绕供应商集中度、交付稳定性、质量事件和财务压力输出风险节点。'
+    enrichment_dependency: {
+      title: '浓缩依赖断点评估',
+      hint: '后续分析会围绕对俄浓缩依赖度、欧美替代产能投运延迟和SWU溢价风险输出风险节点。'
     }
   }
 }
@@ -332,14 +332,14 @@ export default {
       activeKey: 'trend',
       govCollapsed: false,
       selectedMandates: {
-        trend: 'component_pressure',
-        cycle: 'supply_demand',
-        turning: 'shortage_turning'
+        trend: 'uranium_price',
+        cycle: 'supply_demand_cycle',
+        turning: 'supply_disruption'
       },
       enabledDomainsMap: {
-        trend: ['chip_supply', 'battery_material', 'vehicle_inventory', 'logistics_delivery'],
-        cycle: ['terminal_demand', 'channel_inventory', 'production_plan', 'supplier_capacity'],
-        turning: ['supplier_health', 'shortage_signal', 'cost_signal', 'inventory_alert']
+        trend: ['u3o8_price', 'mine_output', 'enrichment_swu', 'conversion_uf6'],
+        cycle: ['reactor_demand', 'secondary_supply', 'fuel_inventory', 'fabrication_capacity'],
+        turning: ['mine_health', 'enrichment_signal', 'transport_signal', 'sanction_signal']
       }
     }
   },

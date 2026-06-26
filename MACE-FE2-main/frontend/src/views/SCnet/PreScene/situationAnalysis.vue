@@ -287,15 +287,15 @@
               <input
                 v-model="feedbackInput"
                 class="conversation-input"
-                placeholder="可以继续追问、补充约束或要求重新拆解..."
+                :placeholder="isNewConversation ? '输入你想分析的供应链问题...' : '可以继续追问、补充约束或要求重新拆解...'"
                 :disabled="isProcessing"
-                @keyup.enter="submitFeedback"
+                @keyup.enter="handleBottomInput"
               />
 
               <button
                 class="send-button"
                 :disabled="isProcessing || !feedbackInput.trim()"
-                @click="submitFeedback"
+                @click="handleBottomInput"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="22" y1="2" x2="11" y2="13" />
@@ -337,6 +337,8 @@
           </div>
 
           <div v-else class="execution-state">
+            <!-- ===== 入口跳转：任务拆解视图 ===== -->
+            <template v-if="isTransferred">
             <div class="panel-header">
               <div class="header-title">
                 <span>任务拆解结果</span>
@@ -485,6 +487,35 @@
               <h3>等待后端返回模型结果</h3>
               <p>接口返回后，这里会展示任务拆解内容。</p>
             </div>
+            </template>
+            <!-- ===== 新建对话：分析报告视图 ===== -->
+            <template v-else>
+              <div class="panel-header">
+                <div class="header-title">
+                  <span class="header-icon-small">📄</span>
+                  <span>分析报告</span>
+                </div>
+                <div class="status-badge completed">
+                  报告已生成
+                </div>
+              </div>
+              <div
+                v-if="selectedResult || currentResult"
+                class="task-result-preview"
+              >
+                <div class="preview-content">
+                  <div
+                    class="result-content report-markdown"
+                    v-html="formatResultContent(editingContent || selectedResult || currentResult)"
+                  ></div>
+                </div>
+              </div>
+              <div v-else class="empty-result-state">
+                <div class="empty-icon">📊</div>
+                <h3>报告生成中</h3>
+                <p>大模型正在生成分析报告，请稍候...</p>
+              </div>
+            </template>
           </div>
         </div>
       </div>
@@ -562,6 +593,9 @@ export default {
 
       // 分析阶段：understand（需求理解）→ generate（生成方案）
       analysisStage: 'understand',
+      // 是否从 total.vue 入口跳转过来（有转移数据的继续走两阶段，"+号"新建的直接生成）
+      isTransferred: false,
+      isNewConversation: false,
 
       currentState: 'analysis',
       taskAnalysisHtml: '',
@@ -636,6 +670,9 @@ export default {
     const transferResponse = sessionStorage.getItem('scnet_transfer_response')
 
     if (transferSessionId && transferMessage) {
+      // 从 total.vue 入口跳转过来，标记为转移会话
+      this.isTransferred = true
+      this.isNewConversation = false
       // 恢复会话
       this.sessionId = transferSessionId
       this.hasStarted = true
@@ -722,6 +759,8 @@ export default {
         this.abortController = null
       }
 
+      this.isTransferred = false
+      this.isNewConversation = true
       this.hasStarted = true
       this.inputMessage = ''
       this.feedbackInput = ''
@@ -845,7 +884,9 @@ export default {
       })
 
       try {
-        const rawData = await this.callAnalyzeApi(text)
+        // 从 total.vue 入口跳转的走两阶段(understand→generate)，点"+"新建的直接生成完整报告
+        const stage = this.isTransferred ? 'understand' : 'generate'
+        const rawData = await this.callAnalyzeApi(text, stage)
         const analyzeData = this.applyAnalyzeResult(rawData)
 
         await this.queryNetworkAndSave(analyzeData.requirementParams)
@@ -888,6 +929,18 @@ export default {
       })
 
       return this.parseBackendResponse(res)
+    },
+
+    handleBottomInput() {
+      if (this.isNewConversation) {
+        // 新建对话：走主接口生成报告
+        this.inputMessage = this.feedbackInput
+        this.feedbackInput = ''
+        this.startAnalysis()
+      } else {
+        // 历史对话：走继续对话接口
+        this.submitFeedback()
+      }
     },
 
     async submitFeedback() {
@@ -1686,6 +1739,10 @@ export default {
         this.upsertCurrentSession()
       }
 
+      // 恢复历史会话：允许继续追问
+      this.isTransferred = true
+      this.isNewConversation = false
+
       // 恢复选中会话
       this.sessionId = sess.id
       this.activeSessionId = sess.id
@@ -2266,6 +2323,16 @@ export default {
 
 .analysis-section:last-child {
   border-bottom: none;
+}
+
+/* 隐藏任务拆解区域 */
+.tasks-section {
+  display: none;
+}
+
+/* 隐藏已完成任务卡片 */
+.completion-result-card {
+  display: none;
 }
 
 .section-title {

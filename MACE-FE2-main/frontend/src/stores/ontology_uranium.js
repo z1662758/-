@@ -1,7 +1,9 @@
 import { defineStore } from 'pinia'
 import {
   getUraniumGraph, getUraniumDynamicGraph, getUraniumDynamicTimeline,
-  getUraniumDynamicWindow, getUraniumDynamicRoles, rebuildUraniumNetwork
+  getUraniumDynamicWindow, getUraniumDynamicRoles, rebuildUraniumNetwork,
+  getUraniumOwlStats, getUraniumOwlInferred, getUraniumOwlRiskPropagation,
+  getUraniumOwlNetwork
 } from '@/api/ontology'
 
 export const useUraniumOntologyStore = defineStore('uraniumOntology', {
@@ -26,6 +28,18 @@ export const useUraniumOntologyStore = defineStore('uraniumOntology', {
 
     // 加载状态
     loading: false,
+
+    // --- OWL 2 DL 本体推理 ---
+    owlStats: null,
+    owlInferred: null,
+    owlRiskPaths: [],
+    owlLoading: false,
+
+    // --- OWL 本体网络（5维中心性 + 推理标签） ---
+    owlNetwork: null,
+    owlNetworkGraph: null,
+    owlNetworkLabels: null,
+    owlNetworkLoading: false,
   }),
 
   getters: {
@@ -102,10 +116,52 @@ export const useUraniumOntologyStore = defineStore('uraniumOntology', {
 
     selectNode(node) {
       this.selectedNode = node
+      if (node?.name) {
+        this.fetchOwlRiskPropagation(node.name)
+      }
     },
 
     clearSelection() {
       this.selectedNode = null
+      this.owlRiskPaths = []
+    },
+
+    // --- OWL 本体推理 ---
+    async fetchOwlStats() {
+      try {
+        const res = await getUraniumOwlStats()
+        if (res?.success && res.data) this.owlStats = res.data
+      } catch (e) { console.error('获取铀OWL统计失败:', e) }
+    },
+
+    async fetchOwlInferred() {
+      this.owlLoading = true
+      try {
+        const res = await getUraniumOwlInferred()
+        if (res?.success && res.data) this.owlInferred = res.data
+      } catch (e) { console.error('获取铀OWL推理失败:', e) }
+      finally { this.owlLoading = false }
+    },
+
+    async fetchOwlRiskPropagation(entity) {
+      try {
+        const res = await getUraniumOwlRiskPropagation(entity)
+        if (res?.success && res.data) this.owlRiskPaths = res.data
+      } catch (e) { this.owlRiskPaths = [] }
+    },
+
+    async fetchOwlNetwork() {
+      this.owlNetworkLoading = true
+      try {
+        const res = await getUraniumOwlNetwork()
+        if (res?.success && res.data) {
+          const d = res.data
+          this.owlNetwork = d
+          this.owlNetworkGraph = d.graph || null
+          this.owlNetworkLabels = d.inference_labels || null
+        }
+      } catch (e) { console.error('获取铀OWL网络失败:', e) }
+      finally { this.owlNetworkLoading = false }
     },
 
     // ===== 重建 =====

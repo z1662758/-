@@ -4,9 +4,9 @@
     <div class="glass-panel control-panel">
       <div class="panel-title">
         <span class="glow-dot"></span>
-        <span>汽车供应链趋势预测沙盘</span>
+        <span>铀矿供应链趋势预测沙盘</span>
         <el-tooltip
-          content="基于历史供应链指标拟合未来走势，结合不确定性区间推演零部件、库存、成本与物流风险"
+          content="基于历史供应链指标拟合未来走势，结合不确定性区间推演矿山产量、库存、铀价与运输风险"
           placement="top"
           :show-after="200"
         >
@@ -47,7 +47,7 @@
         <div class="ctrl-item">
           <label>
             置信阈值
-            <el-tooltip content="预测结果的可信概率下限，高于此值的预测更适合作为采购、排产和库存策略参考" placement="top" :show-after="200">
+            <el-tooltip content="预测结果的可信概率下限，高于此值的预测更适合作为采购、锁量和库存策略参考" placement="top" :show-after="200">
               <el-icon class="help-icon"><QuestionFilled /></el-icon>
             </el-tooltip>
             <span class="val-tag">{{ confidenceLevel }}%</span>
@@ -216,7 +216,7 @@
         <div class="panel-title">
           <span class="glow-dot orange"></span>
           {{ governanceBrief.driverTitle }}
-          <el-tooltip content="影响汽车供应链压力走势的关键变量按贡献度排序" placement="top" :show-after="200">
+          <el-tooltip content="影响铀矿供应链压力走势的关键变量按贡献度排序" placement="top" :show-after="200">
             <el-icon class="help-icon"><QuestionFilled /></el-icon>
           </el-tooltip>
         </div>
@@ -422,9 +422,9 @@ const MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11'
 
 const SCENARIO_MAP = {
   auto_chip_pressure: {
-    alias: '车规芯片场景 · 结构性紧张路径',
-    summary: '聚焦MCU、功率器件、智能座舱和智驾芯片的交期变化，适合提前判断重点车型排产约束。',
-    focusTags: ['车规芯片交期', '功率器件', '智能驾驶芯片', '安全库存'],
+    alias: '铀矿山生产场景 · 产能约束与重启路径',
+    summary: '聚焦哈萨克斯坦/加拿大/纳米比亚/尼日尔等主要产铀国矿山生产状态、产能爬坡和停产重启，适合评估全球铀供给趋势。',
+    focusTags: ['矿山产量指引', '功率器件', '智能驾驶芯片', '安全库存'],
     metric: 'total_amount',
     base: 48,
     slope: 0.32,
@@ -440,9 +440,9 @@ const SCENARIO_MAP = {
     defaultConfidence: 82,
     actionHint: '优先锁定长交期芯片和单一来源物料，建立“安全库存+替代料认证”双线机制。',
     driverFactors: [
-      { name: '车规芯片交期', weight: 1.24, phase: 0.3, baseline: 58 },
-      { name: '安全库存覆盖', weight: 0.92, phase: 1.1, baseline: 54 },
-      { name: '重点车型排产', weight: 1.12, phase: 1.7, baseline: 56 },
+      { name: '矿山产量指引', weight: 1.24, phase: 0.3, baseline: 58 },
+      { name: '库存消费比', weight: 0.92, phase: 1.1, baseline: 54 },
+      { name: '重点矿山产量', weight: 1.12, phase: 1.7, baseline: 56 },
       { name: '供应商准时率', weight: 0.86, phase: 2.2, baseline: 52 },
       { name: '替代料认证进度', weight: 0.74, phase: 2.8, baseline: 50 }
     ]
@@ -450,8 +450,8 @@ const SCENARIO_MAP = {
 
   battery_cost_chain: {
     alias: '动力电池场景 · 成本低位再平衡路径',
-    summary: '关注锂、镍、钴、磷酸铁锂、电芯与Pack成本变化，评估材料价格波动对新能源车型毛利的影响。',
-    focusTags: ['锂价波动', '电芯成本', 'Pack价格', '车型毛利'],
+    summary: '关注 U3O8 现货价、长协价、Sprott 实物基金持仓和核电业主采购行为变化，评估铀价趋势对燃料成本的影响。',
+    focusTags: ['U3O8 现货价波动', '长协价格', '转化/浓缩服务费', '核电燃料成本'],
     metric: 'avg_amount',
     base: 44,
     slope: 0.26,
@@ -465,20 +465,20 @@ const SCENARIO_MAP = {
     defaultHorizon: 12,
     defaultUncertainty: 18,
     defaultConfidence: 84,
-    actionHint: '建议将材料价格监测与采购锁价联动，优先管理锂价反弹和电芯成本降幅收窄风险。',
+    actionHint: '建议将材料价格监测与采购锁价联动，优先管理锂价反弹和长协价格降幅收窄风险。',
     driverFactors: [
-      { name: '碳酸锂价格', weight: 1.16, phase: 0.25, baseline: 56 },
+      { name: 'U3O8 现货价 $/lb', weight: 1.16, phase: 0.25, baseline: 56 },
       { name: '电芯采购成本', weight: 1.18, phase: 1.05, baseline: 58 },
       { name: 'Pack集成成本', weight: 0.96, phase: 1.6, baseline: 55 },
-      { name: '新能源订单强度', weight: 0.88, phase: 2.3, baseline: 53 },
+      { name: '核电装机容量 GW', weight: 0.88, phase: 2.3, baseline: 53 },
       { name: '供应商议价空间', weight: 0.76, phase: 2.9, baseline: 50 }
     ]
   },
 
   inventory_logistics_chain: {
-    alias: '库存物流场景 · 去库与交付修复路径',
-    summary: '通过库存天数、渠道折扣、物流时效和到厂准时率判断整车库存压力与零部件交付风险。',
-    focusTags: ['库存天数', '渠道折扣', '物流时效', '到厂准时率'],
+    alias: '铀库存与运输场景 · 补库与运输保障路径',
+    summary: '通过库存消费比、补库紧迫度、运输时效和到港准时率判断整车铀库存压力与零部件交付风险。',
+    focusTags: ['库存消费比', '补库紧迫度', '运输时效', '到港准时率'],
     metric: 'total_volume',
     base: 51,
     slope: 0.38,
@@ -492,12 +492,12 @@ const SCENARIO_MAP = {
     defaultHorizon: 9,
     defaultUncertainty: 22,
     defaultConfidence: 76,
-    actionHint: '建议把库存天数、折扣率和排产计划联动监测，避免供应恢复过快形成被动累库。',
+    actionHint: '建议把库存消费比、折扣率和排产计划联动监测，避免供应恢复过快形成被动累库。',
     driverFactors: [
-      { name: '渠道库存天数', weight: 1.28, phase: 0.35, baseline: 60 },
+      { name: '渠道库存消费比', weight: 1.28, phase: 0.35, baseline: 60 },
       { name: '终端折扣压力', weight: 1.12, phase: 1.1, baseline: 58 },
-      { name: '零部件到厂准时率', weight: 1.02, phase: 1.75, baseline: 56 },
-      { name: '港口物流时效', weight: 0.86, phase: 2.35, baseline: 53 },
+      { name: '零部件到港准时率', weight: 1.02, phase: 1.75, baseline: 56 },
+      { name: '港口运输时效', weight: 0.86, phase: 2.35, baseline: 53 },
       { name: '主机厂排产偏差', weight: 0.82, phase: 2.9, baseline: 51 }
     ]
   }
@@ -507,18 +507,18 @@ const DEFAULT_TREND_CONTEXT = {
   mandate: {
     value: 'component_pressure',
     label: '关键零部件供给压力预判',
-    desc: '识别车规芯片、功率器件、传感器、线束等关键零部件未来数月的交付压力变化。'
+    desc: '识别哈萨克斯坦 ISL 产量、尼日尔出口通道、加拿大矿山重启爬坡等关键供给未来数月的变化。'
   },
   activeDomainIds: ['chip_supply', 'battery_material', 'vehicle_inventory', 'logistics_delivery'],
   activeDomains: [
-    { id: 'chip_supply', label: '车规芯片交期' },
+    { id: 'chip_supply', label: '矿山产量指引' },
     { id: 'battery_material', label: '动力电池材料价格' },
-    { id: 'vehicle_inventory', label: '整车库存水位' },
+    { id: 'vehicle_inventory', label: '铀库存水位' },
     { id: 'logistics_delivery', label: '物流交付时效' }
   ],
   avgQuality: 81,
   outputTitle: '供给压力前置预警',
-  outputHint: '后续趋势曲线将重点展示关键零部件交期、缺口、安全库存和到厂准时率。'
+  outputHint: '后续趋势曲线将重点展示关键零部件交期、缺口、安全库存和到港准时率。'
 }
 
 const TREND_MANDATE_EFFECTS = {
@@ -534,7 +534,7 @@ const TREND_MANDATE_EFFECTS = {
     confidenceShift: -2,
     riskShift: 9,
     driverBias: [10, 4, 6, 2, 1],
-    strategyLead: '优先判断哪些长交期物料会进入排产约束区，并提前锁定替代料与安全库存。'
+    strategyLead: '优先判断哪些铀矿山或运输通道可能进入供给约束，并提前锁定替代来源和长协。'
   },
 
   battery_cost: {
@@ -549,13 +549,13 @@ const TREND_MANDATE_EFFECTS = {
     confidenceShift: 4,
     riskShift: 4,
     driverBias: [9, 10, 5, 2, 3],
-    strategyLead: '重点识别材料价格低位后的反弹风险，并评估电芯成本降幅收窄对整车毛利的影响。'
+    strategyLead: '重点识别材料价格低位后的反弹风险，并评估长协价格降幅收窄对整车毛利的影响。'
   },
 
   inventory_balance: {
-    chartTitle: '整车库存压力趋势',
-    driverTitle: '库存压力驱动因子排序',
-    outputTitle: '库存水位动态监测',
+    chartTitle: '整车铀库存压力趋势',
+    driverTitle: '铀库存压力驱动因子排序',
+    outputTitle: '铀库存消费比动态监测',
     scenarioKey: 'inventory_logistics_chain',
     slopeShift: 0.08,
     amplitudeShift: 1.0,
@@ -564,7 +564,7 @@ const TREND_MANDATE_EFFECTS = {
     confidenceShift: -1,
     riskShift: 8,
     driverBias: [10, 8, 2, 1, 6],
-    strategyLead: '重点观察库存天数和终端折扣是否同步上行，防止供应恢复过快形成被动累库。'
+    strategyLead: '重点观察库存消费比和终端折扣是否同步上行，防止供应恢复过快形成被动累库。'
   },
 
   logistics_delay: {
@@ -579,7 +579,7 @@ const TREND_MANDATE_EFFECTS = {
     confidenceShift: -2,
     riskShift: 7,
     driverBias: [2, 1, 7, 10, 4],
-    strategyLead: '优先识别港口拥堵、运输周期和到厂准时率异常，提前调整备货与运输方案。'
+    strategyLead: '优先识别港口拥堵、运输周期和到港准时率异常，提前调整备货与运输方案。'
   }
 }
 
@@ -685,10 +685,10 @@ export default {
         return {
           title: risk >= 70 ? '电池成本反弹压力上升' : risk >= 50 ? '电池成本低位再平衡' : '电池成本环境相对宽松',
           desc: risk >= 70
-            ? '材料价格、采购锁价和电芯成本开始同步抬升，需警惕新能源车型毛利空间被压缩。'
+            ? '材料价格、采购锁价和长协价格开始同步抬升，需警惕新能源核电燃料成本空间被压缩。'
             : risk >= 50
               ? '电池成本仍处于可控区间，但降幅收窄，建议从单纯压价转向锁价和供应保障。'
-              : '电池材料和电芯成本压力较低，可适度优化采购节奏并释放部分车型定价空间。',
+              : '电池材料和长协价格压力较低，可适度优化采购节奏并释放部分车型定价空间。',
           score: risk,
           level: risk >= 70 ? 'high' : risk >= 50 ? 'mid' : 'low'
         }
@@ -696,12 +696,12 @@ export default {
 
       if (mandateValue === 'inventory_balance') {
         return {
-          title: risk >= 70 ? '库存积压风险抬升' : risk >= 50 ? '供需进入再平衡阶段' : '库存压力整体可控',
+          title: risk >= 70 ? '铀库存累积风险抬升' : risk >= 50 ? '铀供需进入再平衡阶段' : '铀铀库存压力整体可控',
           desc: risk >= 70
-            ? '库存天数和终端折扣压力同步上行，说明供应恢复可能快于真实需求，需要控制低动销车型排产。'
+            ? '库存消费比和终端折扣压力同步上行，说明供应恢复可能快于真实需求，需要控制高成本现货采购。'
             : risk >= 50
               ? '需求端恢复与供给端响应基本匹配，但库存水位仍偏高，需要持续跟踪渠道动销。'
-              : '库存周转相对健康，当前更适合维持弹性备货而非激进去库。',
+              : '库存消费比相对健康，当前更适合维持正常采购节奏而非激进补库。',
           score: risk,
           level: risk >= 70 ? 'high' : risk >= 50 ? 'mid' : 'low'
         }
@@ -711,10 +711,10 @@ export default {
         return {
           title: risk >= 70 ? '物流到厂延误风险突出' : risk >= 50 ? '物流链路存在局部扰动' : '物流交付整体平稳',
           desc: risk >= 70
-            ? '港口、海运和跨境关务扰动可能影响关键物料到厂节奏，需要提前切换运输方案和安全库存。'
+            ? '铀矿产地运输、海运和跨境关务扰动可能影响铀精矿到港节奏，需要提前切换运输路线和启用替代来源。'
             : risk >= 50
-              ? '物流时效存在局部波动，但尚未形成系统性延误，建议对重点物料设定提前预警。'
-              : '物流交付维持相对稳定，当前重点是保持到厂准时率和异常线路监控。',
+              ? '运输时效存在局部波动，但尚未形成系统性延误，建议对重点物料设定提前预警。'
+              : '物流交付维持相对稳定，当前重点是保持到港准时率和异常线路监控。',
           score: risk,
           level: risk >= 70 ? 'high' : risk >= 50 ? 'mid' : 'low'
         }
@@ -723,7 +723,7 @@ export default {
       return {
         title: risk >= 70 ? '关键零部件供给压力上升' : risk >= 50 ? '结构性紧张但整体可控' : '供给压力处于低位',
         desc: risk >= 70
-          ? '车规芯片、功率器件或单一来源物料可能进入排产约束区，应立即锁定替代料和安全库存。'
+          ? '哈萨克斯坦、尼日尔或单一来源矿山可能进入供给约束区，应立即寻找替代来源并锁定长协。'
           : risk >= 50
             ? '部分长交期物料仍有结构性压力，但整体供应链尚未进入系统性短缺。'
             : '关键零部件供给整体较为稳定，可维持常规监测和滚动备货。',
@@ -755,7 +755,7 @@ export default {
           value: `${Math.round(demandBase + accel * 8)}%`,
           pct: this.clamp(Math.round(demandBase + accel * 8), 10, 100),
           level: formatLevel(demandBase + accel * 8),
-          desc: '终端订单、车型热度和经销商提车意愿的综合变化。'
+          desc: '核电装机变化、换料周期和核电业主库存目标的综合变化。'
         },
         {
           key: 'supply',
@@ -767,11 +767,11 @@ export default {
         },
         {
           key: 'inventory',
-          name: '库存侧',
+          name: '库存侧(tU)',
           value: `${Math.round(inventoryBase + risk * 0.12)}%`,
           pct: this.clamp(Math.round(inventoryBase + risk * 0.12), 10, 100),
           level: formatLevel(inventoryBase + risk * 0.12),
-          desc: '整车库存天数、渠道周转和终端折扣压力。'
+          desc: '整车库存消费比、渠道周转和终端折扣压力。'
         },
         {
           key: 'delivery',
@@ -779,7 +779,7 @@ export default {
           value: `${Math.round(deliveryBase + this.uncertainty * 0.35)}%`,
           pct: this.clamp(Math.round(deliveryBase + this.uncertainty * 0.35), 10, 100),
           level: formatLevel(deliveryBase + this.uncertainty * 0.35),
-          desc: '跨境物流、到厂准时率和异常运输线路影响。'
+          desc: '跨境物流、到港准时率和异常运输线路影响。'
         }
       ]
     },
@@ -806,34 +806,34 @@ export default {
 
       return [
         {
-          name: '车规芯片与功率器件',
+          name: '铀矿山产量与产能',
           desc: mandateValue === 'component_pressure'
-            ? '长交期芯片和功率器件仍是排产约束的核心来源。'
-            : '作为底层关键物料，需要维持安全库存和替代料认证。',
+            ? '哈萨克斯坦 ISL 产量和非洲出口通道仍是铀供给约束的核心来源。'
+            : '作为核电关键燃料，需要维持安全库存水平和多元化供应来源。',
           state: chip.state,
           level: chip.level
         },
         {
           name: '动力电池与关键材料',
           desc: mandateValue === 'battery_cost'
-            ? '锂价、电芯成本和Pack成本决定新能源车型毛利弹性。'
+            ? '锂价、长协价格和Pack成本决定新能源核电燃料成本弹性。'
             : '当前重点关注材料价格低位后的反弹和锁价窗口。',
           state: battery.state,
           level: battery.level
         },
         {
-          name: '整车库存与渠道折扣',
+          name: '整车库存与补库紧迫度',
           desc: mandateValue === 'inventory_balance'
-            ? '库存天数和折扣率同步上行时，容易触发减产或促销动作。'
-            : '库存变化反映供需匹配质量，是判断趋势健康度的关键中间变量。',
+            ? '库存消费比和折扣率同步上行时，容易触发减产或长协折让动作。'
+            : '库存消费比变化反映铀供需匹配质量，是判断铀价趋势健康度的关键中间变量。',
           state: inventory.state,
           level: inventory.level
         },
         {
-          name: '跨境物流与到厂准时率',
+          name: '跨境物流与到港准时率',
           desc: mandateValue === 'logistics_delay'
-            ? '物流延误会直接传导到零部件到厂和整车排产稳定性。'
-            : '需持续监控港口、海运、铁路和关务异常对重点物料的影响。',
+            ? '运输中断会直接传导到铀精矿到港和核燃料供应链稳定性。'
+            : '需持续监控铀矿产地至港口的陆运/海运通道、跨境关务和保险异常。',
           state: logistics.state,
           level: logistics.level
         },
@@ -858,13 +858,13 @@ export default {
             level: risk >= 65 ? 'high' : 'mid'
           },
           {
-            title: '重算新能源车型BOM成本',
+            title: '重算核燃料采购到岸成本',
             desc: '将电芯、Pack和热管理成本纳入滚动测算，提前评估毛利下行空间。',
             level: 'mid'
           },
           {
             title: '设置成本反弹预警线',
-            desc: '当材料价格连续两个月上行时，自动触发采购策略和车型定价复核。',
+            desc: '当 U3O8 现货价连续两个月上行时，自动触发长协锁量和采购策略复核。',
             level: 'low'
           }
         ]
@@ -873,18 +873,18 @@ export default {
       if (mandateValue === 'inventory_balance') {
         return [
           {
-            title: '控制低动销车型排产',
-            desc: '库存天数高于安全线时，优先压缩低周转车型排产，避免渠道继续被动累库。',
+            title: '控制高成本现货采购',
+            desc: '库存消费比高于安全线时，优先压缩低周转车型排产，避免渠道继续被动累库。',
             level: risk >= 65 ? 'high' : 'mid'
           },
           {
-            title: '联动库存天数与终端折扣',
-            desc: '将库存天数、成交折扣和订单转化率放入同一监测口径，识别价格战风险。',
+            title: '联动库存消费比与终端折扣',
+            desc: '将库存消费比、成交折扣和订单转化率放入同一监测口径，识别价格战风险。',
             level: 'mid'
           },
           {
-            title: '保持热销车型弹性备货',
-            desc: '对需求恢复较强的新能源车型保留弹性库存，避免一刀切去库影响交付。',
+            title: '保持核电需求弹性采购',
+            desc: '对核电需求增长较强的机组保留弹性采购额度，避免一刀切锁量影响议价空间。',
             level: 'low'
           }
         ]
@@ -894,17 +894,17 @@ export default {
         return [
           {
             title: '提前切换关键物料运输方案',
-            desc: '对高风险进口零部件准备替代港口、铁路/空运补充方案，降低到厂延误。',
+            desc: '对高风险运输通道准备替代路线（如绕行好望角或用铁路替代海运），降低到港延误。',
             level: risk >= 65 ? 'high' : 'mid'
           },
           {
-            title: '提高在途库存透明度',
-            desc: '跟踪港口、海运、清关和国内运输节点，按物料维度生成到厂风险看板。',
+            title: '提高在途铀精矿透明度',
+            desc: '跟踪铀矿产地至港口陆运、海运、清关节点，按供应来源生成到港风险看板。',
             level: 'mid'
           },
           {
-            title: '设置物流异常缓冲库存',
-            desc: '对运输周期波动大的物料提高短期安全库存，避免物流扰动传导到整车停线。',
+            title: '设置运输异常缓冲库存',
+            desc: '对运输周期波动大的供应来源提高短期安全库存，避免物流扰动传导到核燃料供应中断。',
             level: 'low'
           }
         ]
@@ -913,7 +913,7 @@ export default {
       return [
         {
           title: '锁定长交期关键零部件',
-          desc: '对车规芯片、功率器件、传感器等长交期物料建立供应保障清单。',
+          desc: '对哈萨克斯坦 ISL、尼日尔 Somair、纳米比亚 Langer Heinrich 等关键矿山建立供给监控清单。',
           level: risk >= 65 ? 'high' : 'mid'
         },
         {
@@ -922,8 +922,8 @@ export default {
           level: 'mid'
         },
         {
-          title: '把排产计划与安全库存联动',
-          desc: '将未来排产、订单预测和关键物料库存放在同一周期滚动更新。',
+          title: '把核电需求预测与铀安全库存联动',
+          desc: '将未来核电装机、换料需求和铀库存放在同一周期滚动更新。',
           level: 'low'
         }
       ]

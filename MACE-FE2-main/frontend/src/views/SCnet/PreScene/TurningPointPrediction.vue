@@ -4,9 +4,9 @@
     <div class="glass-panel control-panel">
       <div class="panel-title">
         <span class="glow-dot"></span>
-        <span>汽车供应链拐点预测中枢</span>
+        <span>铀矿供应链拐点预测中枢</span>
         <el-tooltip
-          content="基于交期、库存、成本、供应商健康度和订单信号，识别汽车供应链中可能出现方向性突变的关键节点"
+          content="基于交期、库存、成本、供应商健康度和订单信号，识别铀矿供应链中可能出现方向性突变的关键节点"
           placement="top"
           :show-after="200"
         >
@@ -280,11 +280,11 @@ const SCENARIO_FACTOR = {
     defaultLookahead: 6,
     defaultWeights: { policy: 46, sentiment: 26, market: 28 },
     driverScale: { policy: 1.22, sentiment: 0.88, market: 1.05 },
-    turningAlias: '关键零部件短缺拐点链路',
+    turningAlias: '关键铀精矿短缺拐点链路',
     probabilityTitle: '供应短缺拐点概率曲线',
     factorPanelTitle: '短缺触发因素雷达',
-    summary: '该场景由车规芯片交期、关键物料库存、供应商准时率和重点车型排产共同驱动，用于判断供应压力是否从可控紧张转向断供风险。',
-    focusTags: ['车规芯片交期', '安全库存', '供应商准时率', '重点车型排产'],
+    summary: '该场景由矿山产量指引、关键物料库存、供应商准时率和重点矿山产量共同驱动，用于判断供应压力是否从可控紧张转向断供风险。',
+    focusTags: ['矿山产量指引', '安全库存', '供应商准时率', '重点矿山产量'],
     factorLabels: { policy: '交期拉长信号', sentiment: '订单需求强度', market: '库存消耗压力' },
     turningType: { peak: '短缺升温拐点', valley: '短缺缓和拐点' },
     kpiTitles: { turningCount: '候选短缺拐点', topProbability: '最高短缺概率', avgLeadTime: '平均预警提前' }
@@ -301,9 +301,9 @@ const SCENARIO_FACTOR = {
     turningAlias: '成本反弹拐点链路',
     probabilityTitle: '成本反弹拐点概率曲线',
     factorPanelTitle: '成本触发因素雷达',
-    summary: '该场景关注锂、镍、钢铝、能源与运价等成本变量，识别低位成本环境是否开始向BOM压力和整车毛利压力传导。',
+    summary: '该场景关注 U3O8 现货/长协价、硫酸/能源成本、运输和保险费用等成本变量，识别低价环境是否开始向核燃料采购成本和核电运营利润传导。',
     focusTags: ['锂价反弹', '钢铝价格', '海运运价', 'BOM成本'],
-    factorLabels: { policy: '采购锁价覆盖', sentiment: '订单价格敏感度', market: '材料成本波动' },
+    factorLabels: { policy: '长协锁量覆盖', sentiment: '订单价格敏感度', market: '材料成本波动' },
     turningType: { peak: '成本反弹拐点', valley: '成本缓和拐点' },
     kpiTitles: { turningCount: '候选成本拐点', topProbability: '最高反弹概率', avgLeadTime: '平均采购提前' }
   },
@@ -319,9 +319,9 @@ const SCENARIO_FACTOR = {
     turningAlias: '库存积压拐点链路',
     probabilityTitle: '库存积压拐点概率曲线',
     factorPanelTitle: '库存触发因素雷达',
-    summary: '该场景由渠道库存天数、终端动销、折扣压力和主机厂排产偏差共同驱动，用于识别是否从合理备货转向被动累库。',
-    focusTags: ['库存天数', '终端动销', '渠道折扣', '排产偏差'],
-    factorLabels: { policy: '排产调整力度', sentiment: '终端需求变化', market: '库存折扣压力' },
+    summary: '该场景由渠道库存消费比、终端动销、折扣压力和主机厂产量指引偏差共同驱动，用于识别是否从合理备货转向被动累库。',
+    focusTags: ['库存消费比', '终端动销', '补库紧迫度', '产量指引偏差'],
+    factorLabels: { policy: '产量指引调整力度', sentiment: '终端需求变化', market: '库存折扣压力' },
     turningType: { peak: '积压升温拐点', valley: '去库改善拐点' },
     kpiTitles: { turningCount: '候选库存拐点', topProbability: '最高积压概率', avgLeadTime: '平均去库提前' }
   },
@@ -349,14 +349,14 @@ const DEFAULT_TURNING_CONTEXT = {
   mandate: {
     value: 'shortage_turning',
     label: '供应短缺拐点识别',
-    desc: '识别芯片、电池、热管理、线束等环节从可控紧张转为断供风险的信号组合。'
+    desc: '识别哈萨克斯坦 ISL、加拿大高品位矿、非洲露天矿和运输通道等环节从可控紧张转为断供风险的信号组合。'
   },
   activeDomainIds: ['supplier_health', 'shortage_signal', 'cost_signal', 'inventory_alert'],
   activeDomains: [
     { id: 'supplier_health', label: '核心供应商健康度' },
     { id: 'shortage_signal', label: '短缺预警信号' },
     { id: 'cost_signal', label: '成本波动信号' },
-    { id: 'inventory_alert', label: '库存压力信号' }
+    { id: 'inventory_alert', label: '铀库存压力信号' }
   ],
   avgQuality: 81,
   outputTitle: '断供风险拐点预警',

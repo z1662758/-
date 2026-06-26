@@ -4,10 +4,10 @@
     <div class="chat-panel">
       <div class="chat-header">
         <div class="header-left">
-          <span class="header-icon">🛢️</span>
+          <span class="header-icon">☢️</span>
           <div class="header-text">
-            <h3>石油供应链事前报告生成</h3>
-            <p>全球石油市场态势研判与风险预警</p>
+            <h3>铀矿供应链事前报告生成</h3>
+            <p>全球铀矿市场态势研判与风险预警</p>
           </div>
         </div>
         <div class="header-right">
@@ -41,7 +41,7 @@
             <textarea
               v-model="userRequirement"
               class="req-textarea"
-              placeholder="请描述您要分析的石油供应链场景，例如：霍尔木兹海峡封锁对亚洲炼厂的影响、OPEC+减产协议下的油价走势、俄罗斯原油出口制裁的供应链重构..."
+              placeholder="请描述您要分析的铀矿供应链场景，例如：尼日尔政变后矿权撤销对欧盟核燃料采购的影响、哈萨克斯坦硫酸短缺对全球铀供给的影响、McArthur River重启对铀价的压制..."
               :disabled="isProcessing"
               rows="4"
             ></textarea>
@@ -112,7 +112,7 @@
         <div class="report-header-left">
           <span class="report-icon">📄</span>
           <div>
-            <h3>石油供应链事前分析报告</h3>
+            <h3>铀矿供应链事前分析报告</h3>
             <p v-if="reportContent">生成时间：{{ reportGenTime }}</p>
             <p v-else-if="isProcessing">大模型正在分析中...</p>
             <p v-else>点击左侧「生成报告」开始</p>
@@ -126,6 +126,12 @@
             <span>历史报告</span>
           </button>
           <div v-if="reportContent" class="report-actions">
+            <button class="rbtn" title="查看历史报告" @click="showHistory = true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+              </svg>
+              <span>历史</span>
+            </button>
             <button class="rbtn" title="复制报告" @click="copyReport">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
@@ -146,7 +152,7 @@
       <div class="report-body" ref="reportBody">
         <!-- 空状态 -->
         <div v-if="!reportContent && !isProcessing" class="empty-report">
-          <div class="empty-icon-wrap">🛢️</div>
+          <div class="empty-icon-wrap">☢️</div>
           <h3>等待生成</h3>
           <p>点击左侧「生成报告」后，大模型将依次完成以下过程：</p>
           <div class="process-hint">
@@ -154,7 +160,7 @@
               <span class="ps-num">01</span>
               <div>
                 <strong>数据筛选与事实梳理</strong>
-                <p>从石油供应链知识图谱检索原油产能、炼化节点、运输通道、地缘事件等关键数据</p>
+                <p>从铀矿供应链知识图谱检索矿山产量、选冶加工、运输通道、地缘事件等关键数据</p>
               </div>
             </div>
             <div class="process-arrow">↓</div>
@@ -194,14 +200,14 @@
             </div>
             <div v-if="thinkingChunks.length === 0" class="think-waiting">
               <div class="thinking-dots"><span></span><span></span><span></span></div>
-              <span>大模型正在加载石油供应链知识库...</span>
+              <span>大模型正在分析铀矿供应链数据...</span>
             </div>
           </div>
           <div v-if="thinkingChunks.length > 0" class="think-progress">
             <div class="progress-bar">
               <div class="progress-fill" :style="{ width: thinkingProgress + '%' }"></div>
             </div>
-            <span class="progress-label">{{ thinkingProgress >= 100 ? '报告即将呈现...' : '正在生成石油供应链分析报告...' }}</span>
+            <span class="progress-label">{{ thinkingProgress >= 100 ? '报告即将呈现...' : '正在生成铀矿供应链分析报告...' }}</span>
           </div>
         </div>
 
@@ -217,7 +223,7 @@
             量化分析信息
           </div>
           <div class="meta-grid">
-            <span class="meta-item">分析指标：<strong>{{ safeStr(predictionMeta.metric_used || 'brent_price') }}</strong></span>
+            <span class="meta-item">分析指标：<strong>{{ safeStr(predictionMeta.metric_used || 'u3o8_spot_price') }}</strong></span>
             <span class="meta-item">预测跨度：<strong>{{ predictionMeta.horizon || 12 }}个月</strong></span>
             <span class="meta-item">报告ID：<strong>{{ currentReportId }}</strong></span>
           </div>
@@ -263,7 +269,7 @@ import { ElMessage } from 'element-plus'
 import { useSupplyChainStore } from '@/stores/supplyChain'
 import { analyzeOilReport, getOilReportKnowledge } from '@/api/oilSupplyChain'
 
-const API_ANALYZE_URL = '/SCnet/oilSupplyChain/report/analyze'
+const API_ANALYZE_URL = 'http://localhost:9091/scenario/analyze'
 const supplyStore = useSupplyChainStore()
 
 const modelOptions = [
@@ -274,7 +280,7 @@ const modelOptions = [
   { label: 'Qwen3.5-122B-A10B', value: 'qwen3.5-122b-a10b' }
 ]
 
-const selectedModel = ref('qwen-turbo')
+const selectedModel = ref('qwen-plus')
 const isProcessing = ref(false)
 const sessionId = ref('')
 const messages = ref([])
@@ -326,7 +332,7 @@ const parseBackendResponse = async (res) => {
   return payload
 }
 
-// ===== 调用后端石油供应链报告生成 API =====
+// ===== 调用后端铀矿供应链报告生成 API =====
 const callAnalyzeApi = async (message) => {
   abortController = new AbortController()
   const formData = new FormData()
@@ -334,8 +340,9 @@ const callAnalyzeApi = async (message) => {
   formData.append('message', message)
   formData.append('model', selectedModel.value)
   formData.append('history', JSON.stringify([]))
+  formData.append('stage', 'report')
 
-  console.log('[OilReportGen] 调用 /SCnet/oilSupplyChain/report/analyze, session:', sessionId.value)
+  console.log('[UraniumReportGen] 调用 /scenario/analyze (stage=report), session:', sessionId.value)
 
   const res = await fetch(API_ANALYZE_URL, {
     method: 'POST',
@@ -349,14 +356,14 @@ const startThinkingSimulation = () => {
   thinkingChunks.value = []
   thinkingProgress.value = 0
   const stages = [
-    { delay: 400, type: 'think', content: '正在解析用户需求，识别石油供应链关键节点：产油区、炼化中心、运输通道、消费市场...' },
-    { delay: 1000, type: 'think', content: '查询石油供应链知识图谱：OPEC产量数据、全球炼厂开工率、主要航线AIS信号、战略储备库存...' },
-    { delay: 1800, type: 'output', content: '✓ 已检索 OPEC+ 成员国最新产量配额\n✓ 已获取 Brent/WTI/Dubai 三大基准价格序列\n✓ 已拉取霍尔木兹海峡/马六甲海峡航运数据\n✓ 已提取美国 SPR 及主要消费国商业库存数据' },
-    { delay: 2600, type: 'think', content: '正在态势研判：评估地缘风险溢价、供应中断概率、炼厂裂解价差、油轮运力冗余度...' },
-    { delay: 3400, type: 'think', content: '识别关键脆弱点：海峡封锁可能性、制裁合规风险、单源依赖度、库存覆盖天数...' },
-    { delay: 4200, type: 'output', content: '✓ 地缘风险暴露指数计算完成\n✓ 供应中断概率评估完成\n✓ 价格波动 VaR 测算完成\n✓ 替代供应路径成本对比完成' },
-    { delay: 5000, type: 'think', content: '基于研判结果生成分级应对策略：战略储备释放、替代采购源切换、运力保障、长期合同锁定...' },
-    { delay: 5800, type: 'output', content: '✓ 三部分报告框架已生成\n✓ 正在整合数据事实 + 态势研判 + 应对方案...' }
+    { delay: 400, type: 'think', content: '正在解析用户需求，识别铀矿供应链关键节点：主要矿山、加工设施、运输通道、核电消费市场...' },
+    { delay: 1000, type: 'think', content: '查询铀矿供应链知识图谱：Kazatomprom/Cameco产量数据、全球矿山产能利用率、主要运输通道状态、铀库存水平...' },
+    { delay: 1800, type: 'output', content: '✓ 已检索全球主要铀矿山最新产量指引\n✓ 已获取 U3O8 现货/长协价格及 Sprott 持仓数据\n✓ 已拉取哈萨克斯坦/尼日尔/加拿大铀矿运输通道数据\n✓ 已提取 EU 和美国核电业主商业库存数据' },
+    { delay: 2600, type: 'think', content: '正在态势研判：评估地缘风险溢价、矿山停产概率、铀价-长协价差、铀矿运输通道冗余度...' },
+    { delay: 3400, type: 'think', content: '识别关键脆弱点：矿权撤销可能性、制裁合规风险、单一来源依赖度、铀库存覆盖年数...' },
+    { delay: 4200, type: 'output', content: '✓ 铀矿山地缘风险暴露指数计算完成\n✓ 矿山供应中断概率评估完成\n✓ U3O8 价格波动 VaR 测算完成\n✓ 替代铀供应来源成本对比完成' },
+    { delay: 5000, type: 'think', content: '基于研判结果生成分级应对策略：铀库存释放评估、替代采购源切换、运输通道保障、长协锁量...' },
+    { delay: 5800, type: 'output', content: '✓ 三部分铀矿报告框架已生成\n✓ 正在整合铀矿数据事实 + 态势研判 + 应对方案...' }
   ]
   stages.forEach(s => {
     const t = setTimeout(() => {
@@ -389,7 +396,7 @@ const finishThinking = () => {
 }
 
 const buildAnalyzeMessage = () => {
-  return userRequirement.value || '全球石油供应链风险分析'
+  return userRequirement.value || '全球铀矿供应链风险分析'
 }
 
 const safeStr = (val) => {
@@ -443,41 +450,93 @@ const startGenerate = async () => {
 
     let report = ''
     if (rawData.data && typeof rawData.data === 'object') {
-      report = rawData.data.report || ''
-      currentReportId.value = rawData.data.report_id || ''
-      predictionMeta.value = rawData.data.predictionMeta || null
-      if (!report) {
-        report = rawData.data.answer || rawData.data.result || rawData.data.content || ''
+      // pre_chat.py returns results as array, use the first result as report
+      const results = rawData.data.results
+      if (Array.isArray(results) && results.length > 0) {
+        report = results[0] || ''
       }
+      if (!report) {
+        report = rawData.data.report || rawData.data.answer || rawData.data.result || rawData.data.content || ''
+      }
+      currentReportId.value = rawData.data.report_id || rawData.data.session_id || ''
+      predictionMeta.value = rawData.data.predictionMeta || null
     }
     if (!report && rawData.report) {
       report = rawData.report
+    }
+    if (!report && rawData.data && typeof rawData.data === 'string') {
+      report = rawData.data
+    }
+
+    // 清理 LLM 偶尔附加的元数据头，并强制补全三段式 Markdown 标题
+    const formatReport = (text) => {
+      if (!text) return text
+      let cleaned = text
+        // 去掉前置元数据行
+        .replace(/^#\s*铀矿供应链事前分析报告\s*\n*/i, '')
+        .replace(/^\*\*生成时间：\*\*[^\n]*\n?/m, '')
+        .replace(/^\*\*风险等级：\*\*[^\n]*\n?/m, '')
+        .replace(/^\*\*风险评分：\*\*[^\n]*\n?/m, '')
+        .replace(/^\s*---\s*\n?/m, '')
+        .replace(/^\n+/, '')
+      // 强制补全三段式 Markdown 标题（LLM 经常漏掉 ## 前缀）
+      const sectionHeaders = [
+        { raw: /(?:^|\n)\s*关键事实与数据\s*\n/g,  replace: '\n\n## 一、关键事实与数据\n\n' },
+        { raw: /(?:^|\n)\s*深度态势研判\s*\n/g,    replace: '\n\n## 二、深度态势研判\n\n' },
+        { raw: /(?:^|\n)\s*可落地执行方案\s*\n/g,    replace: '\n\n## 三、可落地执行方案\n\n' },
+      ]
+      for (const h of sectionHeaders) {
+        cleaned = cleaned.replace(h.raw, h.replace)
+      }
+      // 如果 LLM 完全没写标题，在开头加上
+      if (!cleaned.includes('## 一、')) {
+        cleaned = '## 一、关键事实与数据\n\n' + cleaned
+      }
+      return cleaned.replace(/^\n+/, '').trim()
     }
 
     finishThinking()
     await new Promise(r => setTimeout(r, 600))
 
+    const saveToHistory = (rpt) => {
+      const rid = 'uranium-rpt-' + Date.now()
+      if (!currentReportId.value) currentReportId.value = rid
+      const entry = {
+        report_id: currentReportId.value || rid,
+        session_id: sessionId.value,
+        user_message: userRequirement.value || buildAnalyzeMessage(),
+        report: rpt,
+        created_at: new Date().toISOString(),
+        report_length: rpt.length
+      }
+      const all = loadHistoryFromStorage()
+      all.push(entry)
+      saveHistoryToStorage(all)
+    }
+
     if (report && report.length > 80) {
-      reportContent.value = safeStr(report)
+      reportContent.value = formatReport(safeStr(report))
       reportGenTime.value = new Date().toLocaleString('zh-CN')
       reportGenerated.value = true
-      ElMessage.success('石油供应链事前分析报告已生成')
+      saveToHistory(report)
+      ElMessage.success('铀矿供应链事前分析报告已生成')
     } else if (report && report.length > 20) {
-      reportContent.value = safeStr(report)
+      reportContent.value = formatReport(safeStr(report))
       reportGenTime.value = new Date().toLocaleString('zh-CN')
       reportGenerated.value = true
+      saveToHistory(report)
       ElMessage.warning('报告内容较短，建议补充需求细节后重新生成')
     } else {
       throw new Error('后端返回内容过短')
     }
   } catch (err) {
-    console.error('石油供应链报告生成失败:', err)
+    console.error('铀矿供应链报告生成失败:', err)
     finishThinking()
     await new Promise(r => setTimeout(r, 300))
     reportContent.value = generateFallbackReport()
     reportGenTime.value = new Date().toLocaleString('zh-CN')
     reportGenerated.value = true
-    ElMessage.warning('后端生成失败，已使用本地石油供应链模板')
+    ElMessage.warning('后端生成失败，已使用本地铀矿供应链模板')
   } finally {
     isProcessing.value = false
     thinkingChunks.value = []
@@ -488,266 +547,181 @@ const startGenerate = async () => {
   }
 }
 
-// ===== 石油供应链主题匹配 =====
+// ===== 铀矿供应链主题匹配 =====
 const matchTopic = (text) => {
   const t = text.toLowerCase()
-  if (/霍尔木兹|海峡|h Strait|波斯湾|伊朗.*油|胡塞|中东.*油|红海.*油/.test(t)) return 'hormuz'
-  if (/俄罗斯|制裁.*油|俄油|乌拉尔|urals|价格上限|price cap|g7.*油|乌克兰.*油/.test(t)) return 'russia'
-  if (/opec|减产|增产|配额|沙特.*油|欧佩克|产量.*协议/.test(t)) return 'opec'
-  if (/新能源|转型|电动|碳中和|碳关税|cbam|生物燃料|氢能|光伏|风电|石油.*需求.*峰值/.test(t)) return 'transition'
-  if (/spr|战略.*储备|美国.*释放|库存.*释放|拜登.*油/.test(t)) return 'spr'
-  if (/油价|价格.*波动|brent|wti|期货|套期|价差|裂解/.test(t)) return 'price'
-  if (/马六甲|苏伊士|好望角|巴拿马|运河|航线|航运|油轮|vlcc|管道.*原油/.test(t)) return 'shipping'
+  if (/尼日尔|政变|矿权|Imouraren|Madaouela|非洲.*铀|尼日尔.*铀/.test(t)) return 'niger'
+  if (/哈萨克斯坦|哈国|硫酸|Kazatomprom|ISL|地浸|中亚.*铀|硫酸.*铀/.test(t)) return 'kazakhstan'
+  if (/加拿大|Cameco|McArthur|Cigar|重启|停产.*铀|爬坡|矿山.*铀/.test(t)) return 'canada'
+  if (/核电|反应堆|装机|SMR|铀需求|核能.*扩|新建.*核电/.test(t)) return 'nuclear'
+  if (/库存|储备|Sprott|SPUT|实物.*铀|库存.*铀|补库/.test(t)) return 'inventory'
+  if (/铀价|U3O8|价格.*铀|期货.*铀|价差.*铀|长协.*铀/.test(t)) return 'price'
+  if (/运输|物流|航运|港口.*铀|铁路.*铀|跨境.*铀|通道.*铀/.test(t)) return 'shipping'
   return 'default'
 }
 
-// ===== 石油供应链本地兜底报告模板 =====
+// ===== 铀矿供应链本地兜底报告模板 =====
 const generateFallbackReport = () => {
-  const query = userRequirement.value || '全球石油供应链风险分析'
+  const query = userRequirement.value || '全球铀矿供应链风险分析'
   const topics = {
-    // 场景1：霍尔木兹海峡危机
-    hormuz: {
-      riskLevel: '极高危', riskScore: 92,
+    niger: {
+      riskLevel: '极高危', riskScore: 88,
       facts: [
-        '霍尔木兹海峡每日通过约2000万桶原油，占全球海运石油的30%和全球石油消费的21%',
-        '近期伊朗革命卫队扣押多艘过境油轮，美国第五舰队加强海湾地区巡逻频率至每日12架次',
-        '战争附加险费率已从船舶价值的0.05%飙升至0.8%，单次过境保费增加约$45万',
-        '沙特阿美已启动东-西管道（East-West Pipeline）备输方案，最大日输量500万桶绕过海峡',
-        '阿联酋Fujairah港口替代装船能力已达280万桶/日，但库容利用率已超85%',
-        '国际能源署（IEA）警告：若海峡完全封锁超30天，全球油价可能突破$150/桶'
+        '2023年7月尼日尔政变，军政府重新审查外资矿权，2024年6月撤销Orano Imouraren开采许可（储量约175,000 tU）',
+        '2024年7月撤回GoviEx Madaouela项目采矿权，全球约4%铀供给面临长期不确定性',
+        '尼日尔是EU第三大铀来源，欧盟电力公司紧急寻求哈萨克斯坦、加拿大替代供应',
+        '仅存的Somair合资矿山仍在运营但面临税费重谈风险，中国海外权益铀也受冲击',
+        '全球铀现货价格受此影响从$85/lb跳涨至$105/lb，长协谈判活跃度激增'
       ],
-      analysis: '霍尔木兹海峡是石油供应链的"单点故障"高发区。当前地缘冲突升级使海运保险成本与过境风险同步上升。替代通道（东西管道+Fujairah港）可覆盖约40%的运量，但剩余60%仍需经海峡。亚洲买家（占海峡出口的76%）面临最大供应中断风险。短期替代方案成本将增加30-50%，长期需加速中东以外供应源多元化。',
+      analysis: '尼日尔政变引发的矿权系列变化是典型的"政权更迭→合同重审→供应预期下降"传导链。Imouraren和Madaouela原本是2025-2030年预期投产的新增产能，许可被撤销意味着这部分增量消失。EU电力公司需在6-12个月内从哈萨克斯坦和加拿大寻找替代。现货市场流动性较薄，集中采购可能快速推高现货价。',
       solutions: [
-        { title: '启动战略石油储备(SPR)应急释放预案', urgency: '立即', owner: '能源安全委员会', effect: '覆盖60-90天供应缺口' },
-        { title: '加速评估非洲及美洲替代原油采购', urgency: '短期', owner: '原油采购部', effect: '降低中东依赖度15-20%' },
-        { title: '锁定VLCC远期运力合约+战争险', urgency: '立即', owner: '物流与贸易部', effect: '锁定运价避免现货市场波动' },
-        { title: '建立石油供应链地缘风险预警平台', urgency: '中期', owner: '风控中心', effect: '提前2-4周预判供应中断' }
+        { title: '立即评估尼日尔来源长协履约风险', urgency: '立即', owner: '核燃料采购部', effect: '识别暴露合同量并制定替代方案' },
+        { title: '锁定哈萨克斯坦/加拿大替代产能', urgency: '短期', owner: '战略采购部', effect: '多元化来源降低单一依赖' },
+        { title: '提高战略铀库存至3年以上覆盖', urgency: '中期', owner: '库存管理部', effect: '增强供给中断缓冲能力' },
+        { title: '建立铀矿地缘风险监测预警体系', urgency: '长期', owner: '风控中心', effect: '提前2-4周预判供应中断' }
       ]
     },
-    // 场景2：俄罗斯制裁
-    russia: {
+    kazakhstan: {
       riskLevel: '高危', riskScore: 78,
       facts: [
-        'G7+欧盟对俄罗斯原油实施$60/桶价格上限，乌拉尔原油实际成交价约$52-58/桶，折价幅度15-25%',
-        '俄罗斯原油出口量未明显下降，但出口结构从欧洲转向亚洲（印度和中国占俄油出口的82%）',
-        '东西伯利亚-太平洋管道(ESPO)混合原油升水Dubai达$3-5/桶，成为亚洲买家首选',
-        '波罗的海港口装船量激增60%，阿芙拉型油轮运力紧张推动运费上涨40%',
-        '欧盟对俄成品油禁令导致柴油/石脑油全球贸易流重构，欧洲柴油库存降至历史低位',
-        '美国财政部OFAC加大二级制裁执法力度，涉及俄油贸易的非G7实体面临合规风险'
+        '哈萨克斯坦贡献全球40%+铀产量，以ISL地浸为主，生产需大量硫酸作为浸出剂',
+        '2024年1月Kazatomprom因硫酸短缺下调年度产量指引约10%，2025恢复满产计划推迟',
+        '全球铀供给预期减少2,000-3,000 tU，U3O8现货价单周上涨$12/lb',
+        '新ISL区块投产爬坡中，中哈铁路铀运输通道稳定（年运量8,000-10,000 tU）',
+        '哈萨克斯坦内陆运输+硫酸供应双重约束，暴露了"最低成本供应国"的隐蔽脆弱性'
       ],
-      analysis: '俄罗斯石油供应链处于"受制裁但未出局"的灰色地带。价格上限机制实质性地压低了俄油收入但未切断供应。物流重构（绕航、STS转运、灰色船队）推高整体运输成本。中长期看，俄罗斯面临油田技术维护困难和成熟油田自然衰减，产量可能下降50-100万桶/日。制裁合规风险将从一级蔓延至二级和三级贸易伙伴。',
+      analysis: '哈萨克斯坦的ISL生产高度依赖硫酸等化工品供应链。硫酸短缺暴露了铀矿供应链的间接脆弱性——不仅受矿山本身影响，也受上游化工品供应约束。2025年恢复满产的承诺取决于硫酸供应恢复进度，存在较大不确定性。买方需将化工品供应链纳入风险评估框架。',
       solutions: [
-        { title: '审查并调整俄油采购合同合规条款', urgency: '立即', owner: '法务合规部', effect: '规避OFAC二级制裁风险' },
-        { title: '多元化原油篮子：增加中东/西非/北美份额', urgency: '短期', owner: '战略采购部', effect: '俄油占比降至安全线以下' },
-        { title: '建立制裁动态追踪与合规培训体系', urgency: '短期', owner: '合规+风控', effect: '确保全链条合规' },
-        { title: '评估北极/远东LNG替代能源的可行性', urgency: '长期', owner: '战略规划部', effect: '中长期能源结构调整' }
+        { title: '密切跟踪Kazatomprom季度产量报告', urgency: '立即', owner: '市场研究部', effect: '及时掌握供给变化信号' },
+        { title: '评估硫酸供应链恢复时间线及影响', urgency: '短期', owner: '供应链分析部', effect: '量化供给中断时长和缺口' },
+        { title: '多元化采购降低哈萨克斯坦依赖度', urgency: '中期', owner: '战略采购部', effect: '分散风险至加拿大/非洲来源' },
+        { title: '建立化学品-铀矿联动监测模型', urgency: '长期', owner: '风控中心', effect: '提前预判化工品短缺传导' }
       ]
     },
-    // 场景3：OPEC减产
-    opec: {
-      riskLevel: '中危', riskScore: 62,
-      facts: [
-        'OPEC+在最近部长级会议上决定将自愿减产220万桶/日延长至下一季度',
-        '沙特阿美将5月阿拉伯轻质原油OSP上调$0.30/桶，连续第二个月提价',
-        'OPEC+整体合规率约82%，伊拉克和哈萨克斯坦超产约30万桶/日',
-        '美国页岩油产量持平在1320万桶/日，DUC（已钻未完井）库存降至历史低位',
-        '圭亚那、巴西等非OPEC产油国预计2026年合计增产约120万桶/日',
-        '全球石油库存降至5年均值以下，OECD商业库存仅覆盖58天消费量'
-      ],
-      analysis: 'OPEC+减产策略有效支撑了油价但份额面临侵蚀。非OPEC增产正在逐步填补缺口，预计2026年下半年市场转向小幅过剩。沙特面临维持油价与保份额的两难选择。短期油价受地缘溢价支撑，中期需求增速放缓和替代能源普及将削弱OPEC议价权。2027年后可能出现结构性过剩。',
-      solutions: [
-        { title: '利用当前价格窗口增加商业库存', urgency: '立即', owner: '贸易与储运部', effect: '锁定当前价格降低成本' },
-        { title: '密切关注OPEC+月度会议决议并建立情景预案', urgency: '短期', owner: '市场研究部', effect: '提前预判价格拐点' },
-        { title: '扩大非OPEC供应源长期协议占比', urgency: '中期', owner: '战略采购', effect: '降低单一供应集团依赖' },
-        { title: '建立原油采购成本对冲机制（期货+期权）', urgency: '长期', owner: '财务+贸易部', effect: '平抑价格波动50%以上' }
-      ]
-    },
-    // 场景4：新能源转型
-    transition: {
+    canada: {
       riskLevel: '中危', riskScore: 55,
       facts: [
-        '欧盟碳边境调节机制(CBAM)全面实施，石油化工产品出口欧洲面临碳税成本增加$15-25/吨CO₂',
-        'IEA预计全球石油需求将在2030年前达峰，此后以年均1-2%速度下降',
-        '中国新能源汽车渗透率突破60%，汽柴油需求增速已降至0.3%接近平台期',
-        '多家国际石油公司（BP/Shell/TotalEnergies）将炼化资产减值20-30%，加速向生物燃料和氢能转型',
-        '可持续航空燃料(SAF)需求爆发式增长，航空业承诺2030年SAF占燃料消费10%',
-        '全球炼厂产能过剩风险加剧，欧洲和东亚部分老旧炼厂面临关停'
+        'Cameco McArthur River/Key Lake设计产能1,800万磅U3O8/年，2022.11重启，爬坡至75%',
+        '停产4年（2018-2022）后重启，满产推迟至2025H1，地下开采面品位恢复慢于预期',
+        'Cigar Lake维持满产（约6,900 tU/年），是全球最高品位在产铀矿',
+        'Cameco在停产期间从市场采购铀履约推高现货需求，重启后逐步减少市场采购',
+        '加拿大铀矿案例证明：铀矿"停产容易重启难"，供给响应滞后2-5年'
       ],
-      analysis: '石油行业正处于"需求达峰前"的关键转型期。传统炼化业务利润率持续承压，而新能源基础设施投资回报周期较长。炼化一体化企业和贸易商具有转型优势，纯上游勘探开发企业面临资产搁浅风险。下游加油站、润滑油等终端业务仍有10-15年窗口期，但需提前布局充电/氢能等替代基础设施。',
+      analysis: 'McArthur River爬坡慢于预期说明铀矿复产的复杂性。2025年满产将为市场增加约1,800万磅年供给，有助于缓解供需缺口。但新矿山建设周期更长（10-15年），当前铀价能否持续支撑新矿FID是关键。加拿大作为第二大铀生产国，其供给恢复速度直接影响全球供需平衡。',
       solutions: [
-        { title: '评估现有炼化资产碳足迹并制定减排路线图', urgency: '立即', owner: 'HSE+生产技术部', effect: '确保CBAM合规降低成本' },
-        { title: '加速"油转化"布局：投资SAF和生物柴油产能', urgency: '短期', owner: '战略投资部', effect: '抢占新能源市场份额' },
-        { title: '优化加油站网络：部署光储充一体化站点', urgency: '中期', owner: '零售业务部', effect: '终端业务转型升级' },
-        { title: '建立碳交易能力与碳资产管理体系', urgency: '中期', owner: '碳资产管理与交易部', effect: '碳风险管理与收益优化' }
+        { title: '利用重启矿爬坡期锁定长协供应', urgency: '短期', owner: '采购部', effect: '在价格相对低位锁定未来供给' },
+        { title: '跟踪McArthur River/Cigar Lake产量', urgency: '持续', owner: '市场研究部', effect: '判断供给恢复节奏' },
+        { title: '关注加拿大原住民许可和环保审批动态', urgency: '中期', owner: '风控部', effect: '评估新矿长期供给稳定性' }
       ]
     },
-    // 场景5：美国SPR释放
-    spr: {
-      riskLevel: '中低危', riskScore: 42,
+    nuclear: {
+      riskLevel: '中低危', riskScore: 40,
       facts: [
-        '美国能源部宣布从SPR中释放3000万桶原油以平抑国内汽油价格',
-        'SPR库存已从2022年高点6.38亿桶降至约3.72亿桶，处于40年来较低水平',
-        'WTI-Brent价差因SPR释放扩大至-$6.5/桶，刺激美国原油出口至480万桶/日',
-        '墨西哥湾沿岸出口终端装船量创历史新高，但港口拥堵导致等泊时间延长至5-7天',
-        '对冲基金原油净多头仓位下降至2020年以来低位，市场情绪偏向看空',
-        '美国能源部长表示将在WTI低于$70时启动回购补库计划'
+        '中国2024年核准6台新核电机组，在建机组全球第一，年铀需求预计增加1,200 tU',
+        '法国新建6座EPR2，瑞典2035年前2座大型+10座SMR，比利时延寿10年',
+        '全球核电装机从396GW→2030年预计420-480GW，2050年铀需求77,200-123,400 tU/年',
+        '现有+已承诺产能到2050年仅约42,000 tU/年，供需缺口显著且持续扩大',
+        'SMR和HALEU先进燃料将创造新的铀需求增长点，需关注高纯度低浓缩铀供应链'
       ],
-      analysis: 'SPR释放短期有效平抑了价格但削弱了战略储备应对真正危机的能力。低库存环境下，任何供应中断都将引发更剧烈价格波动。SPR回补将在油价下行时提供底部支撑。当前全球石油市场处于"紧平衡但情绪偏弱"状态，供应端OPEC+减产与需求端疲弱预期形成拉锯。',
+      analysis: '全球核电正处于复兴周期。铀需求的结构性增长为矿山投资提供了长期信心。但新矿建设需10-15年，当前铀价仍不足以激励大规模绿地项目。中期（2025-2035）铀市场将维持紧平衡，价格中枢有望上移至$80-120/lb。',
       solutions: [
-        { title: '利用SPR释放窗口以优惠价格补充商业库存', urgency: '立即', owner: '原油贸易部', effect: '降低采购成本3-5%' },
-        { title: '评估美国墨西哥湾出口作为替代供应源', urgency: '短期', owner: '战略采购', effect: '增加供应灵活性' },
-        { title: '建立库存动态优化模型（价格+季节性+地缘）', urgency: '中期', owner: '供应链优化中心', effect: '库存周转效率提升20%' }
+        { title: '提前签订5-10年长协锁定未来需求', urgency: '中期', owner: '战略采购部', effect: '避免未来价格进一步上涨' },
+        { title: '评估核电扩张对铀采购预算的影响', urgency: '短期', owner: '财务部', effect: '制定中长期采购预算规划' },
+        { title: '关注SMR和HALEU供应链建设进展', urgency: '长期', owner: '战略规划部', effect: '提前布局新燃料供应链' }
       ]
     },
-    // 场景6：航运通道风险
-    shipping: {
+    inventory: {
       riskLevel: '高危', riskScore: 75,
       facts: [
-        '也门胡塞武装持续威胁曼德海峡航运安全，约900万桶/日经此通道运输',
-        '马六甲海峡每日通过约1600万桶原油及成品油，占中国原油进口的80%',
-        'VLCC（超大型油轮）平均日租金飙升至$8.5万/天，较去年同期上涨120%',
-        '绕行好望角替代航线增加航程约10-14天，单航次成本增加$150-200万',
-        '巴拿马运河因干旱限制通行，油轮需等待12-15天或绕行麦哲伦海峡',
-        'AIS数据显示全球"灰色船队"规模达约800艘，占油轮运力的17%'
+        'EU铀商业库存从2015年51,892 tU降至2022年38,302 tU，美国从46,589降至39,400 tU',
+        '全球库存消费比降至不足2年，远低于历史安全水平',
+        'Sprott Physical Uranium Trust(SPUT)累计买入超6,500万磅U3O8，持续吸收现货流动性',
+        '补库需求+SPUT买入+供给风险三重叠加，U3O8从2023年$56→2024年$85+',
+        '矿山产量仅覆盖需求84%，缺口由库存和二次供应补足，库存缓冲正在耗尽'
       ],
-      analysis: '全球石油海运通道面临多点威胁：中东的霍尔木兹/曼德海峡、东南亚的马六甲、美洲的巴拿马运河。任何一个通道的长时间中断都将对全球石油供应产生连锁反应。绕行替代方案成本高昂且存在运力瓶颈。"灰色船队"扩张增加了海事安全和环境风险。建议建立全面的通道冗余与应急物流预案。',
+      analysis: '全球铀库存处于历史低位是铀价上涨的核心驱动力。2011-2021年低迷铀价导致矿山投资不足、产量持续低于需求。SPUT基金创造了持续的现货买方力量，加速库存下降。一旦多个核电业主同时启动补库，现货市场可能出现剧烈波动。',
       solutions: [
-        { title: '绘制关键通道风险地图并制定多情景应急物流方案', urgency: '立即', owner: '物流与供应链部', effect: '缩短中断响应时间至48h内' },
-        { title: '增加好望角/麦哲伦绕行预案的运力锁定', urgency: '短期', owner: '海运采购', effect: '保障极端情况下的运输连续性' },
-        { title: '扩大租船团队并建立VLCC/Suezmax船队弹性管理', urgency: '短期', owner: '租船部', effect: '运力冗余度提升至15%' },
-        { title: '建设数字孪生运输仿真系统', urgency: '中期', owner: '数字化中心', effect: '实时优化航线和成本' }
+        { title: '评估当前库存覆盖水平是否充足', urgency: '立即', owner: '库存管理部', effect: '确定补库紧迫程度' },
+        { title: '制定阶梯式补库计划避免集中采购', urgency: '短期', owner: '采购部', effect: '平滑采购节奏降低成本' },
+        { title: '关注SPUT持仓变化作为市场信号', urgency: '持续', owner: '市场研究部', effect: '预判现货价格走势' }
       ]
     },
-    // 场景7：价格波动（默认通用）
     price: {
-      riskLevel: '中危', riskScore: 52,
+      riskLevel: '中危', riskScore: 60,
       facts: [
-        'Brent原油近月合约围绕$82-88/桶区间波动，300日历史波动率处于65%分位',
-        'WTI-Brent价差维持在-$5到-$7/桶宽幅区间，反映美国-国际基本面分化',
-        '全球炼厂综合裂解利润同比下降22%，汽油裂差走弱而柴油走强',
-        '对冲基金在ICE Brent的净多头持仓减少约18%，看跌期权持仓升至6个月高位',
-        '布伦特远期曲线从Back跌至Flat结构，暗示市场对未来供应预期改善',
-        '美元走强和全球经济增速放缓对油价形成双重压制'
+        'U3O8现货价2023年均$56.95/lb，2024.1一度$106/lb，2024.6约$85/lb',
+        '长协价从$50-55区间上移至$70-75/lb，现货-长协价差反映现货偏紧',
+        'Sprott基金持仓突破6,500万磅成为市场重要买方力量',
+        'Cameco/Kazatomprom/Paladin等主要生产商季度产量指引持续受关注',
+        'UxC/TradeTech周度价格指标是全球铀贸易的定价参考'
       ],
-      analysis: '原油价格处于高位震荡区间，地缘风险溢价与需求疲弱预期相互博弈。上游企业现金流充裕但勘探投资意愿不足，中游炼化利润承压，下游消费面临电动车替代的结构性威胁。建议企业采取"防守型+机会型"并重的价格风险管理策略，利用当前高波动环境获取套利窗口。',
+      analysis: '铀价经过2023-2024年大涨后进入$80-100区间整理。短期驱动因素：尼日尔/哈萨克斯坦供给风险+SPUT持续买入+核电复兴需求增长。中期看，矿山重启爬坡（McArthur River/Langer Heinrich）将增加供给，但新矿建设滞后（10-15年）意味着2028年前大规模新供给难以释放。价格中枢有望维持在$70-120区间。',
       solutions: [
-        { title: '实施动态套期保值策略，覆盖未来6-12个月敞口', urgency: '立即', owner: '财务与风险部', effect: '锁定炼化利润' },
-        { title: '利用Back曲线结构优化库存管理', urgency: '短期', owner: '贸易部', effect: '降低库存持有成本' },
-        { title: '建立油价短期预测模型（ML+基本面）', urgency: '中期', owner: '研究部', effect: '预测准确率提升至75%' },
-        { title: '培养专业化能源交易团队', urgency: '长期', owner: '人力资源部', effect: '提升交易能力' }
+        { title: '利用价格回调窗口分批建仓', urgency: '短期', owner: '采购部', effect: '降低成本锁定合理价格' },
+        { title: '建立铀价-库存联动采购决策机制', urgency: '中期', owner: '战略采购部', effect: '量化决策减少主观判断' },
+        { title: '评估长协vs现货的最优比例', urgency: '持续', owner: '财务+采购部', effect: '平衡价格风险和供应安全' }
       ]
     },
-    // 默认通用
-    default: {
-      riskLevel: '中低', riskScore: 38,
+    shipping: {
+      riskLevel: '中危', riskScore: 50,
       facts: [
-        '全球石油市场供需基本平衡，OPEC+减产支撑价格但非OPEC增产提供缓冲',
-        '国际能源署(IEA)预计2026年全球石油需求增长约110万桶/日，主要由亚洲驱动',
-        '全球炼厂平均开工率约82%，较疫情前低4个百分点',
-        '全球石油库存维持5年均值附近，OECD库存覆盖天数约60天',
-        '全球上游勘探开发资本开支约$5300亿，仍低于2014年峰值'
+        '哈萨克斯坦铀矿→铁路→中国/俄罗斯港口→海运→全球的运输链受内陆物流制约',
+        '纳米比亚/尼日尔铀矿→公路→港口→海运的跨境通道脆弱性高',
+        '加拿大铀精矿通过陆路到港口再海运，受劳资纠纷和天气影响',
+        '铀精矿体积小（全球年产量仅约5-6万吨U3O8），但运输安全和保险要求极高',
+        '核材料运输需满足IAEA安全标准，跨境需多重许可，物流中断恢复周期长'
       ],
-      analysis: '当前石油供应链整体运行平稳，但局部风险点（海峡通道、地缘冲突、政策突变）仍是重要不确定性来源。建议企业利用当前窗口期加强韧性建设：提升库存弹性、多元化供应来源、完善应急响应机制。中长期需关注需求达峰后的行业格局重塑。',
+      analysis: '铀矿运输链虽规模较小但同样具有高度地缘脆弱性。内陆国家（哈萨克斯坦/尼日尔）高度依赖过境国基础设施和政治稳定。铀精矿运输的安全和保险要求进一步限制了替代路线的灵活性。买方应将主要供应来源的运输通道纳入风险评估，特别关注跨境节点的地缘政治风险。',
       solutions: [
-        { title: '实施全链条石油供应链映射与风险评估', urgency: '中期', owner: '供应链管理部', effect: '透明度提升至95%' },
-        { title: '建立地缘风险预警与应急响应仪表盘', urgency: '紧迫', owner: '风控中心', effect: '预警时间提前2-4周' },
-        { title: '定期开展石油供应链压力测试与桌面推演', urgency: '长期', owner: '业务连续性委员会', effect: '应急成熟度达国际标准' }
+        { title: '评估各供应来源运输通道风险敞口', urgency: '短期', owner: '物流部', effect: '识别关键脆弱节点' },
+        { title: '建立替代运输路线预案', urgency: '中期', owner: '物流+采购部', effect: '确保运输中断时可切换' },
+        { title: '增加在途库存透明度实时追踪', urgency: '持续', owner: '供应链管理部', effect: '及时发现运输异常' }
       ]
     }
   }
-
-  const t = topics[matchTopic(query)]
-  const date = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })
-  return `# 🛢️ 石油供应链事前风险分析报告
-
-**分析主题**：${query}
-**生成日期**：${date}
-**综合风险指数**：**${t.riskScore}/100**（${t.riskLevel}）
-> ⚠️ 本地模板生成，建议连接后端获取精准石油供应链分析。
-
----
-
-## 一、相关数据筛选与事实梳理
-
-${t.facts.map((f, i) => `${i + 1}. **事实${i + 1}**：${f}  `).join('\n')}
-
----
-
-## 二、态势研判与风险评估
-
-${t.analysis}
-
-| 评估维度 | 当前评分 | 警戒线 | 状态 |
-|---------|---------|-------|------|
-| 供应中断概率 | ${t.riskScore}% | 40% | ${t.riskScore > 70 ? '⚠️ 超标' : t.riskScore > 50 ? '⚡ 关注' : '✅ 正常'} |
-| 地缘风险暴露 | ${Math.min(95, t.riskScore + 10)}% | 50% | 高于基准 |
-| 替代供应可用性 | ${Math.max(20, 100 - t.riskScore - 15)}% | 60% | ${t.riskScore > 70 ? '❌ 不足' : '⚠️ 待完善'} |
-| 库存覆盖天数 | ${Math.max(20, 100 - t.riskScore)} 天 | 90天 | ${t.riskScore > 70 ? '❌ 严重不足' : t.riskScore > 50 ? '⚡ 偏低' : '✅ 充足'} |
-
----
-
-## 三、应对策略与解决方案
-
-| 优先级 | 措施名称 | 紧迫度 | 责任主体 | 预期效果 |
-|--------|---------|--------|---------|---------|
-${t.solutions.map((s, i) => `| ${i + 1} | ${s.title} | ${s.urgency} | ${s.owner} | ${s.effect} |`).join('\n')}
-
-${t.solutions.map((s, i) => `### ${i + 1}. ${s.title}\n- **紧迫度**：${s.urgency}\n- **责任主体**：${s.owner}\n- **预期效果**：${s.effect}\n`).join('\n')}
-
----
-
-## 四、结论
-
-当前石油供应链处于 **${t.riskLevel}** 状态。优先行动：
-
-1. **立即**：${t.solutions.filter(s => s.urgency === '立即').map(s => s.title).join('；') || '—'}
-2. **短期**：${t.solutions.filter(s => s.urgency === '短期').map(s => s.title).join('；') || '—'}
-3. **中期**：${t.solutions.filter(s => s.urgency === '中期').map(s => s.title).join('；')}
-4. **长期**：${t.solutions.filter(s => s.urgency === '长期').map(s => s.title).join('；')}
-
----
-
-> 📊 数据来源：IEA月报 / EIA周报 / Platts价格评估 / Vortexa AIS数据 / OPEC MOMR`
-}
-
-const handleModelChange = (val) => { selectedModel.value = val }
-
-const copyReport = async () => {
-  try { await navigator.clipboard.writeText(reportContent.value); ElMessage.success('报告已复制到剪贴板') }
-  catch { const ta = document.createElement('textarea'); ta.value = reportContent.value; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); ElMessage.success('报告已复制到剪贴板') }
-}
-
-const exportReport = () => {
-  if (currentReportId.value) {
-    const exportUrl = `/SCnet/oilSupplyChain/reports/${currentReportId.value}/export`
-    const a = document.createElement('a')
-    a.href = exportUrl
-    a.download = ''
-    document.body.appendChild(a); a.click(); document.body.removeChild(a)
-    ElMessage.success('报告导出已开始')
-  } else {
-    const blob = new Blob([reportContent.value], { type: 'text/markdown;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = `石油供应链事前分析报告_${new Date().toISOString().slice(0, 10)}.md`
-    document.body.appendChild(a); a.click(); document.body.removeChild(a)
-    URL.revokeObjectURL(url); ElMessage.success('报告导出成功')
+  const topic = matchTopic(query)
+  const t = topics[topic] || {
+    riskLevel: '中危', riskScore: 55,
+    facts: [
+      '全球铀矿山年产量约49,000-55,000 tU，仅覆盖核电需求的84%',
+      '铀矿从发现到投产需10-15年，停产矿山重启需2-5年，供给响应极慢',
+      '全球已查明可采资源7,934,500 tU（<$260/kgU），资源充足但经济可采产能不足',
+      'U3O8现货价约$85/lb，长协价约$70-75/lb，价差反映现货市场偏紧',
+      '主要生产国：哈萨克斯坦(40%+)、加拿大、纳米比亚、澳大利亚、乌兹别克斯坦',
+      '主要消费国：美国、法国、中国、俄罗斯、韩国、日本、印度'
+    ],
+    analysis: '铀供应链的核心矛盾是"资源不缺但可及时、低成本、稳定投产的矿山产能不足"。当前市场处于结构性供给缺口+库存持续下降+核电需求增长的三重利好阶段。短期关注尼日尔/哈萨克斯坦供给风险，中期关注矿山重启爬坡进度，长期关注新矿FID和核电扩张速度。建议买方在当前窗口期积极锁定长协。',
+    solutions: [
+      { title: '建立多元化铀采购来源组合', urgency: '短期', owner: '战略采购部', effect: '降低单一供应风险' },
+      { title: '利用长协锁定当前价格区间', urgency: '中期', owner: '采购部', effect: '控制燃料成本预算' },
+      { title: '保持充足库存应对短期供给波动', urgency: '持续', owner: '库存管理部', effect: '保障3年以上覆盖' },
+      { title: '关注全球铀矿投资机会', urgency: '长期', owner: '战略投资部', effect: '获取上游权益保障供应' }
+    ]
   }
+  return '# ☢️ 铀矿供应链事前分析报告\n\n**生成时间：** ' + new Date().toLocaleString('zh-CN') + '\n**风险等级：** ' + t.riskLevel + '  |  **风险评分：** ' + t.riskScore + '/100\n\n---\n\n## 一、关键事实\n\n' + t.facts.map(function(f, i) { return (i + 1) + '. ' + f; }).join('\n') + '\n\n---\n\n## 二、态势研判\n\n' + t.analysis + '\n\n---\n\n## 三、应对方案\n\n| 方案 | 紧迫度 | 责任方 | 预期效果 |\n|------|--------|--------|----------|\n' + t.solutions.map(function(s) { return '| **' + s.title + '** | ' + s.urgency + ' | ' + s.owner + ' | ' + s.effect + ' |'; }).join('\n') + '\n\n---\n\n> ⚠️ 本地模板生成，建议连接后端获取精准铀矿供应链分析。\n> 后端 API: POST /scenario/analyze — 可自动检索铀矿知识库并生成个性化报告。\n'
+}
+
+
+const HISTORY_KEY = 'uranium_report_history'
+
+const loadHistoryFromStorage = () => {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch { return [] }
+}
+
+const saveHistoryToStorage = (reports) => {
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(reports))
 }
 
 const fetchHistoryReports = async (sid) => {
   historyLoading.value = true
   try {
-    const url = sid
-      ? `/SCnet/oilSupplyChain/reports?session_id=${encodeURIComponent(sid)}`
-      : '/SCnet/oilSupplyChain/reports'
-    const res = await fetch(url)
-    const data = await res.json()
-    if (data.success && data.data) {
-      historyReports.value = data.data.reports || []
-    }
+    let all = loadHistoryFromStorage()
+    if (sid) all = all.filter(r => r.session_id === sid)
+    historyReports.value = all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
   } catch (e) {
-    console.warn('加载历史报告失败:', e)
     historyReports.value = []
   } finally {
     historyLoading.value = false
@@ -755,43 +729,51 @@ const fetchHistoryReports = async (sid) => {
 }
 
 const deleteHistoryReport = async (reportId) => {
+  let all = loadHistoryFromStorage()
+  all = all.filter(r => r.report_id !== reportId)
+  saveHistoryToStorage(all)
+  historyReports.value = all
+  ElMessage.success('报告已删除')
+}
+
+const loadHistoryReport = (item) => {
   try {
-    const res = await fetch(`/SCnet/oilSupplyChain/reports/${reportId}`, { method: 'DELETE' })
-    const data = await res.json()
-    if (data.success) {
-      historyReports.value = historyReports.value.filter(r => r.report_id !== reportId)
-      ElMessage.success('报告已删除')
-    } else {
-      ElMessage.error(data.message || '删除失败')
+    if (!item || !item.report) {
+      ElMessage.warning('该报告内容为空，可能生成失败')
+      return
     }
+    reportContent.value = formatReport(safeStr(item.report))
+    reportGenTime.value = item.created_at ? new Date(item.created_at).toLocaleString('zh-CN') : ''
+    reportGenerated.value = true
+    currentReportId.value = item.report_id
+    userRequirement.value = item.user_message || userRequirement.value
+    showHistory.value = false
+    ElMessage.success('已加载历史报告')
   } catch (e) {
-    console.error('删除报告失败:', e)
-    ElMessage.error('删除失败，请重试')
+    console.error('加载历史报告失败:', e)
+    ElMessage.error('加载失败: ' + e.message)
   }
 }
 
-const loadHistoryReport = async (item) => {
-  try {
-    const res = await fetch(`/SCnet/oilSupplyChain/reports/${item.report_id}`)
-    const data = await res.json()
-    if (data.success && data.data) {
-      reportContent.value = safeStr(data.data.report || '')
-      reportGenTime.value = data.data.created_at
-        ? new Date(data.data.created_at).toLocaleString('zh-CN')
-        : ''
-      reportGenerated.value = true
-      currentReportId.value = data.data.report_id || item.report_id
-      predictionMeta.value = data.data.predictionMeta || null
-      userRequirement.value = data.data.user_message || userRequirement.value
-      showHistory.value = false
-      ElMessage.success('已加载历史报告')
-      await nextTick()
-      if (reportBody.value) reportBody.value.scrollTop = 0
-    }
-  } catch (e) {
-    console.error('加载报告详情失败:', e)
-    ElMessage.error('加载报告失败')
-  }
+// ========== 复制与导出 ==========
+function copyReport() {
+  if (!reportContent.value) { ElMessage.warning('暂无报告可复制'); return }
+  navigator.clipboard.writeText(reportContent.value).then(() => {
+    ElMessage.success('报告已复制到剪贴板')
+  }).catch(() => {
+    ElMessage.error('复制失败，请手动复制')
+  })
+}
+
+function exportReport() {
+  if (!reportContent.value) { ElMessage.warning('暂无报告可导出'); return }
+  const filename = `铀矿供应链分析报告_${new Date().toISOString().slice(0,10)}.md`
+  const blob = new Blob([reportContent.value], { type: 'text/markdown;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+  ElMessage.success('报告已导出下载')
 }
 
 // ========== 从 situationAnalysis 的 session 存储中加载真实对话数据 ==========
@@ -852,7 +834,7 @@ function loadFromPreSessions() {
 }
 
 watch(showHistory, (val) => {
-  if (val) fetchHistoryReports(sessionId.value && !sessionId.value.startsWith('oil-report-') ? sessionId.value : '')
+  if (val) fetchHistoryReports(sessionId.value || '')
 })
 
 onMounted(async () => {
@@ -888,7 +870,7 @@ onMounted(async () => {
       analysisSummary.value = { goal: safeStr(storeGoal), factors }
     }
   }
-  if (!sessionId.value || sessionId.value.startsWith('oil-report-')) {
+  if (!sessionId.value || sessionId.value.startsWith('uranium-rpt-')) {
     if (supplyStore.currentSessionId) {
       sessionId.value = supplyStore.currentSessionId
     }
@@ -922,7 +904,7 @@ onMounted(async () => {
   }
 
   // === 优先级4: 从后端 API 获取已保存的 requirementParams ===
-  if (!userRequirement.value && sessionId.value && !sessionId.value.startsWith('oil-report-')) {
+  if (!userRequirement.value && sessionId.value && !sessionId.value.startsWith('uranium-rpt-')) {
     try {
       const reqRes = await fetch(`/SCnet/oilSupplyChain/requirements?session_id=${encodeURIComponent(sessionId.value)}`)
       const reqData = await reqRes.json()

@@ -83,7 +83,7 @@
             <textarea
               v-model="scenarioData.historicalBackground"
               rows="3"
-              placeholder="请描述供应链背景，例如：比亚迪构建了垂直整合的供应链体系，自主掌握电池、电机、电控等核心零部件的研发与生产..."
+              placeholder="请描述铀供应链背景，例如：中国核电装机约55GW，年天然铀需求约10,000+ tU，国内产量仅约1,500-2,000 tU/年，缺口依赖哈萨克斯坦/纳米比亚/尼日尔海外权益矿和现货采购..."
               class="setup-textarea"
             />
           </div>
@@ -268,27 +268,45 @@ export default {
       userScenarioPresets: [],
 
       scenarioData: {
-        targetCompany: 'byd',
-        historicalBackground: '比亚迪构建了垂直整合的供应链体系，自主掌握电池、电机、电控等核心零部件的研发与生产...',
-        initialEvent: '核心芯片供应商因地缘政治摩擦宣布断供，影响整车交付计划...',
+        targetCompany: 'cnnc',
+        historicalBackground: '中国是全球最大的铀消费国之一，年核电需求约10,000+ tU。国内产量有限（约1,500-2,000 tU/年），高度依赖海外权益矿（尼日尔/纳米比亚/哈萨克斯坦）和国际贸易...',
+        initialEvent: '尼日尔2023年政变后局势持续不稳，2024年Imouraren开采许可被撤销、Madaouela采矿权被撤回，严重冲击中国在尼日尔的铀矿权益...',
         currentProgress: '',
         completeTimeline: ''
       },
 
       companyOptions: [
-        { id: 'byd', name: '比亚迪', logo: '🚗', type: '新能源整车' },
-        { id: 'geely', name: '吉利汽车', logo: '🚙', type: '传统+新能源' },
-        { id: 'saic', name: '上汽集团', logo: '🏭', type: '国有整车集团' }
+        { id: 'sinopec', name: '中石化', logo: '⛽', type: '国有炼化一体化' },
+        { id: 'petrochina', name: '中石油', logo: '🛢️', type: '国有上游+炼化' },
+        { id: 'cnOOC', name: '中海油', logo: '🌊', type: '国有海上勘探开发' },
+        { id: 'hengli', name: '恒力石化', logo: '🏭', type: '民营炼化' },
+        { id: 'rongSheng', name: '荣盛石化', logo: '🔬', type: '民营炼化一体化' }
       ],
 
       scenarioPresets: [
         {
-          id: 'byd_chip_crisis',
-          name: '比亚迪芯片短缺应对',
-          description: '2021年全球芯片危机下的采购策略',
-          company: '比亚迪',
-          historicalBackground: '2020-2021年受疫情冲击及需求激增，全球汽车芯片供应严重失衡。',
-          initialEvent: '2021年Q1，比亚迪主力车型所需的博世ESP芯片库存告急。'
+          id: 'niger_coup',
+          name: '尼日尔政变矿权危机',
+          description: '尼日尔政变后Imouraren/Madaouela矿权撤销，冲击全球铀供应',
+          company: '中核集团',
+          historicalBackground: '2023年7月尼日尔政变，军政府重新审查外资矿业合同。2024年6月撤销Orano对Imouraren开采许可，7月撤回GoviEx的Madaouela采矿权。尼日尔是欧盟第三大铀来源，也是中国海外权益铀布局的重要节点。',
+          initialEvent: '2024年Q3，尼日尔军政府宣布对外资矿权全面重审，仅存的Somair矿业面临不确定前景。U3O8现货价从$85/lb跳涨至$105/lb，EU电力公司紧急寻求哈萨克斯坦、加拿大替代供应。'
+        },
+        {
+          id: 'kazakh_acid',
+          name: '哈萨克斯坦硫酸短缺',
+          description: '硫酸供应不足制约ISL地浸产量，Kazatomprom下调产量指引',
+          company: '中广核',
+          historicalBackground: '哈萨克斯坦贡献全球40%+铀产量，以ISL地浸为主。ISL生产需大量硫酸作浸出剂。2024年1月Kazatomprom因硫酸短缺下调产量预期，且2025年恢复满产计划也受此影响。',
+          initialEvent: '2024年Q2，Kazatomprom再次因硫酸供应不稳定下调年度产量指引约10%，全球铀供给预期减少2,000-3,000 tU。U3O8现货价单周上涨$12/lb，买方加速长协锁量。'
+        },
+        {
+          id: 'mcarthur_restart',
+          name: 'McArthur River重启爬坡',
+          description: 'Cameco McArthur River/Key Lake停产4年后重启，2024-2025年逐步爬坡满产',
+          company: 'Cameco',
+          historicalBackground: '2018年因铀价低迷，Cameco将McArthur River/Key Lake（设计产能1,800万磅U3O8/年）停产维护。2022年11月重启，2024-2025年逐步恢复满产。停产期间Cameco被迫从市场采购铀来履行长协。',
+          initialEvent: '2024年Q3，McArthur River爬坡至设计产能的75%，但地下开采面品位恢复慢于预期。Cameco暗示2025年上半年才能达到满产，比此前指引晚6个月。'
         }
       ]
     }

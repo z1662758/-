@@ -5,7 +5,7 @@
       <div class="header-card">
         <div class="news-ticker-wrap">
           <div class="news-ticker-label">
-            <el-icon><BellFilled /></el-icon> 石油供应链实时动态
+            <el-icon><BellFilled /></el-icon> 铀矿供应链实时动态
           </div>
           <div class="news-ticker-content">
             <div class="news-ticker-track">
@@ -37,14 +37,14 @@
             </div>
             <div class="banner-main">
               <div class="banner-text">
-                <h1>石油情报   <span class="highlight">能源安全</span></h1>
-                <p>实时监测全球石油供应链动态：OPEC 产能、地缘政治风险、航运通道、炼厂开工率、战略储备</p>
+                <h1>铀矿情报   <span class="highlight">核燃料安全</span></h1>
+                <p>实时监测全球铀矿供应链动态：矿山生产、地缘政治风险、化学供应、运输物流、核电需求、库存变化</p>
               </div>
               <div class="banner-stats">
-                <div class="stat"><div class="num">{{ oilfieldCount }}</div><div class="label">监控油田</div></div>
+                <div class="stat"><div class="num">{{ mineCount }}</div><div class="label">监控铀矿山</div></div>
                 <div class="stat"><div class="num">{{ riskEventCount }}</div><div class="label">风险事件</div></div>
-                <div class="stat"><div class="num">{{ tankerCount }}</div><div class="label">追踪油轮</div></div>
-                <div class="stat"><div class="num">{{ currentBrentPrice }}</div><div class="label">布伦特原油 ($/桶)</div></div>
+                <div class="stat"><div class="num">{{ transportCount }}</div><div class="label">关键运输通道</div></div>
+                <div class="stat"><div class="num">{{ currentU3O8Price }}</div><div class="label">U3O8 现货 ($/lb)</div></div>
               </div>
             </div>
             <div class="banner-btn">
@@ -82,7 +82,7 @@
         <div class="search-bar">
           <el-input
             v-model="searchKeyword"
-            placeholder="搜索油田、港口、炼油厂、事件..."
+            placeholder="搜索铀矿山、加工厂、运输节点、事件..."
             :prefix-icon="Search"
             clearable
             @focus="searchActive=true"
@@ -127,7 +127,7 @@
         <!-- 事件列表 -->
         <div class="events-list">
           <div class="list-header">
-            <span><el-icon><List/></el-icon>石油供应链风险事件</span>
+            <span><el-icon><List/></el-icon>供应链风险事件</span>
             <span>{{ filteredEvents.length }}条记录</span>
           </div>
           <el-row :gutter="16">
@@ -181,91 +181,69 @@ updateTime()
 // ========== Tab ==========
 const activeHeaderTab = ref('风险地图')
 const headerTabs = [
-  { key: '风险地图', title: '风险地图', subtitle: '全球石油风险实时监控', icon: Location, iconClass: 'tab-icon-map' }
+  { key: '风险地图', title: '风险地图', subtitle: '全球铀矿风险实时监控', icon: Location, iconClass: 'tab-icon-map' }
 ]
 const switchTab = (key) => { activeHeaderTab.value = key }
 
 // ========== 滚动新闻 ==========
 const tickerNewsList = ref([
-  { time: '16:30', title: 'OPEC+ 宣布延长减产协议至 Q3', source: '路透社' },
-  { time: '15:45', title: '霍尔木兹海峡油轮通行延迟', source: '航运情报' },
-  { time: '14:20', title: '美国 SPR 释放 3000 万桶战略储备', source: '能源部' },
-  { time: '13:50', title: '北海 Brent 油田维护停工', source: 'Equinor' },
-  { time: '12:30', title: '红海航线保险费用上涨 35%', source: '劳合社' },
-  { time: '11:15', title: '沙特 Aramco 提高亚洲客户油价', source: '彭博社' }
+  { time: '16:30', title: 'Kazatomprom 因硫酸短缺下调产量指引', source: '路透社' },
+  { time: '15:45', title: '尼日尔军政府撤销 Orano Imouraren 开采许可', source: '法新社' },
+  { time: '14:20', title: 'Cameco McArthur River 爬坡至设计产能 75%', source: 'Cameco季报' },
+  { time: '13:50', title: 'Sprott 实物铀基金单日买入 50 万磅 U3O8', source: 'Sprott' },
+  { time: '12:30', title: 'U3O8 现货价突破 $90/lb', source: 'UxC' },
+  { time: '11:15', title: '中国核准 6 台新核电机组', source: '中国核能行业协会' }
 ])
 
 // ========== 头部统计数据 ==========
-const oilfieldCount = ref(156)
+const mineCount = ref(42)
 const riskEventCount = ref(89)
-const tankerCount = ref(234)
-const currentBrentPrice = ref(82.4)
+const transportCount = ref(18)
+const currentU3O8Price = ref(85.0)
 
 // ========== 风险类型 ==========
 const riskTypes = ref([
   { name: '地缘政治', color: '#F56C6C' },
-  { name: '产能波动', color: '#E6A23C' },
-  { name: '航运中断', color: '#409EFF' },
-  { name: '炼厂停工', color: '#909399' },
-  { name: '管道故障', color: '#67C23A' },
+  { name: '矿山停产', color: '#E6A23C' },
+  { name: '化学供应', color: '#409EFF' },
+  { name: '运输物流', color: '#909399' },
+  { name: '许可证政策', color: '#67C23A' },
   { name: '价格异常', color: '#8B5CF6' }
 ])
 
-// ========== 石油供应链事件数据 ==========
+// ========== 铀矿供应链事件数据 ==========
 const events = ref([
-  // 中东地区
-  { id: 1, title: '霍尔木兹海峡通行受限', location: '霍尔木兹海峡', lat: 26.57, lng: 56.25, type: '地缘政治', color: '#F56C6C', level: '高', time: '2026-04-23', description: '紧张局势导致油轮通行检查加强，平均等待时间延长至 18 小时。' },
-  { id: 2, title: '沙特 Ghawar 油田减产', location: 'Ghawar, 沙特', lat: 25.75, lng: 49.62, type: '产能波动', color: '#E6A23C', level: '高', time: '2026-04-22', description: '全球最大油田进行季度维护，日产量减少 50 万桶。' },
-  { id: 3, title: '伊朗油轮遭扣押', location: '阿巴斯港，伊朗', lat: 27.18, lng: 56.28, type: '地缘政治', color: '#F56C6C', level: '高', time: '2026-04-21', description: '涉嫌违反制裁，油轮及货物被扣押。' },
-  { id: 4, title: '阿联酋 ADNOC 扩产计划延期', location: '阿布扎比，阿联酋', lat: 24.45, lng: 54.37, type: '产能波动', color: '#E6A23C', level: '中', time: '2026-04-20', description: '产能扩张计划推迟至 2027 年。' },
-  { id: 5, title: '伊拉克 Kirkuk 管道泄漏', location: 'Kirkuk, 伊拉克', lat: 35.47, lng: 44.39, type: '管道故障', color: '#67C23A', level: '中', time: '2026-04-22', description: '管道老化导致泄漏，修复需 2-3 周。' },
-  { id: 6, title: '科威特炼油厂罢工', location: '科威特城', lat: 29.37, lng: 47.98, type: '炼厂停工', color: '#909399', level: '中', time: '2026-04-21', description: '工会要求提高薪资，炼厂产能下降 40%。' },
-  { id: 7, title: '卡塔尔 LNG 出口创新高', location: '多哈，卡塔尔', lat: 25.29, lng: 51.53, type: '产能波动', color: '#67C23A', level: '低', time: '2026-04-20', description: '北部气田扩产，日出口量突破历史纪录。' },
-  { id: 8, title: '也门胡塞武装袭击预警', location: '亚丁湾', lat: 12.78, lng: 45.02, type: '地缘政治', color: '#F56C6C', level: '高', time: '2026-04-23', description: '发布航运安全警告，多家公司改道好望角。' },
+  { id: 1, title: 'Kazatomprom 硫酸短缺减产', location: '哈萨克斯坦', lat: 47.00, lng: 65.00, type: '化学供应', color: '#409EFF', level: '高', time: '2026-04-23', description: '硫酸供应不足导致 ISL 地浸产量下降约 10%，下调年度产量指引。' },
+  { id: 2, title: 'Inkai 矿山 ISL 酸液供应中断', location: 'Inkai, 哈萨克斯坦', lat: 45.00, lng: 67.00, type: '化学供应', color: '#409EFF', level: '高', time: '2026-04-22', description: '硫酸运输中断，矿山浸出液循环受限，月产量预计减少 200 tU。' },
+  { id: 3, title: 'Budenovskoye 恢复满产推迟', location: 'Budenovskoye, 哈萨克斯坦', lat: 44.00, lng: 66.00, type: '矿山停产', color: '#E6A23C', level: '中', time: '2026-04-21', description: '2025 年恢复矿权协议 100% 产量计划因酸供应受限推迟。' },
+  { id: 4, title: '尼日尔撤销 Imouraren 开采许可', location: 'Imouraren, 尼日尔', lat: 18.00, lng: 9.00, type: '地缘政治', color: '#F56C6C', level: '高', time: '2026-04-23', description: '军政府撤销 Orano 对全球最大未开发铀矿之一的开采许可，储量约 175,000 tU。' },
+  { id: 5, title: '尼日尔撤回 Madaouela 采矿权', location: 'Madaouela, 尼日尔', lat: 17.50, lng: 8.50, type: '许可证政策', color: '#67C23A', level: '高', time: '2026-04-22', description: 'GoviEx 的 Madaouela 项目采矿权被撤回，项目停滞。' },
+  { id: 6, title: '尼日尔 Somair 面临税费重谈风险', location: 'Arlit, 尼日尔', lat: 18.73, lng: 7.38, type: '矿山停产', color: '#E6A23C', level: '高', time: '2026-04-21', description: '仅存的合资矿山仍在运营，但军政府可能提高权益金或变更合同条款。' },
+  { id: 7, title: '纳米比亚 Langer Heinrich 重启爬坡', location: 'Langer Heinrich, 纳米比亚', lat: -22.50, lng: 14.50, type: '矿山停产', color: '#E6A23C', level: '中', time: '2026-04-21', description: '停产 6 年后于 2024.3 重启，首批铀精矿已产出，2025-2026 年爬坡至满产。' },
+  { id: 8, title: '纳米比亚 Dasa 项目在建中', location: 'Dasa, 纳米比亚', lat: -22.00, lng: 15.00, type: '矿山停产', color: '#67C23A', level: '低', time: '2026-04-20', description: 'Global Atomic 高品位铀矿在建，预计 2026 年投产，年产能 1,200 tU。' },
+  { id: 9, title: '中广核湖山铀矿扩产', location: 'Husab, 纳米比亚', lat: -22.50, lng: 14.50, type: '矿山停产', color: '#67C23A', level: '低', time: '2026-04-19', description: '年产能有望从 5,000 提升至 6,000 tU。' },
+  { id: 10, title: '加拿大 McArthur River 爬坡慢于预期', location: 'Saskatchewan, 加拿大', lat: 57.50, lng: -105.00, type: '矿山停产', color: '#E6A23C', level: '中', time: '2026-04-23', description: '停产 4 年后重启，爬坡至 75%，地下开采面品位恢复慢于预期，满产推迟至 2025H1。' },
+  { id: 11, title: '加拿大 Cigar Lake 维持满产运行', location: 'Cigar Lake, 加拿大', lat: 58.00, lng: -104.00, type: '矿山停产', color: '#67C23A', level: '低', time: '2026-04-21', description: '全球最高品位铀矿满产运行，年产量约 6,900 tU（1,800 万磅 U3O8）。' },
+  { id: 12, title: '美国禁止俄浓缩铀进口法案通过', location: '华盛顿，美国', lat: 38.90, lng: -77.04, type: '地缘政治', color: '#F56C6C', level: '高', time: '2026-04-22', description: 'Prohibiting Russian Uranium Imports Act 通过，利好非俄铀矿和转化/浓缩替代产能。' },
+  { id: 13, title: '美国铀战略储备采购启动', location: '华盛顿，美国', lat: 38.90, lng: -77.04, type: '许可证政策', color: '#67C23A', level: '中', time: '2026-04-19', description: '能源部推进铀战略储备，首批招标 100 万磅 U3O8，支持本土铀矿复产。' },
+  { id: 14, title: '美国 Lance ISL 项目重启', location: 'Wyoming, 美国', lat: 43.00, lng: -107.50, type: '矿山停产', color: '#E6A23C', level: '中', time: '2026-04-18', description: 'Peninsula Energy 重启 Wyoming Lance ISL，初期年产能 200 万磅 U3O8。' },
+  { id: 15, title: '澳大利亚 Honeymoon ISL 重启', location: 'Honeymoon, 南澳', lat: -31.50, lng: 140.00, type: '矿山停产', color: '#67C23A', level: '低', time: '2026-04-19', description: 'Boss Energy 重启 Honeymoon ISL 项目，初期年产能 880 tU。' },
+  { id: 16, title: 'Olympic Dam 副产品铀稳定产出', location: 'Olympic Dam, 南澳', lat: -30.44, lng: 136.88, type: '矿山停产', color: '#67C23A', level: '低', time: '2026-04-18', description: 'BHP 铜金铀伴生矿维持铀年产量约 3,500 tU。' },
+  { id: 17, title: 'Ranger 矿关闭修复至 2035 年', location: 'Ranger, 北领地', lat: -12.68, lng: 132.92, type: '许可证政策', color: '#67C23A', level: '中', time: '2026-04-17', description: '2021 年停产，进入长期环境修复，澳大利亚铀产量永久减少。' },
+  { id: 18, title: '俄铀面临西方去俄化采购浪潮', location: '莫斯科，俄罗斯', lat: 55.75, lng: 37.61, type: '地缘政治', color: '#F56C6C', level: '高', time: '2026-04-23', description: 'EU 和美国电力公司主动减少俄铀采购，非俄来源长协溢价上升 15-20%。' },
+  { id: 19, title: 'Rosatom 加速非洲铀矿布局', location: '莫斯科，俄罗斯', lat: 55.75, lng: 37.61, type: '矿山停产', color: '#E6A23C', level: '中', time: '2026-04-21', description: '俄罗斯在纳米比亚、坦桑尼亚推进铀矿项目，弥补西方市场损失。' },
+  { id: 20, title: '中国核准 6 台新核电机组', location: '北京，中国', lat: 39.90, lng: 116.40, type: '许可证政策', color: '#67C23A', level: '中', time: '2026-04-23', description: '新机组长期铀需求预计增加 1,200 tU/年，中国铀进口依赖度进一步上升。' },
+  { id: 21, title: '中国北方 ISL 产能稳步提升', location: '内蒙古/新疆，中国', lat: 43.00, lng: 113.00, type: '矿山停产', color: '#67C23A', level: '低', time: '2026-04-19', description: '国内 ISL 地浸产能提升，年产量约 1,500-2,000 tU，自给率约 15-20%。' },
+  { id: 22, title: '法国核电复兴计划推进', location: '巴黎，法国', lat: 48.86, lng: 2.35, type: '许可证政策', color: '#67C23A', level: '中', time: '2026-04-21', description: '法国新建 6 座 EPR2 反应堆，长期铀需求预计增加 2,000 tU/年。' },
+  { id: 23, title: 'Euratom ESA 强化供应多元化', location: '布鲁塞尔，比利时', lat: 50.85, lng: 4.35, type: '许可证政策', color: '#67C23A', level: '中', time: '2026-04-20', description: 'ESA 强制要求核电业主多元化铀来源，降低对单一供应国依赖。' },
+  { id: 24, title: '瑞典核电扩张计划落地', location: '斯德哥尔摩，瑞典', lat: 59.33, lng: 18.07, type: '许可证政策', color: '#67C23A', level: '中', time: '2026-04-19', description: '2035 年前 2 座大型机组 + 2045 年前 10 座 SMR，铀需求翻倍。' },
+  { id: 25, title: 'U3O8 现货突破 $95/lb', location: '全球', lat: 0, lng: 0, type: '价格异常', color: '#8B5CF6', level: '高', time: '2026-04-22', description: '受尼日尔和哈萨克斯坦双重供给风险推动，月涨 15%，距 2024.1 高点 $106 仍有上涨空间。' },
+  { id: 26, title: 'Sprott 实物铀基金持续买入', location: '多伦多，加拿大', lat: 43.65, lng: -79.38, type: '价格异常', color: '#8B5CF6', level: '中', time: '2026-04-21', description: 'SPUT 月内增持 120 万磅 U3O8，总持仓突破 6,500 万磅，持续吸收现货市场流动性。' },
+  { id: 27, title: '全球铀库存消费比降至历史低位', location: '全球', lat: 0, lng: 0, type: '价格异常', color: '#8B5CF6', level: '高', time: '2026-04-20', description: 'EU 库存 51,892->38,302 tU，美国 46,589->39,400 tU，全球库存消费比不足 2 年。' },
+  { id: 28, title: '铀长协价格突破 $80/lb', location: '全球', lat: 0, lng: 0, type: '价格异常', color: '#8B5CF6', level: '中', time: '2026-04-19', description: '长协价跟随现货上涨，电力公司加速锁量，3-5 年长约占比提升。' },
+  { id: 29, title: '全球年度铀需求突破 65,000 tU', location: '全球', lat: 0, lng: 0, type: '矿山停产', color: '#E6A23C', level: '中', time: '2026-04-18', description: '核电复兴+库存补库推动需求增长，矿山产量仅覆盖约 85%，缺口由库存和二次供应补足。' },
+  { id: 30, title: '哈萨克斯坦-中国铀燃料运输通道畅通', location: '哈萨克斯坦/中国', lat: 45.00, lng: 80.00, type: '运输物流', color: '#909399', level: '低', time: '2026-04-17', description: '中哈铁路铀精矿运输稳定，年运输量约 8,000-10,000 tU。' }
 
-  // 欧洲地区
-  { id: 9, title: '欧盟对俄油限价生效', location: '布鲁塞尔，比利时', lat: 50.85, lng: 4.35, type: '地缘政治', color: '#F56C6C', level: '高', time: '2026-04-23', description: 'G7 达成价格上限协议，违反者禁止保险服务。' },
-  { id: 10, title: '挪威 Equinor 工人罢工', location: '斯塔万格，挪威', lat: 58.97, lng: 5.73, type: '炼厂停工', color: '#909399', level: '中', time: '2026-04-22', description: '北海主要供应商停产，影响日供应 20 万桶。' },
-  { id: 11, title: '荷兰鹿特丹港拥堵', location: '鹿特丹，荷兰', lat: 51.92, lng: 4.48, type: '航运中断', color: '#409EFF', level: '中', time: '2026-04-21', description: '油轮等待泊位时间延长至 5 天。' },
-  { id: 12, title: '英国 Brent 油田衰退加速', location: '北海，英国', lat: 61.00, lng: 1.00, type: '产能波动', color: '#E6A23C', level: '中', time: '2026-04-20', description: '老油田产量同比下降 12%。' },
-  { id: 13, title: '德国 Leuna 炼厂检修', location: 'Leuna, 德国', lat: 51.32, lng: 11.90, type: '炼厂停工', color: '#909399', level: '低', time: '2026-04-19', description: '计划内年度维护，持续 3 周。' },
-  { id: 14, title: '意大利 Saras 炼厂关闭风险', location: '撒丁岛，意大利', lat: 39.22, lng: 9.12, type: '炼厂停工', color: '#909399', level: '高', time: '2026-04-18', description: '环保压力可能导致永久关闭。' },
-  { id: 15, title: '波罗的海油运量激增', location: '波罗的海', lat: 58.00, lng: 20.00, type: '航运中断', color: '#409EFF', level: '中', time: '2026-04-17', description: '俄油转道导致航运密度增加 60%。' },
-
-  // 北美地区
-  { id: 16, title: '美国 SPR 释放计划', location: '华盛顿，美国', lat: 38.90, lng: -77.04, type: '产能波动', color: '#E6A23C', level: '中', time: '2026-04-23', description: '宣布释放 3000 万桶战略石油储备。' },
-  { id: 17, title: '墨西哥湾飓风预警', location: '墨西哥湾', lat: 25.00, lng: -90.00, type: '地缘政治', color: '#F56C6C', level: '高', time: '2026-04-22', description: '热带风暴可能影响海上钻井平台。' },
-  { id: 18, title: '德州 Permian 盆地产量下滑', location: 'Permian Basin, 美国', lat: 31.50, lng: -102.00, type: '产能波动', color: '#E6A23C', level: '中', time: '2026-04-21', description: '页岩油井衰减率超预期。' },
-  { id: 19, title: '加拿大 Keystone 管道泄漏', location: 'Alberta, 加拿大', lat: 56.73, lng: -111.38, type: '管道故障', color: '#67C23A', level: '高', time: '2026-04-20', description: '重油管道泄漏，影响日输送 30 万桶。' },
-  { id: 20, title: '加州炼厂环保限制升级', location: '洛杉矶，美国', lat: 34.05, lng: -118.24, type: '炼厂停工', color: '#909399', level: '中', time: '2026-04-19', description: '新法规要求额外脱硫设备。' },
-
-  // 俄罗斯及中亚
-  { id: 21, title: '俄罗斯乌拉尔油折扣扩大', location: '莫斯科，俄罗斯', lat: 55.75, lng: 37.61, type: '价格异常', color: '#8B5CF6', level: '中', time: '2026-04-23', description: '较 Brent 折扣达 35 美元/桶。' },
-  { id: 22, title: '东西伯利亚管道扩建', location: '东西伯利亚', lat: 60.00, lng: 120.00, type: '产能波动', color: '#67C23A', level: '低', time: '2026-04-22', description: 'ESPO 管道扩能至 8000 万吨/年。' },
-  { id: 23, title: '哈萨克斯坦 CPC 管道检修', location: 'Atyrau, 哈萨克斯坦', lat: 47.11, lng: 51.92, type: '管道故障', color: '#67C23A', level: '中', time: '2026-04-21', description: '里海管道联盟进行年度维护。' },
-
-  // 非洲地区
-  { id: 24, title: '尼日利亚尼日尔三角洲武装袭击', location: '尼日尔三角洲', lat: 4.75, lng: 6.50, type: '地缘政治', color: '#F56C6C', level: '高', time: '2026-04-22', description: '武装分子袭击输油设施，日损失 20 万桶。' },
-  { id: 25, title: '利比亚 Sharara 油田关闭', location: 'Sharara, 利比亚', lat: 26.33, lng: 14.33, type: '产能波动', color: '#F56C6C', level: '高', time: '2026-04-21', description: '部落冲突导致油田无限期关闭。' },
-  { id: 26, title: '苏伊士运河通行费上涨', location: '苏伊士，埃及', lat: 30.00, lng: 32.58, type: '航运中断', color: '#409EFF', level: '中', time: '2026-04-18', description: '通行费上调 15%，影响东西向油运。' },
-
-  // 亚太地区
-  { id: 27, title: '中国战略储备采购', location: '北京，中国', lat: 39.90, lng: 116.40, type: '价格异常', color: '#8B5CF6', level: '中', time: '2026-04-23', description: '逢低买入充实 SPR，推动亚洲溢价。' },
-  { id: 28, title: '印度 MRPL 炼厂爆炸', location: 'Mangalore, 印度', lat: 12.91, lng: 74.85, type: '炼厂停工', color: '#909399', level: '高', time: '2026-04-22', description: '蒸馏装置爆炸，日产能 15 万桶停工。' },
-  { id: 29, title: '日本 JXTG 炼厂地震影响', location: '仙台，日本', lat: 38.27, lng: 140.87, type: '炼厂停工', color: '#909399', level: '中', time: '2026-04-21', description: '地震导致部分装置临时停车。' },
-  { id: 30, title: '韩国 SK Innovation 扩产', location: '蔚山，韩国', lat: 35.54, lng: 129.31, type: '产能波动', color: '#67C23A', level: '低', time: '2026-04-20', description: '新增 10 万桶/日炼化能力。' },
-  { id: 31, title: '马来西亚船对船转运受限', location: '马六甲海峡', lat: 2.50, lng: 101.50, type: '航运中断', color: '#409EFF', level: '中', time: '2026-04-19', description: '加强 STS 作业监管。' },
-
-  // 南美地区
-  { id: 32, title: '委内瑞拉 PDVSA 债务违约', location: '加拉加斯，委内瑞拉', lat: 10.50, lng: -66.91, type: '地缘政治', color: '#F56C6C', level: '高', time: '2026-04-21', description: '无法支付服务商，产量进一步下滑。' },
-  { id: 33, title: '巴西 Petrobras 盐下层突破', location: '里约热内卢，巴西', lat: -22.90, lng: -43.20, type: '产能波动', color: '#67C23A', level: '低', time: '2026-04-20', description: '新钻井日产超 5 万桶。' },
-  { id: 34, title: '哥伦比亚管道爆炸', location: 'Cano Limon Pipeline', lat: 9.00, lng: -73.00, type: '管道故障', color: '#67C23A', level: '高', time: '2026-04-19', description: 'ELN 游击队炸毁管道。' },
-
-  // 价格与市场
-  { id: 35, title: 'Brent 原油突破 90 美元', location: 'ICE Europe', lat: 51.51, lng: -0.09, type: '价格异常', color: '#8B5CF6', level: '高', time: '2026-04-23', description: '地缘风险溢价推动价格上涨。' },
-  { id: 36, title: 'WTI-Brent 价差倒挂', location: 'NYMEX', lat: 40.71, lng: -74.01, type: '价格异常', color: '#8B5CF6', level: '中', time: '2026-04-22', description: '美国出口需求推高 WTI。' },
-  { id: 37, title: '迪拜-Oman 价差异常', location: 'DME', lat: 25.20, lng: 55.27, type: '价格异常', color: '#8B5CF6', level: '中', time: '2026-04-21', description: '中东现货紧张推升溢价。' },
-  { id: 38, title: '燃油裂解价差收窄', location: '新加坡', lat: 1.35, lng: 103.82, type: '价格异常', color: '#8B5CF6', level: '低', time: '2026-04-20', description: '炼厂利润受挤压。' }
 ])
 
 // ========== 地图相关 ==========
