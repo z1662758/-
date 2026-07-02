@@ -285,7 +285,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref, reactive } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   ArrowDown, ArrowRight, Collection, DataAnalysis, DataLine, Document, Download, Folder,
@@ -293,8 +293,94 @@ import {
 } from '@element-plus/icons-vue'
 import { runExperiment } from '@/api/scenarioModeling'
 import { getQueueHistory } from '@/api/queue'
-import { getExperimentDetail } from '@/api/supplyChain'
+import { getExperimentDetail, getInterventionStrategies, compareInterventions } from '@/api/supplyChain'
 import { unwrapApiData } from '@/utils/apiEnvelope'
+
+// 后端加载的策略数据
+const backendStrategies = ref([])
+const backendComparison = ref(null)
+const strategiesLoading = ref(false)
+const strategiesLoaded = ref(false)
+
+// 将后端策略转换为前端策略库格式
+const mapBackendStrategyToFrontend = (s) => ({
+  id: s.id,
+  name: s.name,
+  target: s.type === 'capacity_expansion' ? '制造商' : s.type === 'collaboration' ? '制造商网络' : s.type === 'inventory_management' ? '销售商' : s.type === 'supplier_selection' ? '供应商' : '全网络',
+  phase: '事中',
+  expectedCompletionDelta: `+${((s.outcomes?.completion_rate || 0.7) * 100 - 50).toFixed(1)}pp`,
+  backlogImprovement: `${((1 - (s.outcomes?.completion_rate || 0.7)) * 100).toFixed(1)}%`,
+  collaborationDelta: `+${s.params?.final_collaborations || 0} 次`,
+  resilienceDelta: `+${((s.outcomes?.network_density || 0.3) * 1.0).toFixed(2)}`,
+  type: s.type === 'capacity_expansion' ? '产能扩张' : s.type === 'collaboration' ? '协作优化' : s.type === 'emergency_response' ? '应急响应' : s.type === 'inventory_management' ? '库存缓冲' : s.type === 'pricing_strategy' ? '价格策略' : s.type === 'scheduling_optimization' ? '调度优化' : s.type === 'supplier_selection' ? '供应商筛选' : '基准策略',
+  scope: s.type === 'capacity_expansion' ? (s.id.includes('bottleneck') ? '定向瓶颈' : '全局制造') : '全网络',
+  mechanism: s.type === 'capacity_expansion' ? '阶梯式扩产' : s.type === 'collaboration' ? '动态订单调度' : s.type === 'inventory_management' ? '安全库存扩容' : s.type === 'emergency_response' ? '应急预案激活' : s.type === 'supplier_selection' ? '多源供应保障' : '基础运行',
+  trigger: s.has_extreme_scenario ? '极端事件触发' : (s.outcomes?.completion_rate < 0.5 ? '完成率低于50%' : '基础策略'),
+  _backend: s
+})
+
+// 从后端加载策略数据并合并到 strategyFolders
+const loadStrategiesFromBackend = async () => {
+  strategiesLoading.value = true
+  try {
+    const expRes = await getExperimentDetail
+    // 先获取实验列表
+    const { getExperiments } = await import('@/api/supplyChain')
+    const listRes = await getExperiments()
+    const experiments = unwrapApiData(listRes) || []
+
+    if (!experiments || experiments.length === 0) return
+
+    const latest = experiments[0]
+    const experimentId = latest.experiment_id || latest.id
+    if (!experimentId) return
+
+    // 加载策略库
+    const stratRes = await getInterventionStrategies(experimentId)
+    const stratData = unwrapApiData(stratRes)
+    if (stratData?.strategies && stratData.strategies.length > 0) {
+      backendStrategies.value = stratData.strategies
+
+      // 按策略类型分组，构建前端策略库
+      const typeGroups = {}
+      stratData.strategies.forEach(s => {
+        const mapped = mapBackendStrategyToFrontend(s)
+        const typeLabel = mapped.type
+        if (!typeGroups[typeLabel]) {
+          typeGroups[typeLabel] = []
+        }
+        typeGroups[typeLabel].push(mapped)
+      })
+
+      // 转换为 strategyFolders 格式
+      const newFolders = Object.entries(typeGroups).map(([label, children], idx) => ({
+        id: `f_bk_${idx}`,
+        label,
+        expanded: idx < 2,
+        children
+      }))
+
+      if (newFolders.length > 0) {
+        // 清空并更新策略库
+        strategyFolders.splice(0, strategyFolders.length, ...newFolders)
+
+        // 更新当前选中的策略
+        const allChildren = newFolders.flatMap(f => f.children)
+        if (allChildren.length >= 2) {
+          Object.assign(currentStrategy, allChildren[0])
+          selectedStrategy.value = { ...allChildren[1] }
+        }
+
+        strategiesLoaded.value = true
+        ElMessage.success(`已从实验 ${experimentId} 加载 ${stratData.total_strategies} 条干预策略`)
+      }
+    }
+  } catch (e) {
+    console.warn('从后端加载策略数据失败，使用默认策略库:', e)
+  } finally {
+    strategiesLoading.value = false
+  }
+}
 
 const strategyFolders = reactive([
   {
@@ -927,6 +1013,10 @@ const exportRunReport = (format = 'html') => {
   downloadRunFile(buildRunReportHtml(), `干预策略实际运行报告_${safeName}.html`, 'text/html;charset=utf-8')
   ElMessage.success('实际运行报告已导出为HTML')
 }
+
+onMounted(() => {
+  loadStrategiesFromBackend()
+})
 
 onBeforeUnmount(() => {
   stopRunPolling()

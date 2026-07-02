@@ -143,6 +143,18 @@
               <el-icon size="18"><ScaleToOriginal/></el-icon>
               <template #title>机制分析</template>
             </el-menu-item>
+            <el-menu-item index="/home/SCnet/expAnalysisCaseComparison">
+              <el-icon size="18"><Collection/></el-icon>
+              <template #title>案例对比分析</template>
+            </el-menu-item>
+            <el-menu-item index="/home/SCnet/anomalyAnalysis">
+              <el-icon size="18"><WarningFilled/></el-icon>
+              <template #title>异常分析</template>
+            </el-menu-item>
+            <el-menu-item index="/home/SCnet/causalInference">
+              <el-icon size="18"><Connection/></el-icon>
+              <template #title>因果推断</template>
+            </el-menu-item>
           </el-sub-menu>
 
           <el-menu-item index="/home/SCnet/EXreport">
@@ -187,7 +199,7 @@
 
 <script>
 import {
-  Aim, Box, Coin, Collection, DataAnalysis, DataLine, Document, DocumentDelete, Edit,
+  Aim, Box, Coin, Collection, Connection, DataAnalysis, DataLine, Document, DocumentDelete, Edit,
   Filter, FolderOpened, Grid, House, Memo, Monitor, Notification, Odometer, Operation, Orange,
   PieChart, Place, Postcard, Promotion, ScaleToOriginal, Search, Setting, Share,
   SwitchButton, TrendCharts, User, WarningFilled

@@ -175,6 +175,127 @@ export function getParameterCatalog(scenario = 'supply_chain') {
 }
 
 /**
+ * 获取实验的机制分析数据（四步分析管道）
+ * @param {string} experimentId - 实验ID
+ * @returns {Promise}
+ */
+export function getMechanismAnalysis(experimentId) {
+  return request({
+    url: `/SCnet/supplyChain/experiments/${experimentId}/mechanism-analysis`,
+    method: 'get'
+  })
+}
+
+/**
+ * 获取实验的干预策略库
+ * @param {string} experimentId - 实验ID
+ * @returns {Promise}
+ */
+export function getInterventionStrategies(experimentId) {
+  return request({
+    url: `/SCnet/supplyChain/experiments/${experimentId}/intervention-strategies`,
+    method: 'get'
+  })
+}
+
+/**
+ * 对比两个干预策略
+ * @param {string} experimentId - 实验ID
+ * @param {string} strategyAId - 策略A的ID
+ * @param {string} strategyBId - 策略B的ID
+ * @returns {Promise}
+ */
+export function compareInterventions(experimentId, strategyAId, strategyBId) {
+  return request({
+    url: `/SCnet/supplyChain/experiments/${experimentId}/intervention-compare`,
+    method: 'post',
+    data: {
+      strategy_a_id: strategyAId,
+      strategy_b_id: strategyBId
+    }
+  })
+}
+
+/**
+ * 获取案例库（所有已完成实验的摘要列表）
+ * @returns {Promise}
+ */
+export function getCaseLibrary() {
+  return request({
+    url: '/SCnet/supplyChain/case-library',
+    method: 'get'
+  })
+}
+
+/**
+ * 对比两个实验案例
+ * @param {string} caseAId - 案例A的ID
+ * @param {string} caseBId - 案例B的ID
+ * @returns {Promise}
+ */
+export function compareCases(caseAId, caseBId) {
+  return request({
+    url: '/SCnet/supplyChain/case-compare',
+    method: 'post',
+    data: {
+      case_a_id: caseAId,
+      case_b_id: caseBId
+    }
+  })
+}
+
+/**
+ * 获取实验的异常列表
+ * @param {string} experimentId - 实验ID
+ * @returns {Promise}
+ */
+export function getAnomalies(experimentId) {
+  return request({
+    url: `/SCnet/supplyChain/experiments/${experimentId}/anomalies`,
+    method: 'get'
+  })
+}
+
+/**
+ * 获取单个异常详情
+ * @param {string} experimentId - 实验ID
+ * @param {string} anomalyId - 异常ID
+ * @returns {Promise}
+ */
+export function getAnomalyDetail(experimentId, anomalyId) {
+  return request({
+    url: `/SCnet/supplyChain/experiments/${experimentId}/anomalies/${anomalyId}`,
+    method: 'get'
+  })
+}
+
+/**
+ * 获取实验的因果图
+ * @param {string} experimentId - 实验ID
+ * @returns {Promise}
+ */
+export function getCausalGraph(experimentId) {
+  return request({
+    url: `/SCnet/supplyChain/experiments/${experimentId}/causal-graph`,
+    method: 'get'
+  })
+}
+
+/**
+ * 反事实推理
+ * @param {string} experimentId - 实验ID
+ * @param {Object} intervention - 干预参数
+ * @returns {Promise}
+ */
+export function postCounterfactualReasoning(experimentId, intervention) {
+  return request({
+    url: `/SCnet/supplyChain/experiments/${experimentId}/counterfactual-reasoning`,
+    method: 'post',
+    data: intervention
+  })
+}
+
+/**
  * 拉取后端最近一次保存的智能体设计（供仿真工作室渲染画布）
  * 与参考项目 powerGame/getAgents 接口形态对齐
  * @param {Object} [params]

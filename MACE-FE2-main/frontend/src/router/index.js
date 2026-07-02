@@ -171,6 +171,21 @@ const routes = [
         component: () => import("../views/SCnet/ExpAnalysis_Mechanism.vue")
       },
       {
+        path: 'expAnalysisCaseComparison',
+        name: 'SCnet_ExpAnalysisCaseComparison',
+        component: () => import("../views/SCnet/ExpAnalysis_CaseComparison.vue")
+      },
+      {
+        path: 'anomalyAnalysis',
+        name: 'SCnet_AnomalyAnalysis',
+        component: () => import("../views/SCnet/AnomalyAnalysis.vue")
+      },
+      {
+        path: 'causalInference',
+        name: 'SCnet_CausalInference',
+        component: () => import("../views/SCnet/CausalInference.vue")
+      },
+      {
         path: 'counterfactualExperiment',
         name: 'SCnet_CounterfactualExperiment',
         component: () => import("../views/SCnet/CounterfactualExperiment.vue")

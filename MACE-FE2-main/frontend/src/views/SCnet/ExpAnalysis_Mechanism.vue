@@ -94,21 +94,9 @@
                   <div class="detail-subblock">
                     <h4 class="detail-subblock-title">设置详情</h4>
                     <div class="detail-param-grid">
-                      <div class="detail-param-item">
-                        <span class="param-label">参数 A</span>
-                        <span class="param-value null">NULL</span>
-                      </div>
-                      <div class="detail-param-item">
-                        <span class="param-label">参数 B</span>
-                        <span class="param-value null">NULL</span>
-                      </div>
-                      <div class="detail-param-item">
-                        <span class="param-label">参数 C</span>
-                        <span class="param-value null">NULL</span>
-                      </div>
-                      <div class="detail-param-item">
-                        <span class="param-label">参数 D</span>
-                        <span class="param-value null">NULL</span>
+                      <div class="detail-param-item" v-for="p in analysisParams" :key="p.label">
+                        <span class="param-label">{{ p.label }}</span>
+                        <span class="param-value" :class="{ null: p.value === 'NULL' }">{{ p.value }}</span>
                       </div>
                     </div>
                   </div>
@@ -116,9 +104,10 @@
                   <div class="detail-subblock">
                     <h4 class="detail-subblock-title">任务详情</h4>
                     <div class="detail-task-row">
-                      <span class="task-name-label">任务名</span>
+                      <span class="task-name-label">{{ stepDetailData.settings?.task?.name || '任务名' }}</span>
+                      <el-tag v-if="stepDetailData.settings?.task?.status === 'completed'" size="small" type="success" effect="plain" round style="margin-right:12px">已完成</el-tag>
                       <div class="task-name-spacer"></div>
-                      <el-button type="primary" size="default" @click.stop="onStartTask">开始任务</el-button>
+                      <el-button type="primary" size="default" @click.stop="onStartTask" :loading="loading">开始任务</el-button>
                     </div>
                   </div>
                 </div>
@@ -131,7 +120,14 @@
                   <span>运行结果</span>
                 </header>
                 <div class="detail-section-content">
-                  <div class="detail-empty-hint">暂无运行结果</div>
+                  <div v-if="runResultText !== '暂无运行结果'" class="detail-run-result">
+                    <p>{{ runResultText }}</p>
+                    <div class="run-result-meta" v-if="stepDetailData.runResult">
+                      <span>分析轮次: {{ stepDetailData.runResult.iterations_analyzed || '--' }}</span>
+                      <span>置信度: {{ stepDetailData.runResult.confidence || '--' }}</span>
+                    </div>
+                  </div>
+                  <div v-else class="detail-empty-hint">暂无运行结果</div>
                 </div>
               </section>
 
@@ -142,7 +138,22 @@
                   <span>Agent设置详情</span>
                 </header>
                 <div class="detail-section-content">
-                  <div class="detail-empty-hint">暂无 Agent 配置信息</div>
+                  <template v-if="agentList.length > 0">
+                    <div class="agent-list">
+                      <div v-for="(agent, idx) in agentList" :key="idx" class="agent-item">
+                        <div class="agent-item-head">
+                          <el-tag size="small" :type="agent.status === '已执行' ? 'success' : 'info'" effect="light" round>{{ agent.status }}</el-tag>
+                          <span class="agent-role">{{ agent.role }}</span>
+                        </div>
+                        <p class="agent-output">{{ agent.output }}</p>
+                      </div>
+                    </div>
+                    <div class="agent-model-info" v-if="stepDetailData.agentConfig?.model">
+                      <span class="model-label">分析模型:</span>
+                      <el-tag size="small" effect="plain" round>{{ stepDetailData.agentConfig.model }}</el-tag>
+                    </div>
+                  </template>
+                  <div v-else class="detail-empty-hint">暂无 Agent 配置信息</div>
                 </div>
               </section>
             </div>
@@ -154,7 +165,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   Collection,
@@ -165,73 +176,173 @@ import {
   User,
   Warning
 } from '@element-plus/icons-vue'
+import { getMechanismAnalysis } from '@/api/supplyChain'
+import { unwrapApiData } from '@/utils/apiEnvelope'
 
 const selectedWorkflowStepId = ref('phenomenon')
-const eventRecordCount = ref(2)
+const eventRecordCount = ref(0)
 const counterfactualCount = ref(0)
-const dominantDriver = ref('需求冲击')
+const dominantDriver = ref('--')
+const loading = ref(false)
+const analysisData = ref(null)
 
-const overviewItems = computed(() => [
-  { label: '异常现象', value: '订单积压', icon: Warning },
-  { label: '完成率', value: '68.4%', icon: Odometer },
-  { label: '回推置信', value: '72%', icon: DataLine },
-  { label: '反事实轮次', value: counterfactualCount.value, icon: Collection }
-])
+// 概览数据
+const overviewItems = computed(() => {
+  const overview = analysisData.value?.overview || {}
+  return [
+    { label: '异常现象', value: overview.anomaly_type || '--', icon: Warning },
+    { label: '完成率', value: overview.completion_rate || '--', icon: Odometer },
+    { label: '回推置信', value: overview.backtrack_confidence || '--', icon: DataLine },
+    { label: '分析轮次', value: overview.counterfactual_rounds || 0, icon: Collection }
+  ]
+})
 
-const analysisWorkflow = computed(() => [
-  {
-    id: 'phenomenon',
-    index: '01',
-    title: '现象归纳',
-    badge: 'Agent接口预留',
-    tagType: 'info',
-    description: '依据实验结果列表，由后台预设的实验分析 LLM Agent 总结异常现象簇。',
-    input: '实验结果列表 2 条',
-    preview: '提取异常指标、状态变化与关键参数，形成可追溯的现象簇。'
-  },
-  {
-    id: 'strategy',
-    index: '02',
-    title: '策略回推',
-    badge: '产能策略分析',
-    tagType: 'warning',
-    description: '由订单流转、产能变化反推指标明显变化时可能实施的调整策略。',
-    input: '积压变化、协作次数、产能/库存变更',
-    preview: '对齐订单积压和完成率跳变，反推可能作用过的扩产、调度或协作策略。'
-  },
-  {
-    id: 'mechanism',
-    index: '03',
-    title: '机制定位',
-    badge: '核心机制',
-    tagType: 'primary',
-    description: '由现象归纳和策略回推结果定位触发、耦合、供应或反馈中的关键机制。',
-    input: '现象簇 + 策略候选 + 因果链路强度',
-    preview: '合并现象簇、策略假设与干预因果图，锁定需求冲击到产能约束的核心链路。'
-  },
-  {
-    id: 'driver',
-    index: '04',
-    title: '驱动力判断',
-    badge: '系统动力学',
-    tagType: 'success',
-    description: '参考系统动力学模型，总结本次演化过程中的核心驱动力和反馈环。',
-    input: '存量、流量、正反馈、负反馈',
-    preview: '从库存、产能、订单流与协作反馈强度判断供应链持续演化的主导动力。'
-  }
-])
+// 四步分析管道（优先使用后端数据，回退默认骨架）
+const analysisWorkflow = computed(() => {
+  const p = analysisData.value?.pipeline || {}
+  return [
+    {
+      id: 'phenomenon',
+      index: '01',
+      title: p.phenomenon?.title || '现象归纳',
+      badge: p.phenomenon?.badge || '异常检测',
+      tagType: p.phenomenon?.tagType || 'info',
+      description: p.phenomenon?.description || '依据实验结果列表，总结异常现象簇。',
+      input: p.phenomenon?.input || '实验结果列表 -- 条',
+      preview: p.phenomenon?.preview || '提取异常指标与关键参数，形成可追溯的现象簇。'
+    },
+    {
+      id: 'strategy',
+      index: '02',
+      title: p.strategy?.title || '策略回推',
+      badge: p.strategy?.badge || '策略推断',
+      tagType: p.strategy?.tagType || 'warning',
+      description: p.strategy?.description || '由指标变化反推可能实施的调整策略。',
+      input: p.strategy?.input || '异常现象簇 + 迭代上下文',
+      preview: p.strategy?.preview || '反推可能作用过的扩产、调度或协作策略。'
+    },
+    {
+      id: 'mechanism',
+      index: '03',
+      title: p.mechanism?.title || '机制定位',
+      badge: p.mechanism?.badge || '因果链路',
+      tagType: p.mechanism?.tagType || 'primary',
+      description: p.mechanism?.description || '定位触发、耦合、供应或反馈中的关键机制。',
+      input: p.mechanism?.input || '现象簇 + 策略候选 + 因果链路强度',
+      preview: p.mechanism?.preview || '锁定核心因果链路。'
+    },
+    {
+      id: 'driver',
+      index: '04',
+      title: p.driver?.title || '驱动力判断',
+      badge: p.driver?.badge || '系统动力学',
+      tagType: p.driver?.tagType || 'success',
+      description: p.driver?.description || '总结演化过程中的核心驱动力和反馈环。',
+      input: p.driver?.input || '机制分析结果 + 指标时序数据',
+      preview: p.driver?.preview || '判断供应链持续演化的主导动力。'
+    }
+  ]
+})
 
 const activeStepDetail = computed(() =>
   analysisWorkflow.value.find(s => s.id === selectedWorkflowStepId.value) || null
 )
 
+// 步骤详情面板的额外数据
+const stepDetailData = computed(() => {
+  const detail = analysisData.value?.detail || {}
+  const pipeline = analysisData.value?.pipeline || {}
+  const stepId = selectedWorkflowStepId.value
+
+  const stepPipeline = pipeline[stepId] || {}
+  const stepPipelineDetail = stepPipeline.detail || {}
+
+  return {
+    settings: detail.settings || null,
+    runResult: detail.run_result || null,
+    agentConfig: detail.agent_config || null,
+    pipelineDetail: stepPipelineDetail
+  }
+})
+
+// 根据选中步骤获得对应的参数设置
+const analysisParams = computed(() => {
+  const s = stepDetailData.value
+  const pv = s.settings?.params_values || {}
+  const pl = s.settings?.params || {}
+  return [
+    { label: '参数 A', value: pv.param_a || pl.param_a || 'NULL' },
+    { label: '参数 B', value: pv.param_b || pl.param_b || 'NULL' },
+    { label: '参数 C', value: pv.param_c || pl.param_c || 'NULL' },
+    { label: '参数 D', value: pv.param_d || pl.param_d || 'NULL' }
+  ]
+})
+
+const runResultText = computed(() => {
+  const rr = stepDetailData.value.runResult
+  return rr?.summary || '暂无运行结果'
+})
+
+const agentList = computed(() => {
+  return stepDetailData.value.agentConfig?.agents_involved || []
+})
+
+/**
+ * 从后端加载机制分析数据
+ */
+const loadMechanismAnalysis = async () => {
+  loading.value = true
+  try {
+    // 先获取实验列表，选择最新完成的实验
+    const { getExperiments, getExperimentDetail } = await import('@/api/supplyChain')
+
+    const expRes = await getExperiments()
+    const experiments = unwrapApiData(expRes) || []
+
+    if (!experiments || experiments.length === 0) {
+      ElMessage.warning('暂无可用实验数据，请先运行实验')
+      return
+    }
+
+    // 选最近的实验
+    const latest = experiments[0]
+    const experimentId = latest.experiment_id || latest.id
+
+    if (!experimentId) {
+      ElMessage.warning('未找到有效实验ID')
+      return
+    }
+
+    const res = await getMechanismAnalysis(experimentId)
+    const data = unwrapApiData(res)
+
+    if (data) {
+      analysisData.value = data
+      const meta = data.meta || {}
+      eventRecordCount.value = meta.total_anomalies || 0
+      counterfactualCount.value = meta.total_iterations || 0
+      dominantDriver.value = meta.primary_driver || '--'
+      ElMessage.success('机制分析数据加载完成')
+    }
+  } catch (e) {
+    console.error('加载机制分析数据失败:', e)
+    ElMessage.warning('机制分析数据加载失败，使用默认视图')
+  } finally {
+    loading.value = false
+  }
+}
+
 const refreshData = () => {
-  ElMessage.success('机制分析数据已刷新')
+  loadMechanismAnalysis()
 }
 
 const onStartTask = () => {
-  // 后期添加交互逻辑
+  loadMechanismAnalysis()
 }
+
+onMounted(() => {
+  loadMechanismAnalysis()
+})
 </script>
 
 <style scoped>
@@ -667,6 +778,71 @@ const onStartTask = () => {
   text-align: center;
   font-size: 13px;
   font-weight: 600;
+  color: #94a3b8;
+}
+
+/* 运行结果 */
+.detail-run-result p {
+  margin: 0 0 10px;
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.6;
+  font-weight: 600;
+}
+
+.run-result-meta {
+  display: flex;
+  gap: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+/* Agent列表 */
+.agent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.agent-item {
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fafbfc;
+}
+
+.agent-item-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.agent-role {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.agent-output {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.agent-model-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #eef2f7;
+}
+
+.model-label {
+  font-size: 12px;
+  font-weight: 700;
   color: #94a3b8;
 }
 
