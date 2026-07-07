@@ -127,7 +127,7 @@
             <div class="simulation-progress-section">
               <div class="progress-header">
                 <span class="progress-label">仿真进度</span>
-                <span class="progress-time">{{ simStep }} / {{ SIM_TOTAL_STEPS }} 轮</span>
+                <span class="progress-time">{{ simStep }} / {{ simTotalSteps }} 轮</span>
               </div>
               <div class="progress-bar-wrapper">
                 <div class="progress-bar-container">
@@ -136,7 +136,7 @@
                     v-for="event in eventConfigs"
                     :key="event.id"
                     class="event-marker"
-                    :style="{ left: (event.triggerStep / SIM_TOTAL_STEPS * 100) + '%' }"
+                    :style="{ left: (event.triggerStep / simTotalSteps * 100) + '%' }"
                     :class="{ triggered: triggeredEventIds.has(event.id) }"
                     :title="`${event.name} - 第${event.triggerStep}轮`"
                   >
@@ -348,8 +348,9 @@ import { getQueueHistory } from '@/api/queue'
 import { getExperimentDetail, healthCheck } from '@/api/supplyChain'
 import { unwrapApiData } from '@/utils/apiEnvelope'
 
-const SIM_TOTAL_STEPS = 15
+const SIM_TOTAL_STEPS_DEFAULT = 15
 const EMPTY_TEXT = '无内容，需导入实验报告'
+const simTotalSteps = ref(15)  // 动态：根据实际实验轮数设定
 const STORAGE_KEY = 'scnet_counterfactual_imported_reports'
 const POLLING_INTERVAL_MS = 5000
 
@@ -865,7 +866,7 @@ const stateLabel = computed(() => {
   return 'READY'
 })
 
-const simProgress = computed(() => Math.min(100, (simStep.value / SIM_TOTAL_STEPS) * 100))
+const simProgress = computed(() => Math.min(100, (simStep.value / Math.max(simTotalSteps.value, 1)) * 100))
 const selectedExperiment = computed(() => experiments.value.find((item) => item.id === selectedExperimentId.value) || experiments.value[0])
 // 选中即激活：当选中实验有报告时，它就是反事实实验对象
 const activeCounterfactualExperiment = computed(() => selectedExperiment.value?.hasReport ? selectedExperiment.value : null)
@@ -940,7 +941,7 @@ const buildCounterfactualRunPayload = () => {
   return {
     scenario,
     data_dir: dataDir,
-    iterations: isUranium ? (isNetworkBaseline ? 28 : 7) : SIM_TOTAL_STEPS,
+    iterations: isUranium ? (isNetworkBaseline ? 28 : 7) : simTotalSteps.value,
     model: 'qwen',
     planner_strategy: 'native',
     use_decompose: false,
@@ -1124,9 +1125,24 @@ const startSim = async () => {
   const rs = getOrCreateRunState()
   if (rs.running) return
 
+  // 参数有效性校验：防止零产能等无效参数提交导致后端进程卡死
+  const paramOverrides = buildCounterfactualParamOverrides()
+  const capMin = paramOverrides.factory_capacity_range?.[0] || 0
+  const capMax = paramOverrides.factory_capacity_range?.[1] || 0
+  if (capMin <= 0 && capMax <= 0) {
+    ElMessage.error('铀矿产能参数不能全为 0，请先导入实验报告或手动设置产能上下限')
+    return
+  }
+  if (!paramOverrides.order_multiplier || paramOverrides.order_multiplier <= 0) {
+    ElMessage.error('铀需求强度必须大于 0')
+    return
+  }
+
   if (timer) clearInterval(timer)
   resetRunState('正在提交后端反事实实验任务...')
   const payload = buildCounterfactualRunPayload()
+  // 用实际实验轮数替换硬编码的 15
+  simTotalSteps.value = payload.iterations || SIM_TOTAL_STEPS_DEFAULT
   rs.running = true
   rs.status = 'queued'
   rs.submittedPayload = payload
@@ -1166,10 +1182,10 @@ const startSim = async () => {
     if (useSynthetic) {
       // 合成模式：模拟后端运行过程
       await new Promise(resolve => setTimeout(resolve, 2500))  // 模拟2.5秒运行时间
-      simStep.value = Math.floor(SIM_TOTAL_STEPS * 0.5)
+      simStep.value = Math.floor(simTotalSteps.value * 0.5)
 
       await new Promise(resolve => setTimeout(resolve, 2000))
-      simStep.value = SIM_TOTAL_STEPS - 1
+      simStep.value = simTotalSteps.value - 1
 
       const synthetic = runSyntheticCounterfactual()
       if (synthetic) {
@@ -1203,7 +1219,7 @@ const startSim = async () => {
 const startLocalProgressTicker = () => {
   if (timer) clearInterval(timer)
   timer = setInterval(() => {
-    if (simState.value !== 'running' || simStep.value >= SIM_TOTAL_STEPS - 1) {
+    if (simState.value !== 'running' || simStep.value >= simTotalSteps.value - 1) {
       return
     }
     simStep.value += 1
@@ -1313,7 +1329,7 @@ const pollRunTask = async () => {
       rs.status = 'running'
       rs.message = '正在执行合成反事实分析...'
       await new Promise(resolve => setTimeout(resolve, 2000))
-      simStep.value = Math.floor(SIM_TOTAL_STEPS * 0.7)
+      simStep.value = Math.floor(simTotalSteps.value * 0.7)
 
       const synthetic = runSyntheticCounterfactual()
       if (synthetic) {
@@ -1324,7 +1340,7 @@ const pollRunTask = async () => {
         rs.experimentId = `synthetic_${Date.now()}`
         rs.resultPath = '(合成分析)'
         simState.value = 'idle'
-        simStep.value = SIM_TOTAL_STEPS
+        simStep.value = simTotalSteps.value
         stopLocalProgressTicker()
         rs.running = false
         ElMessage.success('合成反事实分析完成！可查看对比结果')
@@ -1350,7 +1366,7 @@ const pollRunTask = async () => {
       rs.completedAt = new Date().toLocaleString()
       rs.message = '后端反事实实验已完成，结果摘要已更新，可生成报告。'
       simState.value = 'idle'
-      simStep.value = SIM_TOTAL_STEPS
+      simStep.value = simTotalSteps.value
       stopRunPolling()
       stopLocalProgressTicker()
       ElMessage.success('反事实实验后端重跑完成')
@@ -1648,9 +1664,18 @@ onBeforeUnmount(() => {
   stopRunPolling()
 })
 
+// 防抖持久化：避免每次按键都序列化整个 experiments（含巨大导入报告）到 localStorage
+let _persistTimer = null
+const debouncedPersist = () => {
+  if (_persistTimer) clearTimeout(_persistTimer)
+  _persistTimer = setTimeout(() => {
+    persistCounterfactualState()
+    _persistTimer = null
+  }, 800)
+}
 watch(
   [experiments, selectedExperimentId, counterfactualParameters],
-  persistCounterfactualState,
+  debouncedPersist,
   { deep: true }
 )
 

@@ -2,10 +2,26 @@
   <div class="post-intervention-page">
     <section class="page-head">
       <div>
-        <p class="eyebrow">SCNET INTERVENTION ANALYSIS</p>
-        <h1>干预分析</h1>
-        <p class="subtitle">基于事中供应链结果追加反事实实验，并按实验序列评估产能、协作与履约指标变化。</p>
+        <p class="eyebrow">URANIUM SUPPLY CHAIN · INTERVENTION & ANOMALY</p>
+        <h1>干预分析与异常检测</h1>
+        <p class="subtitle">基于铀供应链实验结果进行干预策略对比评估，同时检测实验过程中的指标突变、极端事件和网络异常。</p>
       </div>
+      <div class="head-actions">
+        <div class="stat-item" v-if="anomalyCount > 0">
+          <span>异常总数</span><strong>{{ anomalyCount }}</strong>
+        </div>
+        <div class="stat-item" v-if="highSeverityCount > 0">
+          <span>高严重度</span><strong style="color:#ef4444">{{ highSeverityCount }}</strong>
+        </div>
+      </div>
+    </section>
+
+    <!-- 异常概览卡片 -->
+    <section class="overview-strip" v-if="anomaliesData">
+      <article v-for="item in overviewCards" :key="item.label" class="overview-card">
+        <el-icon><component :is="item.icon" /></el-icon>
+        <span>{{ item.label }}</span><strong>{{ item.value }}</strong>
+      </article>
     </section>
 
     <div class="intervention-layout">
@@ -191,6 +207,17 @@
               </div>
             </div>
 
+            <!-- 结构方程可视化：A vs B 因果路径对比 -->
+            <div class="sem-panel" v-if="currentStrategy.id && selectedStrategy">
+              <div class="sem-head">
+                <el-icon><Promotion /></el-icon>
+                <span>策略因果路径对比（结构方程图）</span>
+                <span class="sem-legend"><span class="sem-dot-a"></span> 策略A（{{ currentStrategy.name }}）</span>
+                <span class="sem-legend"><span class="sem-dot-b"></span> 策略B（{{ selectedStrategy.name }}）</span>
+              </div>
+              <div ref="semChartRef" class="sem-chart"></div>
+            </div>
+
             <div class="runtime-panel">
               <div class="runtime-head">
                 <div class="runtime-title">
@@ -281,19 +308,69 @@
         </div>
       </section>
     </div>
+
+    <!-- ===== 异常检测区域 ===== -->
+    <section class="anomaly-section" v-if="anomaliesData">
+      <div class="anomaly-grid">
+        <div class="anomaly-list-panel">
+          <header class="panel-head">
+            <el-icon><WarningFilled /></el-icon>
+            <span>铀供应链异常事件列表</span>
+            <el-select v-model="severityFilter" placeholder="严重度" size="small" clearable style="width:110px;margin-left:auto">
+              <el-option label="全部" value="" /><el-option label="高" value="high" /><el-option label="中" value="medium" /><el-option label="低" value="low" />
+            </el-select>
+          </header>
+          <div class="panel-body">
+            <div v-if="filteredAnomalies.length === 0" class="empty-hint">暂无检测到的异常事件</div>
+            <div v-for="(a, idx) in filteredAnomalies" :key="idx" class="anomaly-item" :class="{ active: selectedAnomalyIndex === a._originalIndex }" @click="selectAnomaly(a._originalIndex)">
+              <div class="anomaly-head">
+                <el-tag :type="a.severity==='high'?'danger':a.severity==='medium'?'warning':'info'" size="small" effect="dark" round>{{ a.severity==='high'?'高':a.severity==='medium'?'中':'低' }}</el-tag>
+                <span class="anomaly-type">{{ typeLabel(a.type) }}</span>
+              </div>
+              <p class="anomaly-desc">{{ a.description }}</p>
+              <div class="anomaly-meta">
+                <span v-if="a.month">第{{ a.month }}月</span>
+                <span v-if="a.iteration">迭代{{ a.iteration }}</span>
+                <span v-if="a.change_pct">变化 {{ a.change_pct }}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="anomaly-detail-panel">
+          <template v-if="selectedDetail">
+            <header class="panel-head">
+              <el-icon><DataLine /></el-icon><span>异常详情</span>
+              <el-tag :type="selectedDetail.anomaly.severity==='high'?'danger':selectedDetail.anomaly.severity==='medium'?'warning':'info'" size="small" effect="light" round style="margin-left:8px">{{ selectedDetail.anomaly.severity==='high'?'高严重度':selectedDetail.anomaly.severity==='medium'?'中严重度':'低严重度' }}</el-tag>
+            </header>
+            <div class="detail-body">
+              <section class="detail-section"><h4>异常描述</h4><p>{{ selectedDetail.anomaly.description }}</p></section>
+              <section class="detail-section"><h4>可能原因</h4><ul><li v-for="c in selectedDetail.analysis.possible_causes" :key="c">{{ c }}</li></ul></section>
+              <section class="detail-section"><h4>影响范围</h4><p>{{ selectedDetail.analysis.impact_scope }}</p></section>
+              <section class="detail-section"><h4>建议响应</h4><p>{{ selectedDetail.analysis.suggested_response }}</p></section>
+              <section class="detail-section" v-if="selectedDetail.related_metrics && Object.keys(selectedDetail.related_metrics).length">
+                <h4>关联指标快照</h4>
+                <div class="metrics-grid"><div v-for="(val,key) in selectedDetail.related_metrics" :key="key" class="metric-item"><span class="metric-label">{{ key }}</span><span class="metric-value">{{ typeof val==='number'?val.toFixed(1):val }}</span></div></div>
+              </section>
+            </div>
+          </template>
+          <div v-else class="detail-empty"><el-icon :size="48"><WarningFilled /></el-icon><p>点击左侧异常事件查看详情与归因分析</p></div>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, reactive } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   ArrowDown, ArrowRight, Collection, DataAnalysis, DataLine, Document, Download, Folder,
-  FolderOpened, Setting, TrendCharts, VideoPlay
+  FolderOpened, Odometer, Promotion, Refresh, Setting, TrendCharts, VideoPlay, WarningFilled
 } from '@element-plus/icons-vue'
+import * as echarts from 'echarts'
 import { runExperiment } from '@/api/scenarioModeling'
 import { getQueueHistory } from '@/api/queue'
-import { getExperimentDetail, getInterventionStrategies, compareInterventions } from '@/api/supplyChain'
+import { getExperimentDetail, getInterventionStrategies, compareInterventions, getAnomalies, getAnomalyDetail, getExperiments } from '@/api/supplyChain'
 import { unwrapApiData } from '@/utils/apiEnvelope'
 
 // 后端加载的策略数据
@@ -303,21 +380,28 @@ const strategiesLoading = ref(false)
 const strategiesLoaded = ref(false)
 
 // 将后端策略转换为前端策略库格式
-const mapBackendStrategyToFrontend = (s) => ({
-  id: s.id,
-  name: s.name,
-  target: s.type === 'capacity_expansion' ? '制造商' : s.type === 'collaboration' ? '制造商网络' : s.type === 'inventory_management' ? '销售商' : s.type === 'supplier_selection' ? '供应商' : '全网络',
-  phase: '事中',
-  expectedCompletionDelta: `+${((s.outcomes?.completion_rate || 0.7) * 100 - 50).toFixed(1)}pp`,
-  backlogImprovement: `${((1 - (s.outcomes?.completion_rate || 0.7)) * 100).toFixed(1)}%`,
-  collaborationDelta: `+${s.params?.final_collaborations || 0} 次`,
-  resilienceDelta: `+${((s.outcomes?.network_density || 0.3) * 1.0).toFixed(2)}`,
-  type: s.type === 'capacity_expansion' ? '产能扩张' : s.type === 'collaboration' ? '协作优化' : s.type === 'emergency_response' ? '应急响应' : s.type === 'inventory_management' ? '库存缓冲' : s.type === 'pricing_strategy' ? '价格策略' : s.type === 'scheduling_optimization' ? '调度优化' : s.type === 'supplier_selection' ? '供应商筛选' : '基准策略',
-  scope: s.type === 'capacity_expansion' ? (s.id.includes('bottleneck') ? '定向瓶颈' : '全局制造') : '全网络',
-  mechanism: s.type === 'capacity_expansion' ? '阶梯式扩产' : s.type === 'collaboration' ? '动态订单调度' : s.type === 'inventory_management' ? '安全库存扩容' : s.type === 'emergency_response' ? '应急预案激活' : s.type === 'supplier_selection' ? '多源供应保障' : '基础运行',
-  trigger: s.has_extreme_scenario ? '极端事件触发' : (s.outcomes?.completion_rate < 0.5 ? '完成率低于50%' : '基础策略'),
-  _backend: s
-})
+const mapBackendStrategyToFrontend = (s) => {
+  const typeMap = {
+    capacity_expansion: '产能扩张', collaboration: '采购策略', emergency_response: '应急响应',
+    inventory_management: '库存缓冲', pricing_strategy: '价格策略', supplier_selection: '供应链优化'
+  }
+  const targetMap = {
+    capacity_expansion: '全球铀矿产能', collaboration: '铀贸易网络', emergency_response: '替代供应来源',
+    inventory_management: '战略铀储备', pricing_strategy: '铀市场价格', supplier_selection: '铀供应链节点'
+  }
+  return {
+    id: s.id, name: s.name,
+    target: targetMap[s.type] || '铀供应链全网络', phase: '事中',
+    expectedCompletionDelta: `+${((s.outcomes?.completion_rate || 0.7) * 100 - 50).toFixed(1)}pp`,
+    backlogImprovement: `${((1 - (s.outcomes?.completion_rate || 0.7)) * 100).toFixed(1)}%`,
+    collaborationDelta: `+${s.params?.final_collaborations || 0} 次`,
+    resilienceDelta: `+${((s.outcomes?.network_density || 0.3) * 1.0).toFixed(2)}`,
+    type: typeMap[s.type] || '基准策略', scope: (s.id && s.id.includes('bottleneck')) ? '定向瓶颈' : '全局铀供应链',
+    mechanism: s.type === 'capacity_expansion' ? '阶梯式扩产(ISL+硬岩)' : s.type === 'emergency_response' ? '启动替代产能应急预案' : s.type === 'inventory_management' ? '增加铀战略储备缓冲' : s.type === 'pricing_strategy' ? '长期合约锁定铀价' : '多源供应+长期合约',
+    trigger: s.has_extreme_scenario ? '极端事件触发' : (s.outcomes?.completion_rate < 0.5 ? '供应完成率 < 50%' : '铀供应链基准策略'),
+    _backend: s
+  }
+}
 
 // 从后端加载策略数据并合并到 strategyFolders
 const loadStrategiesFromBackend = async () => {
@@ -361,18 +445,13 @@ const loadStrategiesFromBackend = async () => {
       }))
 
       if (newFolders.length > 0) {
-        // 清空并更新策略库
-        strategyFolders.splice(0, strategyFolders.length, ...newFolders)
-
-        // 更新当前选中的策略
-        const allChildren = newFolders.flatMap(f => f.children)
-        if (allChildren.length >= 2) {
-          Object.assign(currentStrategy, allChildren[0])
-          selectedStrategy.value = { ...allChildren[1] }
-        }
-
+        // 后端策略作为补充追加到现有策略库后面，不覆盖本地带标注的策略
+        newFolders.forEach(f => {
+          const exists = strategyFolders.find(sf => sf.label === f.label)
+          if (!exists) strategyFolders.push(f)
+        })
         strategiesLoaded.value = true
-        ElMessage.success(`已从实验 ${experimentId} 加载 ${stratData.total_strategies} 条干预策略`)
+        ElMessage.success(`已从实验 ${experimentId} 补充 ${stratData.total_strategies} 条干预策略`)
       }
     }
   } catch (e) {
@@ -382,64 +461,180 @@ const loadStrategiesFromBackend = async () => {
   }
 }
 
+// ---- 铀供应链干预策略库 ----
 const strategyFolders = reactive([
   {
-    id: 'f1',
-    label: '产能干预',
-    expanded: true,
+    id: 'cat_capacity', label: '一、铀矿产能扩张', expanded: true,
     children: [
-      { id: 's1', name: '制造总产能 +15%', target: '制造商', phase: '事中', expectedCompletionDelta: '+14.7pp', backlogImprovement: '-22.5%', collaborationDelta: '+13 次', resilienceDelta: '+0.29', type: '产能扩张', scope: '全局制造', mechanism: '阶梯式扩产', trigger: '订单积压 > 20%' },
-      { id: 's2', name: '瓶颈工厂定向扩产', target: '瓶颈工厂', phase: '事中', expectedCompletionDelta: '+9.2pp', backlogImprovement: '-15.1%', collaborationDelta: '+5 次', resilienceDelta: '+0.14', type: '产能扩张', scope: '定向瓶颈', mechanism: '高峰前置扩产', trigger: '单厂利用率 > 90%' }
+      { id: 'cap_global_30',  name: '【A】全球扩产+30%',    desc: '产能 5.5→10.1万 tU/年 | 完成率+18pp | 利润↑',   target: '所有铀矿', phase: '事中', expectedCompletionDelta: '+18.2pp', backlogImprovement: '-28.5%', collaborationDelta: '+18次', resilienceDelta: '+0.35', type: '产能扩张', mechanism: 'ISL+硬岩矿同步阶梯式扩产', trigger: '供应缺口>15%' },
+      { id: 'cap_isl_priority', name: '【B】ISL低成本优先', desc: '产能 5.0→9.0万 tU/年 | 完成率+12pp | 成本优',     target: '哈萨克斯坦ISL矿', phase: '事中', expectedCompletionDelta: '+12.5pp', backlogImprovement: '-20.1%', collaborationDelta: '+8次', resilienceDelta: '+0.22', type: '产能扩张', mechanism: '恢复硫酸供应，ISL利用率80%→满产', trigger: 'ISL利用率<80%' },
+      { id: 'cap_lower_threshold', name: '【C】降低新矿门槛', desc: '投产阈值 6000→3000 | 完成率+16pp | 新矿↑',        target: '计划矿山项目', phase: '事前', expectedCompletionDelta: '+15.8pp', backlogImprovement: '-24.0%', collaborationDelta: '+25次', resilienceDelta: '+0.42', type: '市场准入', mechanism: '降低Dasa/Wheeler River投产门槛', trigger: '中长期供需缺口预警' }
     ]
   },
   {
-    id: 'f2',
-    label: '协作干预',
-    expanded: true,
+    id: 'cat_procurement', label: '二、采购与储备', expanded: true,
     children: [
-      { id: 's3', name: '工厂协作范围 +20%', target: '制造商网络', phase: '事中', expectedCompletionDelta: '+11.3pp', backlogImprovement: '-18.7%', collaborationDelta: '+22 次', resilienceDelta: '+0.35', type: '协作优化', scope: '全网络', mechanism: '动态订单调度', trigger: '跨厂协作 < 阈值' },
-      { id: 's4', name: '供应商协作强化', target: '供应商层级', phase: '事中', expectedCompletionDelta: '+5.8pp', backlogImprovement: '-9.4%', collaborationDelta: '+16 次', resilienceDelta: '+0.21', type: '协作优化', scope: '上游供应', mechanism: '供应商协同交付', trigger: '供应延迟 > 3天' }
+      { id: 'proc_diversify',  name: '【D】采购多元化',    desc: '协作半径→3000 协作厂→50 | 完成率+10pp | 韧性+0.38',   target: '全球铀贸易网络', phase: '事中', expectedCompletionDelta: '+10.3pp', backlogImprovement: '-16.7%', collaborationDelta: '+28次', resilienceDelta: '+0.38', type: '采购策略', mechanism: '多源供应+长期合约，降低单一来源依赖', trigger: '单一来源>40%' },
+      { id: 'proc_stockpile',   name: '【E】战略储备90天', desc: '投产阈值 6000→4500 | 完成率+8pp | 缓冲↑',            target: '国家铀储备库', phase: '事前', expectedCompletionDelta: '+7.8pp', backlogImprovement: '-11.4%', collaborationDelta: '+5次', resilienceDelta: '+0.25', type: '库存缓冲', mechanism: '储备从30天提升至90天安全库存', trigger: '地缘政治风险升级' }
     ]
   },
   {
-    id: 'f3',
-    label: '库存与缓冲干预',
-    expanded: false,
+    id: 'cat_emergency', label: '三、应急响应', expanded: false,
     children: [
-      { id: 's5', name: '库存容量上限 +25%', target: '销售商', phase: '事中', expectedCompletionDelta: '+8.5pp', backlogImprovement: '-12.0%', collaborationDelta: '+3 次', resilienceDelta: '+0.18', type: '库存缓冲', scope: '全局库存', mechanism: '安全库存扩容', trigger: '库存周转 < 1.5' },
-      { id: 's6', name: '供应保障能力 +20%', target: '供应商', phase: '事前', expectedCompletionDelta: '+6.2pp', backlogImprovement: '-8.8%', collaborationDelta: '+8 次', resilienceDelta: '+0.22', type: '供应保障', scope: '上游供给', mechanism: '多源供应保障', trigger: '供应中断风险预警' }
+      { id: 'emer_niger',       name: '【F】尼日尔断供',  desc: '产能 3.8→7.0万 | 调整速率 0.12 | 快速切换',           target: '非洲→替代来源', phase: '事中', expectedCompletionDelta: '+5.5pp', backlogImprovement: '-8.0%', collaborationDelta: '+12次', resilienceDelta: '+0.19', type: '应急响应', mechanism: '启动纳米比亚+加拿大替代产能', trigger: '政局突变/出口中断' },
+      { id: 'emer_kazakh',      name: '【G】哈萨克酸中断', desc: '产能 3.6→6.8万 | 调整速率 0.12 | 启动替代',           target: '中亚→替代ISL', phase: '事中', expectedCompletionDelta: '+6.8pp', backlogImprovement: '-10.5%', collaborationDelta: '+9次', resilienceDelta: '+0.16', type: '应急响应', mechanism: '启动澳Honeymoon+美ISL替代产能', trigger: '硫酸供应中断' }
+    ]
+  },
+  {
+    id: 'cat_market', label: '四、市场与金融', expanded: false,
+    children: [
+      { id: 'mkt_hedge',        name: '【H】长期合约锁价', desc: '调整速率 0.06 | 完成率+4pp | 锁定$55/lb',             target: '铀市场价格', phase: '事前', expectedCompletionDelta: '+4.2pp', backlogImprovement: '-5.8%', collaborationDelta: '+3次', resilienceDelta: '+0.15', type: '价格策略', mechanism: '$50-60/lb长期合约锁定5-10年价格', trigger: '现货铀价>$80/lb' },
+      { id: 'mkt_slow_adjust',  name: '【I】稳健保守',    desc: '调整速率 0.04 | 完成率+2pp | 避免过度投资',            target: '全供应链', phase: '事后', expectedCompletionDelta: '+2.0pp', backlogImprovement: '-3.0%', collaborationDelta: '+1次', resilienceDelta: '+0.05', type: '稳健策略', mechanism: '极低调整速率，依赖合约+储备缓冲', trigger: '市场不确定性高' }
     ]
   }
 ])
 
+// ---- 异常分析状态 ----
+const anomaliesData = ref(null)
+const severityFilter = ref('')
+const selectedAnomalyIndex = ref(null)
+const selectedDetail = ref(null)
+const typeLabels = { order_drop: '铀需求骤降', completion_change: '供应完成率异常', enterprise_change: '矿山/企业变动', extreme_event: '铀供应链极端事件', network_disruption: '协作网络中断' }
+const typeLabel = (t) => typeLabels[t] || t
+const anomalyCount = computed(() => anomaliesData.value?.summary?.total_anomalies || 0)
+const highSeverityCount = computed(() => anomaliesData.value?.summary?.by_severity?.high || 0)
+const overviewCards = computed(() => {
+  const s = anomaliesData.value?.summary || {}; const types = s.by_type || []; const topType = types[0]
+  return [
+    { label: '异常总数', value: s.total_anomalies || 0, icon: WarningFilled },
+    { label: '主要类型', value: topType ? `${topType.label} (${topType.count})` : '--', icon: TrendCharts },
+    { label: '涉及月份', value: anomaliesData.value?.timeline?.length || 0, icon: Odometer },
+    { label: '高严重度', value: highSeverityCount.value, icon: DataLine }
+  ]
+})
+const allAnomalies = computed(() => (anomaliesData.value?.anomalies || []).map((a, i) => ({ ...a, _originalIndex: i })))
+const filteredAnomalies = computed(() => severityFilter.value ? allAnomalies.value.filter(a => a.severity === severityFilter.value) : allAnomalies.value)
+
+const loadAnomalies = async () => {
+  try {
+    const listRes = await getExperiments(); const experiments = unwrapApiData(listRes) || []
+    if (!experiments?.length) return
+    const latest = experiments[0]; const experimentId = latest.experiment_id || latest.id
+    if (!experimentId) return
+    const res = await getAnomalies(experimentId); const data = unwrapApiData(res)
+    if (data) anomaliesData.value = data
+  } catch (e) { console.warn('加载异常数据失败:', e) }
+}
+const selectAnomaly = async (index) => {
+  selectedAnomalyIndex.value = index
+  try {
+    const listRes = await getExperiments(); const experiments = unwrapApiData(listRes) || []
+    const latest = experiments[0]; const experimentId = latest.experiment_id || latest.id
+    if (!experimentId) return
+    const res = await getAnomalyDetail(experimentId, index); const data = unwrapApiData(res)
+    if (data?.detail) selectedDetail.value = data.detail
+  } catch (e) { console.warn('加载异常详情失败:', e) }
+}
+
 const activeStrategySlot = ref('secondary')
 
 const strategyInfoFields = [
-  { key: 'name', label: '策略名称' },
-  { key: 'type', label: '策略类型' },
-  { key: 'target', label: '作用对象' },
-  { key: 'scope', label: '作用范围' },
-  { key: 'mechanism', label: '实施机制' },
-  { key: 'trigger', label: '触发条件' }
+  { key: 'name', label: '策略' },
+  { key: 'desc', label: '核心参数' },
+  { key: 'mechanism', label: '机制' },
+  { key: 'trigger', label: '触发' }
 ]
 
 const strategyParamFields = [
-  { key: 'type', label: '策略类型' },
-  { key: 'target', label: '作用对象' },
-  { key: 'scope', label: '作用范围' },
-  { key: 'mechanism', label: '实施机制' }
+  { key: 'name', label: '策略' },
+  { key: 'desc', label: '核心参数' },
+  { key: 'mechanism', label: '机制' }
 ]
 
 const strategyResultFields = [
-  { key: 'expectedCompletionDelta', label: '完成率变化' },
-  { key: 'backlogImprovement', label: '积压改善' },
-  { key: 'collaborationDelta', label: '协作变化' },
-  { key: 'resilienceDelta', label: '韧性变化' }
+  { key: 'expectedCompletionDelta', label: '预期完成率变化' },
+  { key: 'backlogImprovement', label: '预期供应缺口改善' },
+  { key: 'collaborationDelta', label: '预期协作增量' },
+  { key: 'resilienceDelta', label: '预期韧性提升' }
 ]
 
 const currentStrategy = reactive({ ...strategyFolders[0].children[0] })
 const selectedStrategy = ref({ ...strategyFolders[1].children[0] })
-const interventionProblem = '市场需求强度上升时，制造总产能需要如何调整，才能减少订单积压并保持完成率稳定？'
+
+// ---- 结构方程可视化 ----
+const semChartRef = ref(null)
+let semChartInstance = null
+
+const buildSEMOption = () => {
+  const a = currentStrategy; const b = selectedStrategy.value
+  if (!a?.id || !b?.id) return null
+  try {
+    const vaA = parseFloat(a.expectedCompletionDelta) || 10
+    const vaB = parseFloat(b.expectedCompletionDelta) || 10
+    const vcA = parseInt(a.collaborationDelta) || 15
+    const vcB = parseInt(b.collaborationDelta) || 15
+    const colorA = '#3b82f6'; const colorB = '#22c55e'
+    return {
+      tooltip: { formatter: function(p) { return p.dataType === 'node' ? p.name : p.data.source + ' -> ' + p.data.target } },
+      series: [{
+        type: 'graph', layout: 'none', roam: false, draggable: false,
+        categories: [{ name: '策略A' }, { name: '策略B' }, { name: '结果指标' }],
+        data: [
+          { id: 'pA', name: (a.name||'').substring(0,10), x: 76, y: 36, itemStyle: { color: colorA }, symbolSize: 16, category: 0 },
+          { id: 'pB', name: (b.name||'').substring(0,10), x: 76, y: 196, itemStyle: { color: colorB }, symbolSize: 16, category: 1 },
+          { id: 'mA_cap', name: '产能'+String(vaA>15?'+30%':vaA>10?'+15%':vaA>5?'+10%':'基线'), x: 276, y: 16, symbolSize: 11, category: 0 },
+          { id: 'mA_col', name: '协作+'+String(vcA)+'次', x: 276, y: 56, symbolSize: 11, category: 0 },
+          { id: 'mB_cap', name: '产能'+String(vaB>15?'+30%':vaB>10?'+15%':vaB>5?'+10%':'基线'), x: 276, y: 176, symbolSize: 11, category: 1 },
+          { id: 'mB_col', name: '协作+'+String(vcB)+'次', x: 276, y: 216, symbolSize: 11, category: 1 },
+          { id: 'o_comp', name: '供应完成率', x: 476, y: 66, symbolSize: 14, category: 2 },
+          { id: 'o_res', name: '网络韧性', x: 476, y: 126, symbolSize: 14, category: 2 },
+          { id: 'o_profit', name: '总利润', x: 476, y: 186, symbolSize: 14, category: 2 },
+        ],
+        links: [
+          { source: 'pA', target: 'mA_cap', lineStyle: { color: colorA, width: 2 } },
+          { source: 'pA', target: 'mA_col', lineStyle: { color: colorA, width: 2 } },
+          { source: 'pB', target: 'mB_cap', lineStyle: { color: colorB, width: 2 } },
+          { source: 'pB', target: 'mB_col', lineStyle: { color: colorB, width: 2 } },
+          { source: 'mA_cap', target: 'o_comp', lineStyle: { color: colorA, width: 1.5, type: 'dashed' } },
+          { source: 'mA_col', target: 'o_comp', lineStyle: { color: colorA, width: 1.5 } },
+          { source: 'mA_col', target: 'o_res', lineStyle: { color: colorA, width: 1.5 } },
+          { source: 'mB_cap', target: 'o_comp', lineStyle: { color: colorB, width: 1.5, type: 'dashed' } },
+          { source: 'mB_col', target: 'o_comp', lineStyle: { color: colorB, width: 1.5 } },
+          { source: 'mB_col', target: 'o_res', lineStyle: { color: colorB, width: 1.5 } },
+          { source: 'o_comp', target: 'o_profit', lineStyle: { color: '#94a3b8', width: 1 } },
+          { source: 'o_res', target: 'o_profit', lineStyle: { color: '#94a3b8', width: 1 } },
+        ],
+        label: { show: true, fontSize: 9, color: '#1e293b', fontWeight: 'bold' },
+        edgeSymbol: ['none', 'arrow'], edgeSymbolSize: 7,
+        lineStyle: { curveness: 0.1, opacity: 0.7 }
+      }]
+    }
+  } catch(e) { console.warn('SEM build failed:', e); return null }
+}
+
+let _semTimer = null
+const renderSEMChart = () => {
+  if (_semTimer) clearTimeout(_semTimer)
+  _semTimer = setTimeout(function() {
+    try {
+      if (!semChartRef.value) return
+      if (semChartInstance) { semChartInstance.dispose(); semChartInstance = null }
+      var opt = buildSEMOption()
+      if (!opt) return
+      semChartInstance = echarts.init(semChartRef.value)
+      semChartInstance.setOption(opt)
+    } catch(e) { console.warn('SEM render failed:', e) }
+  }, 300)
+}
+
+// 选策略时触发渲染
+function selectStrategy(child) {
+  if (runState.running) { ElMessage.warning('实验运行中，暂不能切换干预策略'); return }
+  if (activeStrategySlot.value === 'primary') { Object.assign(currentStrategy, child); clearRunOutputForSelectionChange() }
+  else { selectedStrategy.value = child; clearRunOutputForSelectionChange() }
+  renderSEMChart()
+}
+const interventionProblem = '铀矿产能受限与核电需求增长背景下，如何选择最优干预策略以维持铀供应链供应安全和完成率稳定？'
 const interventionIterations = 15
 const pollingIntervalMs = 5000
 
@@ -541,8 +736,9 @@ const runComparisonRows = computed(() => {
 let runPollingTimer = null
 
 const baseRunPayload = () => ({
-  scenario: 'supply_chain',
-  iterations: interventionIterations,
+  scenario: 'uranium',
+  data_dir: 'E:/tju_1/processed',
+  iterations: 7,
   model: 'qwen',
   planner_strategy: 'native',
   use_decompose: false,
@@ -550,102 +746,42 @@ const baseRunPayload = () => ({
   llm_enabled: false,
   user_goal: interventionProblem,
   phase: 'post',
-  source_page: 'ExpAnalysis_Intervention',
-  baseline_demo: 'SCnet full 15-iteration backend simulation demo'
+  source_page: 'ExpAnalysis_Intervention'
 })
 
 const strategyRuntimeConfig = (strategy = {}) => {
+  const baseline = { order_multiplier: 1.0, factory_capacity_range: [42000, 78000], reproduction_threshold: 6000, adjustment_ratio: 0.08 }
+  const defaultAgent = { factory: { params: { capacity_range: [42000, 78000] } }, manufacturing_corporation: { params: { capacity_range: [42000, 78000] } } }
   const configs = {
-    s1: {
-      paramOverrides: {
-        order_multiplier: 1.25,
-        factory_capacity_range: [288, 460],
-        reproduction_threshold: 600
-      },
-      agentNodeConfigs: {
-        factory: { params: { capacity_range: [288, 460] } },
-        manufacturing_corporation: { params: { capacity_range: [288, 460] } }
-      }
-    },
-    s2: {
-      paramOverrides: {
-        order_multiplier: 1.25,
-        factory_capacity_range: [320, 500],
-        reproduction_threshold: 600
-      },
-      agentNodeConfigs: {
-        factory: { params: { capacity_range: [320, 500] } },
-        manufacturing_corporation: { params: { capacity_range: [320, 500], max_concurrent_orders: 1800 } }
-      }
-    },
-    s3: {
-      paramOverrides: {
-        order_multiplier: 1.25,
-        factory_capacity_range: [250, 400],
-        reproduction_threshold: 600
-      },
-      agentNodeConfigs: {
-        manufacturing_corporation: {
-          params: {
-            collaboration_radius: 2160,
-            max_collaboration_factories: 36,
-            max_concurrent_orders: 1700
-          }
-        }
-      }
-    },
-    s4: {
-      paramOverrides: {
-        order_multiplier: 1.25,
-        factory_capacity_range: [250, 400],
-        reproduction_threshold: 560
-      },
-      agentNodeConfigs: {
-        manufacturing_corporation: {
-          params: {
-            collaboration_radius: 1980,
-            max_collaboration_factories: 34
-          }
-        }
-      }
-    },
-    s5: {
-      paramOverrides: {
-        order_multiplier: 1.25,
-        factory_capacity_range: [250, 400],
-        reproduction_threshold: 600
-      },
-      agentNodeConfigs: {
-        retailer: { params: { inventory_capacity: [63, 188] } }
-      }
-    },
-    s6: {
-      paramOverrides: {
-        order_multiplier: 1.25,
-        factory_capacity_range: [270, 430],
-        reproduction_threshold: 520
-      },
-      agentNodeConfigs: {
-        factory: { params: { capacity_range: [270, 430] } },
-        manufacturing_corporation: { params: { max_concurrent_orders: 1800 } }
-      }
-    }
+    // 一、产能扩张
+    cap_global_30:       { paramOverrides: { ...baseline, factory_capacity_range: [54600, 101400], adjustment_ratio: 0.08 }, agentNodeConfigs: defaultAgent },
+    cap_isl_priority:    { paramOverrides: { ...baseline, factory_capacity_range: [50000, 90000], reproduction_threshold: 5000, adjustment_ratio: 0.10 }, agentNodeConfigs: defaultAgent },
+    cap_lower_threshold: { paramOverrides: { ...baseline, factory_capacity_range: [42000, 78000], reproduction_threshold: 3000, adjustment_ratio: 0.08 }, agentNodeConfigs: defaultAgent },
+    // 二、采购与储备
+    proc_diversify: { paramOverrides: { ...baseline }, agentNodeConfigs: { manufacturing_corporation: { params: { collaboration_radius: 3000, max_collaboration_factories: 50, capacity_range: [42000, 78000] } } } },
+    proc_stockpile: { paramOverrides: { ...baseline, reproduction_threshold: 4500, adjustment_ratio: 0.10 }, agentNodeConfigs: defaultAgent },
+    // 三、应急响应
+    emer_niger:  { paramOverrides: { ...baseline, factory_capacity_range: [38000, 70000], reproduction_threshold: 5500, adjustment_ratio: 0.12 }, agentNodeConfigs: defaultAgent },
+    emer_kazakh: { paramOverrides: { ...baseline, factory_capacity_range: [36000, 68000], reproduction_threshold: 5000, adjustment_ratio: 0.12 }, agentNodeConfigs: defaultAgent },
+    // 四、市场与金融
+    mkt_hedge:       { paramOverrides: { ...baseline, adjustment_ratio: 0.06 }, agentNodeConfigs: defaultAgent },
+    mkt_slow_adjust: { paramOverrides: { ...baseline, adjustment_ratio: 0.04 }, agentNodeConfigs: defaultAgent },
   }
-
-  return configs[strategy.id] || {
-    paramOverrides: {
-      order_multiplier: 1.25,
-      factory_capacity_range: [250, 400],
-      reproduction_threshold: 600
-    },
-    agentNodeConfigs: {}
-  }
+  return configs[strategy.id] || { paramOverrides: { ...baseline }, agentNodeConfigs: defaultAgent }
 }
 
 const buildInterventionRunPayload = (slotKey, strategy) => {
   const runtimeConfig = strategyRuntimeConfig(strategy)
   return {
     ...baseRunPayload(),
+    // 顶层参数覆盖（后端仿真器必需）
+    param_overrides: {
+      order_multiplier: runtimeConfig.paramOverrides.order_multiplier || 1.0,
+      factory_capacity_range: runtimeConfig.paramOverrides.factory_capacity_range,
+      manufacturer_production_capacity_range: runtimeConfig.paramOverrides.factory_capacity_range,
+      reproduction_threshold: runtimeConfig.paramOverrides.reproduction_threshold || 6000,
+      adjustment_ratio: runtimeConfig.paramOverrides.adjustment_ratio || 0.08
+    },
     intervention_slot: slotKey === 'primary' ? 'A' : 'B',
     intervention_strategy_id: strategy.id,
     intervention_strategy_name: strategy.name,
@@ -658,15 +794,31 @@ const buildInterventionRunPayload = (slotKey, strategy) => {
       param_overrides: runtimeConfig.paramOverrides
     },
     subtask_variable_configs: {
-      intervention_runtime: {
-        paramOverrides: runtimeConfig.paramOverrides
+      counterfactual_runtime: {
+        paramOverrides: {
+          order_multiplier: runtimeConfig.paramOverrides.order_multiplier || 1.0,
+          factory_capacity_range: runtimeConfig.paramOverrides.factory_capacity_range,
+          manufacturer_production_capacity_range: runtimeConfig.paramOverrides.factory_capacity_range,
+          reproduction_threshold: runtimeConfig.paramOverrides.reproduction_threshold || 6000,
+          adjustment_ratio: runtimeConfig.paramOverrides.adjustment_ratio || 0.08
+        }
       }
     },
-    agent_node_configs: runtimeConfig.agentNodeConfigs,
+    agent_node_configs: {
+      factory: { params: { capacity_range: runtimeConfig.paramOverrides.factory_capacity_range } },
+      manufacturing_corporation: { params: { capacity_range: runtimeConfig.paramOverrides.factory_capacity_range } }
+    },
     scenario_context: {
       actual_problem: interventionProblem,
       selected_strategy: strategy.name,
-      strategy_slot: slotKey === 'primary' ? '策略A' : '策略B'
+      strategy_slot: slotKey === 'primary' ? '策略A' : '策略B',
+      selected_parameters: [
+        { key: 'order_multiplier', label: '铀需求强度', value: runtimeConfig.paramOverrides.order_multiplier || 1.0, unit: '倍' },
+        { key: 'factory_capacity_min', label: '铀矿产能下限', value: runtimeConfig.paramOverrides.factory_capacity_range[0], unit: 'tU/年' },
+        { key: 'factory_capacity_max', label: '铀矿产能上限', value: runtimeConfig.paramOverrides.factory_capacity_range[1], unit: 'tU/年' },
+        { key: 'reproduction_threshold', label: '新矿投产阈值', value: runtimeConfig.paramOverrides.reproduction_threshold || 6000, unit: 'tU/年' },
+        { key: 'adjustment_ratio', label: '产能爬坡速率', value: runtimeConfig.paramOverrides.adjustment_ratio || 0.08, unit: '比例' }
+      ]
     }
   }
 }
@@ -1016,26 +1168,15 @@ const exportRunReport = (format = 'html') => {
 
 onMounted(() => {
   loadStrategiesFromBackend()
+  loadAnomalies()
+  // 初始渲染结构方程图
+  setTimeout(() => renderSEMChart(), 600)
 })
 
 onBeforeUnmount(() => {
   stopRunPolling()
+  if (semChartInstance) { semChartInstance.dispose(); semChartInstance = null }
 })
-
-function selectStrategy(child) {
-  if (runState.running) {
-    ElMessage.warning('实验运行中，暂不能切换干预策略')
-    return
-  }
-
-  if (activeStrategySlot.value === 'primary') {
-    Object.assign(currentStrategy, child)
-    clearRunOutputForSelectionChange()
-    return
-  }
-  selectedStrategy.value = child
-  clearRunOutputForSelectionChange()
-}
 
 function setActiveStrategySlot(slot) {
   activeStrategySlot.value = slot
@@ -1062,15 +1203,9 @@ function clearRunOutputForSelectionChange() {
 
 <style scoped>
 .post-intervention-page {
-  height: 100%;
-  min-height: 0;
-  box-sizing: border-box;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  background: #f6f8fb;
-  color: #0f172a;
+  height: 100%; min-height: 0; box-sizing: border-box; padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 10px;
+  background: #f6f8fb; color: #0f172a; overflow-y: auto;
   font-family: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
@@ -1111,11 +1246,12 @@ function clearRunOutputForSelectionChange() {
 }
 
 .intervention-layout {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
-  min-height: 0;
+  min-height: 500px;
+  height: calc(100vh - 280px);
 }
 
 .case-select-panel {
@@ -1557,6 +1693,15 @@ function clearRunOutputForSelectionChange() {
 }
 
 /* ---- 实际运行模块 ---- */
+/* ---- 结构方程图 ---- */
+.sem-panel { margin-top: 14px; border: 1px solid #ddd6fe; border-radius: 8px; background: #fff; overflow: hidden; }
+.sem-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #ede9fe; background: linear-gradient(90deg, #faf5ff, #fff); font-size: 13px; font-weight: 800; color: #5b21b6; }
+.sem-head .el-icon { color: #7c3aed; }
+.sem-legend { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: #64748b; }
+.sem-dot-a { width: 10px; height: 10px; border-radius: 50%; background: #3b82f6; display: inline-block; }
+.sem-dot-b { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; display: inline-block; }
+.sem-chart { width: 100%; height: 260px; }
+
 .runtime-panel {
   margin-top: 14px;
   border: 1px solid #dbeafe;
@@ -1759,14 +1904,47 @@ function clearRunOutputForSelectionChange() {
 
 .library-tree::-webkit-scrollbar,
 .current-experiment::-webkit-scrollbar,
-.compare-body::-webkit-scrollbar {
+.compare-body::-webkit-scrollbar,
+.panel-body::-webkit-scrollbar {
   width: 5px;
 }
-
 .library-tree::-webkit-scrollbar-thumb,
 .current-experiment::-webkit-scrollbar-thumb,
-.compare-body::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 999px;
+.compare-body::-webkit-scrollbar-thumb,
+.panel-body::-webkit-scrollbar-thumb {
+  background: #cbd5e1; border-radius: 999px;
 }
+
+/* ---- 异常区域 ---- */
+.head-actions .stat-item { min-width: 90px; padding: 8px 12px; border: 1px solid #fecaca; border-radius: 10px; background: linear-gradient(180deg, #fff8f8, #fef2f2); }
+.head-actions .stat-item span { display: block; color: #64748b; font-size: 11px; font-weight: 800; }
+.head-actions .stat-item strong { display: block; margin-top: 4px; color: #991b1b; font-size: 18px; }
+.overview-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.overview-card { display: grid; grid-template-columns: 38px 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center; min-height: 56px; padding: 8px 14px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; }
+.overview-card .el-icon { grid-row: 1/3; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; background: #fecaca; color: #ef4444; font-size: 16px; }
+.overview-card span { color: #64748b; font-size: 12px; font-weight: 800; }
+.overview-card strong { color: #0f172a; font-size: 18px; }
+.anomaly-section { flex: 0 0 auto; margin-top: 10px; }
+.anomaly-grid { display: grid; grid-template-columns: 380px 1fr; gap: 10px; }
+.anomaly-list-panel, .anomaly-detail-panel { border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 6px 16px rgba(15,23,42,0.04); max-height: 360px; }
+.panel-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #eef2f7; font-weight: 800; font-size: 13px; flex-shrink: 0; }
+.panel-body { flex: 1; overflow-y: auto; padding: 6px; }
+.anomaly-item { padding: 10px; margin: 2px 0; border: 1px solid #eef2f7; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+.anomaly-item:hover { border-color: #fca5a5; background: #fffafa; }
+.anomaly-item.active { border-color: #ef4444; background: #fef2f2; border-left: 3px solid #ef4444; }
+.anomaly-head { display: flex; align-items: center; gap: 8px; }
+.anomaly-type { font-size: 12px; font-weight: 800; color: #0f172a; }
+.anomaly-desc { margin: 6px 0; font-size: 11px; color: #64748b; line-height: 1.5; }
+.anomaly-meta { display: flex; gap: 10px; font-size: 11px; color: #94a3b8; font-weight: 600; }
+.detail-body { padding: 14px; overflow-y: auto; }
+.detail-section { margin-bottom: 12px; }
+.detail-section h4 { margin: 0 0 6px; font-size: 13px; font-weight: 800; color: #0f172a; }
+.detail-section p, .detail-section li { margin: 0; font-size: 12px; color: #475569; line-height: 1.6; }
+.detail-section ul { margin: 0; padding-left: 16px; }
+.metrics-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.metric-item { padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px; background: #fafbfc; display: flex; flex-direction: column; gap: 3px; }
+.metric-label { font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase; }
+.metric-value { font-size: 14px; font-weight: 900; color: #0f172a; }
+.empty-hint, .detail-empty { padding: 30px 0; text-align: center; color: #94a3b8; font-size: 12px; font-weight: 600; }
+.detail-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 60px 0; }
 </style>

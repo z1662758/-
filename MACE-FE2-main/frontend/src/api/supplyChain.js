@@ -245,6 +245,18 @@ export function compareCases(caseAId, caseBId) {
 }
 
 /**
+ * 获取实验的指标分布数据（概率分布图用）
+ * @param {string} experimentId - 实验ID
+ * @returns {Promise}
+ */
+export function getExperimentDistribution(experimentId) {
+  return request({
+    url: `/SCnet/supplyChain/experiments/${experimentId}/distribution`,
+    method: 'get'
+  })
+}
+
+/**
  * 获取实验的异常列表
  * @param {string} experimentId - 实验ID
  * @returns {Promise}

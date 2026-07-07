@@ -2,9 +2,9 @@
   <div class="post-report-page">
     <section class="report-head">
       <div>
-        <p class="eyebrow">SCNET Analysis Report</p>
-        <h1>实验报告</h1>
-        <p class="subtitle">基于供应链事中实验与反事实分析结果，生成参数、指标、迭代对比与关键因素总结。</p>
+        <p class="eyebrow">URANIUM SUPPLY CHAIN · REPORT</p>
+        <h1>铀供应链实验报告</h1>
+        <p class="subtitle">基于铀供应链事中仿真与反事实分析结果，生成铀矿产能、供应安全、网络韧性等关键指标对比与因素总结。</p>
       </div>
       <div class="head-actions">
         <el-dropdown trigger="click" @command="exportReport">
@@ -31,7 +31,7 @@
     <el-empty
       v-else-if="!reportData"
       class="empty-report"
-      description="请先选择或完成一个供应链实验"
+      description="请先选择或完成一个铀供应链实验"
       :image-size="120"
     />
 
@@ -436,7 +436,7 @@ const experimentRows = computed(() => {
   return [{
     id: 'Exp-01',
     shortLabel: 'Exp-01',
-    label: safeGetValue(reportData.value, 'goal', '') || '供应链仿真实验',
+    label: safeGetValue(reportData.value, 'goal', '') || '铀供应链仿真实验',
     source: getStatusText(safeGetValue(reportData.value, 'status', '')),
     paramsMap: {
       ...baseParams,
@@ -521,14 +521,17 @@ const metricCellClass = (key, row) => {
 };
 
 const factorEffectMap = {
-  order_multiplier: '影响市场需求强度，是订单积压和产能压力变化的直接入口。',
-  capacity_range: '约束制造端产能上限，决定订单能否在需求上升时被及时消化。',
-  reproduction_threshold: '影响企业扩张或复制条件，改变供应网络的响应速度。',
-  initial_capital: '决定企业承压能力和持续调度空间，影响利润与库存稳定性。',
-  max_iterations: '决定仿真搜索深度，影响最优策略被发现的概率。',
-  simulation_duration: '影响订单流、库存流和利润变化是否充分显现。',
-  total_enterprises: '决定网络规模与协作复杂度，影响供应链整体韧性。',
-  key_params: '聚合实验关注变量，是解释实验结论的核心参数集合。'
+  order_multiplier: '全球核电反应堆铀需求倍数，直接影响铀矿订单量和供应压力。',
+  factory_capacity_range: '铀矿年产能上下限(tU/年)，决定全球铀供应能否满足核电需求。',
+  capacity_range: '铀矿产能区间，约束供给侧承载能力，影响供应缺口大小。',
+  reproduction_threshold: '触发新铀矿开发的供需缺口阈值，影响Dasa/Wheeler River等新矿投产时机。',
+  adjustment_ratio: '铀矿扩产/减产的年度调整速率，反映矿山重启与关停的响应速度。',
+  network_density: '铀供应链网络连接密度，反映贸易伙伴多样性和供应渠道丰富度。',
+  network_stability: '网络面对地缘政治冲击和矿山停产时的稳定性，关键韧性指标。',
+  production_capacity_est: '全球铀矿年产能估算(tU/年)，参考NEA/IAEA Red Book数据。',
+  max_iterations: '决定仿真搜索深度，影响最优铀供应链策略被发现的概率。',
+  total_enterprises: '铀供应链中矿山/贸易商/核电企业节点数，影响网络规模与协作复杂度。',
+  key_params: '聚合铀供应链实验关注变量，是解释实验结论的核心参数集合。'
 };
 
 const factorSummaries = computed(() => {
@@ -549,19 +552,19 @@ const topFactor = computed(() => factorSummaries.value[0] || null);
 
 const pathSummaries = computed(() => [
   {
-    title: '需求冲击传导路径',
-    chain: '市场需求强度上升 -> 订单积压扩大 -> 制造产能承压 -> 完成率波动',
-    note: '用于解释需求变化对供应链运行状态的基础影响。'
+    title: '铀需求冲击传导路径',
+    chain: '全球核电需求↑ → 铀矿订单量激增 → 现有矿山产能承压 → 供应完成率波动→供应缺口扩大',
+    note: '解释核电发展情景（中国/印度在建反应堆）对铀供应链的基础影响。'
   },
   {
-    title: '产能调节路径',
-    chain: '制造产能配置 -> 订单处理能力 -> 库存/积压变化 -> 利润与得分回升',
-    note: '最优轮次可作为后续产能反事实实验的参考基线。'
+    title: '铀矿产能调节路径',
+    chain: '铀矿产能配置(tU/年) → 订单处理能力 → 供应缺口/库存变化 → 利润与供应安全回升',
+    note: '最优轮次的产能区间可作为后续反事实实验的参考基线。'
   },
   {
-    title: '协作反馈路径',
-    chain: '企业数量与协作复杂度 -> 供应网络响应速度 -> 完成率稳定性',
-    note: linkedSession.value ? '该路径可与原始建模过程中的任务拆解继续联动。' : '建议补充会话建模记录以增强解释性。'
+    title: '地缘政治风险传导路径',
+    chain: '产铀国政局突变 → 关键矿山停产 → 供应网络切换 → 替代产能启动 → 完成率恢复',
+    note: linkedSession.value ? '该路径可与原始建模过程中的任务拆解继续联动。' : '建议补充NEA Red Book数据以增强预测准确性。'
   }
 ]);
 
@@ -653,7 +656,7 @@ const generateReportHtml = (data) => {
 <html>
 <head>
   <meta charset="utf-8">
-  <title>供应链实验报告_${safeGetValue(data, 'experiment_id', '-')}</title>
+  <title>铀供应链实验报告_${safeGetValue(data, 'experiment_id', '-')}</title>
   <style>
     body { font-family: "Microsoft YaHei", Arial, sans-serif; color: #0f172a; line-height: 1.6; padding: 24px; }
     section, article { break-inside: avoid; }
@@ -667,7 +670,7 @@ const generateReportHtml = (data) => {
   </style>
 </head>
 <body>
-  <h1>供应链实验报告</h1>
+  <h1>铀供应链实验报告</h1>
   <p>生成时间：${new Date().toLocaleString('zh-CN')}</p>
   ${content}
 </body>
@@ -690,7 +693,7 @@ const exportReport = (format = 'txt') => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `供应链实验报告_${reportData.value.experiment_id}.${isHtml ? 'html' : 'txt'}`;
+    link.download = `铀供应链实验报告_${reportData.value.experiment_id}.${isHtml ? 'html' : 'txt'}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -713,7 +716,7 @@ const generateReportText = (data) => {
   const paramText = params.map(p => `${p.label}：${p.value}`).join('\n') || '无';
 
   return `
-供应链仿真实验报告
+铀供应链实验报告
 ==========================================
 
 一、实验概览
@@ -721,18 +724,18 @@ const generateReportText = (data) => {
 实验ID：${safeGetValue(data, 'experiment_id', '-')}
 实验目标：${safeGetValue(data, 'goal', '-')}
 迭代次数：${safeGetValue(data, 'iterations', 0)}轮
-企业数量：${safeGetValue(data, 'enterprise_count', 0)}家
+铀供应链节点：${safeGetValue(data, 'enterprise_count', 0)}个
 创建时间：${formatDate(safeGetValue(data, 'created_at', ''))}
 实验状态：${getStatusText(safeGetValue(data, 'status', ''))}
 
-二、实验参数
+二、铀供应链关键参数
 ------------------------------------------
 ${paramText}
 
 三、关键指标
 ------------------------------------------
-平均完成率：${formatPercent(data.avg_completion_rate)}
-平均净利润：${formatProfit(data.avg_profit)}
+平均供应完成率：${formatPercent(data.avg_completion_rate)}
+平均系统利润：${formatProfit(data.avg_profit)}
 最优得分：${formatScore(data.best_score)}
 最优轮次：第${safeGetValue(data, 'best_iteration', 0)}轮
 
@@ -744,7 +747,7 @@ ${paramText}
 
 平均订单完成率为 ${formatPercent(data.avg_completion_rate)}，平均净利润为 ${formatProfit(data.avg_profit)}。
 
-建议：基于最优轮次的参数配置，可以在实际供应链管理中应用类似策略以提升整体效率和盈利能力。
+建议：基于最优轮次的铀矿产能和新矿投产策略，参考NEA Red Book预测，在实际铀供应链规划中应用最优配置以保障供应安全。
 
 ==========================================
 报告生成时间：${new Date().toLocaleString('zh-CN')}
@@ -760,10 +763,13 @@ const formatDate = (dateStr) => {
 // 格式化参数名称
 const formatParamName = (key) => {
   const nameMap = {
-    order_multiplier: '订单乘数',
-    capacity_range: '产能区间',
-    reproduction_threshold: '繁殖阈值',
-    initial_capital: '初始资金',
+    order_multiplier: '铀需求强度',
+    factory_capacity_range: '铀矿产能区间',
+    capacity_range: '铀矿产能区间',
+    reproduction_threshold: '新矿投产阈值',
+    adjustment_ratio: '产能爬坡速率',
+    network_density: '网络密度',
+    network_stability: '网络稳定性',
     max_iterations: '最大迭代数'
   };
   return nameMap[key] || key;

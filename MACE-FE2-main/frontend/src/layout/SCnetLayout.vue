@@ -141,25 +141,13 @@
             </el-menu-item>
             <el-menu-item index="/home/SCnet/expAnalysisMechanism">
               <el-icon size="18"><ScaleToOriginal/></el-icon>
-              <template #title>机制分析</template>
-            </el-menu-item>
-            <el-menu-item index="/home/SCnet/expAnalysisCaseComparison">
-              <el-icon size="18"><Collection/></el-icon>
-              <template #title>案例对比分析</template>
-            </el-menu-item>
-            <el-menu-item index="/home/SCnet/anomalyAnalysis">
-              <el-icon size="18"><WarningFilled/></el-icon>
-              <template #title>异常分析</template>
-            </el-menu-item>
-            <el-menu-item index="/home/SCnet/causalInference">
-              <el-icon size="18"><Connection/></el-icon>
-              <template #title>因果推断</template>
+              <template #title>机制与因果</template>
             </el-menu-item>
           </el-sub-menu>
 
           <el-menu-item index="/home/SCnet/EXreport">
             <el-icon size="18"><Postcard/></el-icon>
-            <template #title>实验报告</template>
+            <template #title>铀供应链实验报告</template>
           </el-menu-item>
         </template>
 
@@ -173,7 +161,7 @@
         <img src="../assets/images/gameImg.png" style="width: 20px; height: 20px; margin-left: 20px" alt="SCnet"/>
         <transition name="fade-delay" v-show="!isCollapse">
           <div style="height: 100%; display: flex; align-items: center">
-            <span style="margin-left: 0.5rem; color: #606266; font-weight: bold; transition: opacity 3s ease 3s;">供应链</span>
+            <span style="margin-left: 0.5rem; color: #606266; font-weight: bold; transition: opacity 3s ease 3s;">铀供应链</span>
             <el-button circle size="default" style="margin-left: 2.5rem" color="rgb(248, 152, 152)" plain @click="exit()">
               <el-icon><SwitchButton/></el-icon>
             </el-button>

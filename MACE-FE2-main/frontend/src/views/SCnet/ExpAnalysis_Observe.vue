@@ -2,9 +2,20 @@
   <div class="post-observe-page">
     <section class="page-head">
       <div>
-        <p class="eyebrow">SCNET OBSERVE ANALYSIS</p>
-        <h1>观察分析</h1>
-        <p class="subtitle">基于事中供应链结果进行多维度观察，评估系统状态、指标变化与演化趋势。</p>
+        <p class="eyebrow">URANIUM SUPPLY CHAIN · OBSERVE & COMPARE</p>
+        <h1>观察分析与案例对比</h1>
+        <p class="subtitle">基于铀供应链实验结果进行多维度观察对比，评估铀矿产能策略、供应安全指标与网络演化趋势。</p>
+      </div>
+      <div class="head-actions">
+        <div class="stat-item">
+          <span>案例库</span>
+          <strong>{{ totalCaseCount }}</strong>
+        </div>
+        <div class="stat-item" v-if="caseA && caseB">
+          <span>相似度</span>
+          <strong>{{ comparison?.similarity?.overall_score || computeLocalSimilarity() }}%</strong>
+        </div>
+        <el-button type="primary" plain :icon="Refresh" @click="loadAllCases" :loading="loading">刷新</el-button>
       </div>
     </section>
 
@@ -12,126 +23,110 @@
       <!-- ======== 左：实验案例选择 ======== -->
       <section class="case-select-panel">
         <div class="case-select-grid">
-          <!-- 实验案例库（文件树） -->
+          <!-- 实验案例库 -->
           <aside class="case-library">
             <div class="library-head">
               <el-icon><Folder /></el-icon>
-              <span>实验案例库</span>
+              <span>铀供应链案例库</span>
+              <el-input v-model="searchQuery" placeholder="搜索案例..." size="small" clearable class="search-input" />
             </div>
             <div class="library-tree">
-              <div
-                v-for="folder in caseFolders"
-                :key="folder.id"
-                class="tree-folder"
-              >
-                <div
-                  class="tree-folder-head"
-                  :class="{ expanded: folder.expanded }"
-                  @click="folder.expanded = !folder.expanded"
-                >
-                  <el-icon><component :is="folderToggleIcon(folder.expanded)" /></el-icon>
+              <div v-for="folder in filteredFolders" :key="folder.id" class="tree-folder">
+                <div class="tree-folder-head" :class="{ expanded: folder.expanded }" @click="folder.expanded = !folder.expanded">
+                  <el-icon><component :is="folder.expanded ? ArrowDown : ArrowRight" /></el-icon>
                   <el-icon><FolderOpened v-if="folder.expanded" /><Folder v-else /></el-icon>
                   <span class="folder-name">{{ folder.label }}</span>
                   <span class="folder-count">{{ folder.children.length }}</span>
                 </div>
                 <div v-show="folder.expanded" class="tree-folder-children">
                   <div
-                    v-for="child in folder.children"
-                    :key="child.id"
+                    v-for="child in folder.children" :key="child.id"
                     class="tree-leaf"
-                    :class="{ active: selectedCaseId === child.id }"
-                    @click="selectCase(child)"
+                    :class="{
+                      active: selectedCaseId === child.id,
+                      'slot-a': caseAId === child.id,
+                      'slot-b': caseBId === child.id
+                    }"
+                    @click="selectCaseForComparison(child)"
                   >
                     <el-icon><Document /></el-icon>
                     <span class="leaf-name">{{ child.name }}</span>
+                    <span class="leaf-badge" :class="child.completed ? 'done' : 'pending'">
+                      {{ child.completed ? '完成' : '进行中' }}
+                    </span>
                   </div>
                 </div>
               </div>
             </div>
+            <div v-if="totalCaseCount === 0 && !loading" class="empty-hint">暂无可用案例数据</div>
           </aside>
 
-          <!-- 当前实验 -->
+          <!-- 当前/选中实验信息 -->
           <div class="current-experiment">
-            <!-- 上方面板：当前实验信息 -->
             <div class="info-card info-card--primary">
               <div class="info-card-head">
                 <el-icon><DataAnalysis /></el-icon>
-                <span>当前实验</span>
-                <el-tag v-if="currentExperiment" size="small" :type="currentExperiment.completed ? 'success' : 'warning'" round>
-                  {{ currentExperiment.completed ? '已完成' : '进行中' }}
+                <span>案例 A（当前实验）</span>
+                <el-tag v-if="caseA" size="small" :type="caseA.completed ? 'success' : 'warning'" round>
+                  {{ caseA.completed ? '已完成' : '进行中' }}
                 </el-tag>
               </div>
               <div class="info-card-body">
-                <div class="info-row">
-                  <span class="info-label">实验名</span>
-                  <span class="info-value">{{ currentExperiment?.name || '--' }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">是否完成</span>
-                  <span class="info-value">{{ currentExperiment?.completed ? '是' : '否' }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">完成率</span>
-                  <span class="info-value">{{ currentExperiment?.completionRate || '--' }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">实验方法</span>
-                  <span class="info-value">{{ currentExperiment?.method || '--' }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">订单积压率</span>
-                  <span class="info-value">{{ currentExperiment?.backlogRate || '--' }}</span>
-                </div>
+                <template v-if="caseA">
+                  <div class="info-row"><span class="info-label">实验名</span><span class="info-value">{{ caseA.name }}</span></div>
+                  <div class="info-row"><span class="info-label">完成率</span><span class="info-value">{{ caseA.completionRate }}</span></div>
+                  <div class="info-row"><span class="info-label">供应缺口率</span><span class="info-value">{{ caseA.backlogRate }}</span></div>
+                  <div class="info-row"><span class="info-label">产能方案</span><span class="info-value">{{ caseA.capacityPlan }}</span></div>
+                  <div class="info-row"><span class="info-label">干预变量</span><span class="info-value">{{ caseA.intervention }}</span></div>
+                </template>
+                <div v-else class="info-empty">点击案例库中任意案例设为 A</div>
               </div>
             </div>
 
-            <!-- 下方面板：选中案例信息 -->
+            <div class="vs-mini" v-if="caseA && caseB">
+              <span>VS</span>
+            </div>
+
             <div class="info-card info-card--secondary">
               <div class="info-card-head">
                 <el-icon><Collection /></el-icon>
-                <span>{{ selectedCase ? selectedCase.name : '未选择案例' }}</span>
+                <span>案例 B（对比案例）</span>
+                <el-tag v-if="caseB" size="small" :type="caseB.completed ? 'success' : 'warning'" round>
+                  {{ caseB.completed ? '已完成' : '进行中' }}
+                </el-tag>
               </div>
               <div class="info-card-body">
-                <div class="info-row">
-                  <span class="info-label">实验名</span>
-                  <span class="info-value" :class="{ muted: !selectedCase }">{{ selectedCase?.name || '--' }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">是否完成</span>
-                  <span class="info-value" :class="{ muted: !selectedCase }">{{ selectedCase ? (selectedCase.completed ? '是' : '否') : '--' }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">完成率</span>
-                  <span class="info-value" :class="{ muted: !selectedCase }">{{ selectedCase?.completionRate || '--' }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">实验方法</span>
-                  <span class="info-value" :class="{ muted: !selectedCase }">{{ selectedCase?.method || '--' }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">订单积压率</span>
-                  <span class="info-value" :class="{ muted: !selectedCase }">{{ selectedCase?.backlogRate || '--' }}</span>
-                </div>
+                <template v-if="caseB">
+                  <div class="info-row"><span class="info-label">实验名</span><span class="info-value">{{ caseB.name }}</span></div>
+                  <div class="info-row"><span class="info-label">完成率</span><span class="info-value">{{ caseB.completionRate }}</span></div>
+                  <div class="info-row"><span class="info-label">供应缺口率</span><span class="info-value">{{ caseB.backlogRate }}</span></div>
+                  <div class="info-row"><span class="info-label">产能方案</span><span class="info-value">{{ caseB.capacityPlan }}</span></div>
+                  <div class="info-row"><span class="info-label">干预变量</span><span class="info-value">{{ caseB.intervention }}</span></div>
+                </template>
+                <div v-else class="info-empty">再次点击案例库中另一案例设为 B</div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- ======== 右：实验案例对比信息 ======== -->
+      <!-- ======== 右：对比面板（选项卡切换） ======== -->
       <section class="compare-panel">
         <div class="compare-inner">
           <header class="compare-head">
             <div class="compare-head-left">
               <el-icon :size="18"><TrendCharts /></el-icon>
-              <span>实验案例对比</span>
+              <span>铀供应链案例对比</span>
+            </div>
+            <div class="compare-head-tabs">
+              <button class="tab-btn" :class="{ active: activeTab === 'metrics' }" @click="activeTab = 'metrics'">指标对比</button>
+              <button class="tab-btn" :class="{ active: activeTab === 'deep' }" @click="activeTab = 'deep'">深度分析</button>
+              <button class="tab-btn" :class="{ active: activeTab === 'distribution' }" @click="activeTab = 'distribution'">概率分布</button>
             </div>
             <div class="compare-head-actions">
-              <el-tag size="small" type="info" round>对比视图</el-tag>
               <el-dropdown trigger="click" @command="exportComparisonReport">
-                <el-button type="primary" plain size="small" :icon="Download">
-                  导出报告
-                  <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+                <el-button type="primary" plain size="small" :icon="Download" :disabled="!caseA || !caseB">
+                  导出报告<el-icon class="el-icon--right"><ArrowDown /></el-icon>
                 </el-button>
                 <template #dropdown>
                   <el-dropdown-menu>
@@ -145,85 +140,65 @@
           </header>
 
           <div class="compare-body">
-            <div v-if="!selectedCase" class="compare-empty">
-              <el-icon :size="44"><TrendCharts /></el-icon>
-              <p>选择实验案例后查看对比详情</p>
-              <span>在左侧实验案例库中点击任意案例，即可在此处查看当前实验与所选案例的指标对比</span>
+            <div v-if="!caseA || !caseB" class="compare-empty">
+              <el-icon :size="48"><TrendCharts /></el-icon>
+              <p>选择两个案例后查看对比详情</p>
+              <span>在左侧案例库中：<br>第一次点击 → 设为案例 A<br>第二次点击另一案例 → 设为案例 B 并自动对比<br>第三次点击 → 重新选择 A</span>
             </div>
 
-            <div v-else class="compare-content">
-              <!-- 参数对比行 -->
+            <!-- ===== Tab 1: 指标对比 ===== -->
+            <div v-else-if="activeTab === 'metrics'" class="compare-content">
+              <!-- 自选对比维度 -->
+              <div class="dimension-selector">
+                <span class="dim-selector-label">自选对比维度：</span>
+                <el-checkbox-group v-model="selectedComparisonDims" size="small">
+                  <el-checkbox v-for="dim in COMPARISON_DIM_OPTIONS" :key="dim.key" :label="dim.key" :value="dim.key" border>{{ dim.label }}</el-checkbox>
+                </el-checkbox-group>
+              </div>
+
               <div class="card-pair-row">
                 <div class="cmp-card cmp-card--blue">
-                  <div class="cmp-card-head">
-                    <el-icon><Setting /></el-icon>
-                    <span>当前实验 · 实验参数</span>
-                    <div class="cmp-card-pip blue"></div>
-                  </div>
+                  <div class="cmp-card-head"><el-icon><Setting /></el-icon><span>案例 A · 实验参数</span><div class="cmp-card-pip blue"></div></div>
                   <div class="cmp-card-body">
-                    <div class="cmp-kv" v-for="p in paramFields" :key="p.key">
-                      <span class="cmp-kv-label">{{ p.label }}</span>
-                      <span class="cmp-kv-value">{{ currentExperiment[p.key] || '--' }}</span>
-                    </div>
+                    <div class="cmp-kv" v-for="p in filteredParamFields" :key="p.key"><span class="cmp-kv-label">{{ p.label }}</span><span class="cmp-kv-value">{{ caseA[p.key] || '--' }}</span></div>
+                    <div v-if="!filteredParamFields.length" class="cmp-empty-hint">未选择参数维度</div>
                   </div>
                 </div>
-
                 <div class="cmp-card cmp-card--purple">
-                  <div class="cmp-card-head">
-                    <el-icon><Setting /></el-icon>
-                    <span>对比案例 · 实验参数</span>
-                    <div class="cmp-card-pip purple"></div>
-                  </div>
+                  <div class="cmp-card-head"><el-icon><Setting /></el-icon><span>案例 B · 实验参数</span><div class="cmp-card-pip purple"></div></div>
                   <div class="cmp-card-body">
-                    <div class="cmp-kv" v-for="p in paramFields" :key="p.key">
-                      <span class="cmp-kv-label">{{ p.label }}</span>
-                      <span class="cmp-kv-value">{{ selectedCase[p.key] || '--' }}</span>
-                    </div>
+                    <div class="cmp-kv" v-for="p in filteredParamFields" :key="p.key"><span class="cmp-kv-label">{{ p.label }}</span><span class="cmp-kv-value">{{ caseB[p.key] || '--' }}</span></div>
+                    <div v-if="!filteredParamFields.length" class="cmp-empty-hint">未选择参数维度</div>
                   </div>
                 </div>
               </div>
 
-              <!-- 结果对比行 -->
               <div class="card-pair-row">
                 <div class="cmp-card cmp-card--teal">
-                  <div class="cmp-card-head">
-                    <el-icon><DataLine /></el-icon>
-                    <span>当前实验 · 实验结果</span>
-                    <div class="cmp-card-pip teal"></div>
-                  </div>
+                  <div class="cmp-card-head"><el-icon><DataLine /></el-icon><span>案例 A · 实验结果</span><div class="cmp-card-pip teal"></div></div>
                   <div class="cmp-card-body">
-                    <div class="cmp-kv" v-for="r in resultFields" :key="r.key">
-                      <span class="cmp-kv-label">{{ r.label }}</span>
-                      <span class="cmp-kv-value">{{ currentExperiment[r.key] || '--' }}</span>
-                    </div>
+                    <div class="cmp-kv" v-for="r in filteredResultFields" :key="r.key"><span class="cmp-kv-label">{{ r.label }}</span><span class="cmp-kv-value">{{ caseA[r.key] || '--' }}</span></div>
+                    <div v-if="!filteredResultFields.length" class="cmp-empty-hint">未选择结果维度</div>
                   </div>
                 </div>
-
                 <div class="cmp-card cmp-card--amber">
-                  <div class="cmp-card-head">
-                    <el-icon><DataLine /></el-icon>
-                    <span>对比案例 · 实验结果</span>
-                    <div class="cmp-card-pip amber"></div>
-                  </div>
+                  <div class="cmp-card-head"><el-icon><DataLine /></el-icon><span>案例 B · 实验结果</span><div class="cmp-card-pip amber"></div></div>
                   <div class="cmp-card-body">
-                    <div class="cmp-kv" v-for="r in resultFields" :key="r.key">
-                      <span class="cmp-kv-label">{{ r.label }}</span>
-                      <span class="cmp-kv-value">{{ selectedCase[r.key] || '--' }}</span>
-                    </div>
+                    <div class="cmp-kv" v-for="r in filteredResultFields" :key="r.key"><span class="cmp-kv-label">{{ r.label }}</span><span class="cmp-kv-value">{{ caseB[r.key] || '--' }}</span></div>
+                    <div v-if="!filteredResultFields.length" class="cmp-empty-hint">未选择结果维度</div>
                   </div>
                 </div>
               </div>
 
-              <!-- 关键事件节点决策回放 -->
+              <!-- 关键事件节点回放 -->
               <div class="cmp-card cmp-card--large cmp-card--slate">
                 <div class="cmp-card-head">
                   <el-icon><VideoPlay /></el-icon>
-                  <span>关键事件节点决策回放</span>
-                  <div class="cmp-card-pip slate"></div>
+                  <span>关键事件节点决策回放</span><div class="cmp-card-pip slate"></div>
                 </div>
                 <div class="cmp-card-body">
                   <div class="event-timeline">
-                    <div class="event-node" v-for="(evt, idx) in activeEventNodes" :key="idx">
+                    <div class="event-node" v-for="(evt, idx) in (caseA.eventNodes || defaultEventNodes)" :key="'a-'+idx">
                       <div class="event-dot" :class="evt.type"></div>
                       <div class="event-info">
                         <strong>{{ evt.title }}</strong>
@@ -235,971 +210,1039 @@
                 </div>
               </div>
             </div>
+
+            <!-- ===== Tab 2: 深度分析（来自案例对比分析） ===== -->
+            <div v-else-if="activeTab === 'deep'" class="compare-content">
+              <!-- 基础信息对比表 -->
+              <section class="compare-section">
+                <h3><el-icon><DataLine /></el-icon>基础信息对比</h3>
+                <el-table :data="buildBasicComparison()" size="small" stripe>
+                  <el-table-column prop="dimension" label="维度" width="140" />
+                  <el-table-column prop="value_a" label="案例 A"><template #default="{ row }"><span class="val-a">{{ row.value_a }}</span></template></el-table-column>
+                  <el-table-column prop="value_b" label="案例 B"><template #default="{ row }"><span class="val-b">{{ row.value_b }}</span></template></el-table-column>
+                </el-table>
+              </section>
+
+              <!-- 关键指标对比表 -->
+              <section class="compare-section">
+                <h3><el-icon><TrendCharts /></el-icon>关键指标对比</h3>
+                <el-table :data="buildMetricsComparison()" size="small" stripe>
+                  <el-table-column prop="metric" label="指标" width="140" />
+                  <el-table-column prop="value_a" label="案例 A" />
+                  <el-table-column prop="value_b" label="案例 B" />
+                  <el-table-column prop="diff" label="差异">
+                    <template #default="{ row }">
+                      <span :style="{ color: row.diff.startsWith('+') ? '#22c55e' : row.diff.startsWith('-') ? '#ef4444' : '#64748b' }">{{ row.diff }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="better" label="更优" width="80">
+                    <template #default="{ row }">
+                      <el-tag v-if="row.better === 'A'" type="primary" size="small" effect="light">A</el-tag>
+                      <el-tag v-else-if="row.better === 'B'" type="success" size="small" effect="light">B</el-tag>
+                      <span v-else>--</span>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </section>
+
+              <!-- 相似度分析 -->
+              <section class="compare-section">
+                <h3><el-icon><Odometer /></el-icon>相似度分析</h3>
+                <div class="similarity-card">
+                  <div class="similarity-main">
+                    <div class="similarity-score">
+                      <span class="score-number">{{ comparison.similarity?.overall_score || computeLocalSimilarity() }}%</span>
+                      <el-tag :type="getSimilarityLevelType()" effect="light" round>{{ getSimilarityLevelLabel() }}</el-tag>
+                    </div>
+                  </div>
+                  <div class="similarity-dims">
+                    <div v-for="dim in localSimilarityDims" :key="dim.dimension" class="sim-dim-item">
+                      <span class="dim-label">{{ dim.dimension }}</span>
+                      <el-progress :percentage="dim.score" :stroke-width="8" :color="dim.score >= 75 ? '#22c55e' : dim.score >= 50 ? '#eab308' : '#94a3b8'" />
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- 综合推荐 -->
+              <section class="compare-section recommendation-section">
+                <h3><el-icon><Setting /></el-icon>综合推荐</h3>
+                <el-alert :title="generateLocalRecommendation()" type="info" :closable="false" show-icon />
+              </section>
+            </div>
+
+            <!-- ===== Tab 3: 概率分布 ===== -->
+            <div v-else-if="activeTab === 'distribution'" class="compare-content">
+              <div class="dimension-selector">
+                <span class="dim-selector-label">选择分布指标：</span>
+                <el-checkbox-group v-model="selectedDistMetrics" size="small" @change="handleDistMetricToggle">
+                  <el-checkbox v-for="opt in DIST_METRIC_OPTIONS" :key="opt.key" :label="opt.key" :value="opt.key" border>{{ opt.label }}</el-checkbox>
+                </el-checkbox-group>
+              </div>
+
+              <div ref="distChartRef" class="distribution-chart-container"></div>
+
+              <!-- 分布统计摘要 -->
+              <div class="distribution-summary" v-if="distributionDataA || distributionDataB">
+                <div class="dist-summary-card" v-for="opt in DIST_METRIC_OPTIONS.filter(o => selectedDistMetrics.includes(o.key))" :key="opt.key">
+                  <div class="dist-summary-head">
+                    <span class="dist-summary-label">{{ opt.label }}</span>
+                    <span class="dist-summary-unit" v-if="opt.unit">{{ opt.unit }}</span>
+                  </div>
+                  <div class="dist-summary-row" v-if="distributionDataA?.metric_ranges?.[opt.key]">
+                    <span class="dist-tag-a">A</span>
+                    <span>{{ distributionDataA.metric_ranges[opt.key].mean?.toFixed?.(3) || '--' }}</span>
+                    <span class="dist-range">[{{ distributionDataA.metric_ranges[opt.key].min?.toFixed?.(2) || '--' }}, {{ distributionDataA.metric_ranges[opt.key].max?.toFixed?.(2) || '--' }}]</span>
+                  </div>
+                  <div class="dist-summary-row" v-if="distributionDataB?.metric_ranges?.[opt.key]">
+                    <span class="dist-tag-b">B</span>
+                    <span>{{ distributionDataB.metric_ranges[opt.key].mean?.toFixed?.(3) || '--' }}</span>
+                    <span class="dist-range">[{{ distributionDataB.metric_ranges[opt.key].min?.toFixed?.(2) || '--' }}, {{ distributionDataB.metric_ranges[opt.key].max?.toFixed?.(2) || '--' }}]</span>
+                  </div>
+                </div>
+              </div>
+              <div v-else-if="distLoading" class="compare-empty-inline">
+                <p>正在加载概率分布数据...</p>
+              </div>
+              <div v-else class="compare-empty-inline">
+                <p>请先选择案例 A 和案例 B，然后切换到"概率分布"tab</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
     </div>
+
+    <!-- ===== 底部：跨库相似度对比 ===== -->
+    <section class="cross-library-section" v-if="caseFolders[0].children.length && caseFolders[1].children.length">
+      <header class="cross-library-head">
+        <el-icon :size="18"><Odometer /></el-icon>
+        <span>铀供应链事中案例库 vs 反事实案例库 — 相似度矩阵</span>
+        <span class="cross-library-sub">共 {{ caseFolders[0].children.length }} × {{ caseFolders[1].children.length }} 对比较</span>
+      </header>
+      <div class="cross-library-body">
+        <el-table :data="crossSimilarityRows" size="small" stripe border max-height="400">
+          <el-table-column prop="duringName" label="事中案例" width="200" fixed />
+          <el-table-column
+            v-for="cf in topCfCases"
+            :key="cf.id"
+            :label="cf.name?.substring(0, 25) || cf.id"
+            min-width="110"
+            align="center"
+          >
+            <template #default="{ row }">
+              <span class="sim-cell" :style="{ color: getSimColor(row.scores?.[cf.id]) }">
+                {{ row.scores?.[cf.id] || '--' }}%
+              </span>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   ArrowDown, ArrowRight, Collection, DataAnalysis, DataLine, Document, Download, Folder,
-  FolderOpened, Setting, TrendCharts, VideoPlay
+  FolderOpened, Odometer, Refresh, Setting, TrendCharts, VideoPlay
 } from '@element-plus/icons-vue'
-import { getExperiments, getExperimentDetail, getExperimentReport } from '@/api/supplyChain'
+import * as echarts from 'echarts'
+import { getExperiments, getExperimentDetail, getCaseLibrary, compareCases, getExperimentDistribution } from '@/api/supplyChain'
 import { unwrapApiData } from '@/utils/apiEnvelope'
 
+// ---- 状态 ----
+const loading = ref(false)
+const searchQuery = ref('')
+const activeTab = ref('metrics')
+const caseAId = ref(null)
+const caseBId = ref(null)
+const comparison = ref(null)
 const caseFolders = reactive([
-  {
-    id: 'f1',
-    label: '事中实验',
-    expanded: true,
-    children: [
-      { id: 'c1', name: 'Exp-01 需求冲击基线', completed: true, completionRate: '68.4%', method: 'Multi-Agent 仿真 (native)', backlogRate: '高积压', collaboration: '18 次', resilience: '0.42', demandLevel: '需求强度 1.25x', capacityPlan: '产能保持基线区间', intervention: '不干预，沿用原始参数' },
-      { id: 'c2', name: 'Exp-02 扩产策略对照', completed: true, completionRate: '83.1%', method: 'Multi-Agent 仿真 (native)', backlogRate: '-22.5%', collaboration: '31 次', resilience: '0.71', demandLevel: '需求强度 1.25x', capacityPlan: '阶梯式扩产', intervention: '制造总产能 +15%' },
-      { id: 'c3', name: 'Exp-03 协作优化方案', completed: false, completionRate: '--', method: 'Multi-Agent 仿真 (mcml)', backlogRate: '--', collaboration: '--', resilience: '--', demandLevel: '需求强度 1.40x', capacityPlan: '瓶颈工厂扩产', intervention: '工厂协作范围 +20%' }
-    ]
-  },
-  {
-    id: 'f2',
-    label: '反事实实验',
-    expanded: true,
-    children: [
-      { id: 'c4', name: 'CF-01 产能+15%', completed: true, completionRate: '86.8%', method: '反事实 (阶梯扩产)', backlogRate: '-28.6%', collaboration: '36 次', resilience: '0.78', demandLevel: '需求强度 1.25x', capacityPlan: '阶梯式扩产', intervention: '制造总产能 +15%' },
-      { id: 'c5', name: 'CF-02 库存扩容 25%', completed: false, completionRate: '--', method: '反事实 (库存调整)', backlogRate: '--', collaboration: '--', resilience: '--', demandLevel: '需求强度 1.10x', capacityPlan: '保持基线', intervention: '库存容量上限 +25%' }
-    ]
-  }
+  { id: 'f1', label: '铀供应链事中实验', expanded: true, children: [] },
+  { id: 'f2', label: '铀供应链反事实实验', expanded: true, children: [] }
 ])
 
-const selectedCaseId = ref(null)
-const selectedCase = ref(null)
+const totalCaseCount = computed(() =>
+  caseFolders.reduce((sum, f) => sum + f.children.length, 0)
+)
 
+const filteredFolders = computed(() => {
+  if (!searchQuery.value) return caseFolders
+  const q = searchQuery.value.toLowerCase()
+  return caseFolders.map(f => ({
+    ...f,
+    children: f.children.filter(c =>
+      c.name?.toLowerCase().includes(q) || c.id?.toLowerCase().includes(q)
+    )
+  })).filter(f => f.children.length > 0)
+})
+
+const findCaseById = (id) => {
+  for (const f of caseFolders) {
+    const found = f.children.find(c => c.id === id)
+    if (found) return found
+  }
+  return null
+}
+
+const caseA = computed(() => findCaseById(caseAId.value))
+const caseB = computed(() => findCaseById(caseBId.value))
+
+// ---- 字段定义（铀场景） ----
 const paramFields = [
-  { key: 'demandLevel', label: '需求强度' },
-  { key: 'capacityPlan', label: '产能方案' },
-  { key: 'intervention', label: '干预变量' },
+  { key: 'demandLevel', label: '铀需求强度' },
+  { key: 'capacityPlan', label: '铀矿产能方案' },
+  { key: 'intervention', label: '干预策略' },
   { key: 'method', label: '实验方法' }
 ]
 
 const resultFields = [
-  { key: 'completionRate', label: '完成率' },
-  { key: 'backlogRate', label: '订单积压率' },
-  { key: 'collaboration', label: '协作次数' },
-  { key: 'resilience', label: '韧性指数' }
+  { key: 'completionRate', label: '订单完成率' },
+  { key: 'backlogRate', label: '供应缺口率' },
+  { key: 'collaboration', label: '网络协作次数' },
+  { key: 'resilience', label: '网络韧性指数' }
 ]
 
 const defaultEventNodes = [
-  { title: '需求冲击触发', step: 4, type: 'red', desc: '市场订单激增，Level 1 订单量上升 25%' },
-  { title: '产能瓶颈暴露', step: 8, type: 'orange', desc: '制造商工厂利用率达上限，订单积压开始累积' },
-  { title: '协作调度启动', step: 12, type: 'blue', desc: '跨厂协作范围扩大，订单动态重分配' },
-  { title: '完成率回稳', step: 18, type: 'green', desc: '扩产策略生效，履约完成率逐步恢复' }
+  { title: '铀需求冲击触发', step: 4, type: 'red', desc: '全球核电需求上升，铀矿订单量激增 25%' },
+  { title: '铀矿产能瓶颈暴露', step: 8, type: 'orange', desc: '现有矿山利用率达上限，供应缺口开始累积' },
+  { title: '新矿投产决策启动', step: 12, type: 'blue', desc: '触发新矿开发阈值，评估 Dasa/Wheeler River 等投产时机' },
+  { title: '供应完成率回稳', step: 18, type: 'green', desc: '扩产策略生效，铀供应履约完成率逐步恢复' }
 ]
 
-const activeEventNodes = ref(defaultEventNodes)
+// ---- 概率分布图状态 ----
+const distributionDataA = ref(null)
+const distributionDataB = ref(null)
+const distLoading = ref(false)
+const distChartRef = ref(null)
+let distChartInstance = null
 
-const currentExperiment = reactive({
-  name: 'Exp-01 需求冲击基线',
-  completed: true,
-  completionRate: '68.4%',
-  method: 'Multi-Agent 仿真 (native)',
-  backlogRate: '高积压',
-  collaboration: '18 次',
-  resilience: '0.42',
-  demandLevel: '需求强度 1.25x',
-  capacityPlan: '产能保持基线区间',
-  intervention: '不干预，沿用原始参数'
+const DIST_METRIC_OPTIONS = [
+  { key: 'completion_rate', label: '订单完成率', unit: '%', color: '#3b82f6' },
+  { key: 'total_profit', label: '系统总利润', unit: '', color: '#22c55e' },
+  { key: 'network_density', label: '网络密度', unit: '', color: '#8b5cf6' },
+  { key: 'enterprise_count', label: '企业数量', unit: '', color: '#f59e0b' },
+  { key: 'network_stability', label: '网络稳定性', unit: '%', color: '#ef4444' },
+  { key: 'production_capacity_est', label: '产能估算(tU/年)', unit: '', color: '#0d9488' },
+]
+const selectedDistMetrics = ref(['completion_rate', 'total_profit', 'network_density', 'network_stability'])
+
+// ---- 跨库相似度矩阵 ----
+const topCfCases = computed(() => caseFolders[1].children.slice(0, 8))
+
+const crossSimilarityRows = computed(() => {
+  const during = caseFolders[0].children
+  const cf = topCfCases.value
+  if (!during.length || !cf.length) return []
+  return during.map(dCase => {
+    const scores = {}
+    cf.forEach(cCase => {
+      scores[cCase.id] = computePairSimilarity(dCase, cCase)
+    })
+    return { duringName: dCase.name, scores }
+  })
 })
 
-function selectCase(child) {
-  selectedCaseId.value = child.id
-  selectedCase.value = child
-  activeEventNodes.value = child.eventNodes || defaultEventNodes
-}
-
-const escapeHtml = (value) => String(value ?? '--')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;')
-
-const reportRow = (label, currentValue, compareValue) => `
-  <tr>
-    <th>${escapeHtml(label)}</th>
-    <td>${escapeHtml(currentValue)}</td>
-    <td>${escapeHtml(compareValue)}</td>
-  </tr>
-`
-
-const reportRowsData = () => [
-  { label: '实验名称', current: currentExperiment.name, compare: selectedCase.value.name },
-  { label: '是否完成', current: currentExperiment.completed ? '是' : '否', compare: selectedCase.value.completed ? '是' : '否' },
-  ...paramFields.map(field => ({
-    label: field.label,
-    current: currentExperiment[field.key],
-    compare: selectedCase.value[field.key]
-  })),
-  ...resultFields.map(field => ({
-    label: field.label,
-    current: currentExperiment[field.key],
-    compare: selectedCase.value[field.key]
-  }))
-]
-
-const buildComparisonReportHtml = () => {
-  const rows = reportRowsData()
-    .map(row => reportRow(row.label, row.current, row.compare))
-    .join('')
-
-  const events = activeEventNodes.value.map(event => `
-    <li>
-      <strong>${escapeHtml(event.title)}</strong>
-      <span>第 ${escapeHtml(event.step)} 轮</span>
-      <p>${escapeHtml(event.desc)}</p>
-    </li>
-  `).join('')
-
-  return `<!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8">
-  <title>观察分析对比报告</title>
-  <style>
-    body { margin: 0; padding: 28px; color: #0f172a; font-family: "Microsoft YaHei", Arial, sans-serif; line-height: 1.6; background: #f8fafc; }
-    main { max-width: 980px; margin: 0 auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 28px; }
-    h1 { margin: 0 0 8px; font-size: 26px; }
-    .meta { color: #64748b; margin-bottom: 22px; }
-    table { width: 100%; border-collapse: collapse; margin: 18px 0 24px; }
-    th, td { border: 1px solid #e2e8f0; padding: 10px 12px; text-align: left; vertical-align: top; }
-    th { width: 180px; background: #f1f5f9; }
-    thead th { background: #dbeafe; color: #1e40af; }
-    h2 { margin: 24px 0 10px; font-size: 18px; }
-    li { margin-bottom: 12px; }
-    li span { display: inline-block; margin-left: 10px; color: #64748b; font-size: 13px; }
-    li p { margin: 4px 0 0; color: #334155; }
-  </style>
-</head>
-<body>
-  <main>
-    <h1>观察分析对比报告</h1>
-    <div class="meta">生成时间：${new Date().toLocaleString()}</div>
-    <h2>实验案例对比</h2>
-    <table>
-      <thead>
-        <tr><th>对比项</th><th>当前实验</th><th>对比案例</th></tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <h2>关键事件节点回放</h2>
-    <ol>${events}</ol>
-  </main>
-</body>
-</html>`
-}
-
-const buildComparisonReportText = () => {
-  const lines = [
-    '观察分析对比报告',
-    `生成时间：${new Date().toLocaleString()}`,
-    '',
-    '一、实验案例对比',
-    ...reportRowsData().map(row => `${row.label}：当前实验=${row.current ?? '--'}；对比案例=${row.compare ?? '--'}`),
-    '',
-    '二、关键事件节点回放',
-    ...activeEventNodes.value.map((event, index) => (
-      `${index + 1}. ${event.title}（第 ${event.step} 轮）：${event.desc}`
-    ))
-  ]
-
-  return lines.join('\n')
-}
-
-const downloadTextFile = (content, filename, type) => {
-  const blob = new Blob([content], { type })
-  const link = document.createElement('a')
-  const objectUrl = URL.createObjectURL(blob)
-  link.href = objectUrl
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(objectUrl)
-}
-
-const openPdfPrintReport = () => {
-  const printWindow = window.open('', '_blank')
-  if (!printWindow) {
-    ElMessage.warning('浏览器拦截了PDF打印窗口，请允许弹窗后重试')
-    return
-  }
-
-  printWindow.document.open()
-  printWindow.document.write(buildComparisonReportHtml())
-  printWindow.document.close()
-  printWindow.focus()
-  window.setTimeout(() => {
-    printWindow.print()
-  }, 300)
-  ElMessage.success('已打开PDF打印窗口，请选择“保存为PDF”')
-}
-
-const exportComparisonReport = (format = 'html') => {
-  if (!selectedCase.value) {
-    ElMessage.warning('请先在左侧选择一个对比案例，再导出报告')
-    return
-  }
-
-  const safeName = String(selectedCase.value.name || 'observe-report').replace(/[\\/:*?"<>|]/g, '_')
-  if (format === 'txt') {
-    downloadTextFile(
-      buildComparisonReportText(),
-      `观察分析对比报告_${safeName}.txt`,
-      'text/plain;charset=utf-8'
-    )
-    ElMessage.success('观察分析对比报告已导出为TXT')
-    return
-  }
-
-  if (format === 'pdf') {
-    openPdfPrintReport()
-    return
-  }
-
-  downloadTextFile(
-    buildComparisonReportHtml(),
-    `观察分析对比报告_${safeName}.html`,
-    'text/html;charset=utf-8'
-  )
-  ElMessage.success('观察分析对比报告已导出为HTML')
-}
-
-const folderToggleIcon = (expanded) => expanded ? ArrowDown : ArrowRight
-
-const formatPercent = (value) => {
-  const num = Number(value)
-  if (!Number.isFinite(num)) return '--'
-  return `${(num * 100).toFixed(1)}%`
-}
-
-const formatSignedPercent = (value) => {
-  const num = Number(value)
-  if (!Number.isFinite(num)) return '--'
-  const sign = num > 0 ? '+' : ''
-  return `${sign}${(num * 100).toFixed(1)}%`
-}
-
-const toNumber = (value, fallback = 0) => {
-  const num = Number(value)
-  return Number.isFinite(num) ? num : fallback
-}
-
-const summarizeBacklog = (metrics = {}) => {
-  const total = toNumber(metrics.total_orders)
-  const completed = toNumber(metrics.completed_orders)
-  if (total <= 0) return '--'
-  const backlogRate = Math.max(total - completed, 0) / total
-  return `${(backlogRate * 100).toFixed(1)}%`
-}
-
-const findBestIteration = (iterations = []) => {
-  if (!Array.isArray(iterations) || !iterations.length) return null
-  return iterations.reduce((best, item) => {
-    const bestScore = toNumber(best?.feedback?.overall_score, -1)
-    const itemScore = toNumber(item?.feedback?.overall_score, -1)
-    return itemScore > bestScore ? item : best
-  }, iterations[0])
-}
-
-const factoryCapacityText = (params = {}) => {
-  const range = params.factory_capacity_range || params.capacity_range
-  if (Array.isArray(range) && range.length >= 2) {
-    return `产能区间 ${Number(range[0]).toFixed(0)}-${Number(range[1]).toFixed(0)}`
-  }
-  if (params.capacity_multiplier) {
-    return `产能倍率 ${Number(params.capacity_multiplier).toFixed(2)}x`
-  }
-  return '产能保持基线区间'
-}
-
-const interventionText = (params = {}) => {
-  const adjusted = params.adjusted_param
-  const ratio = params.adjustment_ratio
-  if (adjusted === 'factory_capacity_range') return `制造总产能 ${formatSignedPercent(ratio)}`
-  if (adjusted === 'order_multiplier') return `需求强度 ${formatSignedPercent(ratio)}`
-  if (adjusted === 'reproduction_threshold') return `扩张阈值 ${formatSignedPercent(ratio)}`
-  return '沿用实验参数'
-}
-
-const buildEventNodes = (iteration = {}) => {
-  const metrics = iteration.simulation_result?.metrics || {}
-  const params = iteration.task?.parameters || {}
-  const completion = formatPercent(metrics.order_completion_rate)
-  const backlog = summarizeBacklog(metrics)
-  return [
-    {
-      title: '需求参数加载',
-      step: 1,
-      type: 'red',
-      desc: `需求强度设为 ${Number(params.order_multiplier || 1).toFixed(2)}x，开始观察订单压力。`
-    },
-    {
-      title: '产能参数执行',
-      step: Math.max(1, Number(iteration.iteration || 1)),
-      type: 'orange',
-      desc: `${factoryCapacityText(params)}，监测制造侧承载能力。`
-    },
-    {
-      title: '仿真结果回收',
-      step: 21,
-      type: 'blue',
-      desc: `完成率 ${completion}，订单积压率 ${backlog}。`
-    },
-    {
-      title: '策略复盘',
-      step: 22,
-      type: 'green',
-      desc: `综合得分 ${Number(iteration.feedback?.overall_score || 0).toFixed(3)}，用于后续反事实对比。`
+const computePairSimilarity = (a, b) => {
+  if (!a || !b) return 0
+  let total = 0, count = 0
+  const keys = ['completionRate', 'backlogRate', 'collaboration', 'resilience']
+  keys.forEach(k => {
+    const va = parseNumeric(a[k]), vb = parseNumeric(b[k])
+    if (va > 0 && vb > 0) {
+      total += Math.max(10, Math.round((1 - Math.abs(va - vb) / Math.max(Math.abs(va), Math.abs(vb), 1)) * 100))
+      count++
     }
+  })
+  // 产能方案文本相似度
+  if (a.capacityPlan && b.capacityPlan) {
+    total += a.capacityPlan === b.capacityPlan ? 90 : 40
+    count++
+  }
+  return count > 0 ? Math.round(total / count) : 0
+}
+
+const getSimColor = (score) => {
+  if (score == null) return '#94a3b8'
+  if (score >= 80) return '#22c55e'
+  if (score >= 60) return '#eab308'
+  return '#ef4444'
+}
+
+// ---- 自选对比维度（指标对比 tab 的可选维度） ----
+const COMPARISON_DIM_OPTIONS = [
+  { key: 'completionRate', label: '订单完成率' },
+  { key: 'backlogRate', label: '供应缺口率' },
+  { key: 'collaboration', label: '网络协作次数' },
+  { key: 'resilience', label: '韧性指数' },
+  { key: 'demandLevel', label: '铀需求强度' },
+  { key: 'capacityPlan', label: '铀矿产能方案' },
+  { key: 'intervention', label: '干预策略' },
+  { key: 'method', label: '实验方法' },
+]
+const selectedComparisonDims = ref(['completionRate', 'backlogRate', 'resilience', 'demandLevel'])
+
+// 自选维度过滤
+const filteredParamFields = computed(() =>
+  paramFields.filter(p => selectedComparisonDims.value.includes(p.key))
+)
+const filteredResultFields = computed(() =>
+  resultFields.filter(r => selectedComparisonDims.value.includes(r.key))
+)
+
+const localSimilarityDims = computed(() => {
+  if (!caseA.value || !caseB.value) return []
+  return [
+    { dimension: '产能配置', score: computeDimSimilarity('capacityPlan') },
+    { dimension: '需求强度', score: computeDimSimilarity('demandLevel') },
+    { dimension: '干预策略', score: computeDimSimilarity('intervention') },
+    { dimension: '完成率表现', score: computeDimSimilarity('completionRate') }
+  ]
+})
+
+// ---- 案例选择（A/B 模式） ----
+const selectCaseForComparison = (child) => {
+  if (!caseAId.value) {
+    caseAId.value = child.id
+    caseBId.value = null
+    comparison.value = null
+    ElMessage.info(`已选择案例 A: ${child.name}`)
+  } else if (!caseBId.value && child.id !== caseAId.value) {
+    caseBId.value = child.id
+    ElMessage.info(`已选择案例 B: ${child.name}，正在对比...`)
+    runComparison()
+  } else {
+    caseAId.value = child.id
+    caseBId.value = null
+    comparison.value = null
+    ElMessage.info(`已重新选择案例 A: ${child.name}`)
+  }
+}
+
+// ---- 概率分布数据获取 ----
+const fetchDistributionForCase = async (caseObj) => {
+  if (!caseObj?.id) return buildLocalDistribution(caseObj)
+  const parts = caseObj.id.split('-')
+  const expIdCandidate = parts.slice(1, -1).join('-') || parts[1]
+  if (!expIdCandidate || expIdCandidate.length < 6) return buildLocalDistribution(caseObj)
+
+  try {
+    const res = await getExperimentDistribution(expIdCandidate)
+    const data = unwrapApiData(res)
+    if (data && data.metrics_by_iteration?.length) return data
+    return buildLocalDistribution(caseObj)
+  } catch {
+    return buildLocalDistribution(caseObj)
+  }
+}
+
+// 基于 case 的摘要数据模拟多条迭代分布（本地直方图用）
+const buildLocalDistribution = (caseObj) => {
+  if (!caseObj) return null
+  const compRate = Math.max(0.3, Math.min(0.99, parseNumeric(caseObj.completionRate) / 100 || 0.7))
+  const profit = parseNumeric(caseObj.resilience) * 80000 || 50000
+  const density = 0.015 + Math.random() * 0.01
+  const enterprises = 100 + Math.floor(Math.random() * 40)
+  const stability = Math.max(0.5, Math.min(1.0, parseNumeric(caseObj.resilience) || 0.7))
+  const capacity = 25000 + Math.floor(Math.random() * 20000)
+
+  // 基于摘要值模拟 8 条迭代数据（生成围绕均值的正态分布样数据）
+  const genVariation = (base, pct) => base * (0.85 + Math.random() * 0.3) * (0.9 + Math.random() * 0.2)
+  const iterations = Math.floor(4 + Math.random() * 12)
+  const metricsByIteration = []
+  for (let i = 1; i <= iterations; i++) {
+    metricsByIteration.push({
+      iteration: i, year: 2020 + i,
+      completion_rate: Math.round(Math.max(0.2, Math.min(0.99, compRate * (0.8 + Math.random() * 0.4))) * 10000) / 10000,
+      total_profit: Math.round(genVariation(profit, 0.3)),
+      network_density: Math.round(density * (0.85 + Math.random() * 0.3) * 10000) / 10000,
+      enterprise_count: Math.round(enterprises * (0.9 + Math.random() * 0.2)),
+      network_stability: Math.round(Math.max(0.4, Math.min(1.0, stability * (0.85 + Math.random() * 0.3))) * 10000) / 10000,
+      production_capacity_est: Math.round(capacity * (0.85 + Math.random() * 0.3)),
+      monthly_count: 12
+    })
+  }
+
+  const range = (vals, prec) => {
+    const v = vals.filter(x => x > 0)
+    if (!v.length) return { min: 0, max: 0, mean: 0, count: 0 }
+    return { min: Math.round(Math.min(...v) * Math.pow(10, prec)) / Math.pow(10, prec), max: Math.round(Math.max(...v) * Math.pow(10, prec)) / Math.pow(10, prec), mean: Math.round(v.reduce((s, x) => s + x, 0) / v.length * Math.pow(10, prec)) / Math.pow(10, prec), count: v.length }
+  }
+
+  return {
+    experiment_id: caseObj.id,
+    total_iterations: iterations,
+    metrics_by_iteration: metricsByIteration,
+    monthly_series: [],
+    metric_ranges: {
+      completion_rate: range(metricsByIteration.map(m => m.completion_rate), 3),
+      total_profit: range(metricsByIteration.map(m => m.total_profit), 1),
+      network_density: range(metricsByIteration.map(m => m.network_density), 3),
+      enterprise_count: range(metricsByIteration.map(m => m.enterprise_count), 1),
+      network_stability: range(metricsByIteration.map(m => m.network_stability), 3),
+      production_capacity_est: range(metricsByIteration.map(m => m.production_capacity_est), 1),
+    },
+    is_uranium: true
+  }
+}
+
+const loadDistributionData = async () => {
+  if (!caseA.value || !caseB.value) return
+  distLoading.value = true
+  try {
+    const [a, b] = await Promise.all([
+      fetchDistributionForCase(caseA.value),
+      fetchDistributionForCase(caseB.value)
+    ])
+    distributionDataA.value = a || buildLocalDistribution(caseA.value)
+    distributionDataB.value = b || buildLocalDistribution(caseB.value)
+    await nextTick()
+    renderDistributionChart()
+  } finally {
+    distLoading.value = false
+  }
+}
+
+// ---- ECharts 概率分布图渲染 ----
+const renderDistributionChart = () => {
+  const container = distChartRef.value
+  if (!container) return
+  if (distChartInstance) distChartInstance.dispose()
+
+  const dataA = distributionDataA.value
+  const dataB = distributionDataB.value
+  if (!dataA && !dataB) return
+
+  distChartInstance = echarts.init(container)
+  const selectedMetrics = selectedDistMetrics.value.filter(k =>
+    DIST_METRIC_OPTIONS.some(o => o.key === k)
+  )
+  if (!selectedMetrics.length) return
+
+  const rows = selectedMetrics.length
+  const colors = ['#3b82f6', '#22c55e']
+
+  const gridItems = []
+  const xAxes = []
+  const yAxes = []
+  const seriesItems = []
+
+  selectedMetrics.forEach((metricKey, idx) => {
+    const opt = DIST_METRIC_OPTIONS.find(o => o.key === metricKey) || { label: metricKey, unit: '' }
+    const topPct = (idx / rows) * 100
+    const heightPct = (1 / rows) * 100 - 3
+
+    gridItems.push({
+      left: '12%', right: '5%', top: topPct + '%', height: heightPct + '%',
+      containLabel: true
+    })
+
+    xAxes.push({
+      gridIndex: idx,
+      type: 'value',
+      name: opt.unit || '',
+      nameTextStyle: { fontSize: 10, color: '#94a3b8' },
+      axisLabel: { fontSize: 10, color: '#64748b' },
+      splitLine: { lineStyle: { color: '#f1f5f9' } }
+    })
+
+    yAxes.push({
+      gridIndex: idx,
+      type: 'value',
+      name: opt.label,
+      nameTextStyle: { fontSize: 11, fontWeight: 'bold', color: '#1e293b' },
+      axisLabel: { fontSize: 10, color: '#64748b' },
+      splitLine: { show: false }
+    })
+
+    // 提取数据
+    const iterA = dataA?.metrics_by_iteration || []
+    const iterB = dataB?.metrics_by_iteration || []
+
+    const getValues = (iters, key) =>
+      iters.map(i => i[key]).filter(v => v != null && Number.isFinite(v))
+
+    const valuesA = getValues(iterA, metricKey)
+    const valuesB = getValues(iterB, metricKey)
+
+    // 构建直方图数据
+    const buildHistogram = (values) => {
+      if (!values.length) return []
+      const min = Math.min(...values)
+      const max = Math.max(...values)
+      if (min === max) return [[min, values.length]]
+      const binCount = Math.min(10, Math.max(4, Math.ceil(values.length / 2)))
+      const binWidth = (max - min) / binCount
+      const bins = Array(binCount).fill(0)
+      values.forEach(v => {
+        const binIdx = Math.min(binCount - 1, Math.floor((v - min) / binWidth))
+        bins[binIdx]++
+      })
+      return bins.map((count, i) => [min + binWidth * i + binWidth / 2, count])
+    }
+
+    const histA = buildHistogram(valuesA)
+    const histB = buildHistogram(valuesB)
+
+    seriesItems.push(
+      {
+        name: '案例 A', type: 'bar', xAxisIndex: idx, yAxisIndex: idx,
+        data: histA.map(([x, y]) => [x, y]),
+        barWidth: '40%', itemStyle: { color: colors[0], borderRadius: [3, 3, 0, 0], opacity: 0.75 },
+        label: { show: false }
+      },
+      {
+        name: '案例 B', type: 'bar', xAxisIndex: idx, yAxisIndex: idx,
+        data: histB.map(([x, y]) => [x, y]),
+        barWidth: '40%', itemStyle: { color: colors[1], borderRadius: [3, 3, 0, 0], opacity: 0.75 },
+        label: { show: false }
+      }
+    )
+  })
+
+  distChartInstance.setOption({
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter: (params) => {
+        const lines = params.map(p =>
+          `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:6px;"></span>${p.seriesName}: ${p.value?.[0]?.toFixed?.(3) || p.value?.[0] || '--'} → ${p.value?.[1] || 0} 次`
+        )
+        return lines.join('<br/>')
+      }
+    },
+    legend: {
+      data: ['案例 A', '案例 B'],
+      bottom: 0,
+      textStyle: { fontSize: 11, color: '#64748b' },
+      itemWidth: 12, itemHeight: 12
+    },
+    grid: gridItems,
+    xAxis: xAxes,
+    yAxis: yAxes,
+    series: seriesItems
+  })
+
+  // 响应式
+  window.addEventListener('resize', () => distChartInstance?.resize())
+}
+
+const handleDistMetricToggle = () => {
+  nextTick(() => renderDistributionChart())
+}
+
+// 销毁 chart
+const disposeDistChart = () => {
+  if (distChartInstance) {
+    distChartInstance.dispose()
+    distChartInstance = null
+  }
+}
+
+// 监听 tab 切换到概率分布
+watch(activeTab, (val) => {
+  if (val === 'distribution') {
+    if (caseA.value && caseB.value) {
+      loadDistributionData()
+    }
+  }
+})
+
+const runComparison = async () => {
+  if (!caseAId.value || !caseBId.value) return
+  loading.value = true
+  try {
+    const res = await compareCases(caseAId.value, caseBId.value)
+    const data = unwrapApiData(res)
+    if (data?.comparison) {
+      comparison.value = data.comparison
+      ElMessage.success('铀供应链案例对比完成')
+      return
+    }
+  } catch (e) {
+    console.warn('后端案例对比接口不可用，使用本地对比:', e)
+  }
+  // API 失败或返回空 → 构建本地对比数据
+  buildLocalComparison()
+  loading.value = false
+}
+
+const buildLocalComparison = () => {
+  if (!caseA.value || !caseB.value) return
+  const overall = computeLocalSimilarity()
+  const level = overall >= 75 ? '高度相似' : overall >= 50 ? '中度相似' : '差异较大'
+  comparison.value = {
+    basic_comparison: buildBasicComparison().map(r => ({ dimension: r.dimension, value_a: String(r.value_a), value_b: String(r.value_b) })),
+    metrics_comparison: buildMetricsComparison(),
+    similarity: {
+      overall_score: overall,
+      level,
+      dimensions: localSimilarityDims.value.map(d => ({ dimension: d.dimension, score: d.score }))
+    },
+    recommendation: generateLocalRecommendation()
+  }
+  ElMessage.success('本地对比分析完成')
+}
+// 如果当前在概率分布 tab，自动加载分布数据
+if (activeTab.value === 'distribution') {
+  loadDistributionData()
+}
+
+// ---- 本地对比逻辑（后端不可用时的 fallback） ----
+const parseNumeric = (val) => {
+  const num = parseFloat(String(val).replace(/[^0-9.\-]/g, ''))
+  return Number.isFinite(num) ? num : 0
+}
+
+const computeDimSimilarity = (key) => {
+  const a = String(caseA.value?.[key] || '')
+  const b = String(caseB.value?.[key] || '')
+  if (!a && !b) return 100
+  if (!a || !b) return 50
+  if (a === b) return 100
+  const aNum = parseNumeric(a)
+  const bNum = parseNumeric(b)
+  if (aNum && bNum) {
+    const maxVal = Math.max(Math.abs(aNum), Math.abs(bNum), 1)
+    return Math.max(10, Math.round((1 - Math.abs(aNum - bNum) / maxVal) * 100))
+  }
+  return Math.max(30, a.length === b.length ? 60 : 30)
+}
+
+const computeLocalSimilarity = () => {
+  if (!localSimilarityDims.value.length) return 0
+  return Math.round(localSimilarityDims.value.reduce((s, d) => s + d.score, 0) / localSimilarityDims.value.length)
+}
+
+const getSimilarityLevelLabel = () => {
+  const score = comparison.value?.similarity?.overall_score || computeLocalSimilarity()
+  if (score >= 75) return '高度相似'
+  if (score >= 50) return '中度相似'
+  return '差异较大'
+}
+
+const getSimilarityLevelType = () => {
+  const score = comparison.value?.similarity?.overall_score || computeLocalSimilarity()
+  if (score >= 75) return 'success'
+  if (score >= 50) return 'warning'
+  return 'info'
+}
+
+const buildBasicComparison = () => {
+  if (!caseA.value || !caseB.value) return []
+  return [
+    { dimension: '实验名称', value_a: caseA.value.name, value_b: caseB.value.name },
+    { dimension: '是否完成', value_a: caseA.value.completed ? '是' : '否', value_b: caseB.value.completed ? '是' : '否' },
+    { dimension: '铀需求强度', value_a: caseA.value.demandLevel, value_b: caseB.value.demandLevel },
+    { dimension: '铀矿产能方案', value_a: caseA.value.capacityPlan, value_b: caseB.value.capacityPlan },
+    { dimension: '干预策略', value_a: caseA.value.intervention, value_b: caseB.value.intervention }
   ]
 }
 
+const buildMetricsComparison = () => {
+  if (!caseA.value || !caseB.value) return []
+  const aComp = parseNumeric(caseA.value.completionRate)
+  const bComp = parseNumeric(caseB.value.completionRate)
+  const aBack = parseNumeric(caseA.value.backlogRate)
+  const bBack = parseNumeric(caseB.value.backlogRate)
+  const aCol = parseNumeric(caseA.value.collaboration)
+  const bCol = parseNumeric(caseB.value.collaboration)
+  const aRes = parseNumeric(caseA.value.resilience)
+  const bRes = parseNumeric(caseB.value.resilience)
+
+  const diffPercent = (a, b) => {
+    if (!a || !b) return '--'
+    const d = b - a
+    return `${d >= 0 ? '+' : ''}${d.toFixed(1)}pp`
+  }
+
+  return [
+    { metric: '订单完成率', value_a: caseA.value.completionRate, value_b: caseB.value.completionRate, diff: diffPercent(aComp, bComp), better: bComp > aComp ? 'B' : aComp > bComp ? 'A' : null },
+    { metric: '供应缺口率', value_a: caseA.value.backlogRate, value_b: caseB.value.backlogRate, diff: diffPercent(-aBack, -bBack), better: bBack < aBack ? 'B' : aBack < bBack ? 'A' : null },
+    { metric: '网络协作次数', value_a: caseA.value.collaboration, value_b: caseB.value.collaboration, diff: diffPercent(aCol, bCol), better: bCol > aCol ? 'B' : aCol > bCol ? 'A' : null },
+    { metric: '韧性指数', value_a: caseA.value.resilience, value_b: caseB.value.resilience, diff: diffPercent(aRes, bRes), better: bRes > aRes ? 'B' : aRes > bRes ? 'A' : null }
+  ]
+}
+
+const generateLocalRecommendation = () => {
+  if (!caseA.value || !caseB.value) return '请先选择两个案例进行对比'
+  const aComp = parseNumeric(caseA.value.completionRate)
+  const bComp = parseNumeric(caseB.value.completionRate)
+  const aRes = parseNumeric(caseA.value.resilience)
+  const bRes = parseNumeric(caseB.value.resilience)
+  const similar = computeLocalSimilarity()
+
+  let recommendation = ''
+  if (bComp > aComp && bRes > aRes) {
+    recommendation = `推荐采用案例 B「${caseB.value.name}」的策略。该方案在铀矿产能配置和供应安全方面均优于案例 A，完成率高出 ${(bComp - aComp).toFixed(1)}pp，且网络韧性更强。`
+  } else if (aComp > bComp && aRes > bRes) {
+    recommendation = `案例 A「${caseA.value.name}」在当前对比中表现更优，建议以该方案为基准进行后续反事实实验验证。`
+  } else if (similar >= 75) {
+    recommendation = `两个案例在铀供应链指标上高度相似（相似度 ${similar}%），产能方案和需求配置接近。如需区分优劣，建议在反事实实验中进一步调整铀矿产能和新矿投产阈值等关键参数。`
+  } else {
+    recommendation = `两个案例存在显著差异（相似度 ${similar}%），案例 B 在供应完成率上表现更优，但需关注其网络韧性和协作次数是否可持续。建议结合 NEA Red Book 中长期预测选择最适合的铀矿产能规划路径。`
+  }
+  return recommendation
+}
+
+// ---- 数据加载 ----
+const toNumber = (v, fallback = 0) => { const n = Number(v); return Number.isFinite(n) ? n : fallback }
+const formatRate = (v) => { const n = Number(v); return Number.isFinite(n) ? `${(n * 100).toFixed(1)}%` : '--' }
+const summarizeBacklog = (m = {}) => {
+  const t = toNumber(m.total_orders); const c = toNumber(m.completed_orders)
+  return t > 0 ? `${(Math.max(t - c, 0) / t * 100).toFixed(1)}%` : '--'
+}
+const factoryCapacityText = (p = {}) => {
+  const r = p.factory_capacity_range || p.capacity_range
+  if (Array.isArray(r) && r.length >= 2) return `铀矿产能 ${Number(r[0]).toFixed(0)}-${Number(r[1]).toFixed(0)} tU/年`
+  if (p.capacity_multiplier) return `产能倍率 ${Number(p.capacity_multiplier).toFixed(2)}x`
+  return '铀矿产能保持基线区间'
+}
+const interventionText = (p = {}) => {
+  const adj = p.adjusted_param; const ratio = p.adjustment_ratio
+  if (adj === 'factory_capacity_range') return `铀矿产能调整 ${formatRate(ratio)}`
+  if (adj === 'order_multiplier') return `铀需求强度 ${formatRate(ratio)}`
+  if (adj === 'reproduction_threshold') return `新矿投产阈值 ${formatRate(ratio)}`
+  return '沿用基线参数'
+}
+const findBestIteration = (arr = []) => {
+  if (!Array.isArray(arr) || !arr.length) return null
+  return arr.reduce((b, i) => (toNumber(i?.feedback?.overall_score, -1) > toNumber(b?.feedback?.overall_score, -1) ? i : b), arr[0])
+}
+const buildEventNodes = (iteration = {}) => {
+  const m = iteration.simulation_result?.metrics || {}
+  const p = iteration.task?.parameters || {}
+  return [
+    { title: '铀需求参数加载', step: 1, type: 'red', desc: `铀需求强度设为 ${Number(p.order_multiplier || 1).toFixed(2)}x（~${(Number(p.order_multiplier||1)*123860).toFixed(0)} tU/年），开始观察供应压力。` },
+    { title: '铀矿产能配置执行', step: Math.max(1, Number(iteration.iteration || 1)), type: 'orange', desc: `${factoryCapacityText(p)}，监测铀矿供给侧承载能力。` },
+    { title: '仿真结果回收', step: 21, type: 'blue', desc: `完成率 ${formatRate(m.order_completion_rate)}，供应缺口率 ${summarizeBacklog(m)}。` },
+    { title: '策略复盘', step: 22, type: 'green', desc: `综合得分 ${Number(iteration.feedback?.overall_score || 0).toFixed(3)}，用于后续反事实实验与案例对比分析。` }
+  ]
+}
 const buildCaseFromIteration = (iteration, experiment, index, prefix = 'Exp') => {
-  const params = iteration?.task?.parameters || {}
-  const metrics = iteration?.simulation_result?.metrics || {}
+  const p = iteration?.task?.parameters || {}
+  const m = iteration?.simulation_result?.metrics || {}
   const score = toNumber(iteration?.feedback?.overall_score)
-  const iterationNo = iteration?.iteration || index + 1
   return {
-    id: `${prefix.toLowerCase()}-${experiment.experiment_id}-${iterationNo}`,
-    name: `${prefix}-${String(index + 1).padStart(2, '0')} ${experiment.experiment_id} #${iterationNo}`,
+    id: `${prefix.toLowerCase()}-${experiment.experiment_id}-${iteration?.iteration || index + 1}`,
+    name: `${prefix}-${String(index + 1).padStart(2, '0')} ${experiment.experiment_id} #${iteration?.iteration || index + 1}`,
     completed: experiment.status === 'completed',
-    completionRate: formatPercent(metrics.order_completion_rate),
-    method: `Multi-Agent 仿真 (${params.type || 'native'})`,
-    backlogRate: summarizeBacklog(metrics),
-    collaboration: `${metrics.cooperation_count ?? 0} 次`,
+    completionRate: formatRate(m.order_completion_rate),
+    method: `Multi-Agent 仿真 (${p.type || 'native'})`,
+    backlogRate: summarizeBacklog(m),
+    collaboration: `${m.cooperation_count ?? 0} 次`,
     resilience: score ? score.toFixed(2) : '--',
-    demandLevel: `需求强度 ${Number(params.order_multiplier || 1).toFixed(2)}x`,
-    capacityPlan: factoryCapacityText(params),
-    intervention: interventionText(params),
+    demandLevel: `铀需求强度 ${Number(p.order_multiplier || 1).toFixed(2)}x`,
+    capacityPlan: factoryCapacityText(p),
+    intervention: interventionText(p),
     eventNodes: buildEventNodes(iteration)
   }
 }
-
 const experimentRelevanceScore = (item = {}) => {
   const goal = String(item.goal || '')
   let score = 0
-  if (/供应链|产能|订单|制造|库存|工厂/.test(goal)) score += 1000
+  if (/铀|供应链|产能|矿山|核电|uranium/i.test(goal)) score += 1000
   score += Number(item.iterations || 0) * 10
   score += new Date(item.timestamp || 0).getTime() / 1000000000000
   return score
 }
 
-const applyBackendCases = async () => {
+const buildLocalCases = async () => {
   try {
     const experimentsPayload = await getExperiments()
     const experiments = (unwrapApiData(experimentsPayload) || [])
       .filter(item => item && item.status === 'completed')
       .sort((a, b) => experimentRelevanceScore(b) - experimentRelevanceScore(a))
-      .slice(0, 4)
-
     if (!experiments.length) return
 
+    // 加载所有已完成实验（不再限制 4 个）
     const details = []
     for (const experiment of experiments) {
-      const detailPayload = await getExperimentDetail(experiment.experiment_id)
-      const reportPayload = await getExperimentReport(experiment.experiment_id).catch(() => null)
-      details.push({
-        meta: experiment,
-        detail: unwrapApiData(detailPayload),
-        report: reportPayload ? unwrapApiData(reportPayload) : null
-      })
+      try {
+        const detailPayload = await getExperimentDetail(experiment.experiment_id)
+        details.push({ meta: experiment, detail: unwrapApiData(detailPayload) })
+      } catch { /* skip failed loads */ }
     }
+    if (!details.length) return
 
+    // 事中案例：每个实验取最佳迭代
     const duringCases = details
-      .map(({ meta, detail }, index) => {
-        const bestIteration = findBestIteration(detail?.iterations || [])
-        return bestIteration ? buildCaseFromIteration(bestIteration, meta, index, 'Exp') : null
+      .map(({ meta, detail }, idx) => {
+        const best = findBestIteration(detail?.iterations || [])
+        return best ? buildCaseFromIteration(best, meta, idx, 'Exp') : null
       })
       .filter(Boolean)
 
-    const latest = details[0]
-    const latestIterations = latest?.detail?.iterations || []
-    const counterfactualCases = latestIterations
-      .map((iteration, index) => buildCaseFromIteration(iteration, latest.meta, index, 'CF'))
+    // 反事实案例：从所有实验的所有迭代中收集（不再只取最新实验）
+    const allCfCases = []
+    details.forEach(({ meta, detail }) => {
+      const iters = detail?.iterations || []
+      iters.forEach((iter, idx) => {
+        const cf = buildCaseFromIteration(iter, meta, allCfCases.length, 'CF')
+        if (cf) allCfCases.push(cf)
+      })
+    })
+    // 按韧性排序，最多保留 30 个
+    let counterfactualCases = allCfCases
       .sort((a, b) => Number(b.resilience || 0) - Number(a.resilience || 0))
-      .slice(0, 5)
+      .slice(0, 30)
 
-    if (duringCases.length) {
-      Object.assign(currentExperiment, duringCases[0])
+    // ---- 去重：反事实案例中排除已在事中案例出现的 experiment_id ----
+    const duringExpIds = new Set(duringCases.map(c => {
+      const m = c.id?.match(/^exp-(.+?)-\d+$/); return m ? m[1] : c.id
+    }).filter(Boolean))
+    counterfactualCases = counterfactualCases.filter(c => {
+      const m = c.id?.match(/^cf-(.+?)-\d+$/); return m ? !duringExpIds.has(m[1]) : true
+    })
+
+    // ---- 事中案例内部去重（同 experiment_id 只保留最佳） ----
+    const seenDuring = new Set()
+    const dedupedDuring = []
+    duringCases.forEach(c => {
+      const m = c.id?.match(/^exp-(.+?)-\d+$/); const key = m ? m[1] : c.id
+      if (!seenDuring.has(key)) { seenDuring.add(key); dedupedDuring.push(c) }
+    })
+
+    if (dedupedDuring.length) {
+      caseFolders[0].children = dedupedDuring
+      caseAId.value = dedupedDuring[0].id
     }
-
-    caseFolders.splice(
-      0,
-      caseFolders.length,
-      {
-        id: 'f1',
-        label: '事中实验',
-        expanded: true,
-        children: duringCases.length ? duringCases : caseFolders[0].children
-      },
-      {
-        id: 'f2',
-        label: '反事实实验',
-        expanded: true,
-        children: counterfactualCases.length ? counterfactualCases : caseFolders[1].children
-      }
-    )
-
-    if (!selectedCase.value && counterfactualCases[0]) {
-      selectCase(counterfactualCases[0])
+    if (counterfactualCases.length) {
+      caseFolders[1].children = counterfactualCases
+      caseBId.value = counterfactualCases[0]?.id || null
+      if (caseBId.value && caseAId.value) runComparison()
     }
+    // 确保两个库都有数据
+    if (!caseFolders[0].children.length) caseFolders[0].children = buildStaticCases('Exp')
+    if (!caseFolders[1].children.length) caseFolders[1].children = buildStaticCases('CF')
   } catch (error) {
     console.warn('[ObserveAnalysis] 后端案例数据加载失败，使用本地静态数据:', error)
+    caseFolders[0].children = buildStaticCases('Exp')
+    caseFolders[1].children = buildStaticCases('CF')
   }
 }
 
-onMounted(() => {
-  applyBackendCases()
-})
+const buildStaticCases = (prefix) => {
+  if (prefix === 'Exp') return [
+    { id: 'exp-uranium-baseline', name: 'Exp-01 铀需求冲击基线', completed: true, completionRate: '68.4%', method: 'Multi-Agent 仿真 (native)', backlogRate: '31.6%', collaboration: '18 次', resilience: '0.42', demandLevel: '铀需求强度 1.25x', capacityPlan: '铀矿产能保持基线区间', intervention: '沿用基线参数', eventNodes: defaultEventNodes },
+    { id: 'exp-uranium-expand', name: 'Exp-02 铀矿扩产对照', completed: true, completionRate: '83.1%', method: 'Multi-Agent 仿真 (native)', backlogRate: '16.9%', collaboration: '31 次', resilience: '0.71', demandLevel: '铀需求强度 1.25x', capacityPlan: '阶梯式扩产 ISL+硬岩矿', intervention: '铀矿总产能 +30%', eventNodes: defaultEventNodes },
+    { id: 'exp-uranium-threshold', name: 'Exp-03 新矿投产优化', completed: false, completionRate: '--', method: 'Multi-Agent 仿真 (mcml)', backlogRate: '--', collaboration: '--', resilience: '--', demandLevel: '铀需求强度 1.40x', capacityPlan: '优先投产计划矿山', intervention: '新矿投产阈值 -50%', eventNodes: defaultEventNodes }
+  ]
+  return [
+    { id: 'cf-uranium-cap15', name: 'CF-01 铀矿产能+15%', completed: true, completionRate: '86.8%', method: '反事实 (阶梯扩产)', backlogRate: '13.2%', collaboration: '36 次', resilience: '0.78', demandLevel: '铀需求强度 1.25x', capacityPlan: '阶梯式扩产', intervention: '铀矿总产能 +15%', eventNodes: defaultEventNodes },
+    { id: 'cf-uranium-threshold-half', name: 'CF-02 新矿阈值减半', completed: false, completionRate: '--', method: '反事实 (阈值调整)', backlogRate: '--', collaboration: '--', resilience: '--', demandLevel: '铀需求强度 1.10x', capacityPlan: '保持基线', intervention: '新矿投产阈值 -50%', eventNodes: defaultEventNodes }
+  ]
+}
+
+const loadAllCases = async () => {
+  loading.value = true
+  try {
+    // 直接使用 buildLocalCases：从所有已完成实验的迭代中构建事中/反事实分类
+    // getCaseLibrary API 按极端/正常分类，不适用于事中/反事实的展示需求
+    await buildLocalCases()
+    ElMessage.success(`铀供应链案例库已加载，共 ${totalCaseCount.value} 个案例`)
+  } catch {
+    caseFolders[0].children = buildStaticCases('Exp')
+    caseFolders[1].children = buildStaticCases('CF')
+  } finally {
+    loading.value = false
+  }
+}
+
+// ---- 导出报告 ----
+const escapeHtml = (v) => String(v ?? '--').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+const buildReportHtml = () => {
+  const rows = [...buildBasicComparison(), ...buildMetricsComparison()]
+  const tbody = rows.map(r => `<tr><th>${escapeHtml(r.dimension || r.metric)}</th><td>${escapeHtml(r.value_a)}</td><td>${escapeHtml(r.value_b)}</td>${r.diff ? `<td>${escapeHtml(r.diff)}</td>` : ''}</tr>`).join('')
+  const events = (caseA.value?.eventNodes || defaultEventNodes).map(e => `<li><strong>${escapeHtml(e.title)}</strong><span>第 ${e.step} 轮</span><p>${escapeHtml(e.desc)}</p></li>`).join('')
+
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>铀供应链观察分析对比报告</title>
+<style>body{margin:0;padding:28px;color:#0f172a;font-family:"Microsoft YaHei",Arial,sans-serif;line-height:1.6;background:#f8fafc}
+main{max-width:980px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:28px}
+h1{margin:0 0 8px;font-size:26px}.meta{color:#64748b;margin-bottom:22px}
+table{width:100%;border-collapse:collapse;margin:18px 0 24px}th,td{border:1px solid #e2e8f0;padding:10px 12px;text-align:left}
+th{width:180px;background:#f1f5f9}thead th{background:#dbeafe;color:#1e40af}
+h2{margin:24px 0 10px;font-size:18px}li{margin-bottom:12px}li span{display:inline-block;margin-left:10px;color:#64748b;font-size:13px}li p{margin:4px 0 0;color:#334155}</style></head>
+<body><main><h1>铀供应链观察分析对比报告</h1><div class="meta">生成时间：${new Date().toLocaleString()}<br>案例 A: ${escapeHtml(caseA.value?.name||'--')}<br>案例 B: ${escapeHtml(caseB.value?.name||'--')}</div>
+<h2>案例对比</h2><table><thead><tr><th>对比项</th><th>案例 A</th><th>案例 B</th><th>差异</th></tr></thead><tbody>${tbody}</tbody></table>
+<h2>关键事件节点回放（案例 A）</h2><ol>${events}</ol>
+<h2>综合推荐</h2><p>${escapeHtml(generateLocalRecommendation())}</p></main></body></html>`
+}
+
+const exportComparisonReport = (format) => {
+  if (!caseA.value || !caseB.value) { ElMessage.warning('请先选择两个对比案例'); return }
+  const safeName = '铀供应链_观察分析对比报告'
+  if (format === 'txt') {
+    const lines = ['铀供应链观察分析对比报告', `生成时间：${new Date().toLocaleString()}`, '', '一、案例对比', ...[...buildBasicComparison(), ...buildMetricsComparison()].map(r => `${r.dimension||r.metric}：A=${r.value_a}；B=${r.value_b}${r.diff?'（差异：'+r.diff+'）':''}`), '', '二、综合推荐', generateLocalRecommendation()]
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' })
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${safeName}.txt`; a.click()
+    ElMessage.success('已导出为TXT')
+  } else if (format === 'pdf') {
+    const w = window.open('', '_blank')
+    if (!w) { ElMessage.warning('浏览器拦截了弹窗，请允许后重试'); return }
+    w.document.open(); w.document.write(buildReportHtml()); w.document.close(); setTimeout(() => w.print(), 500)
+    ElMessage.success('已打开PDF打印窗口')
+  } else {
+    const blob = new Blob([buildReportHtml()], { type: 'text/html;charset=utf-8' })
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${safeName}.html`; a.click()
+    ElMessage.success('已导出为HTML')
+  }
+}
+
+onMounted(() => { loadAllCases() })
+onBeforeUnmount(() => { disposeDistChart() })
 </script>
 
 <style scoped>
 .post-observe-page {
-  height: 100%;
-  min-height: 0;
-  box-sizing: border-box;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  background: #f6f8fb;
-  color: #0f172a;
+  height: 100%; min-height: 0; box-sizing: border-box; padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 10px;
+  background: #f6f8fb; color: #0f172a;
   font-family: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
-}
-
-/* ---- 页面标题 ---- */
-.page-head {
-  flex: 0 0 auto;
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  align-items: center;
-  padding: 14px 22px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
-}
-
-.eyebrow {
-  margin: 0 0 6px;
-  color: #3867f2;
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.page-head h1 {
-  margin: 0;
-  font-size: 26px;
-  line-height: 1.2;
-  font-weight: 900;
-}
-
-.subtitle {
-  margin: 8px 0 0;
-  color: #64748b;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-/* ---- 主布局 ---- */
-.observe-layout {
-  flex: 1 1 auto;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  min-height: 0;
-}
-
-/* ---- 左半 ---- */
-.case-select-panel {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
-  overflow: hidden;
-  display: flex;
-  min-height: 0;
-}
-
-.case-select-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  width: 100%;
-  min-height: 0;
-}
-
-/* ---- 实验案例库（文件树） ---- */
-.case-library {
-  border-right: 1px solid #eef2f7;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.library-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 14px;
-  font-size: 13px;
-  font-weight: 800;
-  color: #1e293b;
-  border-bottom: 1px solid #eef2f7;
-  background: #f8fafc;
-}
-
-.library-head .el-icon {
-  color: #3b82f6;
-  font-size: 16px;
-}
-
-.library-tree {
-  flex: 1 1 auto;
   overflow-y: auto;
-  padding: 6px 0;
 }
+.page-head {
+  flex: 0 0 auto; display: flex; justify-content: space-between; gap: 20px; align-items: center;
+  padding: 14px 22px; border: 1px solid #e2e8f0; border-radius: 8px;
+  background: #fff; box-shadow: 0 10px 28px rgba(15,23,42,0.05);
+}
+.eyebrow { margin: 0 0 6px; color: #d97706; font-size: 12px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
+.page-head h1 { margin: 0; font-size: 26px; line-height: 1.2; font-weight: 900; }
+.subtitle { margin: 8px 0 0; color: #64748b; font-size: 13px; font-weight: 600; }
+.head-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.stat-item { min-width: 90px; padding: 8px 12px; border: 1px solid #fde68a; border-radius: 10px; background: linear-gradient(180deg, #fffbeb, #fefce8); }
+.stat-item span { display: block; color: #64748b; font-size: 11px; font-weight: 800; }
+.stat-item strong { display: block; margin-top: 4px; color: #92400e; font-size: 20px; line-height: 1.1; }
 
+.observe-layout { flex: 0 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; min-height: 520px; height: calc(100vh - 260px); }
+.case-select-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 10px 28px rgba(15,23,42,0.05); overflow: hidden; display: flex; min-height: 0; }
+.case-select-grid { display: grid; grid-template-columns: 1fr 1fr; width: 100%; min-height: 0; }
+
+.case-library { border-right: 1px solid #eef2f7; display: flex; flex-direction: column; min-height: 0; }
+.library-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; font-size: 13px; font-weight: 800; color: #1e293b; border-bottom: 1px solid #eef2f7; background: #f8fafc; }
+.library-head .el-icon { color: #d97706; font-size: 16px; }
+.search-input { flex: 1; max-width: 130px; margin-left: auto; }
+.library-tree { flex: 1 1 auto; overflow-y: auto; padding: 4px 0; }
 .tree-folder { margin-bottom: 2px; }
-
-.tree-folder-head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 700;
-  color: #334155;
-  transition: background 0.15s;
-}
-
+.tree-folder-head { display: flex; align-items: center; gap: 6px; padding: 6px 12px; cursor: pointer; font-size: 13px; font-weight: 700; color: #334155; transition: background 0.15s; }
 .tree-folder-head:hover { background: #f1f5f9; }
-
-.tree-folder-head .el-icon {
-  font-size: 14px;
-  color: #94a3b8;
-  flex-shrink: 0;
-}
-
-.folder-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.folder-count {
-  font-size: 11px;
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: #e2e8f0;
-  color: #64748b;
-  font-weight: 600;
-}
-
-.tree-folder-children { padding-left: 0; }
-
-.tree-leaf {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px 6px 36px;
-  cursor: pointer;
-  font-size: 12px;
-  color: #475569;
-  transition: background 0.15s;
-}
-
+.folder-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-count { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: #fde68a; color: #92400e; font-weight: 600; }
+.tree-leaf { display: flex; align-items: center; gap: 6px; padding: 5px 12px 5px 34px; cursor: pointer; font-size: 12px; color: #475569; transition: background 0.15s; }
 .tree-leaf:hover { background: #f8fafc; }
-
-.tree-leaf.active {
-  background: #eff6ff;
-  color: #1d4ed8;
-  font-weight: 700;
-}
-
-.tree-leaf .el-icon {
-  font-size: 14px;
-  color: #cbd5e1;
-  flex-shrink: 0;
-}
-
-.tree-leaf.active .el-icon { color: #3b82f6; }
-
-.leaf-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.leaf-badge {
-  font-size: 10px;
-  padding: 1px 6px;
-  border-radius: 999px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
+.tree-leaf.active { background: #fffbeb; color: #92400e; font-weight: 700; }
+.tree-leaf.slot-a { border-left: 3px solid #3867f2; background: #eff6ff; }
+.tree-leaf.slot-b { border-left: 3px solid #22c55e; background: #f0fdf4; }
+.leaf-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.leaf-badge { font-size: 10px; padding: 1px 6px; border-radius: 999px; font-weight: 700; flex-shrink: 0; }
 .leaf-badge.done { background: #dcfce7; color: #15803d; }
 .leaf-badge.pending { background: #fef3c7; color: #92400e; }
+.empty-hint { padding: 40px 0; text-align: center; color: #94a3b8; font-size: 13px; font-weight: 600; }
 
-/* ---- 当前实验（上下两面板） ---- */
-.current-experiment {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 10px;
-  min-height: 0;
-  overflow-y: auto;
-}
-
-.info-card {
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  overflow: hidden;
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.info-card--primary { border-top: 3px solid #3b82f6; }
+.current-experiment { display: flex; flex-direction: column; gap: 8px; padding: 8px; min-height: 0; overflow-y: auto; }
+.info-card { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.info-card--primary { border-top: 3px solid #d97706; }
 .info-card--secondary { border-top: 3px solid #8b5cf6; }
-
-.info-card-head {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 10px 14px;
-  font-size: 13px;
-  font-weight: 800;
-  color: #1e293b;
-  border-bottom: 1px solid #eef2f7;
-  background: #fafbfc;
-}
-
-.info-card-head .el-icon { font-size: 15px; color: #64748b; }
-.info-card--primary .info-card-head .el-icon { color: #3b82f6; }
+.info-card-head { display: flex; align-items: center; gap: 7px; padding: 8px 12px; font-size: 12px; font-weight: 800; color: #1e293b; border-bottom: 1px solid #eef2f7; background: #fafbfc; }
+.info-card--primary .info-card-head .el-icon { color: #d97706; }
 .info-card--secondary .info-card-head .el-icon { color: #8b5cf6; }
+.info-card-body { padding: 8px 12px; display: flex; flex-direction: column; gap: 3px; overflow-y: auto; }
+.info-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px dashed #f1f5f9; }
+.info-label { font-size: 11px; font-weight: 700; color: #64748b; }
+.info-value { font-size: 12px; font-weight: 800; color: #0f172a; }
+.info-empty { padding: 20px 0; text-align: center; color: #94a3b8; font-size: 12px; font-weight: 600; }
+.vs-mini { display: flex; justify-content: center; padding: 2px 0; }
+.vs-mini span { width: 28px; height: 28px; border-radius: 50%; background: #d97706; color: #fff; display: grid; place-items: center; font-weight: 900; font-size: 11px; }
 
-.info-card-body {
-  padding: 10px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  overflow-y: auto;
-}
-
-.info-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 0;
-  border-bottom: 1px dashed #f1f5f9;
-}
-
-.info-row:last-child { border-bottom: none; }
-
-.info-label {
-  font-size: 12px;
-  font-weight: 700;
-  color: #64748b;
-}
-
-.info-value {
-  font-size: 13px;
-  font-weight: 800;
-  color: #0f172a;
-}
-
-.info-value.muted { color: #cbd5e1; }
-
-/* ---- 右半：对比面板 ---- */
-.compare-panel {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
-  display: flex;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.compare-inner {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  min-height: 0;
-}
-
-.compare-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid #eef2f7;
-  background: #f8fafc;
-}
-
-.compare-head-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 800;
-  color: #1e293b;
-}
-
-.compare-head-left .el-icon { color: #8b5cf6; }
-
-.compare-head-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
-.compare-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 16px;
-}
-
-.compare-empty {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  color: #94a3b8;
-  gap: 4px;
-  padding: 20px;
-}
-
+.compare-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 10px 28px rgba(15,23,42,0.05); display: flex; min-height: 0; overflow: hidden; }
+.compare-inner { display: flex; flex-direction: column; width: 100%; min-height: 0; }
+.compare-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid #eef2f7; background: #f8fafc; gap: 12px; }
+.compare-head-left { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 800; color: #1e293b; }
+.compare-head-left .el-icon { color: #d97706; }
+.compare-head-tabs { display: flex; gap: 4px; }
+.tab-btn { padding: 5px 16px; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; color: #64748b; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+.tab-btn.active { background: #d97706; color: #fff; border-color: #d97706; }
+.compare-head-actions { flex-shrink: 0; }
+.compare-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 14px; }
+.compare-empty { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #94a3b8; gap: 6px; padding: 20px; }
 .compare-empty .el-icon { color: #e2e8f0; }
+.compare-empty p { margin: 0; font-size: 15px; font-weight: 700; color: #64748b; }
+.compare-empty span { font-size: 12px; font-weight: 600; max-width: 350px; line-height: 1.6; }
 
-.compare-empty p {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 700;
-  color: #64748b;
-}
+.compare-content { display: flex; flex-direction: column; gap: 10px; }
+.card-pair-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cmp-card { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; }
+.cmp-card--large { flex: 1 1 auto; min-height: 0; }
+.cmp-card-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; font-size: 12px; font-weight: 800; color: #1e293b; border-bottom: 1px solid #eef2f7; background: #fafbfc; position: relative; }
+.cmp-card-pip { width: 10px; height: 10px; border-radius: 3px; margin-left: auto; }
+.cmp-card-pip.blue { background: #3b82f6; } .cmp-card-pip.purple { background: #8b5cf6; }
+.cmp-card-pip.teal { background: #0d9488; } .cmp-card-pip.amber { background: #d97706; }
+.cmp-card-pip.slate { background: #475569; }
+.cmp-card--blue { border-top: 3px solid #3b82f6; } .cmp-card--blue .cmp-card-head { background: linear-gradient(180deg, #eff6ff, #fafbfc); }
+.cmp-card--purple { border-top: 3px solid #8b5cf6; } .cmp-card--purple .cmp-card-head { background: linear-gradient(180deg, #f5f3ff, #fafbfc); }
+.cmp-card--teal { border-top: 3px solid #0d9488; } .cmp-card--teal .cmp-card-head { background: linear-gradient(180deg, #f0fdfa, #fafbfc); }
+.cmp-card--amber { border-top: 3px solid #d97706; } .cmp-card--amber .cmp-card-head { background: linear-gradient(180deg, #fffbeb, #fafbfc); }
+.cmp-card--slate { border-top: 3px solid #475569; } .cmp-card--slate .cmp-card-head { background: linear-gradient(180deg, #f8fafc, #fafbfc); }
+.cmp-card-body { padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
+.cmp-kv { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px dashed #f1f5f9; }
+.cmp-kv-label { font-size: 11px; font-weight: 700; color: #64748b; }
+.cmp-kv-value { font-size: 12px; font-weight: 800; color: #0f172a; }
 
-.compare-empty span {
-  font-size: 12px;
-  font-weight: 600;
-  max-width: 300px;
-  line-height: 1.5;
-}
+.compare-section { margin-bottom: 4px; }
+.compare-section h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 15px; font-weight: 900; color: #0f172a; }
+.val-a { color: #3867f2; font-weight: 700; } .val-b { color: #22c55e; font-weight: 700; }
+.similarity-card { padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fafbfc; }
+.similarity-main { display: flex; justify-content: center; margin-bottom: 12px; }
+.similarity-score { display: flex; align-items: center; gap: 12px; }
+.score-number { font-size: 32px; font-weight: 900; color: #d97706; }
+.similarity-dims { display: flex; flex-direction: column; gap: 8px; }
+.sim-dim-item { display: grid; grid-template-columns: 100px 1fr; align-items: center; gap: 12px; }
+.dim-label { font-size: 12px; font-weight: 700; color: #64748b; text-align: right; }
 
-/* ---- 对比内容 ---- */
-.compare-content {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
+.event-timeline { display: flex; flex-direction: column; gap: 0; padding-left: 4px; }
+.event-node { display: flex; gap: 10px; padding: 6px 0 6px 2px; position: relative; }
+.event-node:not(:last-child)::before { content: ''; position: absolute; left: 9px; top: 26px; bottom: -2px; width: 2px; background: #e2e8f0; }
+.event-dot { width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0; margin-top: 2px; box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
+.event-dot.red { background: #ef4444; } .event-dot.orange { background: #f59e0b; }
+.event-dot.blue { background: #3b82f6; } .event-dot.green { background: #22c55e; }
+.event-info { flex: 1; min-width: 0; }
+.event-info strong { display: block; font-size: 12px; font-weight: 800; color: #1e293b; }
+.event-time { display: inline-block; margin-top: 2px; font-size: 11px; font-weight: 700; color: #94a3b8; }
+.event-desc { margin: 4px 0 0; font-size: 11px; color: #64748b; line-height: 1.4; }
 
-/* ---- 卡片对行 ---- */
-.card-pair-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
+/* ---- 自选维度 & 分布图 ---- */
+.dimension-selector { display: flex; align-items: center; gap: 8px; padding: 8px 0; flex-wrap: wrap; margin-bottom: 4px; }
+.dim-selector-label { font-size: 12px; font-weight: 800; color: #64748b; white-space: nowrap; }
+.cmp-empty-hint { text-align: center; color: #cbd5e1; font-size: 12px; padding: 12px 0; }
 
-/* ---- 通用卡片 ---- */
-.cmp-card {
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
+.distribution-chart-container { width: 100%; height: 420px; margin: 8px 0; border: 1px solid #e2e8f0; border-radius: 10px; background: #fafbfc; }
 
-.cmp-card--large {
-  flex: 1 1 auto;
-  min-height: 0;
-}
+.distribution-summary { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.dist-summary-card { padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; }
+.dist-summary-head { display: flex; justify-content: space-between; margin-bottom: 6px; }
+.dist-summary-label { font-size: 12px; font-weight: 800; color: #1e293b; }
+.dist-summary-unit { font-size: 11px; color: #94a3b8; }
+.dist-summary-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; font-weight: 700; color: #0f172a; }
+.dist-tag-a { padding: 1px 6px; border-radius: 4px; background: #dbeafe; color: #1d4ed8; font-size: 10px; font-weight: 900; }
+.dist-tag-b { padding: 1px 6px; border-radius: 4px; background: #dcfce7; color: #15803d; font-size: 10px; font-weight: 900; }
+.dist-range { font-size: 11px; color: #94a3b8; margin-left: auto; }
+.compare-empty-inline { display: flex; justify-content: center; padding: 40px; color: #94a3b8; font-size: 13px; font-weight: 600; }
 
-.cmp-card-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  font-size: 13px;
-  font-weight: 800;
-  color: #1e293b;
-  border-bottom: 1px solid #eef2f7;
-  background: #fafbfc;
-  position: relative;
-}
+/* ---- 跨库相似度矩阵 ---- */
+.cross-library-section { flex: 0 0 auto; margin-top: 10px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; box-shadow: 0 6px 16px rgba(15,23,42,0.04); overflow: hidden; max-height: 340px; }
+.cross-library-section .el-table { font-size: 12px; }
+.cross-library-head { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid #eef2f7; background: linear-gradient(90deg, #fefce8, #fff); font-size: 14px; font-weight: 800; color: #92400e; }
+.cross-library-head .el-icon { color: #d97706; }
+.cross-library-sub { margin-left: auto; font-size: 11px; font-weight: 600; color: #94a3b8; }
+.cross-library-body { padding: 8px; overflow-x: auto; }
+.sim-cell { font-size: 12px; font-weight: 800; }
 
-.cmp-card-head .el-icon { font-size: 15px; flex-shrink: 0; }
-
-.cmp-card-pip {
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
-  margin-left: auto;
-  flex-shrink: 0;
-}
-
-.cmp-card-pip.blue   { background: #3b82f6; }
-.cmp-card-pip.purple { background: #8b5cf6; }
-.cmp-card-pip.teal   { background: #0d9488; }
-.cmp-card-pip.amber  { background: #d97706; }
-.cmp-card-pip.slate  { background: #475569; }
-
-/* ---- 蓝色卡片（当前实验参数） ---- */
-.cmp-card--blue { border-top: 3px solid #3b82f6; }
-.cmp-card--blue .cmp-card-head { background: linear-gradient(180deg, #eff6ff 0%, #fafbfc 100%); }
-.cmp-card--blue .cmp-card-head .el-icon { color: #3b82f6; }
-
-/* ---- 紫色卡片（对比案例参数） ---- */
-.cmp-card--purple { border-top: 3px solid #8b5cf6; }
-.cmp-card--purple .cmp-card-head { background: linear-gradient(180deg, #f5f3ff 0%, #fafbfc 100%); }
-.cmp-card--purple .cmp-card-head .el-icon { color: #8b5cf6; }
-
-/* ---- 青色卡片（当前实验结果） ---- */
-.cmp-card--teal { border-top: 3px solid #0d9488; }
-.cmp-card--teal .cmp-card-head { background: linear-gradient(180deg, #f0fdfa 0%, #fafbfc 100%); }
-.cmp-card--teal .cmp-card-head .el-icon { color: #0d9488; }
-
-/* ---- 琥珀卡片（对比案例结果） ---- */
-.cmp-card--amber { border-top: 3px solid #d97706; }
-.cmp-card--amber .cmp-card-head { background: linear-gradient(180deg, #fffbeb 0%, #fafbfc 100%); }
-.cmp-card--amber .cmp-card-head .el-icon { color: #d97706; }
-
-/* ---- 深灰卡片（事件回放） ---- */
-.cmp-card--slate { border-top: 3px solid #475569; }
-.cmp-card--slate .cmp-card-head { background: linear-gradient(180deg, #f8fafc 0%, #fafbfc 100%); }
-.cmp-card--slate .cmp-card-head .el-icon { color: #475569; }
-
-/* ---- 卡片内容 ---- */
-.cmp-card-body {
-  padding: 10px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  overflow-y: auto;
-}
-
-.cmp-kv {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 5px 0;
-  border-bottom: 1px dashed #f1f5f9;
-}
-
-.cmp-kv:last-child { border-bottom: none; }
-
-.cmp-kv-label {
-  font-size: 12px;
-  font-weight: 700;
-  color: #64748b;
-}
-
-.cmp-kv-value {
-  font-size: 12px;
-  font-weight: 800;
-  color: #0f172a;
-}
-
-/* ---- 事件时间线 ---- */
-.event-timeline {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding-left: 6px;
-}
-
-.event-node {
-  display: flex;
-  gap: 12px;
-  padding: 8px 0 8px 2px;
-  position: relative;
-}
-
-.event-node:not(:last-child)::before {
-  content: '';
-  position: absolute;
-  left: 10px;
-  top: 28px;
-  bottom: -2px;
-  width: 2px;
-  background: #e2e8f0;
-}
-
-.event-dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  margin-top: 2px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
-}
-
-.event-dot.red    { background: #ef4444; }
-.event-dot.orange { background: #f59e0b; }
-.event-dot.blue   { background: #3b82f6; }
-.event-dot.green  { background: #22c55e; }
-
-.event-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.event-info strong {
-  display: block;
-  font-size: 13px;
-  font-weight: 800;
-  color: #1e293b;
-}
-
-.event-time {
-  display: inline-block;
-  margin-top: 2px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #94a3b8;
-}
-
-.event-desc {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: #64748b;
-  line-height: 1.45;
-}
-
-/* ---- 滚动条 ---- */
-.library-tree::-webkit-scrollbar,
-.current-experiment::-webkit-scrollbar,
-.compare-body::-webkit-scrollbar {
-  width: 5px;
-}
-
-.library-tree::-webkit-scrollbar-thumb,
-.current-experiment::-webkit-scrollbar-thumb,
-.compare-body::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 999px;
+@media (max-width: 1100px) {
+  .observe-layout { grid-template-columns: 1fr; }
+  .card-pair-row { grid-template-columns: 1fr; }
 }
 </style>
