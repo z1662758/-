@@ -24,9 +24,9 @@
           <span class="phase-label">{{ phaseLabels[currentPhase] }}</span>
         </div>
 
-        <!--	返回阶段选择	-->
-        <el-menu-item index="/home/SCnet/total" class="back-select-item">
-          <el-icon size="18"><Grid/></el-icon>
+        <!--	返回对话首页	-->
+        <el-menu-item index="/chatHome" class="back-select-item">
+          <el-icon size="18"><ChatDotSquare/></el-icon>
           <template #title>对话首页</template>
         </el-menu-item>
 
@@ -182,6 +182,13 @@
       :completed-predicate="isDuringStepCompleted"
       @step-click="onDuringStepClick"
     />
+
+    <!-- 浮动切换按钮：转到对话模式 -->
+    <el-tooltip content="切换到AI对话模式" placement="left" effect="dark">
+      <button class="chat-toggle-float-btn" @click="$router.push('/chatHome')">
+        <el-icon :size="20"><ChatDotSquare /></el-icon>
+      </button>
+    </el-tooltip>
   </div>
 </template>
 
@@ -190,7 +197,7 @@ import {
   Aim, Box, Coin, Collection, Connection, DataAnalysis, DataLine, Document, DocumentDelete, Edit,
   Filter, FolderOpened, Grid, House, Memo, Monitor, Notification, Odometer, Operation, Orange,
   PieChart, Place, Postcard, Promotion, ScaleToOriginal, Search, Setting, Share,
-  SwitchButton, TrendCharts, User, WarningFilled
+  SwitchButton, TrendCharts, User, WarningFilled, ChatDotSquare
 } from "@element-plus/icons-vue";
 import {ref, onMounted, onUnmounted, computed} from "vue";
 import {useRoute, useRouter} from "vue-router";
@@ -210,7 +217,7 @@ export default {
     EventPhaseStepper,
     Refresh, Files, DataAnalysis, DataLine, DocumentDelete, House, Aim, Box, Collection,
     Document, Notification, Operation, Postcard, Promotion, ScaleToOriginal, Search, Setting,
-    Coin, PieChart, Filter, FolderOpened, Grid, Odometer, SwitchButton, Orange, TrendCharts, User, Header, WarningFilled
+    Coin, PieChart, Filter, FolderOpened, Grid, Odometer, SwitchButton, Orange, TrendCharts, User, Header, WarningFilled, ChatDotSquare
   },
   setup() {
     const route = useRoute()
@@ -423,5 +430,32 @@ export default {
 /* 返回阶段选择 */
 .back-select-item {
   margin-bottom: 6px;
+}
+
+/* 浮动切换按钮 */
+.chat-toggle-float-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #ffffff;
+  color: #4b5563;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s ease;
+  backdrop-filter: blur(12px);
+}
+.chat-toggle-float-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.06);
+  color: #6366f1;
+  border-color: rgba(99, 102, 241, 0.2);
 }
 </style>

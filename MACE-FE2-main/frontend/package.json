@@ -46,6 +46,7 @@
     "relation-graph-vue3": "^2.2.1",
     "set-function-length": "^1.2.2",
     "socket.io-client": "^4.7.5",
+    "sortablejs": "^1.15.7",
     "three": "^0.154.0",
     "vue": "^3.5.22",
     "vue-amap": "^0.5.10",
