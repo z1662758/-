@@ -65,21 +65,21 @@
           <el-sub-menu index="during-analysis">
             <template #title>
               <el-icon size="18"><DataAnalysis/></el-icon>
-              <span>态势研判</span>
+              <span>态势分析</span>
             </template>
+            <el-menu-item index="/home/SCnet/situationJudge">
+              <el-icon size="18"><DataLine/></el-icon>
+              <template #title>态势研判</template>
+            </el-menu-item>
             <el-menu-item index="/home/SCnet/situationResearch-main">
               <el-icon size="18"><Promotion/></el-icon>
               <template #title>态势预测</template>
             </el-menu-item>
-            <el-menu-item index="/home/SCnet/reportGeneration">
-              <el-icon size="18"><Document/></el-icon>
-              <template #title>报告生成</template>
-            </el-menu-item>
-            <!-- <el-menu-item index="/home/SCnet/oilReportGeneration">
-              <el-icon size="18"><Document/></el-icon>
-              <template #title>石油报告</template>
-            </el-menu-item> -->
           </el-sub-menu>
+          <el-menu-item index="/home/SCnet/reportGeneration">
+            <el-icon size="18"><Document/></el-icon>
+            <template #title>报告生成</template>
+          </el-menu-item>
         </template>
 
         <!-- ========== 事中：应急响应与调度 ========== -->

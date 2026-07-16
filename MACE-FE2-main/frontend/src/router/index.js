@@ -96,6 +96,11 @@ const routes = [
         component: situationAnalysis
       },
       {
+        path: 'situationJudge',
+        name: 'situationJudge',
+        component: () => import("../views/SCnet/situationJudge.vue")
+      },
+      {
         path: 'total',
         name: 'total',
         component: total
