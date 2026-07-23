@@ -83,7 +83,7 @@
             <textarea
               v-model="scenarioData.historicalBackground"
               rows="3"
-              placeholder="请描述铀供应链背景，例如：中国核电装机约55GW，年天然铀需求约10,000+ tU，国内产量仅约1,500-2,000 tU/年，缺口依赖哈萨克斯坦/纳米比亚/尼日尔海外权益矿和现货采购..."
+              placeholder="请描述供应链背景，例如：中国核电装机约55GW，年天然需求约10,000+ tU，国内产量仅约1,500-2,000 tU/年，缺口依赖哈萨克斯坦/纳米比亚/尼日尔海外权益矿和现货采购..."
               class="setup-textarea"
             />
           </div>
@@ -269,8 +269,8 @@ export default {
 
       scenarioData: {
         targetCompany: 'cnnc',
-        historicalBackground: '中国是全球最大的铀消费国之一，年核电需求约10,000+ tU。国内产量有限（约1,500-2,000 tU/年），高度依赖海外权益矿（尼日尔/纳米比亚/哈萨克斯坦）和国际贸易...',
-        initialEvent: '尼日尔2023年政变后局势持续不稳，2024年Imouraren开采许可被撤销、Madaouela采矿权被撤回，严重冲击中国在尼日尔的铀矿权益...',
+        historicalBackground: '中国是全球最大的消费国之一，年核电需求约10,000+ tU。国内产量有限（约1,500-2,000 tU/年），高度依赖海外权益矿（尼日尔/纳米比亚/哈萨克斯坦）和国际贸易...',
+        initialEvent: '尼日尔2023年政变后局势持续不稳，2024年Imouraren开采许可被撤销、Madaouela采矿权被撤回，严重冲击中国在尼日尔的矿山权益...',
         currentProgress: '',
         completeTimeline: ''
       },
@@ -287,9 +287,9 @@ export default {
         {
           id: 'niger_coup',
           name: '尼日尔政变矿权危机',
-          description: '尼日尔政变后Imouraren/Madaouela矿权撤销，冲击全球铀供应',
+          description: '尼日尔政变后Imouraren/Madaouela矿权撤销，冲击全球供应',
           company: '中核集团',
-          historicalBackground: '2023年7月尼日尔政变，军政府重新审查外资矿业合同。2024年6月撤销Orano对Imouraren开采许可，7月撤回GoviEx的Madaouela采矿权。尼日尔是欧盟第三大铀来源，也是中国海外权益铀布局的重要节点。',
+          historicalBackground: '2023年7月尼日尔政变，军政府重新审查外资矿业合同。2024年6月撤销Orano对Imouraren开采许可，7月撤回GoviEx的Madaouela采矿权。尼日尔是欧盟第三大来源，也是中国海外权益布局的重要节点。',
           initialEvent: '2024年Q3，尼日尔军政府宣布对外资矿权全面重审，仅存的Somair矿业面临不确定前景。U3O8现货价从$85/lb跳涨至$105/lb，EU电力公司紧急寻求哈萨克斯坦、加拿大替代供应。'
         },
         {
@@ -297,15 +297,15 @@ export default {
           name: '哈萨克斯坦硫酸短缺',
           description: '硫酸供应不足制约ISL地浸产量，Kazatomprom下调产量指引',
           company: '中广核',
-          historicalBackground: '哈萨克斯坦贡献全球40%+铀产量，以ISL地浸为主。ISL生产需大量硫酸作浸出剂。2024年1月Kazatomprom因硫酸短缺下调产量预期，且2025年恢复满产计划也受此影响。',
-          initialEvent: '2024年Q2，Kazatomprom再次因硫酸供应不稳定下调年度产量指引约10%，全球铀供给预期减少2,000-3,000 tU。U3O8现货价单周上涨$12/lb，买方加速长协锁量。'
+          historicalBackground: '哈萨克斯坦贡献全球40%+产量，以ISL地浸为主。ISL生产需大量硫酸作浸出剂。2024年1月Kazatomprom因硫酸短缺下调产量预期，且2025年恢复满产计划也受此影响。',
+          initialEvent: '2024年Q2，Kazatomprom再次因硫酸供应不稳定下调年度产量指引约10%，全球供给预期减少2,000-3,000 tU。U3O8现货价单周上涨$12/lb，买方加速长协锁量。'
         },
         {
           id: 'mcarthur_restart',
           name: 'McArthur River重启爬坡',
           description: 'Cameco McArthur River/Key Lake停产4年后重启，2024-2025年逐步爬坡满产',
           company: 'Cameco',
-          historicalBackground: '2018年因铀价低迷，Cameco将McArthur River/Key Lake（设计产能1,800万磅U3O8/年）停产维护。2022年11月重启，2024-2025年逐步恢复满产。停产期间Cameco被迫从市场采购铀来履行长协。',
+          historicalBackground: '2018年因价格低迷，Cameco将McArthur River/Key Lake（设计产能1,800万磅U3O8/年）停产维护。2022年11月重启，2024-2025年逐步恢复满产。停产期间Cameco被迫从市场采购来履行长协。',
           initialEvent: '2024年Q3，McArthur River爬坡至设计产能的75%，但地下开采面品位恢复慢于预期。Cameco暗示2025年上半年才能达到满产，比此前指引晚6个月。'
         }
       ]

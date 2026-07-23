@@ -131,7 +131,7 @@
       <img src="../../assets/images/gameImg.png" class="chat-sidebar-footer-avatar" alt="SCnet" />
       <transition name="fade-delay">
         <div v-show="!collapsed" class="chat-sidebar-footer-meta">
-          <span class="chat-sidebar-footer-title">铀供应链</span>
+          <span class="chat-sidebar-footer-title">供应链</span>
           <el-button circle size="default" class="chat-sidebar-footer-logout" plain @click="$emit('exit')">
             <el-icon><SwitchButton /></el-icon>
           </el-button>

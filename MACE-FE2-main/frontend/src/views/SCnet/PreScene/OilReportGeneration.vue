@@ -4,9 +4,9 @@
       <div class="chat-wrapper">
         <div class="chat-header">
           <div class="header-title">
-            <span><el-icon><Monitor /></el-icon> 铀矿情报分析</span>
+            <span><el-icon><Monitor /></el-icon> 矿山情报分析</span>
           </div>
-          <div class="header-subtitle">铀矿山动态 & 地缘风险 Agent</div>
+          <div class="header-subtitle">矿山动态 & 地缘风险 Agent</div>
 
           <!-- 新增：导入本地数据库按钮 -->
           <div style="display:flex; gap:8px; align-items:center;">
@@ -19,8 +19,8 @@
         <div class="chat-body" ref="chatWindow">
           <div v-if="messages.length === 0" class="welcome-screen">
             <div class="welcome-icon">☢️⚛️</div>
-            <h2>铀矿供应链分析 Agent 已就绪</h2>
-            <p>你好，我是专注于全球铀矿市场的智能分析助手。我可以评估 U3O8 价格波动、矿山产量变化及地缘政治对铀供应的影响。</p>
+            <h2>矿山供应链分析 Agent 已就绪</h2>
+            <p>你好，我是专注于全球矿山市场的智能分析助手。我可以评估 U3O8 价格波动、矿山产量变化及地缘政治对供应的影响。</p>
             <p style="font-size:13px; margin-top:8px; color:#6c86a3;">示例：分析尼日尔矿权撤销影响 | 评估Kazatomprom硫酸短缺 | 追踪McArthur River重启爬坡 | 评估Sprott基金持仓变化</p>
           </div>
 
@@ -37,7 +37,7 @@
 
                   <div v-if="event.type === 'report'" class="report-action">
                     <el-button type="success" :icon="Document" @click="viewReport(event.content)">
-                      点击查看铀矿分析报告
+                      点击查看矿山分析报告
                     </el-button>
                   </div>
 
@@ -103,7 +103,7 @@
               v-model="userInput"
               type="textarea"
               :autosize="{ minRows: 1, maxRows: 4 }"
-              placeholder="请输入你想分析的铀矿议题（例：尼日尔政变对欧盟核燃料采购的影响）"
+              placeholder="请输入你想分析的矿山议题（例：尼日尔政变对欧盟核燃料采购的影响）"
               @keyup.enter.native="submitAnalysis"
               :disabled="loading"
               class="action-input"
@@ -144,7 +144,7 @@
         </div>
       </div>
 
-      <el-dialog title="铀矿供应链分析报告" v-model="reportDialogVisible" width="88%" top="4vh" custom-class="report-dialog">
+      <el-dialog title="矿山供应链分析报告" v-model="reportDialogVisible" width="88%" top="4vh" custom-class="report-dialog">
         <div class="report-markdown" style="padding: 0; min-height: 500px; display: flex; flex-direction: column;">
           <div class="markdown-body" v-html="renderedReport" style="padding: 24px; max-height: 78vh; overflow-y: auto;"></div>
         </div>
@@ -176,26 +176,26 @@ import { marked } from 'marked';
 import { Monitor, Position, Document } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 
-// ================= 内嵌铀矿供应链数据（模拟后端） =================
+// ================= 内嵌矿山供应链数据（模拟后端） =================
 const oilSupplyChainDB = {
   "霍尔木兹": {
     riskIndex: 92,
     level: "极高危",
     summary: "霍尔木兹海峡是全球最重要的石油咽喉，当前地缘紧张局势导致油轮通行检查加强，保险费率飙升。若发生实质性封锁，U3O8现货价可能突破$120/lb。",
     events: ["尼日尔军政府审查外资矿权", "Kazatomprom 发布硫酸短缺预警", "哈萨克斯坦 ISL 矿山硫酸供应告急", "Cameco McArthur River 爬坡延迟"],
-    recommendations: ["立即评估全球可用铀闲置产能和库存", "评估中哈/非-欧铀运输替代路线", "锁定铀矿长协供应合同"]
+    recommendations: ["立即评估全球可用闲置产能和库存", "评估中哈/非-欧运输替代路线", "锁定矿山长协供应合同"]
   },
   "SPR": {
     riskIndex: 45,
     level: "中低危",
-    summary: "全球铀库存消费比降至历史低位，矿山产量仅覆盖需求的84%。此举短期内能缓解市场供应焦虑，但长期来看可能导致全球库存处于历史低位，削弱应对突发中断的能力。",
+    summary: "全球库存消费比降至历史低位，矿山产量仅覆盖需求的84%。此举短期内能缓解市场供应焦虑，但长期来看可能导致全球库存处于历史低位，削弱应对突发中断的能力。",
     events: ["能源部宣布释放3000万桶原油", "现货-长协价差出现倒挂", "纳米比亚/加拿大出口港装船量激增", "OPEC+维持现有减产配额"],
-    recommendations: ["逢低锁定长协充实铀库存", "关注尼日尔/哈萨克斯坦政局变化", "跟踪U3O8现货-长协价差变化"]
+    recommendations: ["逢低锁定长协充实库存", "关注尼日尔/哈萨克斯坦政局变化", "跟踪U3O8现货-长协价差变化"]
   },
   "俄罗斯": {
     riskIndex: 78,
     level: "高危",
-    summary: "欧盟对俄油限价政策持续发酵，俄罗斯铀矿折扣幅度扩大。东西伯利亚管道(ESPO)成为亚洲买家争夺的焦点，物流重构导致运输成本显著上升。",
+    summary: "欧盟对俄油限价政策持续发酵，俄罗斯矿山折扣幅度扩大。东西伯利亚管道(ESPO)成为亚洲买家争夺的焦点，物流重构导致运输成本显著上升。",
     events: ["G7达成价格上限协议", "波罗的海油运密度增加60%", "印度大量采购打折俄油", "俄罗斯威胁削减产量作为反制"],
     recommendations: ["建立多源采购体系避免单一依赖", "利用期货工具对冲价格波动风险", "评估非制裁国家的转口贸易合规性"]
   },
@@ -210,7 +210,7 @@ const oilSupplyChainDB = {
     riskIndex: 55,
     level: "中危",
     summary: "全球石油市场处于紧平衡状态。建议密切关注OPEC+月度产量会议决议及主要经济体制造业PMI数据，防范需求侧衰退带来的价格剧烈波动。",
-    events: ["OPEC+延长自愿减产协议", "全球铀浮仓/在途库存数量下降", "核电装机需求恢复至疫情前水平", "铀矿勘探支出趋于保守"],
+    events: ["OPEC+延长自愿减产协议", "全球浮仓/在途库存数量下降", "核电装机需求恢复至疫情前水平", "矿山勘探支出趋于保守"],
     recommendations: ["实施动态库存管理策略", "建立地缘政治风险预警仪表盘", "定期开展供应链压力测试"]
   }
 };
@@ -307,7 +307,7 @@ const oilDatasets = {
 // 关键词匹配逻辑
 const matchOilTopic = (query) => {
   const lower = query.toLowerCase();
-  if (lower.includes('尼日尔') || lower.includes('非洲') || lower.includes('矿权') || lower.includes('政变')) return '尼日尔铀矿';
+  if (lower.includes('尼日尔') || lower.includes('非洲') || lower.includes('矿权') || lower.includes('政变')) return '尼日尔矿山';
   if (lower.includes('哈萨克') || lower.includes('硫酸') || lower.includes('kazatomprom') || lower.includes('中亚')) return '哈萨克斯坦供给';
   if (lower.includes('俄罗斯') || lower.includes('乌克兰') || lower.includes('制裁') || lower.includes('乌拉尔')) return '俄罗斯';
   if (lower.includes('核电') || lower.includes('装机') || lower.includes('反应堆') || lower.includes('机组')) return '核电复兴';
@@ -326,7 +326,7 @@ const generateReport = (query, sourceConfig, topicData, topicKey, dataset) => {
   const latestRefinery = (dataset && dataset.refineryUtil && dataset.refineryUtil.length) ? dataset.refineryUtil[dataset.refineryUtil.length - 1].utilization : null;
   const latestStocks = (dataset && dataset.inventories && dataset.inventories.length) ? dataset.inventories[dataset.inventories.length - 1].globalStocksMb : null;
 
-  return `# 🛢️ 铀矿供应链态势分析报告
+  return `# 🛢️ 矿山供应链态势分析报告
 
 **分析主题**：${query}
 **评估日期**：${date}
@@ -365,7 +365,7 @@ ${topicData.recommendations.map((r, i) => `- **建议${i+1}**：${r}`).join('\n'
 
 ## 5. 结论与决策支持
 
-当前铀矿供应链处于 **${topicData.level}** 状态，建议优先采取以下行动：
+当前矿山供应链处于 **${topicData.level}** 状态，建议优先采取以下行动：
 
 1. **立即执行**：${topicData.recommendations[0]}
 2. **短期（1个月内）**：${topicData.recommendations[1] || '完成替代航线成本测算'}
@@ -455,7 +455,7 @@ const getEventTypeName = (event) => {
     const content = event.content || '';
     if (content.includes('search_web')) return '🌍 检索宏观能源数据 (search_web)';
     if (content.includes('read_expert_document')) return '📖 查阅WNA/IAEA红皮书 (read_expert_document)';
-    if (content.includes('search_osint')) return '🛰️ 采集铀矿生产/运输情报 (search_osint)';
+    if (content.includes('search_osint')) return '🛰️ 采集矿山生产/运输情报 (search_osint)';
     return '🛠️ 唤起专用工具 (Invoking Tool)';
   }
   if (type === 'tool_end') {
@@ -519,7 +519,7 @@ const smoothCompleteProgress = (ev) => {
 
 // 模拟Agent分析流程
 const simulateAnalysis = async (query, sourceConfig, agentMsg) => {
-  agentMsg.events.push({ type: 'tool_start', content: 'search_web: 检索全球铀供需平衡数据', collapsed: false });
+  agentMsg.events.push({ type: 'tool_start', content: 'search_web: 检索全球供需平衡数据', collapsed: false });
   scrollToBottom();
   await new Promise(r => setTimeout(r, 600));
   agentMsg.events.push({ type: 'tool_end', content: '✓ 获取最新WNA报告、UxC/TradeTech价格数据', collapsed: false });
@@ -529,7 +529,7 @@ const simulateAnalysis = async (query, sourceConfig, agentMsg) => {
   agentMsg.events.push({ type: 'tool_start', content: 'search_osint: 采集关键航道AIS信号', collapsed: false });
   scrollToBottom();
   await new Promise(r => setTimeout(r, 700));
-  agentMsg.events.push({ type: 'tool_end', content: '✓ 捕获哈萨克斯坦/尼日尔/加拿大铀矿山生产动态', collapsed: false });
+  agentMsg.events.push({ type: 'tool_end', content: '✓ 捕获哈萨克斯坦/尼日尔/加拿大矿山生产动态', collapsed: false });
   scrollToBottom();
   await new Promise(r => setTimeout(r, 500));
 
@@ -560,7 +560,7 @@ const simulateAnalysis = async (query, sourceConfig, agentMsg) => {
 
   const analysisEvent = {
     type: 'tool_exec',
-    content: '📊 量化评估：正在融合多源数据生成铀矿供应链报告...',
+    content: '📊 量化评估：正在融合多源数据生成矿山供应链报告...',
     fakeProgress: 0,
     collapsed: false
   };
@@ -762,7 +762,7 @@ onMounted(() => {
 .header-title {
   font-size: 20px;
   font-weight: 700;
-  background: linear-gradient(135deg, #1e293b, #b91c1c); /* 调整为红色系，符合铀矿/核能主题 */
+  background: linear-gradient(135deg, #1e293b, #b91c1c); /* 调整为红色系，符合矿山/核能主题 */
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;

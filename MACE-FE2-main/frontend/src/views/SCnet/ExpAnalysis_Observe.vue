@@ -4,7 +4,7 @@
       <div>
         <p class="eyebrow">URANIUM SUPPLY CHAIN · OBSERVE & COMPARE</p>
         <h1>观察分析与案例对比</h1>
-        <p class="subtitle">基于铀供应链实验结果进行多维度观察对比，评估铀矿产能策略、供应安全指标与网络演化趋势。</p>
+        <p class="subtitle">基于供应链实验结果进行多维度观察对比，评估矿山产能策略、供应安全指标与网络演化趋势。</p>
       </div>
       <div class="head-actions">
         <div class="stat-item">
@@ -27,7 +27,7 @@
           <aside class="case-library">
             <div class="library-head">
               <el-icon><Folder /></el-icon>
-              <span>铀供应链案例库</span>
+              <span>供应链案例库</span>
               <el-input v-model="searchQuery" placeholder="搜索案例..." size="small" clearable class="search-input" />
             </div>
             <div class="library-tree">
@@ -116,7 +116,7 @@
           <header class="compare-head">
             <div class="compare-head-left">
               <el-icon :size="18"><TrendCharts /></el-icon>
-              <span>铀供应链案例对比</span>
+              <span>供应链案例对比</span>
             </div>
             <div class="compare-head-tabs">
               <button class="tab-btn" :class="{ active: activeTab === 'metrics' }" @click="activeTab = 'metrics'">指标对比</button>
@@ -317,7 +317,7 @@
     <section class="cross-library-section" v-if="caseFolders[0].children.length && caseFolders[1].children.length">
       <header class="cross-library-head">
         <el-icon :size="18"><Odometer /></el-icon>
-        <span>铀供应链事中案例库 vs 反事实案例库 — 相似度矩阵</span>
+        <span>供应链事中案例库 vs 反事实案例库 — 相似度矩阵</span>
         <span class="cross-library-sub">共 {{ caseFolders[0].children.length }} × {{ caseFolders[1].children.length }} 对比较</span>
       </header>
       <div class="cross-library-body">
@@ -361,8 +361,8 @@ const caseAId = ref(null)
 const caseBId = ref(null)
 const comparison = ref(null)
 const caseFolders = reactive([
-  { id: 'f1', label: '铀供应链事中实验', expanded: true, children: [] },
-  { id: 'f2', label: '铀供应链反事实实验', expanded: true, children: [] }
+  { id: 'f1', label: '供应链事中实验', expanded: true, children: [] },
+  { id: 'f2', label: '供应链反事实实验', expanded: true, children: [] }
 ])
 
 const totalCaseCount = computed(() =>
@@ -391,10 +391,10 @@ const findCaseById = (id) => {
 const caseA = computed(() => findCaseById(caseAId.value))
 const caseB = computed(() => findCaseById(caseBId.value))
 
-// ---- 字段定义（铀场景） ----
+// ---- 字段定义（场景） ----
 const paramFields = [
-  { key: 'demandLevel', label: '铀需求强度' },
-  { key: 'capacityPlan', label: '铀矿产能方案' },
+  { key: 'demandLevel', label: '需求强度' },
+  { key: 'capacityPlan', label: '矿山产能方案' },
   { key: 'intervention', label: '干预策略' },
   { key: 'method', label: '实验方法' }
 ]
@@ -407,10 +407,10 @@ const resultFields = [
 ]
 
 const defaultEventNodes = [
-  { title: '铀需求冲击触发', step: 4, type: 'red', desc: '全球核电需求上升，铀矿订单量激增 25%' },
-  { title: '铀矿产能瓶颈暴露', step: 8, type: 'orange', desc: '现有矿山利用率达上限，供应缺口开始累积' },
+  { title: '需求冲击触发', step: 4, type: 'red', desc: '全球核电需求上升，矿山订单量激增 25%' },
+  { title: '矿山产能瓶颈暴露', step: 8, type: 'orange', desc: '现有矿山利用率达上限，供应缺口开始累积' },
   { title: '新矿投产决策启动', step: 12, type: 'blue', desc: '触发新矿开发阈值，评估 Dasa/Wheeler River 等投产时机' },
-  { title: '供应完成率回稳', step: 18, type: 'green', desc: '扩产策略生效，铀供应履约完成率逐步恢复' }
+  { title: '供应完成率回稳', step: 18, type: 'green', desc: '扩产策略生效，供应履约完成率逐步恢复' }
 ]
 
 // ---- 概率分布图状态 ----
@@ -478,8 +478,8 @@ const COMPARISON_DIM_OPTIONS = [
   { key: 'backlogRate', label: '供应缺口率' },
   { key: 'collaboration', label: '网络协作次数' },
   { key: 'resilience', label: '韧性指数' },
-  { key: 'demandLevel', label: '铀需求强度' },
-  { key: 'capacityPlan', label: '铀矿产能方案' },
+  { key: 'demandLevel', label: '需求强度' },
+  { key: 'capacityPlan', label: '矿山产能方案' },
   { key: 'intervention', label: '干预策略' },
   { key: 'method', label: '实验方法' },
 ]
@@ -759,7 +759,7 @@ const runComparison = async () => {
     const data = unwrapApiData(res)
     if (data?.comparison) {
       comparison.value = data.comparison
-      ElMessage.success('铀供应链案例对比完成')
+      ElMessage.success('供应链案例对比完成')
       return
     }
   } catch (e) {
@@ -836,8 +836,8 @@ const buildBasicComparison = () => {
   return [
     { dimension: '实验名称', value_a: caseA.value.name, value_b: caseB.value.name },
     { dimension: '是否完成', value_a: caseA.value.completed ? '是' : '否', value_b: caseB.value.completed ? '是' : '否' },
-    { dimension: '铀需求强度', value_a: caseA.value.demandLevel, value_b: caseB.value.demandLevel },
-    { dimension: '铀矿产能方案', value_a: caseA.value.capacityPlan, value_b: caseB.value.capacityPlan },
+    { dimension: '需求强度', value_a: caseA.value.demandLevel, value_b: caseB.value.demandLevel },
+    { dimension: '矿山产能方案', value_a: caseA.value.capacityPlan, value_b: caseB.value.capacityPlan },
     { dimension: '干预策略', value_a: caseA.value.intervention, value_b: caseB.value.intervention }
   ]
 }
@@ -877,13 +877,13 @@ const generateLocalRecommendation = () => {
 
   let recommendation = ''
   if (bComp > aComp && bRes > aRes) {
-    recommendation = `推荐采用案例 B「${caseB.value.name}」的策略。该方案在铀矿产能配置和供应安全方面均优于案例 A，完成率高出 ${(bComp - aComp).toFixed(1)}pp，且网络韧性更强。`
+    recommendation = `推荐采用案例 B「${caseB.value.name}」的策略。该方案在矿山产能配置和供应安全方面均优于案例 A，完成率高出 ${(bComp - aComp).toFixed(1)}pp，且网络韧性更强。`
   } else if (aComp > bComp && aRes > bRes) {
     recommendation = `案例 A「${caseA.value.name}」在当前对比中表现更优，建议以该方案为基准进行后续反事实实验验证。`
   } else if (similar >= 75) {
-    recommendation = `两个案例在铀供应链指标上高度相似（相似度 ${similar}%），产能方案和需求配置接近。如需区分优劣，建议在反事实实验中进一步调整铀矿产能和新矿投产阈值等关键参数。`
+    recommendation = `两个案例在供应链指标上高度相似（相似度 ${similar}%），产能方案和需求配置接近。如需区分优劣，建议在反事实实验中进一步调整矿山产能和新矿投产阈值等关键参数。`
   } else {
-    recommendation = `两个案例存在显著差异（相似度 ${similar}%），案例 B 在供应完成率上表现更优，但需关注其网络韧性和协作次数是否可持续。建议结合 NEA Red Book 中长期预测选择最适合的铀矿产能规划路径。`
+    recommendation = `两个案例存在显著差异（相似度 ${similar}%），案例 B 在供应完成率上表现更优，但需关注其网络韧性和协作次数是否可持续。建议结合 NEA Red Book 中长期预测选择最适合的矿山产能规划路径。`
   }
   return recommendation
 }
@@ -897,14 +897,14 @@ const summarizeBacklog = (m = {}) => {
 }
 const factoryCapacityText = (p = {}) => {
   const r = p.factory_capacity_range || p.capacity_range
-  if (Array.isArray(r) && r.length >= 2) return `铀矿产能 ${Number(r[0]).toFixed(0)}-${Number(r[1]).toFixed(0)} tU/年`
+  if (Array.isArray(r) && r.length >= 2) return `矿山产能 ${Number(r[0]).toFixed(0)}-${Number(r[1]).toFixed(0)} tU/年`
   if (p.capacity_multiplier) return `产能倍率 ${Number(p.capacity_multiplier).toFixed(2)}x`
-  return '铀矿产能保持基线区间'
+  return '矿山产能保持基线区间'
 }
 const interventionText = (p = {}) => {
   const adj = p.adjusted_param; const ratio = p.adjustment_ratio
-  if (adj === 'factory_capacity_range') return `铀矿产能调整 ${formatRate(ratio)}`
-  if (adj === 'order_multiplier') return `铀需求强度 ${formatRate(ratio)}`
+  if (adj === 'factory_capacity_range') return `矿山产能调整 ${formatRate(ratio)}`
+  if (adj === 'order_multiplier') return `需求强度 ${formatRate(ratio)}`
   if (adj === 'reproduction_threshold') return `新矿投产阈值 ${formatRate(ratio)}`
   return '沿用基线参数'
 }
@@ -916,8 +916,8 @@ const buildEventNodes = (iteration = {}) => {
   const m = iteration.simulation_result?.metrics || {}
   const p = iteration.task?.parameters || {}
   return [
-    { title: '铀需求参数加载', step: 1, type: 'red', desc: `铀需求强度设为 ${Number(p.order_multiplier || 1).toFixed(2)}x（~${(Number(p.order_multiplier||1)*123860).toFixed(0)} tU/年），开始观察供应压力。` },
-    { title: '铀矿产能配置执行', step: Math.max(1, Number(iteration.iteration || 1)), type: 'orange', desc: `${factoryCapacityText(p)}，监测铀矿供给侧承载能力。` },
+    { title: '需求参数加载', step: 1, type: 'red', desc: `需求强度设为 ${Number(p.order_multiplier || 1).toFixed(2)}x（~${(Number(p.order_multiplier||1)*123860).toFixed(0)} tU/年），开始观察供应压力。` },
+    { title: '矿山产能配置执行', step: Math.max(1, Number(iteration.iteration || 1)), type: 'orange', desc: `${factoryCapacityText(p)}，监测矿山供给侧承载能力。` },
     { title: '仿真结果回收', step: 21, type: 'blue', desc: `完成率 ${formatRate(m.order_completion_rate)}，供应缺口率 ${summarizeBacklog(m)}。` },
     { title: '策略复盘', step: 22, type: 'green', desc: `综合得分 ${Number(iteration.feedback?.overall_score || 0).toFixed(3)}，用于后续反事实实验与案例对比分析。` }
   ]
@@ -935,7 +935,7 @@ const buildCaseFromIteration = (iteration, experiment, index, prefix = 'Exp') =>
     backlogRate: summarizeBacklog(m),
     collaboration: `${m.cooperation_count ?? 0} 次`,
     resilience: score ? score.toFixed(2) : '--',
-    demandLevel: `铀需求强度 ${Number(p.order_multiplier || 1).toFixed(2)}x`,
+    demandLevel: `需求强度 ${Number(p.order_multiplier || 1).toFixed(2)}x`,
     capacityPlan: factoryCapacityText(p),
     intervention: interventionText(p),
     eventNodes: buildEventNodes(iteration)
@@ -944,7 +944,7 @@ const buildCaseFromIteration = (iteration, experiment, index, prefix = 'Exp') =>
 const experimentRelevanceScore = (item = {}) => {
   const goal = String(item.goal || '')
   let score = 0
-  if (/铀|供应链|产能|矿山|核电|uranium/i.test(goal)) score += 1000
+  if (/|供应链|产能|矿山|核电|uranium/i.test(goal)) score += 1000
   score += Number(item.iterations || 0) * 10
   score += new Date(item.timestamp || 0).getTime() / 1000000000000
   return score
@@ -1027,13 +1027,13 @@ const buildLocalCases = async () => {
 
 const buildStaticCases = (prefix) => {
   if (prefix === 'Exp') return [
-    { id: 'exp-uranium-baseline', name: 'Exp-01 铀需求冲击基线', completed: true, completionRate: '68.4%', method: 'Multi-Agent 仿真 (native)', backlogRate: '31.6%', collaboration: '18 次', resilience: '0.42', demandLevel: '铀需求强度 1.25x', capacityPlan: '铀矿产能保持基线区间', intervention: '沿用基线参数', eventNodes: defaultEventNodes },
-    { id: 'exp-uranium-expand', name: 'Exp-02 铀矿扩产对照', completed: true, completionRate: '83.1%', method: 'Multi-Agent 仿真 (native)', backlogRate: '16.9%', collaboration: '31 次', resilience: '0.71', demandLevel: '铀需求强度 1.25x', capacityPlan: '阶梯式扩产 ISL+硬岩矿', intervention: '铀矿总产能 +30%', eventNodes: defaultEventNodes },
-    { id: 'exp-uranium-threshold', name: 'Exp-03 新矿投产优化', completed: false, completionRate: '--', method: 'Multi-Agent 仿真 (mcml)', backlogRate: '--', collaboration: '--', resilience: '--', demandLevel: '铀需求强度 1.40x', capacityPlan: '优先投产计划矿山', intervention: '新矿投产阈值 -50%', eventNodes: defaultEventNodes }
+    { id: 'exp-uranium-baseline', name: 'Exp-01 需求冲击基线', completed: true, completionRate: '68.4%', method: 'Multi-Agent 仿真 (native)', backlogRate: '31.6%', collaboration: '18 次', resilience: '0.42', demandLevel: '需求强度 1.25x', capacityPlan: '矿山产能保持基线区间', intervention: '沿用基线参数', eventNodes: defaultEventNodes },
+    { id: 'exp-uranium-expand', name: 'Exp-02 矿山扩产对照', completed: true, completionRate: '83.1%', method: 'Multi-Agent 仿真 (native)', backlogRate: '16.9%', collaboration: '31 次', resilience: '0.71', demandLevel: '需求强度 1.25x', capacityPlan: '阶梯式扩产 ISL+硬岩矿', intervention: '矿山总产能 +30%', eventNodes: defaultEventNodes },
+    { id: 'exp-uranium-threshold', name: 'Exp-03 新矿投产优化', completed: false, completionRate: '--', method: 'Multi-Agent 仿真 (mcml)', backlogRate: '--', collaboration: '--', resilience: '--', demandLevel: '需求强度 1.40x', capacityPlan: '优先投产计划矿山', intervention: '新矿投产阈值 -50%', eventNodes: defaultEventNodes }
   ]
   return [
-    { id: 'cf-uranium-cap15', name: 'CF-01 铀矿产能+15%', completed: true, completionRate: '86.8%', method: '反事实 (阶梯扩产)', backlogRate: '13.2%', collaboration: '36 次', resilience: '0.78', demandLevel: '铀需求强度 1.25x', capacityPlan: '阶梯式扩产', intervention: '铀矿总产能 +15%', eventNodes: defaultEventNodes },
-    { id: 'cf-uranium-threshold-half', name: 'CF-02 新矿阈值减半', completed: false, completionRate: '--', method: '反事实 (阈值调整)', backlogRate: '--', collaboration: '--', resilience: '--', demandLevel: '铀需求强度 1.10x', capacityPlan: '保持基线', intervention: '新矿投产阈值 -50%', eventNodes: defaultEventNodes }
+    { id: 'cf-uranium-cap15', name: 'CF-01 矿山产能+15%', completed: true, completionRate: '86.8%', method: '反事实 (阶梯扩产)', backlogRate: '13.2%', collaboration: '36 次', resilience: '0.78', demandLevel: '需求强度 1.25x', capacityPlan: '阶梯式扩产', intervention: '矿山总产能 +15%', eventNodes: defaultEventNodes },
+    { id: 'cf-uranium-threshold-half', name: 'CF-02 新矿阈值减半', completed: false, completionRate: '--', method: '反事实 (阈值调整)', backlogRate: '--', collaboration: '--', resilience: '--', demandLevel: '需求强度 1.10x', capacityPlan: '保持基线', intervention: '新矿投产阈值 -50%', eventNodes: defaultEventNodes }
   ]
 }
 
@@ -1043,7 +1043,7 @@ const loadAllCases = async () => {
     // 直接使用 buildLocalCases：从所有已完成实验的迭代中构建事中/反事实分类
     // getCaseLibrary API 按极端/正常分类，不适用于事中/反事实的展示需求
     await buildLocalCases()
-    ElMessage.success(`铀供应链案例库已加载，共 ${totalCaseCount.value} 个案例`)
+    ElMessage.success(`供应链案例库已加载，共 ${totalCaseCount.value} 个案例`)
   } catch {
     caseFolders[0].children = buildStaticCases('Exp')
     caseFolders[1].children = buildStaticCases('CF')
@@ -1060,14 +1060,14 @@ const buildReportHtml = () => {
   const tbody = rows.map(r => `<tr><th>${escapeHtml(r.dimension || r.metric)}</th><td>${escapeHtml(r.value_a)}</td><td>${escapeHtml(r.value_b)}</td>${r.diff ? `<td>${escapeHtml(r.diff)}</td>` : ''}</tr>`).join('')
   const events = (caseA.value?.eventNodes || defaultEventNodes).map(e => `<li><strong>${escapeHtml(e.title)}</strong><span>第 ${e.step} 轮</span><p>${escapeHtml(e.desc)}</p></li>`).join('')
 
-  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>铀供应链观察分析对比报告</title>
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>供应链观察分析对比报告</title>
 <style>body{margin:0;padding:28px;color:#0f172a;font-family:"Microsoft YaHei",Arial,sans-serif;line-height:1.6;background:#f8fafc}
 main{max-width:980px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:28px}
 h1{margin:0 0 8px;font-size:26px}.meta{color:#64748b;margin-bottom:22px}
 table{width:100%;border-collapse:collapse;margin:18px 0 24px}th,td{border:1px solid #e2e8f0;padding:10px 12px;text-align:left}
 th{width:180px;background:#f1f5f9}thead th{background:#dbeafe;color:#1e40af}
 h2{margin:24px 0 10px;font-size:18px}li{margin-bottom:12px}li span{display:inline-block;margin-left:10px;color:#64748b;font-size:13px}li p{margin:4px 0 0;color:#334155}</style></head>
-<body><main><h1>铀供应链观察分析对比报告</h1><div class="meta">生成时间：${new Date().toLocaleString()}<br>案例 A: ${escapeHtml(caseA.value?.name||'--')}<br>案例 B: ${escapeHtml(caseB.value?.name||'--')}</div>
+<body><main><h1>供应链观察分析对比报告</h1><div class="meta">生成时间：${new Date().toLocaleString()}<br>案例 A: ${escapeHtml(caseA.value?.name||'--')}<br>案例 B: ${escapeHtml(caseB.value?.name||'--')}</div>
 <h2>案例对比</h2><table><thead><tr><th>对比项</th><th>案例 A</th><th>案例 B</th><th>差异</th></tr></thead><tbody>${tbody}</tbody></table>
 <h2>关键事件节点回放（案例 A）</h2><ol>${events}</ol>
 <h2>综合推荐</h2><p>${escapeHtml(generateLocalRecommendation())}</p></main></body></html>`
@@ -1075,9 +1075,9 @@ h2{margin:24px 0 10px;font-size:18px}li{margin-bottom:12px}li span{display:inlin
 
 const exportComparisonReport = (format) => {
   if (!caseA.value || !caseB.value) { ElMessage.warning('请先选择两个对比案例'); return }
-  const safeName = '铀供应链_观察分析对比报告'
+  const safeName = '供应链_观察分析对比报告'
   if (format === 'txt') {
-    const lines = ['铀供应链观察分析对比报告', `生成时间：${new Date().toLocaleString()}`, '', '一、案例对比', ...[...buildBasicComparison(), ...buildMetricsComparison()].map(r => `${r.dimension||r.metric}：A=${r.value_a}；B=${r.value_b}${r.diff?'（差异：'+r.diff+'）':''}`), '', '二、综合推荐', generateLocalRecommendation()]
+    const lines = ['供应链观察分析对比报告', `生成时间：${new Date().toLocaleString()}`, '', '一、案例对比', ...[...buildBasicComparison(), ...buildMetricsComparison()].map(r => `${r.dimension||r.metric}：A=${r.value_a}；B=${r.value_b}${r.diff?'（差异：'+r.diff+'）':''}`), '', '二、综合推荐', generateLocalRecommendation()]
     const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' })
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${safeName}.txt`; a.click()
     ElMessage.success('已导出为TXT')

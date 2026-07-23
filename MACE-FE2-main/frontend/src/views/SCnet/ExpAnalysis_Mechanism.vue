@@ -4,7 +4,7 @@
       <div>
         <p class="eyebrow">URANIUM SUPPLY CHAIN · MECHANISM & CAUSAL</p>
         <h1>机制分析与因果推断</h1>
-        <p class="subtitle">从铀供应链异常现象回推干预策略与机制假设，结合因果图与反事实推理，判断铀矿产能、新矿投产与网络演化的主导驱动力。</p>
+        <p class="subtitle">从供应链异常现象回推干预策略与机制假设，结合因果图与反事实推理，判断矿山产能、新矿投产与网络演化的主导驱动力。</p>
       </div>
       <div class="head-actions">
         <div class="stat-item">
@@ -166,7 +166,7 @@
     <section class="causal-section">
       <header class="causal-section-head">
         <el-icon><Connection /></el-icon>
-        <span>铀供应链因果推断</span>
+        <span>供应链因果推断</span>
         <span class="causal-legend">
           <span class="legend-dot" style="background:#3b82f6"></span>干预变量
           <span class="legend-dot" style="background:#eab308"></span>中间变量
@@ -359,12 +359,12 @@ const loadMechanismAnalysis = async () => {
       ElMessage.success('机制分析数据加载完成')
     }
   } catch (e) {
-    console.warn('加载机制分析数据失败，使用铀场景默认视图:', e?.message || e)
-    // 使用铀场景 fallback 数据，确保页面始终可展示
+    console.warn('加载机制分析数据失败，使用场景默认视图:', e?.message || e)
+    // 使用场景 fallback 数据，确保页面始终可展示
     analysisData.value = buildUraniumFallbackData()
     eventRecordCount.value = 3
-    dominantDriver.value = '铀需求增长'
-    ElMessage.info('使用铀供应链本地分析视图（可点击"开始任务"或"刷新数据"重试）')
+    dominantDriver.value = '需求增长'
+    ElMessage.info('使用供应链本地分析视图（可点击"开始任务"或"刷新数据"重试）')
   } finally {
     loading.value = false
   }
@@ -379,21 +379,21 @@ const onStartTask = () => {
 }
 
 // ---- 因果推断逻辑 ----
-const cfVariable = ref('铀矿产能')
+const cfVariable = ref('矿山产能')
 const cfChange = ref('+20%')
 const cfLoading = ref(false)
 const cfResult = ref(null)
-const cfVariables = ['铀矿产能', '新矿投产阈值', '铀需求强度', '产能爬坡速率', '网络协作密度']
+const cfVariables = ['矿山产能', '新矿投产阈值', '需求强度', '产能爬坡速率', '网络协作密度']
 const cfChanges = ['+10%', '+20%', '+50%', '-10%', '-20%']
 
 const causalEdges = ref([
-  { source: '铀矿产能', target: '月均订单处理量', strength: 0.72, description: '产能决定订单处理能力上限' },
-  { source: '铀矿产能', target: '网络协作密度', strength: 0.45, description: '产能变化影响协作需求' },
-  { source: '新矿投产阈值', target: '铀矿产能', strength: 0.58, description: '阈值决定新矿进入市场的速度' },
+  { source: '矿山产能', target: '月均订单处理量', strength: 0.72, description: '产能决定订单处理能力上限' },
+  { source: '矿山产能', target: '网络协作密度', strength: 0.45, description: '产能变化影响协作需求' },
+  { source: '新矿投产阈值', target: '矿山产能', strength: 0.58, description: '阈值决定新矿进入市场的速度' },
   { source: '新矿投产阈值', target: '供应链节点数', strength: 0.35, description: '低阈值吸引更多矿山企业' },
-  { source: '铀需求强度', target: '月均订单处理量', strength: 0.85, description: '核电需求直接决定铀订单量' },
-  { source: '铀需求强度', target: '网络协作密度', strength: 0.52, description: '高需求促进贸易伙伴增加' },
-  { source: '产能爬坡速率', target: '铀矿产能', strength: 0.65, description: '调整速率影响产能响应速度' },
+  { source: '需求强度', target: '月均订单处理量', strength: 0.85, description: '核电需求直接决定订单量' },
+  { source: '需求强度', target: '网络协作密度', strength: 0.52, description: '高需求促进贸易伙伴增加' },
+  { source: '产能爬坡速率', target: '矿山产能', strength: 0.65, description: '调整速率影响产能响应速度' },
   { source: '产能爬坡速率', target: '供应完成率', strength: 0.48, description: '快速调整有助于提升完成率' },
   { source: '月均订单处理量', target: '供应完成率', strength: -0.35, description: '订单过多可能导致完成率下降' },
   { source: '月均订单处理量', target: '系统总利润', strength: 0.65, description: '订单量是利润的基础' },
@@ -423,29 +423,29 @@ const runCF = async () => {
   finally { cfLoading.value = false }
 }
 const buildLocalCFResult = (baseComp=0.7, baseProfit=50000, factor=0.2) => ({
-  summary: `改变"${cfVariable.value}"${cfChange.value}后，铀供应链系统预计将产生以下影响`,
+  summary: `改变"${cfVariable.value}"${cfChange.value}后，供应链系统预计将产生以下影响`,
   predictions: [
-    { target_variable: '供应完成率', predicted_effect: `${(factor*0.6*100).toFixed(1).replace('-','')}pp`, confidence: 0.78, rationale: '铀矿产能调整直接缓解/加剧供应瓶颈' },
+    { target_variable: '供应完成率', predicted_effect: `${(factor*0.6*100).toFixed(1).replace('-','')}pp`, confidence: 0.78, rationale: '矿山产能调整直接缓解/加剧供应瓶颈' },
     { target_variable: '系统总利润', predicted_effect: `${(factor*0.9*100).toFixed(1)}%`, confidence: 0.72, rationale: '产能变化影响总产出和利润规模' },
     { target_variable: '网络韧性', predicted_effect: `${(factor*0.4*100).toFixed(1)}%`, confidence: 0.60, rationale: '产能调整可能吸引新矿山企业进入或退出' },
   ]
 })
 
-// 铀场景本地 fallback（后端无数据时使用）
+// 场景本地 fallback（后端无数据时使用）
 const buildUraniumFallbackData = () => ({
-  overview: { anomaly_type: '铀矿产能瓶颈', completion_rate: '68.4%', backtrack_confidence: '72%', counterfactual_rounds: 7 },
+  overview: { anomaly_type: '矿山产能瓶颈', completion_rate: '68.4%', backtrack_confidence: '72%', counterfactual_rounds: 7 },
   pipeline: {
-    phenomenon: { title:'铀供应链现象归纳', badge:'异常检测', tagType:'info', description:'从7轮铀供应链迭代中检测到3个异常现象：供应完成率骤降、哈萨克斯坦产能波动、铀价冲击传导', input:'铀供应链实验结果 7轮', preview:'关键异常：供应完成率降至58.2%（Cigar Lake淹水影响）、ISL矿山利用率下降至72%、铀价从$30飙升至$136/lb' },
-    strategy: { title:'铀供应链策略回推', badge:'策略推断', tagType:'warning', description:'回溯铀供应链异常现象，反推可能实施的干预策略', input:'异常现象簇 + 迭代上下文', preview:'候选策略：扩大ISL低成本产能、新矿投产阈值前置、多源采购分散风险、启动战略储备释放' },
-    mechanism: { title:'铀供应链机制定位', badge:'因果链路', tagType:'primary', description:'定位铀供应链演化的核心因果机制链', input:'现象簇 + 策略候选', preview:'主导机制：铀需求-产能耦合机制（全球核电需求增长→铀矿产能承压→供应完成率波动→铀价上涨→新矿投资增加）' },
-    driver: { title:'铀供应链驱动力判断', badge:'系统动力学', tagType:'success', description:'主导驱动力：全球核电需求增长（中国/印度在建反应堆）+ 地缘政治扰动', input:'机制分析 + 指标时序', preview:'系统在"核电需求增长"主导下运行，存在需求-产能正反馈环和地缘政治风险负反馈环，中长期趋于新均衡（参考NEA Red Book）' }
+    phenomenon: { title:'供应链现象归纳', badge:'异常检测', tagType:'info', description:'从7轮供应链迭代中检测到3个异常现象：供应完成率骤降、哈萨克斯坦产能波动、价格冲击传导', input:'供应链实验结果 7轮', preview:'关键异常：供应完成率降至58.2%（Cigar Lake淹水影响）、ISL矿山利用率下降至72%、价格从$30飙升至$136/lb' },
+    strategy: { title:'供应链策略回推', badge:'策略推断', tagType:'warning', description:'回溯供应链异常现象，反推可能实施的干预策略', input:'异常现象簇 + 迭代上下文', preview:'候选策略：扩大ISL低成本产能、新矿投产阈值前置、多源采购分散风险、启动战略储备释放' },
+    mechanism: { title:'供应链机制定位', badge:'因果链路', tagType:'primary', description:'定位供应链演化的核心因果机制链', input:'现象簇 + 策略候选', preview:'主导机制：需求-产能耦合机制（全球核电需求增长→矿山产能承压→供应完成率波动→价格上涨→新矿投资增加）' },
+    driver: { title:'供应链驱动力判断', badge:'系统动力学', tagType:'success', description:'主导驱动力：全球核电需求增长（中国/印度在建反应堆）+ 地缘政治扰动', input:'机制分析 + 指标时序', preview:'系统在"核电需求增长"主导下运行，存在需求-产能正反馈环和地缘政治风险负反馈环，中长期趋于新均衡（参考NEA Red Book）' }
   },
   detail: {
-    settings: { params:{param_a:'铀供应链迭代数据',param_b:'异常检测阈值',param_c:'置信度权重',param_d:'驱动因子库'}, params_values:{param_a:'7轮有效迭代',param_b:'completion<50%, ISL利用率<80%',param_c:'0.72',param_d:'需求/地缘/成本/产能四因子'}, task:{name:'铀供应链机制推断',status:'completed'} },
-    run_result: { summary:'完成铀供应链机制分析。检测到3个异常现象，回推出6项候选策略，定位4个因果机制，识别主导驱动力为"全球核电需求增长"。建议结合NEA Red Book供需预测进行策略验证。', iterations_analyzed:7, confidence:0.72 },
-    agent_config: { agents_involved:[{role:'异常检测Agent',status:'已执行',output:'3条铀供应链异常'},{role:'策略推断Agent',status:'已执行',output:'6组候选策略'},{role:'机制定位Agent',status:'已执行',output:'4组因果机制'},{role:'驱动力判定Agent',status:'已执行',output:'核电需求增长'}], model:'uranium-dynamics-v1', analysis_phase:'post' }
+    settings: { params:{param_a:'供应链迭代数据',param_b:'异常检测阈值',param_c:'置信度权重',param_d:'驱动因子库'}, params_values:{param_a:'7轮有效迭代',param_b:'completion<50%, ISL利用率<80%',param_c:'0.72',param_d:'需求/地缘/成本/产能四因子'}, task:{name:'供应链机制推断',status:'completed'} },
+    run_result: { summary:'完成供应链机制分析。检测到3个异常现象，回推出6项候选策略，定位4个因果机制，识别主导驱动力为"全球核电需求增长"。建议结合NEA Red Book供需预测进行策略验证。', iterations_analyzed:7, confidence:0.72 },
+    agent_config: { agents_involved:[{role:'异常检测Agent',status:'已执行',output:'3条供应链异常'},{role:'策略推断Agent',status:'已执行',output:'6组候选策略'},{role:'机制定位Agent',status:'已执行',output:'4组因果机制'},{role:'驱动力判定Agent',status:'已执行',output:'核电需求增长'}], model:'uranium-dynamics-v1', analysis_phase:'post' }
   },
-  meta: { total_iterations:7, total_anomalies:3, primary_driver:'铀需求增长', average_confidence:0.72 }
+  meta: { total_iterations:7, total_anomalies:3, primary_driver:'需求增长', average_confidence:0.72 }
 })
 
 onMounted(() => {

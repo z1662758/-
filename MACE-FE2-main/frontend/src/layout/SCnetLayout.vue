@@ -22,6 +22,7 @@
         <div v-show="!isCollapse && currentPhase" class="phase-indicator" :class="'phase-' + currentPhase">
           <span class="phase-dot"></span>
           <span class="phase-label">{{ phaseLabels[currentPhase] }}</span>
+        <span class="scenario-menu-badge" :class="currentScenario === 'supply_chain' ? 'is-auto' : 'is-uranium'">{{ scenarioLabel }}</span>
         </div>
 
         <!--	返回对话首页	-->
@@ -32,12 +33,12 @@
 
         <!-- ========== 事前：风险识别与预警 ========== -->
         <template v-if="currentPhase === 'pre'">
-          <el-menu-item index="/home/SCnet/situationAnalysis">
+          <el-menu-item :index="`/home/SCnet/situationAnalysis?scenario=${currentScenario}`">
             <el-icon size="18"><DataLine/></el-icon>
             <template #title>需求分析</template>
           </el-menu-item>
 
-          <el-menu-item index="/home/SCnet/oilIntelligence">
+          <el-menu-item :index="`/home/SCnet/openSourceIntelligence?scenario=${currentScenario}`">
             <el-icon size="18"><WarningFilled/></el-icon>
             <template #title>开源情报</template>
           </el-menu-item>
@@ -47,14 +48,14 @@
             <template #title>数据集管理</template>
           </el-menu-item> -->
 
-          <el-menu-item index="/home/SCnet/oilSituationAnalysis">
-            <el-icon size="18"><Document/></el-icon>
-            <template #title>知识库</template>
+          <el-menu-item :index="`/home/SCnet/knowledgeGraph?scenario=${currentScenario}`">
+            <el-icon size="18"><Collection/></el-icon>
+            <template #title>本体网络</template>
           </el-menu-item>
 
-          <!-- <el-menu-item index="/home/SCnet/knowledgeGraph">
-            <el-icon size="18"><Collection/></el-icon>
-            <template #title>主体网络</template>
+          <!-- <el-menu-item index="/home/SCnet/oilSituationAnalysis">
+            <el-icon size="18"><Document/></el-icon>
+            <template #title>知识库</template>
           </el-menu-item> -->
 
           <!-- <el-menu-item index="/home/SCnet/openSourceIntelligence">
@@ -76,7 +77,7 @@
               <template #title>态势预测</template>
             </el-menu-item>
           </el-sub-menu>
-          <el-menu-item index="/home/SCnet/reportGeneration">
+          <el-menu-item :index="`/home/SCnet/reportGeneration?scenario=${currentScenario}`">
             <el-icon size="18"><Document/></el-icon>
             <template #title>报告生成</template>
           </el-menu-item>
@@ -147,7 +148,7 @@
 
           <el-menu-item index="/home/SCnet/EXreport">
             <el-icon size="18"><Postcard/></el-icon>
-            <template #title>铀供应链实验报告</template>
+            <template #title>供应链实验报告</template>
           </el-menu-item>
         </template>
 
@@ -161,7 +162,7 @@
         <img src="../assets/images/gameImg.png" style="width: 20px; height: 20px; margin-left: 20px" alt="SCnet"/>
         <transition name="fade-delay" v-show="!isCollapse">
           <div style="height: 100%; display: flex; align-items: center">
-            <span style="margin-left: 0.5rem; color: #606266; font-weight: bold; transition: opacity 3s ease 3s;">铀供应链</span>
+            <span style="margin-left: 0.5rem; color: #606266; font-weight: bold; transition: opacity 3s ease 3s;">供应链</span>
             <el-button circle size="default" style="margin-left: 2.5rem" color="rgb(248, 152, 152)" plain @click="exit()">
               <el-icon><SwitchButton/></el-icon>
             </el-button>
@@ -199,12 +200,13 @@ import {
   PieChart, Place, Postcard, Promotion, ScaleToOriginal, Search, Setting, Share,
   SwitchButton, TrendCharts, User, WarningFilled, ChatDotSquare
 } from "@element-plus/icons-vue";
-import {ref, onMounted, onUnmounted, computed} from "vue";
+import {ref, onMounted, onUnmounted, computed, watch} from "vue";
 import {useRoute, useRouter} from "vue-router";
 import {Files, Refresh} from "@element-plus/icons-vue";
 import Header from "@/components/Header.vue";
 import EventPhaseStepper from "@/components/EventPhaseStepper.vue";
 import { useDuringFlowSteps, routeToStepKey } from "@/views/SCnet/composables/useDuringFlowSteps";
+import { useScenarioStore } from "@/stores/scenario";
 import { PHASE_EVENT, PHASE_STORAGE_KEY, ROUTE_TO_PHASE } from "@/constants/scnetPhase";
 
 export default {
@@ -230,6 +232,20 @@ export default {
       if (storedPhase.value) return storedPhase.value
       return ROUTE_TO_PHASE[route.path] || ''
     })
+
+    // ── 场景感知：从 URL 或 store 获取当前场景 ──
+    const scenarioStore = useScenarioStore()
+    const currentScenario = computed(() => {
+      return route.query.scenario || scenarioStore.currentScenario || 'uranium'
+    })
+
+    // 监听路由变化，同步场景到 store
+    watch(() => route.query.scenario, (val) => {
+      if (val) scenarioStore.setScenario(val)
+    })
+
+    // 场景标签
+    const scenarioLabel = computed(() => currentScenario.value === 'supply_chain' ? '🚗 汽车' : '☢️ 铀')
 
     const { steps: duringSteps, isStepCompleted: isDuringStepCompleted } = useDuringFlowSteps()
     const duringCurrentKey = computed(() => routeToStepKey(route.path, route.query || {}))
@@ -273,6 +289,8 @@ export default {
     return {
       activeIndex,
       currentPhase,
+      currentScenario,
+      scenarioLabel,
       duringSteps,
       duringCurrentKey,
       showDuringFlowStepper,

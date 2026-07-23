@@ -19,7 +19,7 @@ const routes = [
     name: 'ChatHome',
     component: () => import("../views/SCnet/ChatHome.vue"),
     meta: {
-      title: "SCnet - 铀供应链智能对话"
+      title: "SCnet - 供应链智能对话"
     }
   },
   {

@@ -4,7 +4,7 @@
       <div>
         <p class="eyebrow">URANIUM SUPPLY CHAIN · INTERVENTION & ANOMALY</p>
         <h1>干预分析与异常检测</h1>
-        <p class="subtitle">基于铀供应链实验结果进行干预策略对比评估，同时检测实验过程中的指标突变、极端事件和网络异常。</p>
+        <p class="subtitle">基于供应链实验结果进行干预策略对比评估，同时检测实验过程中的指标突变、极端事件和网络异常。</p>
       </div>
       <div class="head-actions">
         <div class="stat-item" v-if="anomalyCount > 0">
@@ -315,7 +315,7 @@
         <div class="anomaly-list-panel">
           <header class="panel-head">
             <el-icon><WarningFilled /></el-icon>
-            <span>铀供应链异常事件列表</span>
+            <span>供应链异常事件列表</span>
             <el-select v-model="severityFilter" placeholder="严重度" size="small" clearable style="width:110px;margin-left:auto">
               <el-option label="全部" value="" /><el-option label="高" value="high" /><el-option label="中" value="medium" /><el-option label="低" value="low" />
             </el-select>
@@ -386,19 +386,19 @@ const mapBackendStrategyToFrontend = (s) => {
     inventory_management: '库存缓冲', pricing_strategy: '价格策略', supplier_selection: '供应链优化'
   }
   const targetMap = {
-    capacity_expansion: '全球铀矿产能', collaboration: '铀贸易网络', emergency_response: '替代供应来源',
-    inventory_management: '战略铀储备', pricing_strategy: '铀市场价格', supplier_selection: '铀供应链节点'
+    capacity_expansion: '全球矿山产能', collaboration: '贸易网络', emergency_response: '替代供应来源',
+    inventory_management: '战略储备', pricing_strategy: '市场价格', supplier_selection: '供应链节点'
   }
   return {
     id: s.id, name: s.name,
-    target: targetMap[s.type] || '铀供应链全网络', phase: '事中',
+    target: targetMap[s.type] || '供应链全网络', phase: '事中',
     expectedCompletionDelta: `+${((s.outcomes?.completion_rate || 0.7) * 100 - 50).toFixed(1)}pp`,
     backlogImprovement: `${((1 - (s.outcomes?.completion_rate || 0.7)) * 100).toFixed(1)}%`,
     collaborationDelta: `+${s.params?.final_collaborations || 0} 次`,
     resilienceDelta: `+${((s.outcomes?.network_density || 0.3) * 1.0).toFixed(2)}`,
-    type: typeMap[s.type] || '基准策略', scope: (s.id && s.id.includes('bottleneck')) ? '定向瓶颈' : '全局铀供应链',
-    mechanism: s.type === 'capacity_expansion' ? '阶梯式扩产(ISL+硬岩)' : s.type === 'emergency_response' ? '启动替代产能应急预案' : s.type === 'inventory_management' ? '增加铀战略储备缓冲' : s.type === 'pricing_strategy' ? '长期合约锁定铀价' : '多源供应+长期合约',
-    trigger: s.has_extreme_scenario ? '极端事件触发' : (s.outcomes?.completion_rate < 0.5 ? '供应完成率 < 50%' : '铀供应链基准策略'),
+    type: typeMap[s.type] || '基准策略', scope: (s.id && s.id.includes('bottleneck')) ? '定向瓶颈' : '全局供应链',
+    mechanism: s.type === 'capacity_expansion' ? '阶梯式扩产(ISL+硬岩)' : s.type === 'emergency_response' ? '启动替代产能应急预案' : s.type === 'inventory_management' ? '增加战略储备缓冲' : s.type === 'pricing_strategy' ? '长期合约锁定价格' : '多源供应+长期合约',
+    trigger: s.has_extreme_scenario ? '极端事件触发' : (s.outcomes?.completion_rate < 0.5 ? '供应完成率 < 50%' : '供应链基准策略'),
     _backend: s
   }
 }
@@ -461,12 +461,12 @@ const loadStrategiesFromBackend = async () => {
   }
 }
 
-// ---- 铀供应链干预策略库 ----
+// ---- 供应链干预策略库 ----
 const strategyFolders = reactive([
   {
-    id: 'cat_capacity', label: '一、铀矿产能扩张', expanded: true,
+    id: 'cat_capacity', label: '一、矿山产能扩张', expanded: true,
     children: [
-      { id: 'cap_global_30',  name: '【A】全球扩产+30%',    desc: '产能 5.5→10.1万 tU/年 | 完成率+18pp | 利润↑',   target: '所有铀矿', phase: '事中', expectedCompletionDelta: '+18.2pp', backlogImprovement: '-28.5%', collaborationDelta: '+18次', resilienceDelta: '+0.35', type: '产能扩张', mechanism: 'ISL+硬岩矿同步阶梯式扩产', trigger: '供应缺口>15%' },
+      { id: 'cap_global_30',  name: '【A】全球扩产+30%',    desc: '产能 5.5→10.1万 tU/年 | 完成率+18pp | 利润↑',   target: '所有矿山', phase: '事中', expectedCompletionDelta: '+18.2pp', backlogImprovement: '-28.5%', collaborationDelta: '+18次', resilienceDelta: '+0.35', type: '产能扩张', mechanism: 'ISL+硬岩矿同步阶梯式扩产', trigger: '供应缺口>15%' },
       { id: 'cap_isl_priority', name: '【B】ISL低成本优先', desc: '产能 5.0→9.0万 tU/年 | 完成率+12pp | 成本优',     target: '哈萨克斯坦ISL矿', phase: '事中', expectedCompletionDelta: '+12.5pp', backlogImprovement: '-20.1%', collaborationDelta: '+8次', resilienceDelta: '+0.22', type: '产能扩张', mechanism: '恢复硫酸供应，ISL利用率80%→满产', trigger: 'ISL利用率<80%' },
       { id: 'cap_lower_threshold', name: '【C】降低新矿门槛', desc: '投产阈值 6000→3000 | 完成率+16pp | 新矿↑',        target: '计划矿山项目', phase: '事前', expectedCompletionDelta: '+15.8pp', backlogImprovement: '-24.0%', collaborationDelta: '+25次', resilienceDelta: '+0.42', type: '市场准入', mechanism: '降低Dasa/Wheeler River投产门槛', trigger: '中长期供需缺口预警' }
     ]
@@ -474,8 +474,8 @@ const strategyFolders = reactive([
   {
     id: 'cat_procurement', label: '二、采购与储备', expanded: true,
     children: [
-      { id: 'proc_diversify',  name: '【D】采购多元化',    desc: '协作半径→3000 协作厂→50 | 完成率+10pp | 韧性+0.38',   target: '全球铀贸易网络', phase: '事中', expectedCompletionDelta: '+10.3pp', backlogImprovement: '-16.7%', collaborationDelta: '+28次', resilienceDelta: '+0.38', type: '采购策略', mechanism: '多源供应+长期合约，降低单一来源依赖', trigger: '单一来源>40%' },
-      { id: 'proc_stockpile',   name: '【E】战略储备90天', desc: '投产阈值 6000→4500 | 完成率+8pp | 缓冲↑',            target: '国家铀储备库', phase: '事前', expectedCompletionDelta: '+7.8pp', backlogImprovement: '-11.4%', collaborationDelta: '+5次', resilienceDelta: '+0.25', type: '库存缓冲', mechanism: '储备从30天提升至90天安全库存', trigger: '地缘政治风险升级' }
+      { id: 'proc_diversify',  name: '【D】采购多元化',    desc: '协作半径→3000 协作厂→50 | 完成率+10pp | 韧性+0.38',   target: '全球贸易网络', phase: '事中', expectedCompletionDelta: '+10.3pp', backlogImprovement: '-16.7%', collaborationDelta: '+28次', resilienceDelta: '+0.38', type: '采购策略', mechanism: '多源供应+长期合约，降低单一来源依赖', trigger: '单一来源>40%' },
+      { id: 'proc_stockpile',   name: '【E】战略储备90天', desc: '投产阈值 6000→4500 | 完成率+8pp | 缓冲↑',            target: '国家储备库', phase: '事前', expectedCompletionDelta: '+7.8pp', backlogImprovement: '-11.4%', collaborationDelta: '+5次', resilienceDelta: '+0.25', type: '库存缓冲', mechanism: '储备从30天提升至90天安全库存', trigger: '地缘政治风险升级' }
     ]
   },
   {
@@ -488,7 +488,7 @@ const strategyFolders = reactive([
   {
     id: 'cat_market', label: '四、市场与金融', expanded: false,
     children: [
-      { id: 'mkt_hedge',        name: '【H】长期合约锁价', desc: '调整速率 0.06 | 完成率+4pp | 锁定$55/lb',             target: '铀市场价格', phase: '事前', expectedCompletionDelta: '+4.2pp', backlogImprovement: '-5.8%', collaborationDelta: '+3次', resilienceDelta: '+0.15', type: '价格策略', mechanism: '$50-60/lb长期合约锁定5-10年价格', trigger: '现货铀价>$80/lb' },
+      { id: 'mkt_hedge',        name: '【H】长期合约锁价', desc: '调整速率 0.06 | 完成率+4pp | 锁定$55/lb',             target: '市场价格', phase: '事前', expectedCompletionDelta: '+4.2pp', backlogImprovement: '-5.8%', collaborationDelta: '+3次', resilienceDelta: '+0.15', type: '价格策略', mechanism: '$50-60/lb长期合约锁定5-10年价格', trigger: '现货价格>$80/lb' },
       { id: 'mkt_slow_adjust',  name: '【I】稳健保守',    desc: '调整速率 0.04 | 完成率+2pp | 避免过度投资',            target: '全供应链', phase: '事后', expectedCompletionDelta: '+2.0pp', backlogImprovement: '-3.0%', collaborationDelta: '+1次', resilienceDelta: '+0.05', type: '稳健策略', mechanism: '极低调整速率，依赖合约+储备缓冲', trigger: '市场不确定性高' }
     ]
   }
@@ -499,7 +499,7 @@ const anomaliesData = ref(null)
 const severityFilter = ref('')
 const selectedAnomalyIndex = ref(null)
 const selectedDetail = ref(null)
-const typeLabels = { order_drop: '铀需求骤降', completion_change: '供应完成率异常', enterprise_change: '矿山/企业变动', extreme_event: '铀供应链极端事件', network_disruption: '协作网络中断' }
+const typeLabels = { order_drop: '需求骤降', completion_change: '供应完成率异常', enterprise_change: '矿山/企业变动', extreme_event: '供应链极端事件', network_disruption: '协作网络中断' }
 const typeLabel = (t) => typeLabels[t] || t
 const anomalyCount = computed(() => anomaliesData.value?.summary?.total_anomalies || 0)
 const highSeverityCount = computed(() => anomaliesData.value?.summary?.by_severity?.high || 0)
@@ -634,7 +634,7 @@ function selectStrategy(child) {
   else { selectedStrategy.value = child; clearRunOutputForSelectionChange() }
   renderSEMChart()
 }
-const interventionProblem = '铀矿产能受限与核电需求增长背景下，如何选择最优干预策略以维持铀供应链供应安全和完成率稳定？'
+const interventionProblem = '矿山产能受限与核电需求增长背景下，如何选择最优干预策略以维持供应链供应安全和完成率稳定？'
 const interventionIterations = 15
 const pollingIntervalMs = 5000
 
@@ -813,9 +813,9 @@ const buildInterventionRunPayload = (slotKey, strategy) => {
       selected_strategy: strategy.name,
       strategy_slot: slotKey === 'primary' ? '策略A' : '策略B',
       selected_parameters: [
-        { key: 'order_multiplier', label: '铀需求强度', value: runtimeConfig.paramOverrides.order_multiplier || 1.0, unit: '倍' },
-        { key: 'factory_capacity_min', label: '铀矿产能下限', value: runtimeConfig.paramOverrides.factory_capacity_range[0], unit: 'tU/年' },
-        { key: 'factory_capacity_max', label: '铀矿产能上限', value: runtimeConfig.paramOverrides.factory_capacity_range[1], unit: 'tU/年' },
+        { key: 'order_multiplier', label: '需求强度', value: runtimeConfig.paramOverrides.order_multiplier || 1.0, unit: '倍' },
+        { key: 'factory_capacity_min', label: '矿山产能下限', value: runtimeConfig.paramOverrides.factory_capacity_range[0], unit: 'tU/年' },
+        { key: 'factory_capacity_max', label: '矿山产能上限', value: runtimeConfig.paramOverrides.factory_capacity_range[1], unit: 'tU/年' },
         { key: 'reproduction_threshold', label: '新矿投产阈值', value: runtimeConfig.paramOverrides.reproduction_threshold || 6000, unit: 'tU/年' },
         { key: 'adjustment_ratio', label: '产能爬坡速率', value: runtimeConfig.paramOverrides.adjustment_ratio || 0.08, unit: '比例' }
       ]

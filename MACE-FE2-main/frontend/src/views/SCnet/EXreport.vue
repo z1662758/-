@@ -3,8 +3,8 @@
     <section class="report-head">
       <div>
         <p class="eyebrow">URANIUM SUPPLY CHAIN · REPORT</p>
-        <h1>铀供应链实验报告</h1>
-        <p class="subtitle">基于铀供应链事中仿真与反事实分析结果，生成铀矿产能、供应安全、网络韧性等关键指标对比与因素总结。</p>
+        <h1>供应链实验报告</h1>
+        <p class="subtitle">基于供应链事中仿真与反事实分析结果，生成矿山产能、供应安全、网络韧性等关键指标对比与因素总结。</p>
       </div>
       <div class="head-actions">
         <el-dropdown trigger="click" @command="exportReport">
@@ -31,7 +31,7 @@
     <el-empty
       v-else-if="!reportData"
       class="empty-report"
-      description="请先选择或完成一个铀供应链实验"
+      description="请先选择或完成一个供应链实验"
       :image-size="120"
     />
 
@@ -436,7 +436,7 @@ const experimentRows = computed(() => {
   return [{
     id: 'Exp-01',
     shortLabel: 'Exp-01',
-    label: safeGetValue(reportData.value, 'goal', '') || '铀供应链仿真实验',
+    label: safeGetValue(reportData.value, 'goal', '') || '供应链仿真实验',
     source: getStatusText(safeGetValue(reportData.value, 'status', '')),
     paramsMap: {
       ...baseParams,
@@ -521,17 +521,17 @@ const metricCellClass = (key, row) => {
 };
 
 const factorEffectMap = {
-  order_multiplier: '全球核电反应堆铀需求倍数，直接影响铀矿订单量和供应压力。',
-  factory_capacity_range: '铀矿年产能上下限(tU/年)，决定全球铀供应能否满足核电需求。',
-  capacity_range: '铀矿产能区间，约束供给侧承载能力，影响供应缺口大小。',
-  reproduction_threshold: '触发新铀矿开发的供需缺口阈值，影响Dasa/Wheeler River等新矿投产时机。',
-  adjustment_ratio: '铀矿扩产/减产的年度调整速率，反映矿山重启与关停的响应速度。',
-  network_density: '铀供应链网络连接密度，反映贸易伙伴多样性和供应渠道丰富度。',
+  order_multiplier: '全球核电反应堆需求倍数，直接影响矿山订单量和供应压力。',
+  factory_capacity_range: '矿山年产能上下限(tU/年)，决定全球供应能否满足核电需求。',
+  capacity_range: '矿山产能区间，约束供给侧承载能力，影响供应缺口大小。',
+  reproduction_threshold: '触发新矿山开发的供需缺口阈值，影响Dasa/Wheeler River等新矿投产时机。',
+  adjustment_ratio: '矿山扩产/减产的年度调整速率，反映矿山重启与关停的响应速度。',
+  network_density: '供应链网络连接密度，反映贸易伙伴多样性和供应渠道丰富度。',
   network_stability: '网络面对地缘政治冲击和矿山停产时的稳定性，关键韧性指标。',
-  production_capacity_est: '全球铀矿年产能估算(tU/年)，参考NEA/IAEA Red Book数据。',
-  max_iterations: '决定仿真搜索深度，影响最优铀供应链策略被发现的概率。',
-  total_enterprises: '铀供应链中矿山/贸易商/核电企业节点数，影响网络规模与协作复杂度。',
-  key_params: '聚合铀供应链实验关注变量，是解释实验结论的核心参数集合。'
+  production_capacity_est: '全球矿山年产能估算(tU/年)，参考NEA/IAEA Red Book数据。',
+  max_iterations: '决定仿真搜索深度，影响最优供应链策略被发现的概率。',
+  total_enterprises: '供应链中矿山/贸易商/核电企业节点数，影响网络规模与协作复杂度。',
+  key_params: '聚合供应链实验关注变量，是解释实验结论的核心参数集合。'
 };
 
 const factorSummaries = computed(() => {
@@ -552,18 +552,18 @@ const topFactor = computed(() => factorSummaries.value[0] || null);
 
 const pathSummaries = computed(() => [
   {
-    title: '铀需求冲击传导路径',
-    chain: '全球核电需求↑ → 铀矿订单量激增 → 现有矿山产能承压 → 供应完成率波动→供应缺口扩大',
-    note: '解释核电发展情景（中国/印度在建反应堆）对铀供应链的基础影响。'
+    title: '需求冲击传导路径',
+    chain: '全球核电需求↑ → 矿山订单量激增 → 现有矿山产能承压 → 供应完成率波动→供应缺口扩大',
+    note: '解释核电发展情景（中国/印度在建反应堆）对供应链的基础影响。'
   },
   {
-    title: '铀矿产能调节路径',
-    chain: '铀矿产能配置(tU/年) → 订单处理能力 → 供应缺口/库存变化 → 利润与供应安全回升',
+    title: '矿山产能调节路径',
+    chain: '矿山产能配置(tU/年) → 订单处理能力 → 供应缺口/库存变化 → 利润与供应安全回升',
     note: '最优轮次的产能区间可作为后续反事实实验的参考基线。'
   },
   {
     title: '地缘政治风险传导路径',
-    chain: '产铀国政局突变 → 关键矿山停产 → 供应网络切换 → 替代产能启动 → 完成率恢复',
+    chain: '产国政局突变 → 关键矿山停产 → 供应网络切换 → 替代产能启动 → 完成率恢复',
     note: linkedSession.value ? '该路径可与原始建模过程中的任务拆解继续联动。' : '建议补充NEA Red Book数据以增强预测准确性。'
   }
 ]);
@@ -656,7 +656,7 @@ const generateReportHtml = (data) => {
 <html>
 <head>
   <meta charset="utf-8">
-  <title>铀供应链实验报告_${safeGetValue(data, 'experiment_id', '-')}</title>
+  <title>供应链实验报告_${safeGetValue(data, 'experiment_id', '-')}</title>
   <style>
     body { font-family: "Microsoft YaHei", Arial, sans-serif; color: #0f172a; line-height: 1.6; padding: 24px; }
     section, article { break-inside: avoid; }
@@ -670,7 +670,7 @@ const generateReportHtml = (data) => {
   </style>
 </head>
 <body>
-  <h1>铀供应链实验报告</h1>
+  <h1>供应链实验报告</h1>
   <p>生成时间：${new Date().toLocaleString('zh-CN')}</p>
   ${content}
 </body>
@@ -693,7 +693,7 @@ const exportReport = (format = 'txt') => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `铀供应链实验报告_${reportData.value.experiment_id}.${isHtml ? 'html' : 'txt'}`;
+    link.download = `供应链实验报告_${reportData.value.experiment_id}.${isHtml ? 'html' : 'txt'}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -716,7 +716,7 @@ const generateReportText = (data) => {
   const paramText = params.map(p => `${p.label}：${p.value}`).join('\n') || '无';
 
   return `
-铀供应链实验报告
+供应链实验报告
 ==========================================
 
 一、实验概览
@@ -724,11 +724,11 @@ const generateReportText = (data) => {
 实验ID：${safeGetValue(data, 'experiment_id', '-')}
 实验目标：${safeGetValue(data, 'goal', '-')}
 迭代次数：${safeGetValue(data, 'iterations', 0)}轮
-铀供应链节点：${safeGetValue(data, 'enterprise_count', 0)}个
+供应链节点：${safeGetValue(data, 'enterprise_count', 0)}个
 创建时间：${formatDate(safeGetValue(data, 'created_at', ''))}
 实验状态：${getStatusText(safeGetValue(data, 'status', ''))}
 
-二、铀供应链关键参数
+二、供应链关键参数
 ------------------------------------------
 ${paramText}
 
@@ -747,7 +747,7 @@ ${paramText}
 
 平均订单完成率为 ${formatPercent(data.avg_completion_rate)}，平均净利润为 ${formatProfit(data.avg_profit)}。
 
-建议：基于最优轮次的铀矿产能和新矿投产策略，参考NEA Red Book预测，在实际铀供应链规划中应用最优配置以保障供应安全。
+建议：基于最优轮次的矿山产能和新矿投产策略，参考NEA Red Book预测，在实际供应链规划中应用最优配置以保障供应安全。
 
 ==========================================
 报告生成时间：${new Date().toLocaleString('zh-CN')}
@@ -763,9 +763,9 @@ const formatDate = (dateStr) => {
 // 格式化参数名称
 const formatParamName = (key) => {
   const nameMap = {
-    order_multiplier: '铀需求强度',
-    factory_capacity_range: '铀矿产能区间',
-    capacity_range: '铀矿产能区间',
+    order_multiplier: '需求强度',
+    factory_capacity_range: '矿山产能区间',
+    capacity_range: '矿山产能区间',
     reproduction_threshold: '新矿投产阈值',
     adjustment_ratio: '产能爬坡速率',
     network_density: '网络密度',

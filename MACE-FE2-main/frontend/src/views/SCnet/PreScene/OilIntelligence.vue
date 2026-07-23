@@ -57,7 +57,7 @@
       <!-- 地图区域 -->
       <div v-show="activeHeaderTab === '风险地图'" class="map-section">
         <div class="map-container">
-          <div id="oilIntelligenceMap" style="width:100%;height:100%"></div>
+          <WorldBaseMap :events="mapEvents" @select-event="selectEvent" />
           <div class="map-controls">
             <el-dropdown trigger="click">
               <el-button size="small"><el-icon><Filter/></el-icon>风险筛选</el-button>
@@ -164,8 +164,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+import WorldBaseMap from '@/components/SupplyChain/WorldBaseMap.vue'
 import { ArrowRight, Back, BellFilled, Close, Filter, List, Location, RefreshRight, Search, Setting, Timer, WarningFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
@@ -247,8 +246,6 @@ const events = ref([
 ])
 
 // ========== 地图相关 ==========
-let map = null
-let markerLayer = null
 let currentFilter = ref(null)
 const visibleMarkersCount = ref(0)
 const selectedEvent = ref(null)
@@ -286,50 +283,21 @@ const getTypeCount = (type) => events.value.filter(e => e.type === type).length
 const filterByType = (type) => {
   currentFilter.value = type
   currentPage.value = 1
-  updateMarkersVisibility()
-  fitMapToEvents()
+  let filtered = mapEvents.value
+  if (currentFilter.value) filtered = mapEvents.value.filter(e => e.type === currentFilter.value)
+  visibleMarkersCount.value = filtered.length
   ElMessage.info(type ? `已筛选：${type} (${getTypeCount(type)}个事件)` : `显示全部 (${events.value.length}个事件)`)
 }
 
 const resetMapView = () => {
   currentFilter.value = null
   currentPage.value = 1
-  updateMarkersVisibility()
-  fitMapToEvents()
-}
-
-const updateMarkersVisibility = () => {
-  if (!markerLayer) return
-  markerLayer.clearLayers()
-  let filtered = mapEvents.value
-  if (currentFilter.value) filtered = mapEvents.value.filter(e => e.type === currentFilter.value)
-  visibleMarkersCount.value = filtered.length
-
-  filtered.forEach(event => {
-    const marker = L.circleMarker([event.lat, event.lng], {
-      radius: 10,
-      fillColor: event.color,
-      color: '#ffffff',
-      weight: 2.5,
-      opacity: 1,
-      fillOpacity: 0.85
-    })
-    marker.bindTooltip(`<b>${event.title}</b><br>${event.location}<br><span style="color:#ff6b6b">${event.level}风险</span>`, {
-      direction: 'top',
-      offset: [0, -15],
-      className: 'custom-tooltip'
-    })
-    marker.on('click', () => selectEvent(event))
-    markerLayer.addLayer(marker)
-  })
+  visibleMarkersCount.value = mapEvents.value.length
 }
 
 const selectEvent = (event) => {
   selectedEvent.value = event
   activeEventId.value = event.id
-  if (map && event.lat !== 0) {
-    map.flyTo([event.lat, event.lng], 6, { duration: 1 })
-  }
 }
 
 const selectSearchItem = (item) => {
@@ -338,81 +306,9 @@ const selectSearchItem = (item) => {
   selectEvent(item)
 }
 
-const openSettings = () => { ElMessage.info('设置功能开发中') }
-
-// ========== 地图初始化 ==========
-const DEFAULT_CENTER = [35, 105]
-const DEFAULT_ZOOM = 4
-
-const fitMapToEvents = () => {
-  if (!map) return
-  const points = currentFilter.value
-    ? mapEvents.value.filter(e => e.type === currentFilter.value)
-    : mapEvents.value
-
-  if (!points.length) {
-    map.setView(DEFAULT_CENTER, DEFAULT_ZOOM)
-    return
-  }
-
-  const bounds = L.latLngBounds(points.map(e => [e.lat, e.lng]))
-  map.fitBounds(bounds, {
-    padding: [36, 36],
-    maxZoom: 8
-  })
-}
-
-const initMap = () => {
-  const container = document.getElementById('oilIntelligenceMap')
-  if (!container) {
-    console.error('地图容器未找到')
-    return
-  }
-
-  map = L.map('oilIntelligenceMap').setView(DEFAULT_CENTER, DEFAULT_ZOOM)
-
-  const baseLayer = L.tileLayer('https://webst0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&style=7&x={x}&y={y}&z={z}', {
-    subdomains: ['1', '2', '3', '4'],
-    attribution: '高德地图',
-    maxZoom: 18,
-    minZoom: 3
-  })
-  baseLayer.on('tileerror', () => {
-    ElMessage.error('地图底图加载失败，请检查网络或地图服务可用性')
-  })
-  baseLayer.addTo(map)
-
-  L.control.scale({ metric: true, imperial: false, position: 'bottomright' }).addTo(map)
-  markerLayer = L.layerGroup().addTo(map)
-  updateMarkersVisibility()
-  fitMapToEvents()
-
-  setTimeout(() => {
-    if (map) {
-      map.invalidateSize()
-      updateMarkersVisibility()
-    }
-  }, 200)
-}
-
-const handleResize = () => {
-  if (map) {
-    setTimeout(() => {
-      map.invalidateSize()
-    }, 100)
-  }
-}
-
+// ========== 生命周期 ==========
 onMounted(() => {
-  nextTick(() => {
-    initMap()
-    window.addEventListener('resize', handleResize)
-  })
-})
-
-onUnmounted(() => {
-  window.removeEventListener('resize', handleResize)
-  if (map) map.remove()
+  visibleMarkersCount.value = mapEvents.value.length
 })
 </script>
 
@@ -853,9 +749,5 @@ onUnmounted(() => {
   background: rgba(0,0,0,0.8);
   color: #fff;
   border-radius: 6px;
-}
-
-:deep(.leaflet-container) {
-  background: #e8eef3;
 }
 </style>

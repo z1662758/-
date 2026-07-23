@@ -8,10 +8,10 @@ import {
 
 export const useUraniumOntologyStore = defineStore('uraniumOntology', {
   state: () => ({
-    // 铀静态本体图
+    // 静态本体图
     staticGraph: null,
 
-    // 铀动态网络数据
+    // 动态网络数据
     dynamicGraph: null,        // 完整动态网络结果 (28个年度窗口)
     dynamicTimeline: null,     // 演化时间线
     dynamicWindows: [],        // 排序后的窗口键 ["t_1997", ..., "t_2024"]
@@ -55,7 +55,7 @@ export const useUraniumOntologyStore = defineStore('uraniumOntology', {
           this.staticGraph = res.data
         }
       } catch (e) {
-        console.error('获取铀静态本体图失败:', e)
+        console.error('获取静态本体图失败:', e)
       }
     },
 
@@ -76,7 +76,7 @@ export const useUraniumOntologyStore = defineStore('uraniumOntology', {
           }
         }
       } catch (e) {
-        console.error('获取铀动态网络失败:', e)
+        console.error('获取动态网络失败:', e)
       } finally {
         this.loading = false
       }
@@ -92,7 +92,7 @@ export const useUraniumOntologyStore = defineStore('uraniumOntology', {
           }
         }
       } catch (e) {
-        console.error('获取铀动态时间线失败:', e)
+        console.error('获取动态时间线失败:', e)
       }
     },
 
@@ -103,7 +103,7 @@ export const useUraniumOntologyStore = defineStore('uraniumOntology', {
           this.currentView = res.data
         }
       } catch (e) {
-        console.error('加载铀动态窗口失败:', e)
+        console.error('加载动态窗口失败:', e)
       }
     },
 
@@ -131,7 +131,7 @@ export const useUraniumOntologyStore = defineStore('uraniumOntology', {
       try {
         const res = await getUraniumOwlStats()
         if (res?.success && res.data) this.owlStats = res.data
-      } catch (e) { console.error('获取铀OWL统计失败:', e) }
+      } catch (e) { console.error('获取OWL统计失败:', e) }
     },
 
     async fetchOwlInferred() {
@@ -139,7 +139,7 @@ export const useUraniumOntologyStore = defineStore('uraniumOntology', {
       try {
         const res = await getUraniumOwlInferred()
         if (res?.success && res.data) this.owlInferred = res.data
-      } catch (e) { console.error('获取铀OWL推理失败:', e) }
+      } catch (e) { console.error('获取OWL推理失败:', e) }
       finally { this.owlLoading = false }
     },
 
@@ -160,7 +160,7 @@ export const useUraniumOntologyStore = defineStore('uraniumOntology', {
           this.owlNetworkGraph = d.graph || null
           this.owlNetworkLabels = d.inference_labels || null
         }
-      } catch (e) { console.error('获取铀OWL网络失败:', e) }
+      } catch (e) { console.error('获取OWL网络失败:', e) }
       finally { this.owlNetworkLoading = false }
     },
 
@@ -176,7 +176,7 @@ export const useUraniumOntologyStore = defineStore('uraniumOntology', {
         }
         return false
       } catch (e) {
-        console.error('重建铀网络失败:', e)
+        console.error('重建网络失败:', e)
         return false
       }
     },

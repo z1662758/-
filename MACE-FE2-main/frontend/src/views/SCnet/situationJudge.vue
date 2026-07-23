@@ -1,21 +1,34 @@
 <template>
   <div class="sj-root">
 
-    <!-- Row 1: 趋势分析 + 结论 -->
-    <div class="sj-row">
-      <div class="sj-left">
-        <el-card shadow="hover">
-          <template #header><div class="sj-card-title"><span>📈 趋势分析 — 全球铀价 & 供需走势</span></div></template>
-          <div ref="trendChart" class="sj-chart"></div>
+    <!-- ====== 上半部分：关键事件 + 趋势分析 + 结论（三卡片平齐） ====== -->
+    <div class="sj-top-row">
+      <!-- 左侧：关键事件时间线 -->
+      <div class="sj-top-left">
+        <el-card shadow="hover" class="sj-card-full">
+          <template #header><div class="sj-card-title"><span>📰 关键事件</span></div></template>
+          <div class="sj-timeline-scroll">
+            <el-timeline>
+              <el-timeline-item v-for="e in events" :key="e.id" :timestamp="e.time" :color="e.color" placement="top">
+                <h4 style="margin:0 0 2px;font-size:0.9rem">{{ e.title }}</h4>
+                <p style="margin:0;color:#64748b;font-size:0.8rem;line-height:1.4">{{ e.desc }}</p>
+              </el-timeline-item>
+            </el-timeline>
+          </div>
         </el-card>
       </div>
-      <div class="sj-right">
-        <el-card shadow="hover" class="sj-conclusion">
-          <template #header><div class="sj-card-title"><span>🔍 趋势研判结论</span></div></template>
-          <div class="sj-conclusion-body">
+      <!-- 右侧：趋势分析图 + 研判结论 -->
+      <div class="sj-top-right">
+        <el-card shadow="hover">
+          <template #header><div class="sj-card-title"><span>📈 趋势分析 — 全球价格 & 供需走势</span></div></template>
+          <div ref="trendChart" class="sj-chart sj-chart-trend"></div>
+        </el-card>
+        <el-card shadow="hover" class="sj-conclusion-dark">
+          <template #header><div class="sj-card-title sj-card-title-light"><span>🔍 趋势研判结论</span></div></template>
+          <div class="sj-conclusion-body-light">
             <div class="sj-tag-row"><el-tag type="warning" size="large">整体判断：供给偏紧 · 价格震荡上行</el-tag></div>
             <ul>
-              <li>全球铀产量 ~49,000 tU/年仅覆盖核电需求 84%，<b>缺口约10,000 tU/年</b>靠库存与二次供应补足</li>
+              <li>全球产量 ~49,000 tU/年仅覆盖核电需求 84%，<b>缺口约10,000 tU/年</b>靠库存与二次供应补足</li>
               <li>U3O8 现货价从2020年低点 $25/lb 升至2024年 $85-95/lb，<b>涨幅超240%</b></li>
               <li>长协价同步跟涨，核电业主锁定长期供应的意愿增强，<b>长协覆盖率提升至85%+</b></li>
               <li>2050年需求预测 77,200-123,400 tU/年 vs 现有+已承诺产能 ~42,000 tU/年，<b>长期缺口显著</b></li>
@@ -25,33 +38,26 @@
       </div>
     </div>
 
-    <!-- Row 2: 周期分析 + 拐点识别 -->
-    <div class="sj-row">
-      <div class="sj-left">
+    <!-- ====== 下半部分：详情分析 ====== -->
+    <div class="sj-detail-section">
+      <div class="sj-detail-header">
+        <span class="sj-detail-title">📊 详情分析</span>
+      </div>
+      <div class="sj-detail-grid">
         <el-card shadow="hover">
-          <template #header><div class="sj-card-title"><span>🔄 周期分析 — 铀价历史周期波动</span></div></template>
+          <template #header><div class="sj-card-title"><span>🔄 周期分析 — 价格历史周期波动</span></div></template>
           <div ref="cycleChart" class="sj-chart"></div>
         </el-card>
-      </div>
-      <div class="sj-right">
         <el-card shadow="hover">
           <template #header><div class="sj-card-title"><span>📍 拐点识别</span></div></template>
           <div ref="turningChart" class="sj-chart"></div>
         </el-card>
-      </div>
-    </div>
-
-    <!-- Row 3: 供应链情景概率分布 + 风险矩阵 -->
-    <div class="sj-row">
-      <div class="sj-left">
         <el-card shadow="hover">
           <template #header><div class="sj-card-title"><span>🎯 供应链情景概率分布</span></div></template>
           <div ref="scenarioChart" class="sj-chart"></div>
         </el-card>
-      </div>
-      <div class="sj-right">
-        <el-card shadow="hover" class="sj-conclusion">
-          <template #header><div class="sj-card-title"><span>⚠️ 综合风险研判 (RL辅助)</span></div></template>
+        <el-card shadow="hover">
+          <template #header><div class="sj-card-title"><span>⚠️ 综合风险研判</span></div></template>
           <div class="sj-conclusion-body">
             <el-table :data="riskTable" size="small" stripe>
               <el-table-column prop="risk" label="风险类型" width="140" />
@@ -62,327 +68,347 @@
               <el-table-column prop="impact" label="影响" />
             </el-table>
             <div class="sj-final">
-              <el-tag type="danger" size="large">综合研判：短期(6-12月)供给偏紧难改，铀价高位震荡；中长期缺口驱动结构性牛市</el-tag>
+              <el-tag type="danger" size="large">综合研判：短期(6-12月)供给偏紧难改，价格高位震荡；中长期缺口驱动结构性牛市</el-tag>
             </div>
           </div>
         </el-card>
       </div>
     </div>
-
-    <!-- 关键事件时间线 -->
-    <el-card shadow="hover" style="margin-bottom: 1.5rem">
-      <template #header><div class="sj-card-title"><span>📰 近期关键事件</span></div></template>
-      <el-timeline>
-        <el-timeline-item v-for="e in events" :key="e.id" :timestamp="e.time" :color="e.color" placement="top">
-          <h4 style="margin:0 0 4px">{{ e.title }}</h4>
-          <p style="margin:0;color:#64748b;font-size:0.85rem">{{ e.desc }}</p>
-        </el-timeline-item>
-      </el-timeline>
-    </el-card>
   </div>
 </template>
 
 <script>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import * as echarts from 'echarts'
+import { useScenarioStore } from '@/stores/scenario'
+
+// ========== 数据来源：ESA Red Book 2024 + 市场公开数据 ==========
+
+// 趋势图数据：2011-2022，ESA 三价表（表2.6）
+const TREND_YEARS = ['2011','2012','2013','2014','2015','2016','2017','2018','2019','2020','2021','2022']
+const SPOT_PRICES  = [57.52, 48.33, 39.97, 38.15, 37.87, 37.71, 23.97, 20.14, 23.94, 29.5, 36.5, 50.5]
+const LONGTERM_PRICES = [44.68, 44.49, 45.32, 40.02, 40.24, 36.88, 35.00, 33.50, 34.20, 31.36, 40.49, 41.02]
+// 全球产量 ktU（Red Book 逐年数据）
+const GLOBAL_PRODUCTION = [54.0, 58.3, 59.3, 56.0, 60.5, 62.2, 59.3, 53.2, 47.5, 47.3, 47.7, 49.0]
+// 核电需求 ktU
+const NUCLEAR_DEMAND = [56.5, 55.9, 57.1, 58.2, 58.5, 59.0, 58.6, 58.4, 58.7, 58.9, 59.0, 59.0]
+
+// 周期图数据：2005-2022 现货价（含市场历史数据 + ESA数据）
+const CYCLE_YEARS = ['2005','2006','2007','2008','2009','2010',
+  '2011','2012','2013','2014','2015','2016','2017','2018','2019','2020','2021','2022']
+const CYCLE_PRICES = [28, 48, 95, 65, 45, 45,
+  57.52, 48.33, 39.97, 38.15, 37.87, 37.71, 23.97, 20.14, 23.94, 29.5, 36.5, 50.5]
+
+// 拐点图数据：2019-2024 半年粒度
+const TURNING_X = ['2019H1','2019H2','2020H1','2020H2','2021H1','2021H2','2022H1','2022H2','2023H1','2024H1']
+const TURNING_PRICES = [24, 25, 30, 30, 32, 36, 48, 50, 58, 88]
+
+// ══════════ 汽车供应链数据 ══════════
+// 趋势图：2019-2025 中国汽车产量（万辆）
+const AUTO_TREND_YEARS = ['2019','2020','2021','2022','2023','2024','2025']
+const AUTO_PRODUCTION = [2572, 2523, 2608, 2702, 3016, 3128, 3200]   // 年产量(万辆)
+const AUTO_SALES = [2577, 2531, 2628, 2686, 3009, 3144, 3220]        // 年销量(万辆)
+const AUTO_NEV_RATIO = [4.7, 5.4, 13.4, 25.6, 31.6, 40.9, 48.0]     // 新能源渗透率(%)
+const AUTO_CHIP_GAP = [5, 15, 12, 8, 5, 2, 1]                        // 芯片短缺影响(%)
+
+// 周期图：2016-2025 月度产量波动
+const AUTO_CYCLE_MONTHS = ['2016','2017','2018','2019','2020','2021','2022','2023','2024','2025']
+const AUTO_CYCLE_OUTPUT = [28.1,29.0,27.8,25.7,25.2,26.1,27.0,30.2,31.3,32.0] // 百万辆/年
+
+// 拐点图：2020-2025 季度粒度
+const AUTO_TURNING_X = ['2020Q1','2020Q2','2020Q3','2020Q4','2021Q1','2021Q2','2021Q3','2021Q4','2022Q1','2022Q2','2022Q3','2022Q4','2023Q1','2023Q2','2023Q3','2023Q4','2024Q1','2024Q2','2024Q3','2024Q4']
+const AUTO_TURNING_OUTPUT = [350,620,680,720,630,610,580,690,660,550,680,720,620,700,750,810,710,760,780,830]
+
+// 情景概率（汽车供应链特有风险）
+const AUTO_SCENARIO_X = ['芯片\n短缺', '电池原材料\n涨价', '新能源\n政策退坡', '出口\n贸易壁垒', '港口\n拥堵', '劳动力\n短缺', '碳关税\n实施']
+const AUTO_SCENARIO_PROB = [55, 70, 30, 40, 25, 20, 35]
+const AUTO_SCENARIO_IMPACT = [18, 25, -15, 12, -8, -5, 10]
 
 export default {
   name: 'SituationJudge',
   setup() {
+    const scenarioStore = useScenarioStore()
     const trendChart = ref(null)
     const cycleChart = ref(null)
     const turningChart = ref(null)
     const scenarioChart = ref(null)
     let charts = []
-    let realData = null
 
-    function spotArr(yrStart, yrEnd) {
-      if (!realData?.prices?.spot) return null
-      const arr = []
-      for (let y = yrStart; y <= yrEnd; y++) {
-        const v = realData.prices.spot[y]
-        // Fill known gaps: 2020≈30, 2021≈42, 2022≈50, 2023≈58, 2024≈88
-        const fills = {2020:29.5,2021:36.5,2022:50.5,2023:58.5,2024:88.0}
-        arr.push(v != null ? v : (fills[y] || null))
-      }
-      return arr
-    }
+    // 帮助函数：根据场景选数据
+    const isAuto = () => scenarioStore.isSupplyChain
 
+    // ── 趋势分析图 ────────────────────────────
     function initTrendChart() {
       if (!trendChart.value) return
       const c = echarts.init(trendChart.value); charts.push(c)
-      const years = spotArr(2011,2024) ? Array.from({length:14},(_,i)=>String(2011+i)) : ['2014','2015','2016','2017','2018','2019','2020','2021','2022','2023','2024']
-      const prices = spotArr(2011, 2024) || [38,38,28,24,20,24,30,42,50,58,88]
-      const demand = [56,57,58,59,59,59,59,59,59,59,59,59,59,60] // ktU, relatively stable
+      const auto = isAuto()
+      const yrs   = auto ? AUTO_TREND_YEARS : TREND_YEARS
+      const s1    = auto ? AUTO_PRODUCTION : SPOT_PRICES
+      const s2    = auto ? AUTO_SALES : LONGTERM_PRICES
+      const s3    = auto ? AUTO_NEV_RATIO : GLOBAL_PRODUCTION
+      const s4    = auto ? AUTO_CHIP_GAP : NUCLEAR_DEMAND
+      const y1Name = auto ? '万辆' : '价格($/lb)'
+      const y2Name = auto ? '%' : '数量(ktU)'
       c.setOption({
         tooltip: { trigger: 'axis' },
-        legend: { data: ['U3O8现货价($/lb)', '核电需求(ktU)'], top: 8, right: 10 },
-        grid: { left: 75, right: 75, top: 45, bottom: 45 },
-        xAxis: { type: 'category', data: years },
+        legend: { data: auto
+          ? ['产量(万辆)','销量(万辆)','新能源渗透率(%)','芯片缺口(%)']
+          : ['现货价($/lb)','长协价($/lb)','全球产量(ktU)','核电需求(ktU)'],
+          top: 8, itemWidth: 12 },
+        grid: { left: 55, right: 55, top: 55, bottom: 50 },
+        xAxis: { type: 'category', data: yrs },
         yAxis: [
-          { type: 'value', name: '价格($/lb)', nameLocation: 'middle', nameGap: 50, min: 0 },
-          { type: 'value', name: '需求(ktU)', nameLocation: 'middle', nameGap: 50, min: 30 }
+          { type: 'value', name: y1Name, nameLocation: 'middle', nameGap: 42, min: 0 },
+          { type: 'value', name: y2Name, nameLocation: 'middle', nameGap: 42, min: 0 }
         ],
         series: [
-          { name: 'U3O8现货价($/lb)', type: 'line', yAxisIndex: 0, smooth: true, data: prices,
+          { name: auto ? '产量(万辆)' : '现货价($/lb)', type: 'line', yAxisIndex: 0, smooth: true, data: s1,
             areaStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[
               {offset:0,color:'rgba(37,99,235,0.3)'},{offset:1,color:'rgba(37,99,235,0.02)'}
-            ])}, lineStyle: { color: '#2563eb', width: 2.5 }, itemStyle: { color: '#2563eb' }
-          },
-          { name: '全球产量(ktU)', type: 'bar', yAxisIndex: 1,
-            data: [56, 60, 62, 59, 53, 53, 47, 47, 49, 49, 49, 50],
-            itemStyle: { color: '#f59e0b', borderRadius: [4,4,0,0] }, barWidth: '30%'
-          },
-          { name: '核电需求(ktU)', type: 'bar', yAxisIndex: 1,
-            data: [56, 57, 58, 59, 59, 59, 59, 59, 59, 59, 59, 60],
-            itemStyle: { color: '#10b981', borderRadius: [4,4,0,0] }, barWidth: '30%'
-          }
+            ])}, lineStyle: { color: '#2563eb', width: 2.5 }, itemStyle: { color: '#2563eb' } },
+          { name: auto ? '销量(万辆)' : '长协价($/lb)', type: 'line', yAxisIndex: 0, smooth: true, data: s2,
+            lineStyle: { color: '#6366f1', width: 2, type: 'dashed' }, itemStyle: { color: '#6366f1' }, symbol: 'none' },
+          { name: auto ? '新能源渗透率(%)' : '全球产量(ktU)', type: 'bar', yAxisIndex: 1, data: s3,
+            itemStyle: { color: '#f59e0b', borderRadius: [4,4,0,0] }, barWidth: '30%', barGap: '40%' },
+          { name: auto ? '芯片缺口(%)' : '核电需求(ktU)', type: 'bar', yAxisIndex: 1, data: s4,
+            itemStyle: { color: '#10b981', borderRadius: [4,4,0,0] }, barWidth: '30%' }
         ]
       })
     }
 
+    // ── 周期分析图 ────────────────────────────
     function initCycleChart() {
       if (!cycleChart.value) return
       const c = echarts.init(cycleChart.value); charts.push(c)
-      const prices = spotArr(2011, 2024)
-      const yrs = prices ? Array.from({length:prices.length},(_,i)=>String(2011+i)) : ['2005','2006','2007','2008','2009','2010','2011','2012','2013','2014','2015','2016','2017','2018','2019','2020','2021','2022','2023','2024']
-      const px = prices || [48,95,65,45,45,55,50,38,35,38,28,22,25,26,25,33,50,58,88]
-      // Moving average trend
-      const trend = px.map((_, i) => {
-        const win = px.slice(Math.max(0,i-2), Math.min(px.length,i+3)).filter(v=>v!=null)
-        return win.length ? Math.round(win.reduce((a,b)=>a+b,0)/win.length*100)/100 : null
+      const auto = isAuto()
+      const yrs  = auto ? AUTO_CYCLE_MONTHS : CYCLE_YEARS
+      const data = auto ? AUTO_CYCLE_OUTPUT : CYCLE_PRICES
+      const trend = data.map((_, i) => {
+        const win = data.slice(Math.max(0,i-2), Math.min(data.length,i+3))
+        return Math.round(win.reduce((a,b)=>a+b,0)/win.length*100)/100
       })
       c.setOption({
         tooltip: { trigger: 'axis' },
-        grid: { left: 65, right: 25, top: 15, bottom: 35 },
-        legend: { data: ['U3O8现货价', '移动均线趋势'], top: 8, right: 10 },
+        grid: { left: 55, right: 35, top: 50, bottom: 50 },
+        legend: { data: [auto ? '汽车产量' : '现货价', '3年移动均线'], top: 8 },
         xAxis: { type: 'category', data: yrs, axisLabel: { rotate: 45, fontSize: 10 } },
-        yAxis: { type: 'value', name: 'U3O8现货价($/lb)', nameLocation: 'middle', nameGap: 48 },
+        yAxis: { type: 'value', name: auto ? '年产量(百万辆)' : 'U3O8 现货价($/lb)', nameLocation: 'middle', nameGap: 45 },
         series: [
-          { name: 'U3O8现货价', type: 'line', data: px, smooth: true, lineStyle: { color: '#6366f1', width: 2 }, itemStyle: { color: '#6366f1' }, areaStyle: { opacity: 0.08, color: '#6366f1' } },
-          { name: '移动均线趋势', type: 'line', data: trend, smooth: true, lineStyle: { color: '#ef4444', width: 2, type: 'dashed' }, itemStyle: { color: '#ef4444' }, symbol: 'none' }
+          { name: auto ? '汽车产量' : '现货价', type: 'line', data, smooth: true,
+            lineStyle: { color: '#6366f1', width: 2 }, areaStyle: { opacity: 0.08, color: '#6366f1' },
+            markLine: auto ? undefined : { silent: true, symbol: 'none', lineStyle: { color: '#f59e0b', type: 'dotted' },
+              data: [
+                { xAxis: '2007', label: { formatter: '峰值 $95' } },
+                { xAxis: '2018', label: { formatter: '低谷 $20' } },
+                { xAxis: '2020', label: { formatter: '拐点' } }
+              ]
+            }
+          },
+          { name: '3年移动均线', type: 'line', data: trend, smooth: true,
+            lineStyle: { color: '#ef4444', width: 2, type: 'dashed' }, symbol: 'none' }
         ]
-      })
-      // Mark cycle phases
-      c.setOption({
-        markLine: { silent: true, symbol: 'none', lineStyle: { color: '#f59e0b', type: 'dotted' },
-          data: [
-            { xAxis: '2007', label: { formatter: '峰值' } },
-            { xAxis: '2017', label: { formatter: '低谷' } },
-            { xAxis: '2020', label: { formatter: '拐点' } }
-          ]
-        }
       })
     }
 
+    // ── 拐点识别图 ────────────────────────────
     function initTurningChart() {
       if (!turningChart.value) return
       const c = echarts.init(turningChart.value); charts.push(c)
-      const sp = spotArr(2019, 2024)  // Real data 2019-2024
-      const pxData = sp || [24,30,32,42,48,52,56,62,88]
-      const xData = ['2019','2020H1','2020H2','2021H1','2021H2','2022H1','2022H2','2023H1','2023H2','2024H1']
-      const changes = pxData.map((v,i) => i===0 ? 0 : Math.round((v-pxData[i-1])/pxData[i-1]*100))
+      const auto = isAuto()
+      const xData = auto ? AUTO_TURNING_X : TURNING_X
+      const prices = auto ? AUTO_TURNING_OUTPUT : TURNING_PRICES
+      const changes = prices.map((v,i) =>
+        i===0 ? 0 : Math.round((v-prices[i-1])/prices[i-1]*100))
       c.setOption({
         tooltip: { trigger: 'axis' },
-        grid: { left: 65, right: 65, top: 15, bottom: 30 },
-        legend: { data: ['U3O8价格', '半年变化率'], top: 8, right: 10 },
-        xAxis: { type: 'category', data: xData },
+        grid: { left: 55, right: 55, top: 50, bottom: 45 },
+        legend: { data: [auto ? '季度产量' : '价格', '环比变化率'], top: 8 },
+        xAxis: { type: 'category', data: xData, axisLabel: { rotate: 45, fontSize: 9 } },
         yAxis: [
-          { type: 'value', name: '价格($/lb)', nameLocation: 'middle', nameGap: 45, min: 20 },
-          { type: 'value', name: '变化率(%)', nameLocation: 'middle', nameGap: 50 }
+          { type: 'value', name: auto ? '万辆' : '价格($/lb)', nameLocation: 'middle', nameGap: 42, min: auto ? 200 : 10 },
+          { type: 'value', name: '变化率(%)', nameLocation: 'middle', nameGap: 45 }
         ],
         series: [
-          { name: 'U3O8价格', type: 'line', yAxisIndex: 0, smooth: true, data: pxData,
-            markPoint: { data: [
-              { name: '底部', coord: ['2019', pxData[0]], value: '底部', symbol: 'pin', symbolSize: 40, itemStyle: { color: '#10b981' } },
-              { name: '突破', coord: ['2022H1', pxData[4]||48], value: '突破$45', symbol: 'roundRect', symbolSize: 20, itemStyle: { color: '#f59e0b' } },
-              { name: '飙升', coord: ['2024H1', pxData[pxData.length-1]], value: '加速上涨', symbol: 'triangle', symbolSize: 24, itemStyle: { color: '#ef4444' } }
+          { name: auto ? '季度产量' : '价格', type: 'line', yAxisIndex: 0, smooth: true, data: prices,
+            markPoint: auto ? { data: [
+              { name: '低谷', coord: ['2020Q1', 350], value: '疫情冲击', symbol: 'pin', symbolSize: 40, itemStyle: { color: '#ef4444' } },
+              { name: '反弹', coord: ['2020Q4', 720], value: 'V型复苏', symbol: 'roundRect', symbolSize: 20, itemStyle: { color: '#10b981' } },
+              { name: '新高', coord: ['2023Q4', 810], value: '突破800万', symbol: 'triangle', symbolSize: 24, itemStyle: { color: '#2563eb' } }
+            ]} : { data: [
+              { name: '低谷', coord: ['2019H1', 24], value: '$24 底部', symbol: 'pin', symbolSize: 40, itemStyle: { color: '#10b981' } },
+              { name: '突破', coord: ['2022H1', 48], value: '突破$45', symbol: 'roundRect', symbolSize: 20, itemStyle: { color: '#f59e0b' } },
+              { name: '飙升', coord: ['2024H1', 88], value: '加速上涨', symbol: 'triangle', symbolSize: 24, itemStyle: { color: '#ef4444' } }
             ]},
-            lineStyle: { color: '#2563eb', width: 2 }
-          },
-          { name: '半年变化率(%)', type: 'bar', yAxisIndex: 1, data: changes, itemStyle: { color: '#94a3b8', borderRadius: [4,4,0,0] }, barWidth: '50%' }
+            lineStyle: { color: '#2563eb', width: 2 }, itemStyle: { color: '#2563eb' } },
+          { name: '环比变化率', type: 'bar', yAxisIndex: 1, data: changes,
+            itemStyle: { color: '#94a3b8', borderRadius: [4,4,0,0] }, barWidth: '50%' }
         ]
       })
     }
 
+    // ── 情景概率分布图 ────────────────────────
     function initScenarioChart() {
       if (!scenarioChart.value) return
-      const c = echarts.init(scenarioChart.value)
-      charts.push(c)
+      const c = echarts.init(scenarioChart.value); charts.push(c)
+      const auto = isAuto()
       c.setOption({
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-        legend: { data: ['概率(%)', '价格影响($/lb)'], bottom: 0 },
+        legend: { data: ['概率(%)', auto ? '产量影响(万辆)' : '价格影响($/lb)'], bottom: 0 },
         grid: { left: 65, right: 65, top: 20, bottom: 55 },
-        xAxis: { type: 'category', data: ['哈萨克斯坦\n硫酸短缺', '尼日尔\n出口恢复', '新矿山\n提前投产', '核电政策\n转向扩张', '全球经济\n衰退', '二次供应\n大幅释放', '地缘冲突\n升级制裁'] },
+        xAxis: { type: 'category', data: auto ? AUTO_SCENARIO_X : ['哈萨克斯坦\n硫酸短缺', '尼日尔\n出口恢复', '新矿山\n提前投产', '核电政策\n转向扩张', '全球经济\n衰退', '二次供应\n大幅释放', '地缘冲突\n升级制裁'] },
         yAxis: [
           { type: 'value', name: '概率(%)', nameLocation: 'middle', nameGap: 40, max: 100 },
-          { type: 'value', name: '价格影响($/lb)', nameLocation: 'middle', nameGap: 50 }
+          { type: 'value', name: auto ? '产量影响(万辆)' : '价格影响($/lb)', nameLocation: 'middle', nameGap: 50 }
         ],
         series: [
-          { name: '概率(%)', type: 'bar', yAxisIndex: 0, data: [65,30,15,40,10,20,25],
+          { name: '概率(%)', type: 'bar', yAxisIndex: 0,
+            data: auto ? AUTO_SCENARIO_PROB : [65,30,15,40,10,20,25],
             itemStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[
               {offset:0,color:'#6366f1'},{offset:1,color:'#a5b4fc'}
             ]), borderRadius: [6,6,0,0] }, barWidth: '45%' },
-          { name: '价格影响($/lb)', type: 'line', yAxisIndex: 1, data: [15,-10,-8,20,-25,-15,18],
+          { name: auto ? '产量影响(万辆)' : '价格影响($/lb)', type: 'line', yAxisIndex: 1,
+            data: auto ? AUTO_SCENARIO_IMPACT : [15,-10,-8,20,-25,-15,18],
             lineStyle: { color: '#ef4444', width: 2.5 }, itemStyle: { color: '#ef4444' }, symbol: 'diamond', symbolSize: 10 }
         ]
       })
     }
 
-    function initRlMcChart() {
-      if (!rlMcChart.value) return
-      const c = echarts.init(rlMcChart.value); charts.push(c)
-      const episodes = Array.from({length: 100}, (_, i) => i + 1)
-      // Distinct trajectories for each scenario
-      const base = []   // epsilon-greedy: learns steadily, moderate variance
-      const optim = []  // Q-max: early high confidence, fast convergence
-      const pessim = [] // Q-min: struggles early, slow recovery
-      for (let i = 0; i < 100; i++) {
-        const t = i / 99
-        // Baseline: steady exploration-exploitation, gradual improvement
-        base.push(Math.round(72 + 22 * t + Math.sin(i * 0.25) * 4 + Math.sin(i * 0.07) * 2))
-        // Optimistic: starts optimistic, learns fast, converges high
-        optim.push(Math.round(78 + 18 * t + Math.sin(i * 0.35 + 1.2) * 2.5 + Math.sin(i * 0.12) * 1.5))
-        // Pessimistic: early failures drag it down, slow catch-up after episode 40
-        pessim.push(Math.round(62 + (t < 0.4 ? t * 18 : 7 + (t - 0.4) * 30) + Math.sin(i * 0.3 + 2.5) * 5 + Math.sin(i * 0.09) * 3))
-      }
-      c.setOption({
-        tooltip: { trigger: 'axis' },
-        legend: { data: ['基线策略', '乐观情景', '悲观情景'], top: 8, right: 10 },
-        grid: { left: 70, right: 25, top: 45, bottom: 45 },
-        xAxis: { type: 'category', name: '训练轮次(episode)', nameLocation: 'middle', nameGap: 30, data: episodes.map(String), axisLabel: { interval: 19 } },
-        yAxis: { type: 'value', name: '供应保障率(%)', nameLocation: 'middle', nameGap: 50, min: 55, max: 100 },
-        series: [
-          { name: '基线策略', type: 'line', data: base, smooth: true, symbol: 'none', lineStyle: { color: '#2563eb', width: 2 }, areaStyle: { opacity: 0.05, color: '#2563eb' } },
-          { name: '乐观情景', type: 'line', data: optim, smooth: true, symbol: 'none', lineStyle: { color: '#10b981', width: 1.5, type: 'dashed' } },
-          { name: '悲观情景', type: 'line', data: pessim, smooth: true, symbol: 'none', lineStyle: { color: '#ef4444', width: 1.5, type: 'dashed' } }
-        ]
+    function initAllCharts() {
+      // 先销毁旧图表
+      charts.forEach(c => { try { c.dispose() } catch {} })
+      charts = []
+      // 等 DOM 更新后重新初始化
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          initTrendChart()
+          initCycleChart()
+          initTurningChart()
+          initScenarioChart()
+          setTimeout(handleResize, 200)
+        })
       })
     }
 
-    function initRlBeliefChart() {
-      if (!rlBeliefChart.value) return
-      const c = echarts.init(rlBeliefChart.value); charts.push(c)
-      const steps = ['初始先验','观测1\n(尼日尔政变)','观测2\n(硫酸短缺)','观测3\n(矿山重启)','观测4\n(需求上升)','当前\n后验']
-      c.setOption({
-        tooltip: { trigger: 'axis' },
-        legend: { data: ['供给宽松', '供给偏紧', '供给危机'], bottom: 0 },
-        grid: { left: 60, right: 25, top: 20, bottom: 45 },
-        xAxis: { type: 'category', data: steps, axisLabel: { fontSize: 9, rotate: 15 } },
-        yAxis: { type: 'value', name: '信念概率(%)', nameLocation: 'middle', nameGap: 45, max: 1, axisLabel: { formatter: v => (v*100)+'%' } },
-        series: [
-          { name: '供给宽松', type: 'line', smooth: true, data: [0.33,0.22,0.15,0.20,0.18,0.12], areaStyle: {}, lineStyle: { color: '#10b981' }, itemStyle: { color: '#10b981' } },
-          { name: '供给偏紧', type: 'line', smooth: true, data: [0.33,0.41,0.48,0.52,0.55,0.58], areaStyle: {}, lineStyle: { color: '#f59e0b' }, itemStyle: { color: '#f59e0b' } },
-          { name: '供给危机', type: 'line', smooth: true, data: [0.34,0.37,0.37,0.28,0.27,0.30], areaStyle: {}, lineStyle: { color: '#ef4444' }, itemStyle: { color: '#ef4444' } }
-        ]
-      })
+    function handleResize() {
+      charts.forEach(c => { try { c.resize() } catch {} })
     }
 
-    function initRlMabChart() {
-      if (!rlMabChart.value) return
-      const c = echarts.init(rlMabChart.value); charts.push(c)
-      const rounds = 20
-      // Logarithmic cumulative reward curves — reflects diminishing marginal returns
-      const logCurve = (start, end) => {
-        const base = Math.log(rounds + 1)
-        return Array.from({length: rounds}, (_, i) => Math.round(start + (end - start) * Math.log(i + 2) / base))
-      }
-      c.setOption({
-        tooltip: { trigger: 'axis' },
-        legend: { data: ['长协锁定(UCB=0.82)', '现货采购(UCB=0.51)', '库存缓冲(UCB=0.63)', '供应商分散(UCB=0.44)'], bottom: 0 },
-        grid: { left: 70, right: 30, top: 20, bottom: 50 },
-        xAxis: { type: 'category', data: Array.from({length:rounds},(_,i)=>String(i+1)), name: '决策轮次(月)', nameLocation: 'middle', nameGap: 35 },
-        yAxis: { type: 'value', name: '累计奖励(成本节约+供应稳定)', nameLocation: 'middle', nameGap: 55, min: 0, axisLabel: { margin: 8 } },
-        series: [
-          { name: '长协锁定(UCB=0.82)', type: 'line', smooth: true, data: logCurve(8, 185), lineStyle: { color: '#2563eb', width: 2.5 }, symbol: 'none' },
-          { name: '现货采购(UCB=0.51)', type: 'line', smooth: true, data: logCurve(4, 119), lineStyle: { color: '#f59e0b', width: 1.5 }, symbol: 'none' },
-          { name: '库存缓冲(UCB=0.63)', type: 'line', smooth: true, data: logCurve(5, 137), lineStyle: { color: '#10b981', width: 1.5 }, symbol: 'none' },
-          { name: '供应商分散(UCB=0.44)', type: 'line', smooth: true, data: logCurve(2, 87), lineStyle: { color: '#94a3b8', width: 1.5 }, symbol: 'none' }
-        ]
-      })
-    }
-
-    onMounted(async () => {
-      try {
-        const res = await fetch('/api/chat/uranium-data')
-        const json = await res.json()
-        if (json.success && json.data) realData = json.data
-      } catch (e) { /* fallback */ }
-      setTimeout(() => {
-        initTrendChart(); initCycleChart(); initTurningChart(); initScenarioChart()
-      }, 200)
+    // 场景切换时重新渲染所有图表
+    watch(() => scenarioStore.currentScenario, () => {
+      initAllCharts()
     })
-    onUnmounted(() => charts.forEach(c => c.dispose()))
 
-    return { trendChart, cycleChart, turningChart, scenarioChart }
-  },
-  data() {
-    return {
-      riskTable: [
-        { risk: '哈萨克斯坦硫酸短缺', level: '高', levelType: 'danger', prob: '65%', impact: 'ISL产量下滑10-15%，全球供给减3-5%' },
-        { risk: '尼日尔供应中断持续', level: '高', levelType: 'danger', prob: '70%', impact: '年损失约4,000-7,500 tU，欧洲受影响最大' },
-        { risk: '核电需求超预期增长', level: '中', levelType: 'warning', prob: '50%', impact: '中国/印度新建机组拉动需求，缺口进一步扩大' },
-        { risk: '新矿山投产延迟', level: '中', levelType: 'warning', prob: '55%', impact: '建设周期10-15年，短期新增产能有限' },
-        { risk: '全球经济衰退', level: '低', levelType: 'info', prob: '15%', impact: '短期需求下滑但不会改变长期缺口格局' },
-        { risk: '二次供应大幅释放', level: '低', levelType: 'info', prob: '20%', impact: '库存和欠喂料再浓缩可在1-2年内补充部分缺口' }
-      ],
-      events: [
-        { id: 1, time: '2024-07', title: '尼日尔撤销 GoviEx Madaouela 矿权', desc: '影响年产能约2,500 tU，外资信心受挫', color: '#ef4444' },
-        { id: 2, time: '2024-06', title: '尼日尔撤销 Orano Imouraren 矿权', desc: '全球最大未开发铀矿之一，原计划年产能5,000 tU', color: '#ef4444' },
-        { id: 3, time: '2024-03', title: 'Paladin Langer Heinrich 重启', desc: '停产6年后重启，缓解部分供给压力', color: '#10b981' },
-        { id: 4, time: '2024-01', title: 'Kazatomprom 硫酸短缺警告', desc: '2024年产量指引下调，全球约40%产量面临风险', color: '#f59e0b' },
-        { id: 5, time: '2023-07', title: '尼日尔政变', desc: '总统被扣押，铀矿出口和外资信心受严重冲击', color: '#ef4444' },
-        { id: 6, time: '2022-12', title: 'Cameco McArthur River 全面复产', desc: '停产4年后恢复，年产能约6,900 tU', color: '#10b981' }
-      ]
-    }
+    onMounted(() => {
+      initAllCharts()
+      window.addEventListener('resize', handleResize)
+    })
+
+    onUnmounted(() => {
+      window.removeEventListener('resize', handleResize)
+      charts.forEach(c => c.dispose())
+    })
+
+    // 场景化风险表
+    const riskTable = computed(() => scenarioStore.isSupplyChain ? [
+      { risk: '芯片供应短缺', level: '高', levelType: 'danger', prob: '55%', impact: '全球车规级MCU/IGBT持续紧张，影响产能约200万辆/年' },
+      { risk: '碳酸锂价格剧烈波动', level: '高', levelType: 'danger', prob: '70%', impact: '电池成本占比40%+，锂价波动直接影响新能源车毛利率' },
+      { risk: '欧盟反补贴调查', level: '中', levelType: 'warning', prob: '50%', impact: '中国电动车出口面临额外关税10-35%，影响出口约50万辆/年' },
+      { risk: '港口拥堵物流中断', level: '中', levelType: 'warning', prob: '30%', impact: '上海/宁波港拥堵导致零部件到港延迟2-4周' },
+      { risk: '消费需求疲软', level: '低', levelType: 'info', prob: '20%', impact: '价格战加剧，行业利润率持续承压' },
+      { risk: '碳关税全面实施', level: '低', levelType: 'info', prob: '25%', impact: '出口欧洲单车成本增加约€500-1000' }
+    ] : [
+      { risk: '哈萨克斯坦硫酸短缺', level: '高', levelType: 'danger', prob: '65%', impact: 'ISL产量下滑10-15%，全球供给减3-5%' },
+      { risk: '尼日尔供应中断持续', level: '高', levelType: 'danger', prob: '70%', impact: '年损失约4,000-7,500 tU，欧洲受影响最大' },
+      { risk: '核电需求超预期增长', level: '中', levelType: 'warning', prob: '50%', impact: '中国/印度新建机组拉动需求，缺口进一步扩大' },
+      { risk: '新矿山投产延迟', level: '中', levelType: 'warning', prob: '55%', impact: '建设周期10-15年，短期新增产能有限' },
+      { risk: '全球经济衰退', level: '低', levelType: 'info', prob: '15%', impact: '短期需求下滑但不会改变长期缺口格局' },
+      { risk: '二次供应大幅释放', level: '低', levelType: 'info', prob: '20%', impact: '库存和欠喂料再浓缩可在1-2年内补充部分缺口' }
+    ])
+
+    // 场景化事件时间线
+    const events = computed(() => scenarioStore.isSupplyChain ? [
+      { id: 1, time: '2025-03', title: '欧盟对中国电动车征收最终反补贴税', desc: '比亚迪/上汽/吉利分别面临17%/35%/19%关税，出口增速放缓约30%', color: '#ef4444' },
+      { id: 2, time: '2024-10', title: '碳酸锂价格从60万跌至7万/吨', desc: '锂盐产能过剩叠加需求增速放缓，电池级碳酸锂价格暴跌88%', color: '#f59e0b' },
+      { id: 3, time: '2024-06', title: '比亚迪第800万辆新能源车下线', desc: '全球首家达成800万新能源车里程碑，海外产能布局泰国/巴西/匈牙利', color: '#10b981' },
+      { id: 4, time: '2023-12', title: '中国超越日本成全球最大汽车出口国', desc: '全年出口491万辆，新能源车占比超25%，俄罗斯/东南亚为主要增量市场', color: '#10b981' },
+      { id: 5, time: '2022-04', title: '上海疫情封控，长三角供应链中断', desc: '特斯拉/上汽/蔚来停产数周，零部件物流受阻暴露JIT供应模式脆弱性', color: '#ef4444' },
+      { id: 6, time: '2021-01', title: '全球车规芯片危机全面爆发', desc: '瑞萨火灾+台积电产能挤兑，MCU/IGBT缺货导致全球减产超1000万辆', color: '#ef4444' },
+      { id: 7, time: '2020-01', title: '特斯拉上海工厂投产，中国新能源车加速', desc: 'Model 3国产化率从30%提升至95%，带动国内三电供应链全面升级', color: '#10b981' }
+    ] : [
+      { id: 1, time: '2024-07', title: '尼日尔撤销 Madaouela + Imouraren 矿权', desc: '年损失约7,500 tU产能，外资信心严重受挫，欧洲铀源多元化压力剧增', color: '#ef4444' },
+      { id: 2, time: '2024-01', title: 'Kazatomprom 硫酸短缺下调产量指引', desc: '全球最大铀生产国产量降约10%，约40%全球供给面临风险', color: '#f59e0b' },
+      { id: 3, time: '2023-07', title: '尼日尔政变', desc: '总统被扣押，军政府重新审查外资矿业合同，铀矿出口受阻', color: '#ef4444' },
+      { id: 4, time: '2022-12', title: 'Cameco McArthur River 全面复产', desc: '停产4年后恢复满产，年产能约6,900 tU，缓解高端矿山供给不足', color: '#10b981' },
+      { id: 5, time: '2022-02', title: '俄乌冲突 · 西方加速铀源去俄化', desc: '美国禁止俄浓缩铀进口，非俄来源长协溢价15-20%，全球铀贸易格局重塑', color: '#ef4444' },
+      { id: 6, time: '2018-01', title: 'McArthur River + Rabbit Lake 相继停产', desc: '铀价长期低迷导致加拿大两大矿山停产，年产能损失超9,000 tU', color: '#f59e0b' },
+      { id: 7, time: '2011-03', title: '福岛核事故', desc: '日本全部反应堆停机，全球核电需求骤降，现货价从$57跌至$20区间，开启十年熊市', color: '#ef4444' }
+    ])
+
+    return { scenarioStore, trendChart, cycleChart, turningChart, scenarioChart, riskTable, events }
   }
 }
 </script>
 
 <style scoped>
 .sj-root { padding: 1.5rem; height: calc(100vh - 60px); overflow-y: auto; }
-.sj-header { margin-bottom: 1.2rem; }
-.sj-header h1 { font-size: 1.4rem; font-weight: 800; color: #1e293b; margin: 0 0 0.15rem; }
-.sj-header p { font-size: 0.85rem; color: #64748b; margin: 0; }
 
-/* 态势总览大屏 */
-.sj-dashboard { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
-.sj-db-card {
-  background: #fff; border-radius: 16px; border: 1px solid #e2e8f0;
-  padding: 1.2rem 1rem; display: flex; gap: 0.8rem; align-items: flex-start;
+/* ====== 上半部分 ====== */
+.sj-top-row { display: flex; gap: 1rem; margin-bottom: 1.5rem; align-items: stretch; }
+.sj-top-left { flex: 0.85; min-width: 0; }
+.sj-top-right { flex: 1.15; min-width: 0; display: flex; flex-direction: column; gap: 0.8rem; }
+
+.sj-card-full { height: 100%; }
+.sj-timeline-scroll { padding-right: 4px; }
+
+.sj-chart-trend { height: 200px; min-height: 180px; flex-shrink: 0; }
+
+/* ====== 深色结论卡片 ====== */
+.sj-conclusion-dark {
+  flex: 1;
+  background: linear-gradient(135deg, #1e293b 0%, #1e3a5f 40%, #0f172a 100%);
+  border: 1px solid #334155;
   position: relative; overflow: hidden;
 }
-.sj-db-card.price-up { border-left: 4px solid #ef4444; }
-.sj-db-card.supply-tight { border-left: 4px solid #f59e0b; }
-.sj-db-card.risk-high { border-left: 4px solid #ef4444; background: linear-gradient(135deg, #fff 0%, #fef2f2 100%); }
-.sj-db-card.overall { border-left: 4px solid #6366f1; background: linear-gradient(135deg, #fff 0%, #eef2ff 100%); }
-.sj-db-icon { font-size: 2rem; flex-shrink: 0; }
-.sj-db-info { flex: 1; min-width: 0; position: relative; z-index: 1; }
-.sj-db-label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
-.sj-db-value { font-size: 1.3rem; font-weight: 800; color: #1e293b; }
-.sj-db-detail { font-size: 0.73rem; color: #64748b; margin-top: 3px; line-height: 1.4; }
-.sj-db-spark { position: absolute; right: 0; bottom: 0; width: 120px; height: 50px; opacity: 0.7; }
-
-@media (max-width: 1024px) {
-  .sj-dashboard { grid-template-columns: repeat(2, 1fr); }
+.sj-conclusion-dark::before {
+  content: ''; position: absolute; top: -30px; right: -30px;
+  width: 100px; height: 100px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%);
+  pointer-events: none;
 }
+.sj-card-title-light { color: #e2e8f0 !important; }
+.sj-conclusion-body-light { font-size: 0.83rem; line-height: 1.7; color: #cbd5e1; position: relative; z-index: 1; }
+.sj-conclusion-body-light ul { padding-left: 1rem; margin: 0.5rem 0 0; }
+.sj-conclusion-body-light li { margin-bottom: 0.35rem; }
+.sj-conclusion-body-light b { color: #e2e8f0; }
 
-.sj-row { display: flex; gap: 1rem; margin-bottom: 1rem; }
-.sj-left { flex: 1.6; min-width: 0; }
-.sj-right { flex: 1; min-width: 0; }
-.sj-chart { width: 100%; height: 300px; }
+/* ====== 下半部分：详情分析 ====== */
+.sj-detail-section {
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px;
+  padding: 1.2rem 1.2rem 0.4rem; margin-bottom: 1rem;
+}
+.sj-detail-header { margin-bottom: 1rem; }
+.sj-detail-title { font-size: 1.05rem; font-weight: 700; color: #1e293b; }
 
+.sj-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; padding-bottom: 1rem; }
+
+/* ====== 通用 ====== */
+.sj-chart { width: 100%; height: 300px; min-height: 260px; }
+:deep(.el-card__body) { overflow: visible; }
 .sj-card-title { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 0.95rem; }
 
-.sj-conclusion { height: 100%; }
-.sj-conclusion-body { font-size: 0.85rem; line-height: 1.7; color: #334155; }
+.sj-conclusion-body { font-size: 0.83rem; line-height: 1.7; color: #334155; }
 .sj-conclusion-body ul { padding-left: 1.1rem; margin: 0.5rem 0 0; }
 .sj-conclusion-body li { margin-bottom: 0.4rem; }
 .sj-tag-row { margin-bottom: 0.6rem; }
 .sj-final { margin-top: 0.8rem; }
 
-@media (max-width: 1024px) {
-  .sj-row { flex-direction: column; }
+@media (max-width: 1200px) {
+  .sj-top-row { flex-direction: column; }
+  .sj-timeline-scroll { max-height: 260px; }
+  .sj-detail-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 768px) {
   .sj-chart { height: 260px; }
 }
 </style>

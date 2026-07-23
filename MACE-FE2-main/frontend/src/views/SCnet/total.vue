@@ -8,7 +8,7 @@
     <div class="entrance-content">
       <!-- 头部 -->
       <div class="entrance-header">
-        <h1 class="entrance-title">铀供应链仿真</h1>
+        <h1 class="entrance-title">供应链仿真</h1>
         <p class="entrance-subtitle">选择分析阶段，进入对应的推演工作流</p>
         <div class="entrance-underline"></div>
       </div>

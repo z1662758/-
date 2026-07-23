@@ -22,7 +22,14 @@
           <div class="chat-welcome">
             <div class="chat-welcome-brand">
               <img :src="logoUrl" alt="SCnet" class="chat-welcome-logo" />
-              <span class="chat-welcome-text">使用铀供应链助手开始对话</span>
+              <span class="chat-welcome-text">使用供应链助手开始对话</span>
+            </div>
+            <p class="chat-welcome-hint">本系统支持 <b>铀供应链</b> 与 <b>汽车供应链</b> 两大场景，系统将<b>自动识别</b>您的场景并跳转到事前推演分析页面。</p>
+
+            <!-- 场景指示器（自动识别，不可手动切换） -->
+            <div class="chat-scenario-badge" :class="scenarioStore.isSupplyChain ? 'is-auto' : 'is-uranium'">
+              <span class="chat-scenario-dot"></span>
+              <span>当前场景：{{ scenarioStore.label }}</span>
             </div>
 
             <!-- Mode selector -->
@@ -224,6 +231,8 @@ import {
 import { marked } from 'marked'
 import ChatSidebar from './ChatSidebar.vue'
 import logoUrl from '@/assets/images/logo.png'
+import { useScenarioStore } from '@/stores/scenario'
+import { detectScenario } from '@/constants/scnetScenario'
 
 const API_BASE = ''
 const SPINNER_GLYPHS = ['✽', '✢', '✦', '✧']
@@ -236,7 +245,7 @@ const MODE_OPTIONS = [
 ]
 const PLACEHOLDERS = {
   auto: '描述您的情况，AI 将自动识别分析阶段...',
-  pre: '描述您想研判的铀供应链态势...',
+  pre: '描述您想研判的供应链态势...',
   during: '描述当前供应链危机或决策需求...',
   post: '描述需要复盘的事件...',
 }
@@ -256,6 +265,7 @@ export default {
   components: { ChatSidebar, Switch, Cpu, Position, MagicStick, TrendCharts, Aim, DataAnalysis, Link, Document, View, ChatDotRound, List, Monitor },
   setup() {
     const router = useRouter()
+    const scenarioStore = useScenarioStore()
     const msgContainer = ref(null)
     const welcomeTextarea = ref(null)
     const chatTextarea = ref(null)
@@ -335,7 +345,43 @@ export default {
 
     const handleSend = async () => {
       const text = inputText.value.trim()
+      // 自动识别场景（铀 / 汽车），仅当检测到明确关键词时切换
+      const detected = detectScenario(text)
+      if (detected) scenarioStore.setScenario(detected)
       if ((!text && attachments.value.length === 0) || isStreaming.value) return
+
+      // ── 首次消息（无对话历史）→ 场景检测 + 跳转 situationAnalysis ──
+      const isFirstMessage = messages.value.length === 0
+      if (isFirstMessage && execMode.value === 'ask') {
+        inputText.value = ''
+        messages.value.push({ id: 'u' + Date.now(), role: 'user', content: text })
+        messages.value.push({ id: 'a' + Date.now(), role: 'assistant', content: '🔍 正在识别场景并分析...', _streaming: true })
+        isStreaming.value = true
+        try {
+          const res = await fetch(`${API_BASE}/api/chatHome/analyze`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: text, model: selectedModel.value }),
+          })
+          const d = await res.json()
+          if (d.success && d.data) {
+            scenarioStore.setScenario(d.data.scenario)
+            // 跳转到 situationAnalysis，携带 session_id + scenario
+            const sid = d.data.session_id || ''
+            const sc = d.data.scenario || 'uranium'
+            router.push(`/home/SCnet/situationAnalysis?session_id=${sid}&scenario=${sc}&message=${encodeURIComponent(text)}`)
+          } else {
+            // 失败时回退到普通聊天
+            messages.value.pop()
+            messages.value.push({ id: 'a' + Date.now(), role: 'assistant', content: '场景分析启动失败，请直接在下方输入问题继续对话。' })
+          }
+        } catch (e) {
+          messages.value.pop()
+          messages.value.push({ id: 'a' + Date.now(), role: 'assistant', content: `请求失败: ${e.message}` })
+        }
+        isStreaming.value = false
+        return
+      }
+
       const fileInfo = attachments.value.length > 0 ? '\n[附件: ' + attachments.value.map(a => a.name).join(', ') + ']' : ''
       messages.value.push({ id: 'u' + Date.now(), role: 'user', content: text + fileInfo })
       inputText.value = ''; attachments.value = []
@@ -347,7 +393,7 @@ export default {
       try {
         const res = await fetch(`${API_BASE}/api/chat/stream`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text, conversation_id: currentConversationId.value || undefined, model: selectedModel.value, mode: execMode.value, phase: currentMode.value === 'auto' ? undefined : currentMode.value }),
+          body: JSON.stringify({ message: text, conversation_id: currentConversationId.value || undefined, model: selectedModel.value, mode: execMode.value, phase: currentMode.value === 'supply_chain' ? undefined : currentMode.value, scenario: scenarioStore.currentScenario }),
           signal: abortController.signal,
         })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -388,6 +434,7 @@ export default {
     onUnmounted(() => { if (abortController) abortController.abort(); clearInterval(glyphTimer) })
 
     return {
+      scenarioStore,
       logoUrl, msgContainer, welcomeTextarea, chatTextarea, fileInput, debugPanelBody,
       messages, inputText, selectedModel, isStreaming, currentConversationId, conversations,
       sidebarCollapsed, currentMode, modeIndex, execMode, attachments,
@@ -432,6 +479,21 @@ export default {
 .chat-welcome-brand { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
 .chat-welcome-logo { width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0; }
 .chat-welcome-text { color: #111827; font-size: 24px; font-weight: 600; line-height: 1.3; }
+.chat-welcome-hint { margin: 12px 0 0; color: #6b7280; font-size: 14px; line-height: 1.6; text-align: center; }
+.chat-welcome-hint b { color: #4f46e5; }
+
+/* 场景指示器 */
+.chat-scenario-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: 10px; padding: 4px 14px;
+  border-radius: 20px; font-size: 13px; font-weight: 500;
+  cursor: default; user-select: none;
+}
+.chat-scenario-badge.is-uranium { background: #eef2ff; color: #4f46e5; }
+.chat-scenario-badge.is-auto { background: #ecfdf5; color: #059669; }
+.chat-scenario-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.is-uranium .chat-scenario-dot { background: #6366f1; }
+.is-auto .chat-scenario-dot { background: #10b981; }
 .chat-welcome-input { width: 100%; }
 
 /* ── Mode Selector ─────────────────────────── */

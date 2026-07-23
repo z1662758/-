@@ -4,9 +4,9 @@
     <div class="glass-panel control-panel">
       <div class="panel-title">
         <span class="glow-dot"></span>
-        <span>铀矿供应链趋势预测沙盘</span>
+        <span>矿山供应链趋势预测沙盘</span>
         <el-tooltip
-          content="基于历史供应链指标拟合未来走势，结合不确定性区间推演矿山产量、库存、铀价与运输风险"
+          content="基于历史供应链指标拟合未来走势，结合不确定性区间推演矿山产量、库存、价格与运输风险"
           placement="top"
           :show-after="200"
         >
@@ -216,7 +216,7 @@
         <div class="panel-title">
           <span class="glow-dot orange"></span>
           {{ governanceBrief.driverTitle }}
-          <el-tooltip content="影响铀矿供应链压力走势的关键变量按贡献度排序" placement="top" :show-after="200">
+          <el-tooltip content="影响矿山供应链压力走势的关键变量按贡献度排序" placement="top" :show-after="200">
             <el-icon class="help-icon"><QuestionFilled /></el-icon>
           </el-tooltip>
         </div>
@@ -422,8 +422,8 @@ const MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11'
 
 const SCENARIO_MAP = {
   auto_chip_pressure: {
-    alias: '铀矿山生产场景 · 产能约束与重启路径',
-    summary: '聚焦哈萨克斯坦/加拿大/纳米比亚/尼日尔等主要产铀国矿山生产状态、产能爬坡和停产重启，适合评估全球铀供给趋势。',
+    alias: '矿山生产场景 · 产能约束与重启路径',
+    summary: '聚焦哈萨克斯坦/加拿大/纳米比亚/尼日尔等主要产国矿山生产状态、产能爬坡和停产重启，适合评估全球供给趋势。',
     focusTags: ['矿山产量指引', '功率器件', '智能驾驶芯片', '安全库存'],
     metric: 'total_amount',
     base: 48,
@@ -450,7 +450,7 @@ const SCENARIO_MAP = {
 
   battery_cost_chain: {
     alias: '动力电池场景 · 成本低位再平衡路径',
-    summary: '关注 U3O8 现货价、长协价、Sprott 实物基金持仓和核电业主采购行为变化，评估铀价趋势对燃料成本的影响。',
+    summary: '关注 U3O8 现货价、长协价、Sprott 实物基金持仓和核电业主采购行为变化，评估价格趋势对燃料成本的影响。',
     focusTags: ['U3O8 现货价波动', '长协价格', '转化/浓缩服务费', '核电燃料成本'],
     metric: 'avg_amount',
     base: 44,
@@ -476,8 +476,8 @@ const SCENARIO_MAP = {
   },
 
   inventory_logistics_chain: {
-    alias: '铀库存与运输场景 · 补库与运输保障路径',
-    summary: '通过库存消费比、补库紧迫度、运输时效和到港准时率判断整车铀库存压力与零部件交付风险。',
+    alias: '库存与运输场景 · 补库与运输保障路径',
+    summary: '通过库存消费比、补库紧迫度、运输时效和到港准时率判断整车库存压力与零部件交付风险。',
     focusTags: ['库存消费比', '补库紧迫度', '运输时效', '到港准时率'],
     metric: 'total_volume',
     base: 51,
@@ -513,7 +513,7 @@ const DEFAULT_TREND_CONTEXT = {
   activeDomains: [
     { id: 'chip_supply', label: '矿山产量指引' },
     { id: 'battery_material', label: '动力电池材料价格' },
-    { id: 'vehicle_inventory', label: '铀库存水位' },
+    { id: 'vehicle_inventory', label: '库存水位' },
     { id: 'logistics_delivery', label: '物流交付时效' }
   ],
   avgQuality: 81,
@@ -534,7 +534,7 @@ const TREND_MANDATE_EFFECTS = {
     confidenceShift: -2,
     riskShift: 9,
     driverBias: [10, 4, 6, 2, 1],
-    strategyLead: '优先判断哪些铀矿山或运输通道可能进入供给约束，并提前锁定替代来源和长协。'
+    strategyLead: '优先判断哪些矿山或运输通道可能进入供给约束，并提前锁定替代来源和长协。'
   },
 
   battery_cost: {
@@ -553,9 +553,9 @@ const TREND_MANDATE_EFFECTS = {
   },
 
   inventory_balance: {
-    chartTitle: '整车铀库存压力趋势',
-    driverTitle: '铀库存压力驱动因子排序',
-    outputTitle: '铀库存消费比动态监测',
+    chartTitle: '整车库存压力趋势',
+    driverTitle: '库存压力驱动因子排序',
+    outputTitle: '库存消费比动态监测',
     scenarioKey: 'inventory_logistics_chain',
     slopeShift: 0.08,
     amplitudeShift: 1.0,
@@ -696,7 +696,7 @@ export default {
 
       if (mandateValue === 'inventory_balance') {
         return {
-          title: risk >= 70 ? '铀库存累积风险抬升' : risk >= 50 ? '铀供需进入再平衡阶段' : '铀铀库存压力整体可控',
+          title: risk >= 70 ? '库存累积风险抬升' : risk >= 50 ? '供需进入再平衡阶段' : '库存压力整体可控',
           desc: risk >= 70
             ? '库存消费比和终端折扣压力同步上行，说明供应恢复可能快于真实需求，需要控制高成本现货采购。'
             : risk >= 50
@@ -711,7 +711,7 @@ export default {
         return {
           title: risk >= 70 ? '物流到厂延误风险突出' : risk >= 50 ? '物流链路存在局部扰动' : '物流交付整体平稳',
           desc: risk >= 70
-            ? '铀矿产地运输、海运和跨境关务扰动可能影响铀精矿到港节奏，需要提前切换运输路线和启用替代来源。'
+            ? '矿山产地运输、海运和跨境关务扰动可能影响精矿到港节奏，需要提前切换运输路线和启用替代来源。'
             : risk >= 50
               ? '运输时效存在局部波动，但尚未形成系统性延误，建议对重点物料设定提前预警。'
               : '物流交付维持相对稳定，当前重点是保持到港准时率和异常线路监控。',
@@ -806,9 +806,9 @@ export default {
 
       return [
         {
-          name: '铀矿山产量与产能',
+          name: '矿山产量与产能',
           desc: mandateValue === 'component_pressure'
-            ? '哈萨克斯坦 ISL 产量和非洲出口通道仍是铀供给约束的核心来源。'
+            ? '哈萨克斯坦 ISL 产量和非洲出口通道仍是供给约束的核心来源。'
             : '作为核电关键燃料，需要维持安全库存水平和多元化供应来源。',
           state: chip.state,
           level: chip.level
@@ -825,15 +825,15 @@ export default {
           name: '整车库存与补库紧迫度',
           desc: mandateValue === 'inventory_balance'
             ? '库存消费比和折扣率同步上行时，容易触发减产或长协折让动作。'
-            : '库存消费比变化反映铀供需匹配质量，是判断铀价趋势健康度的关键中间变量。',
+            : '库存消费比变化反映供需匹配质量，是判断价格趋势健康度的关键中间变量。',
           state: inventory.state,
           level: inventory.level
         },
         {
           name: '跨境物流与到港准时率',
           desc: mandateValue === 'logistics_delay'
-            ? '运输中断会直接传导到铀精矿到港和核燃料供应链稳定性。'
-            : '需持续监控铀矿产地至港口的陆运/海运通道、跨境关务和保险异常。',
+            ? '运输中断会直接传导到精矿到港和核燃料供应链稳定性。'
+            : '需持续监控矿山产地至港口的陆运/海运通道、跨境关务和保险异常。',
           state: logistics.state,
           level: logistics.level
         },
@@ -898,8 +898,8 @@ export default {
             level: risk >= 65 ? 'high' : 'mid'
           },
           {
-            title: '提高在途铀精矿透明度',
-            desc: '跟踪铀矿产地至港口陆运、海运、清关节点，按供应来源生成到港风险看板。',
+            title: '提高在途精矿透明度',
+            desc: '跟踪矿山产地至港口陆运、海运、清关节点，按供应来源生成到港风险看板。',
             level: 'mid'
           },
           {
@@ -922,8 +922,8 @@ export default {
           level: 'mid'
         },
         {
-          title: '把核电需求预测与铀安全库存联动',
-          desc: '将未来核电装机、换料需求和铀库存放在同一周期滚动更新。',
+          title: '把核电需求预测与安全库存联动',
+          desc: '将未来核电装机、换料需求和库存放在同一周期滚动更新。',
           level: 'low'
         }
       ]

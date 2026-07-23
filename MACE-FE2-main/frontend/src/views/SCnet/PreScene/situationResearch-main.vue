@@ -7,7 +7,7 @@
       <div class="sj-db-card price-up">
         <div class="sj-db-icon">📈</div>
         <div class="sj-db-info">
-          <div class="sj-db-label">当前铀价</div>
+          <div class="sj-db-label">当前价格</div>
           <div class="sj-db-value">$88-95/lb ↑</div>
           <div class="sj-db-detail">ESA现货价 · 突破10年高点 · 同比+240%</div>
         </div>
@@ -42,31 +42,34 @@
     <div class="pred-row">
       <div class="pred-left">
         <div class="pred-card">
-          <div class="pred-card-title">GPR 高斯过程回归 — U3O8 现货价预测</div>
+          <div class="pred-card-title">{{ scenarioStore.isSupplyChain ? 'GPR 高斯过程回归 — 汽车季度产量预测' : 'GPR 高斯过程回归 — U3O8 现货价预测' }}</div>
           <div ref="gprChart" class="pred-chart"></div>
         </div>
       </div>
       <div class="pred-right">
-        <div class="pred-card">
+        <div class="pred-card pred-card--highlight">
           <div class="pred-card-title">预测结论</div>
           <div class="pred-conclusion">
-            <div class="pred-tag">
-              <span class="pred-tag-label">6个月预测</span>
-              <span class="pred-tag-val up">$100-115/lb</span>
-            </div>
-            <div class="pred-tag">
-              <span class="pred-tag-label">12个月预测</span>
-              <span class="pred-tag-val up">$110-130/lb</span>
-            </div>
-            <div class="pred-tag">
-              <span class="pred-tag-label">24个月预测</span>
-              <span class="pred-tag-val up">$120-145/lb</span>
-            </div>
-            <ul class="pred-list">
-              <li>GPR 模型 RBF 核 + 周期核，95% 置信区间随预测期扩大</li>
-              <li>趋势项占主导（年化+18%），周期项显示当前处于上升中段</li>
-              <li>最大不确定性来源：哈萨克斯坦硫酸短缺持续时间、尼日尔出口恢复时间</li>
-            </ul>
+            <template v-if="scenarioStore.isSupplyChain">
+              <div class="pred-tag"><span class="pred-tag-label">6个月预测</span><span class="pred-tag-val up">780-820万辆/季</span></div>
+              <div class="pred-tag"><span class="pred-tag-label">12个月预测</span><span class="pred-tag-val up">800-850万辆/季</span></div>
+              <div class="pred-tag"><span class="pred-tag-label">24个月预测</span><span class="pred-tag-val up">3200-3400万辆/年</span></div>
+              <ul class="pred-list">
+                <li>GPR 模型 RBF 核 + 周期核，95% 置信区间随预测期扩大</li>
+                <li>季节项显著（Q4旺季效应），趋势项显示新能源渗透率持续提升</li>
+                <li>最大不确定性来源：欧盟关税政策落地节奏、碳酸锂价格触底反弹时点</li>
+              </ul>
+            </template>
+            <template v-else>
+              <div class="pred-tag"><span class="pred-tag-label">6个月预测</span><span class="pred-tag-val up">$100-115/lb</span></div>
+              <div class="pred-tag"><span class="pred-tag-label">12个月预测</span><span class="pred-tag-val up">$110-130/lb</span></div>
+              <div class="pred-tag"><span class="pred-tag-label">24个月预测</span><span class="pred-tag-val up">$120-145/lb</span></div>
+              <ul class="pred-list">
+                <li>GPR 模型 RBF 核 + 周期核，95% 置信区间随预测期扩大</li>
+                <li>趋势项占主导（年化+18%），周期项显示当前处于上升中段</li>
+                <li>最大不确定性来源：哈萨克斯坦硫酸短缺持续时间、尼日尔出口恢复时间</li>
+              </ul>
+            </template>
           </div>
         </div>
       </div>
@@ -76,7 +79,7 @@
     <div class="pred-row">
       <div class="pred-left">
         <div class="pred-card">
-          <div class="pred-card-title">供需缺口预测 (2024-2030)</div>
+          <div class="pred-card-title">{{ scenarioStore.isSupplyChain ? '产能与需求预测 (2024-2030)' : '供需缺口预测 (2024-2030)' }}</div>
           <div ref="gapChart" class="pred-chart"></div>
         </div>
       </div>
@@ -85,32 +88,45 @@
           <div class="pred-card-title">多模型预测对比</div>
           <div ref="modelCompareChart" class="pred-chart" style="height:220px"></div>
           <div class="pred-model-notes">
-            <span class="pred-model-tag gpr">GPR</span> 均值 $112/lb (2025Q4)
-            <span class="pred-model-tag lstm">LSTM</span> 均值 $105/lb
-            <span class="pred-model-tag prophet">Prophet</span> 均值 $108/lb
-            <span class="pred-model-tag rl">RL-Q</span> 均衡价 $95-115
+            <template v-if="scenarioStore.isSupplyChain">
+              <span class="pred-model-tag gpr">GPR</span> 均值 810万辆/季
+              <span class="pred-model-tag lstm">LSTM</span> 均值 795万辆/季
+              <span class="pred-model-tag prophet">Prophet</span> 均值 802万辆/季
+              <span class="pred-model-tag rl">RL-GPR</span> 均衡 780-830
+            </template>
+            <template v-else>
+              <span class="pred-model-tag gpr">GPR</span> 均值 $112/lb (2025Q4)
+              <span class="pred-model-tag lstm">LSTM</span> 均值 $105/lb
+              <span class="pred-model-tag prophet">Prophet</span> 均值 $108/lb
+              <span class="pred-model-tag rl">RL-GPR</span> 均衡价 $95-115
+            </template>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Row 3: 情景概率演化 -->
+    <!-- Row 3: 情景概率演化 + 解读 -->
     <div class="pred-row">
-      <div class="pred-left">
+      <div class="pred-full">
         <div class="pred-card">
           <div class="pred-card-title">情景概率随时间演化</div>
-          <div ref="scenarioEvoChart" class="pred-chart"></div>
-        </div>
-      </div>
-      <div class="pred-right">
-        <div class="pred-card">
-          <div class="pred-card-title">情景解读</div>
-          <div class="pred-conclusion">
-            <ul class="pred-list">
-              <li><b>供给偏紧（黄线↓）：</b>当前主流情景，概率从 58% 逐步降至 30%。随着新矿山投产和库存策略调整，中期偏紧程度缓解。</li>
-              <li><b>供给危机（红线↑）：</b>概率从 30% 升至 45%，反映尼日尔局势恶化、哈萨克减产等尾部风险积累。</li>
-              <li><b>供给宽松（绿线↑）：</b>概率从 12% 升至 25%，反映新产能释放和需求侧政策的潜在对冲效果。</li>
-            </ul>
+          <div class="pred-scenario-row">
+            <div class="pred-scenario-chart">
+              <div ref="scenarioEvoChart" class="pred-chart"></div>
+            </div>
+            <div class="pred-scenario-interp">
+              <div class="pred-scenario-interp-title">情景解读</div>
+              <ul class="pred-list" v-if="scenarioStore.isSupplyChain">
+                <li><b>产能受限（黄线↓）：</b>当前主流情景，概率从 55% 逐步降至 28%。芯片缓解+新工厂投产，产能瓶颈逐步解除。</li>
+                <li><b>出口受阻（红线↑）：</b>概率从 25% 升至 42%，反映欧盟关税升级、地缘贸易摩擦等尾部风险积累。</li>
+                <li><b>景气扩张（绿线↑）：</b>概率从 20% 升至 30%，反映新能源渗透加速+海外市场拓展的增量空间。</li>
+              </ul>
+              <ul class="pred-list" v-else>
+                <li><b>供给偏紧（黄线↓）：</b>当前主流情景，概率从 58% 逐步降至 30%。随着新矿山投产和库存策略调整，中期偏紧程度缓解。</li>
+                <li><b>供给危机（红线↑）：</b>概率从 30% 升至 45%，反映尼日尔局势恶化、哈萨克减产等尾部风险积累。</li>
+                <li><b>供给宽松（绿线↑）：</b>概率从 12% 升至 25%，反映新产能释放和需求侧政策的潜在对冲效果。</li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>
@@ -121,10 +137,12 @@
 <script>
 import { ref, onMounted, onUnmounted } from 'vue'
 import * as echarts from 'echarts'
+import { useScenarioStore } from '@/stores/scenario'
 
 export default {
   name: 'SituationPrediction',
   setup() {
+    const scenarioStore = useScenarioStore()
     const gprChart = ref(null)
     const gapChart = ref(null)
     const modelCompareChart = ref(null)
@@ -180,7 +198,7 @@ export default {
       const x = ['2024Q4','2025Q1','2025Q2','2025Q3','2025Q4','2026Q1','2026Q2']
       c.setOption({
         tooltip: { trigger: 'axis' },
-        legend: { top: 8, right: 10, data: ['GPR','LSTM','Prophet','RL-Q值外推'] },
+        legend: { top: 8, right: 10, data: ['GPR','LSTM','Prophet','RL-GPR优化预测'] },
         grid: { left: 65, right: 30, top: 45, bottom: 35 },
         xAxis: { type: 'category', data: x },
         yAxis: { type: 'value', name: '$/lb', nameLocation: 'middle', nameGap: 40 },
@@ -188,7 +206,7 @@ export default {
           { name: 'GPR', type: 'line', smooth: true, data: [95,100,106,112,118,122,127], lineStyle: { color: '#ef4444', width: 2 }, symbol: 'diamond', symbolSize: 6 },
           { name: 'LSTM', type: 'line', smooth: true, data: [93,98,102,108,112,116,120], lineStyle: { color: '#10b981', width: 2 }, symbol: 'circle', symbolSize: 6 },
           { name: 'Prophet', type: 'line', smooth: true, data: [94,99,104,108,114,118,122], lineStyle: { color: '#f59e0b', width: 2 }, symbol: 'triangle', symbolSize: 6 },
-          { name: 'RL-Q值外推', type: 'line', smooth: true, data: [92,95,98,102,105,108,112], lineStyle: { color: '#6366f1', width: 2, type: 'dashed' }, symbol: 'rect', symbolSize: 6 }
+          { name: 'RL-GPR优化预测', type: 'line', smooth: true, data: [92,95,98,102,105,108,112], lineStyle: { color: '#6366f1', width: 2, type: 'dashed' }, symbol: 'rect', symbolSize: 6 }
         ]
       })
     }
@@ -218,7 +236,7 @@ export default {
     })
     onUnmounted(() => charts.forEach(c => c.dispose()))
 
-    return { gprChart, gapChart, modelCompareChart, scenarioEvoChart }
+    return { scenarioStore, gprChart, gapChart, modelCompareChart, scenarioEvoChart }
   }
 }
 </script>
@@ -247,7 +265,42 @@ export default {
 .pred-row { display: flex; gap: 1rem; margin-bottom: 1rem; }
 .pred-left { flex: 1.5; min-width: 0; }
 .pred-right { flex: 1; min-width: 0; }
+.pred-full { flex: 1; min-width: 0; }
+.pred-scenario-row { display: flex; gap: 1.5rem; }
+.pred-scenario-chart { flex: 1.8; min-width: 0; }
+.pred-scenario-chart .pred-chart { height: 280px; }
+.pred-scenario-interp { flex: 1; min-width: 0; padding-left: 1.5rem; }
+.pred-scenario-interp-title { font-size: 0.85rem; font-weight: 700; color: #475569; margin-bottom: 0.6rem; }
 .pred-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1rem; height: 100%; }
+
+/* 预测结论高亮卡片 —— 用户最关注的核心结论 */
+.pred-card--highlight {
+  background: linear-gradient(135deg, #1e293b 0%, #1e3a5f 40%, #0f172a 100%);
+  border: 1px solid #334155;
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.25), 0 1px 4px rgba(0, 0, 0, 0.15);
+  position: relative;
+  overflow: hidden;
+}
+.pred-card--highlight::before {
+  content: '';
+  position: absolute;
+  top: -40px; right: -40px;
+  width: 120px; height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+.pred-card--highlight .pred-card-title {
+  color: #e2e8f0;
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+  font-size: 0.95rem;
+}
+.pred-card--highlight .pred-conclusion { color: #cbd5e1; }
+.pred-card--highlight .pred-tag { border-bottom-color: rgba(255, 255, 255, 0.08); }
+.pred-card--highlight .pred-tag-label { color: #94a3b8; }
+.pred-card--highlight .pred-tag-val.up { color: #f87171; }
+.pred-card--highlight .pred-list li { color: #cbd5e1; }
+.pred-card--highlight .pred-list li b { color: #e2e8f0; }
 .pred-card-title { font-size: 0.9rem; font-weight: 700; color: #1e293b; margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid #f1f5f9; }
 .pred-chart { width: 100%; height: 280px; }
 

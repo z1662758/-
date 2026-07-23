@@ -29,22 +29,46 @@
             <span class="kc-level-section__count">{{ section.items.length }} 项</span>
           </div>
           <div class="kc-level-grid">
-            <button
+            <div
               v-for="item in section.items"
               :key="item.key"
-              type="button"
               :class="['kc-level-card', `kc-level-card--${item.theme}`]"
-              @click="openKnowledgeEntry(item)"
             >
-              <span class="kc-level-card__mark"></span>
-              <span class="kc-level-card__icon">
-                <el-icon :size="24"><component :is="item.icon" /></el-icon>
-              </span>
-              <span class="kc-level-card__body">
-                <span class="kc-level-card__title">{{ item.title }}</span>
-                <span class="kc-level-card__desc">{{ item.desc }}</span>
-              </span>
-              <span class="kc-level-card__stats">
+              <!-- 左侧：铀场景（默认） -->
+              <button
+                type="button"
+                class="kc-level-card__side kc-level-card__side--left"
+                :class="{ 'is-active': !scenarioStore.isSupplyChain }"
+                @click="scenarioStore.setScenario('uranium'); openKnowledgeEntry(item)"
+              >
+                <span class="kc-level-card__mark"></span>
+                <span class="kc-level-card__icon">
+                  <el-icon :size="24"><component :is="item.icon" /></el-icon>
+                </span>
+                <span class="kc-level-card__body">
+                  <span class="kc-level-card__title">{{ item.title }}</span>
+                  <span class="kc-level-card__desc">{{ item.desc }}</span>
+                </span>
+                <span class="kc-level-card__side-tag">铀</span>
+              </button>
+              <!-- 右侧：汽车场景 -->
+              <button
+                type="button"
+                class="kc-level-card__side kc-level-card__side--right"
+                :class="{ 'is-active': scenarioStore.isSupplyChain }"
+                @click="scenarioStore.setScenario('supply_chain'); openKnowledgeEntry(item)"
+              >
+                <span class="kc-level-card__icon">
+                  <el-icon :size="24"><component :is="item.icon" /></el-icon>
+                </span>
+                <span class="kc-level-card__body">
+                  <span class="kc-level-card__title">{{ item.title }}</span>
+                  <span class="kc-level-card__desc">{{ item.desc }}</span>
+                </span>
+                <span class="kc-level-card__side-tag">汽车</span>
+              </button>
+              <!-- 统计信息（共用，放在卡片底部） -->
+              <span class="kc-level-card__stats" v-if="resourceOverviewByKey[item.key]?.length">
                 <span
                   v-for="stat in resourceOverviewByKey[item.key] || []"
                   :key="`${item.key}-${stat.label}`"
@@ -57,7 +81,7 @@
                   <span class="kc-level-card__stat-label">{{ stat.label }}</span>
                 </span>
               </span>
-            </button>
+            </div>
           </div>
         </section>
       </div>
@@ -904,8 +928,14 @@ const CATEGORY_TYPES = {
   military_technology: '',
 }
 
+import { useScenarioStore } from '@/stores/scenario'
+
 export default {
   name: 'NewKnowledgeCenter',
+  setup() {
+    const scenarioStore = useScenarioStore()
+    return { scenarioStore }
+  },
   components: {
     UserFilled, MapLocation, List, Reading,
     FolderOpened, Upload, Download, Delete, ArrowLeft,
@@ -1201,12 +1231,35 @@ export default {
   },
 
   computed: {
+    // 场景对应的 graph key：uranium → "uranium"，supply_chain → "supply_chain"
+    scenarioGraphKey() {
+      return this.scenarioStore.isSupplyChain ? 'supply_chain' : 'uranium'
+    },
+    // 按场景过滤的书籍（铀场景只显示铀相关，汽车场景显示汽车相关）
+    scenarioBooks() {
+      const books = this.dataset.books || []
+      const isAuto = this.scenarioStore.isSupplyChain
+      // 铀关键词 vs 汽车关键词
+      const uraniumKW = ['铀', 'uranium', '核', 'nuclear', '矿山', 'mine', '核电', 'u3o8', '红皮书', 'redbook']
+      const autoKW = ['汽车', 'auto', '车', 'vehicle', '供应链', 'supply', '电池', 'battery', '芯片', 'chip', '零部件', '制造', 'byd', '比亚迪', 'caam', '乘联会', '新能源', 'ev', '电动']
+      return books.filter(b => {
+        const name = (b.name || '').toLowerCase()
+        const cats = (b.categories || []).join(' ').toLowerCase()
+        const text = name + ' ' + cats
+        if (isAuto) {
+          return autoKW.some(k => text.includes(k.toLowerCase())) ||
+                 !uraniumKW.some(k => text.includes(k.toLowerCase()))
+        }
+        return uraniumKW.some(k => text.includes(k.toLowerCase())) ||
+               !autoKW.some(k => text.includes(k.toLowerCase()))
+      })
+    },
     currentLib() {
       if (!this.activeLibrary) return {}
       return this.libraries[this.activeLibrary] || {}
     },
     filteredBooks() {
-      let list = this.dataset.books
+      let list = this.scenarioBooks
       const q = this.dataset.filter.toLowerCase()
       if (q) list = list.filter(b => b.name.toLowerCase().includes(q))
       if (this.categoryFilter) list = list.filter(b => b.categories && b.categories.includes(this.categoryFilter))
@@ -1232,7 +1285,7 @@ export default {
       const paperDownloaded = this.paperStats.downloaded || this.sidebarPaperStats.downloaded
       const paperKeywordCount = this.paperStats.keywordCount > 0 ? this.paperStats.keywordCount : this.sidebarPaperStats.keywordCount
       const osintEvents = this.sidebarOsintEvents || []
-      const datasetBooks = this.dataset.books || []
+      const datasetBooks = this.scenarioBooks || []
       const libraryStats = (key) => {
         const lib = this.libraries[key] || {}
         return [
@@ -1334,7 +1387,7 @@ export default {
       handler(val) {
         this.$nextTick(() => {
           if (val === 'experts' && !this.resourceCache.expertStatsLoaded && !this.expertOverviewStats.loading) {
-            this.fetchExpertOverviewStats(this.dataset.books)
+            this.fetchExpertOverviewStats(this.scenarioBooks)
           }
           if (val && this.currentLib.graphData) {
             this.initGraph()
@@ -1354,6 +1407,16 @@ export default {
           this.initGraph()
         }
       })
+    },
+    // 场景切换时刷新知识库数据
+    'scenarioStore.currentScenario'() {
+      this.resourceCache.booksLoaded = false
+      this.resourceCache.expertStatsLoaded = false
+      this.fetchBookList(true)
+      if (this.activeLibrary) {
+        this.fetchSidebarPapers(true)
+        this.fetchSidebarOsint(true)
+      }
     },
   },
 
@@ -1906,11 +1969,11 @@ export default {
         this.dataset.loading = false
       }
       if (this.activeLibrary === 'experts') {
-        this.fetchExpertOverviewStats(this.dataset.books, force)
+        this.fetchExpertOverviewStats(this.scenarioBooks, force)
       }
     },
 
-    async fetchExpertOverviewStats(books = this.dataset.books, force = false) {
+    async fetchExpertOverviewStats(books = this.scenarioBooks, force = false) {
       if (this.resourceCache.expertStatsLoaded && !force) return
       const bookNames = [...new Set((books || []).map(item => item?.name).filter(Boolean))]
       const requestId = this.expertStatsRequestId + 1
@@ -1931,7 +1994,7 @@ export default {
         const readOne = async (bookName) => {
           try {
             const res = await axios.get('/api/domain/book/cognitiveModel', {
-              params: { book_name: bookName, force_refresh: false }
+              params: { book_name: bookName, force_refresh: false, graph_key: this.scenarioGraphKey }
             })
             const data = typeof res.data === 'string' ? JSON.parse(res.data) : res.data
             const model = data?.success ? data.data : null
@@ -2159,7 +2222,7 @@ export default {
       const axiosPromise = (async () => {
         const axios = (await import('axios')).default
         return axios.get('/api/domain/book/cognitiveModel', {
-          params: { book_name: this.cognitiveSelectedBook, force_refresh: forceRefresh }
+          params: { book_name: this.cognitiveSelectedBook, force_refresh: forceRefresh, graph_key: this.scenarioGraphKey }
         })
       })()
 
@@ -2898,29 +2961,58 @@ export default {
 
 .kc-level-card {
   position: relative;
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) minmax(116px, auto);
-  align-items: center;
-  gap: 12px;
-  min-height: 96px;
+  display: flex;
+  flex-direction: column;
   width: 100%;
-  padding: 14px 14px 14px 16px;
   border: 1px solid var(--kc-border);
   border-radius: var(--kc-radius);
   background: #ffffff;
   color: var(--kc-text);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color var(--kc-transition), box-shadow var(--kc-transition), transform var(--kc-transition), background var(--kc-transition);
+  transition: border-color var(--kc-transition), box-shadow var(--kc-transition), transform var(--kc-transition);
   overflow: hidden;
 }
-
 .kc-level-card:hover {
   border-color: var(--kc-entry-accent);
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
   transform: translateY(-2px);
-  background: linear-gradient(180deg, #ffffff 0%, var(--kc-entry-bg) 100%);
 }
+
+/* 左右两半 */
+.kc-level-card__side {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--kc-transition);
+  width: 100%;
+  font-family: inherit;
+}
+.kc-level-card__side--left {
+  border-bottom: 1px solid var(--kc-border-light);
+}
+.kc-level-card__side:hover {
+  background: var(--kc-entry-bg);
+}
+.kc-level-card__side.is-active {
+  background: var(--kc-entry-bg);
+}
+
+/* 场景标签 */
+.kc-level-card__side-tag {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 20px; border-radius: 4px;
+  font-size: 10px; font-weight: 700; flex-shrink: 0;
+}
+.kc-level-card__side--left .kc-level-card__side-tag  { background: #eef2ff; color: #4f46e5; }
+.kc-level-card__side--right .kc-level-card__side-tag { background: #ecfdf5; color: #059669; }
+.kc-level-card__side--left.is-active .kc-level-card__side-tag  { background: #6366f1; color: #fff; }
+.kc-level-card__side--right.is-active .kc-level-card__side-tag { background: #10b981; color: #fff; }
 
 .kc-level-card__mark {
   position: absolute;
@@ -2963,14 +3055,15 @@ export default {
   display: grid;
   grid-template-columns: repeat(3, minmax(34px, 1fr));
   gap: 6px;
-  min-width: 116px;
-  justify-self: end;
+  padding: 6px 14px 10px;
+  border-top: 1px solid var(--kc-border-light);
+  width: 100%;
 }
 
 .kc-level-card__stat {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
   gap: 2px;
   min-width: 0;
 }

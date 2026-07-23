@@ -1022,6 +1022,7 @@ import {Plus, House, Setting, Aim, Coin, Shop, Search, Download, Delete, Edit, R
 import {computed, nextTick, ref, onMounted, onUnmounted} from "vue";
 // 引入ECharts
 import * as echarts from 'echarts';
+import { useScenarioStore } from "@/stores/scenario";
 import {
   getKnowledgeBookList,
   importKnowledgeBook,
@@ -1745,7 +1746,29 @@ export default {
             throw new Error(response.message || '获取数据集列表失败');
           }
 
-          this.filteredData = response.data.map(item => ({
+          // ── 场景过滤：铀场景只显示铀相关，汽车场景只显示汽车相关 ──
+          let scenario = this.$route?.query?.scenario
+          if (!scenario) {
+            try {
+              const store = useScenarioStore()
+              scenario = store.currentScenario
+            } catch {}
+          }
+          scenario = scenario || 'uranium'
+          const isAuto = scenario === 'supply_chain'
+
+          let filtered = response.data || []
+          const uraniumKW = ['铀', 'uranium', '核', 'nuclear', 'u3o8']
+          const autoKW = ['汽车', 'auto', '供应链情报', '比亚迪', 'caam', 'jctrans', '新能源', 'ev', '电池', 'chip']
+
+          filtered = filtered.filter(item => {
+            const name = (item.name || item.book_name || '')
+            if (isAuto) {
+              return autoKW.some(k => name.includes(k))
+            }
+            return uraniumKW.some(k => name.includes(k))
+          })
+          this.filteredData = filtered.map(item => ({
             ...item,
             name: item.name || '未命名数据集',
             blockNum: '3',
