@@ -2,29 +2,28 @@
   <div class="case-comparison-page">
     <section class="page-head">
       <div>
-        <p class="eyebrow">SCNET CASE COMPARISON</p>
         <h1>案例对比分析</h1>
-        <p class="subtitle">对比不同实验案例的参数配置、指标表现和异常事件，发现模式差异和优化方向。</p>
+        <p class="subtitle">对比不同实验的参数配置与指标表现，发现模式差异与优化方向。</p>
       </div>
       <div class="head-actions">
         <div class="stat-item">
-          <span>案例库</span>
+          <span>实验库</span>
           <strong>{{ caseCount }}</strong>
         </div>
         <div class="stat-item">
           <span>相似度</span>
           <strong>{{ similarityDisplay }}</strong>
         </div>
-        <el-button type="primary" plain :icon="Refresh" @click="loadCaseLibrary" :loading="loading">刷新</el-button>
+        <el-button text size="small" :icon="Refresh" @click="loadCaseLibrary" :loading="loading" />
       </div>
     </section>
 
     <div class="comparison-grid">
-      <!-- 左侧: 案例库 -->
+      <!-- 左侧: 实验库 -->
       <aside class="case-library-panel">
         <header class="panel-header">
           <el-icon><Collection /></el-icon>
-          <span>案例库</span>
+          <span>实验库</span>
           <el-input
             v-model="searchQuery"
             placeholder="搜索案例..."
@@ -66,7 +65,7 @@
               <p class="case-goal">{{ c.goal_summary?.substring(0, 60) || '--' }}</p>
             </div>
           </div>
-          <div v-if="caseCount === 0 && !loading" class="empty-hint">暂无可用案例数据</div>
+          <div v-if="caseCount === 0 && !loading" class="empty-hint">暂无可用实验数据</div>
         </div>
       </aside>
 

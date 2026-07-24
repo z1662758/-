@@ -2,9 +2,8 @@
   <div class="post-report-page">
     <section class="report-head">
       <div>
-        <p class="eyebrow">URANIUM SUPPLY CHAIN · REPORT</p>
-        <h1>铀供应链实验报告</h1>
-        <p class="subtitle">基于铀供应链事中仿真与反事实分析结果，生成铀矿产能、供应安全、网络韧性等关键指标对比与因素总结。</p>
+        <h1>实验报告</h1>
+        <p class="subtitle">基于事中仿真与反事实分析结果，汇总关键指标对比与因素总结。</p>
       </div>
       <div class="head-actions">
         <el-dropdown trigger="click" @command="exportReport">
@@ -14,12 +13,13 @@
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item command="txt">文本（.txt）</el-dropdown-item>
               <el-dropdown-item command="html">HTML（.html）</el-dropdown-item>
+              <el-dropdown-item command="txt">文本（.txt）</el-dropdown-item>
+              <el-dropdown-item command="pdf">PDF（打印保存）</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        <el-button type="primary" plain :icon="Refresh" @click="refreshReport" :loading="loading">重新生成报告</el-button>
+        <el-button text size="small" :icon="Refresh" @click="refreshReport" :loading="loading" />
       </div>
     </section>
 
@@ -84,11 +84,21 @@
           </div>
         </section>
 
+        <!-- 综合结论 -->
+        <section class="report-section report-conclusion">
+          <header class="section-head">
+            <h2>综合结论</h2>
+          </header>
+          <div class="conclusion-body">
+            <p>{{ reportConclusion }}</p>
+          </div>
+        </section>
+
         <section class="report-section">
           <header class="section-head">
             <div>
               <h2>实验对比总览</h2>
-              <p>汇总供应链实验基本信息、关键参数与核心输出指标。</p>
+              <p>汇总实验基本信息、关键参数与核心输出指标。</p>
             </div>
             <span class="generated-at">生成时间：{{ generatedAt }}</span>
           </header>
@@ -471,8 +481,22 @@ const completionImprovementLabel = computed(() => {
   return `${Math.max(0, ((best - first) / first) * 100).toFixed(1)}%`;
 });
 
+const reportConclusion = computed(() => {
+  const data = reportData.value
+  if (!data) return ''
+  const best = bestExperimentLabel.value
+  const total = experimentRows.value.length
+  const completed = experimentRows.value.filter(r => r.rawCompletionRate > 0).length
+  const avgCompletion = data.avg_completion_rate ? `${(data.avg_completion_rate * 100).toFixed(1)}%` : '--'
+  const bestScore = data.best_score ? Number(data.best_score).toFixed(3) : '--'
+  const bestIter = data.best_iteration || '--'
+  const enterpriseCount = data.enterprise_count || '--'
+  return `本次实验共纳入 ${total} 组仿真（已完成 ${completed} 组），涉及 ${enterpriseCount} 家企业，平均订单完成率 ${avgCompletion}，综合得分 ${bestScore}。表现最优为「${best}」（第 ${bestIter} 轮），其完成率与净利润均领先于其他实验。建议以此参数配置为基准，在反事实实验中进一步验证策略鲁棒性。`
+})
+
+const MAX_OVERVIEW_ROWS = 5
 const overviewRows = computed(() => {
-  return experimentRows.value.map((row) => ({
+  return experimentRows.value.slice(0, MAX_OVERVIEW_ROWS).map((row) => ({
     id: row.id,
     label: row.label,
     source: row.source,
@@ -656,7 +680,7 @@ const generateReportHtml = (data) => {
 <html>
 <head>
   <meta charset="utf-8">
-  <title>铀供应链实验报告_${safeGetValue(data, 'experiment_id', '-')}</title>
+  <title>实验报告_${safeGetValue(data, 'experiment_id', '-')}</title>
   <style>
     body { font-family: "Microsoft YaHei", Arial, sans-serif; color: #0f172a; line-height: 1.6; padding: 24px; }
     section, article { break-inside: avoid; }
@@ -670,7 +694,7 @@ const generateReportHtml = (data) => {
   </style>
 </head>
 <body>
-  <h1>铀供应链实验报告</h1>
+  <h1>实验报告</h1>
   <p>生成时间：${new Date().toLocaleString('zh-CN')}</p>
   ${content}
 </body>
@@ -678,7 +702,7 @@ const generateReportHtml = (data) => {
 };
 
 // 导出报告
-const exportReport = (format = 'txt') => {
+const exportReport = (format = 'html') => {
   if (!reportData.value) {
     ElMessage.warning('没有可导出的报告数据');
     return;
@@ -687,13 +711,24 @@ const exportReport = (format = 'txt') => {
   exporting.value = true;
 
   try {
+    if (format === 'pdf') {
+      const w = window.open('', '_blank');
+      if (!w) { ElMessage.warning('浏览器拦截了弹窗，请允许后重试'); exporting.value = false; return; }
+      w.document.open();
+      w.document.write(generateReportHtml(reportData.value));
+      w.document.close();
+      setTimeout(() => { w.print(); exporting.value = false; }, 500);
+      ElMessage.success('已打开PDF打印窗口，请选择"另存为PDF"保存');
+      return;
+    }
+
     const isHtml = format === 'html';
     const content = isHtml ? generateReportHtml(reportData.value) : generateReportText(reportData.value);
     const blob = new Blob([content], { type: isHtml ? 'text/html;charset=utf-8' : 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `铀供应链实验报告_${reportData.value.experiment_id}.${isHtml ? 'html' : 'txt'}`;
+    link.download = `实验报告_${reportData.value.experiment_id}.${isHtml ? 'html' : 'txt'}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -706,7 +741,7 @@ const exportReport = (format = 'txt') => {
     }
     ElMessage.error('导出报告失败');
   } finally {
-    exporting.value = false;
+    if (format !== 'pdf') exporting.value = false;
   }
 };
 
@@ -716,7 +751,7 @@ const generateReportText = (data) => {
   const paramText = params.map(p => `${p.label}：${p.value}`).join('\n') || '无';
 
   return `
-铀供应链实验报告
+实验报告
 ==========================================
 
 一、实验概览
@@ -1004,6 +1039,32 @@ onMounted(() => {
   border-radius: 8px;
   background: #ffffff;
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
+}
+
+.report-conclusion {
+  border-left: 4px solid #3b82f6;
+  background: linear-gradient(135deg, #eff6ff, #ffffff);
+}
+
+.report-conclusion .section-head {
+  padding: 10px 16px;
+  border-bottom: 1px solid #dbeafe;
+}
+
+.report-conclusion .section-head h2 {
+  color: #1d4ed8;
+}
+
+.conclusion-body {
+  padding: 12px 16px;
+}
+
+.conclusion-body p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.75;
+  color: #334155;
+  font-weight: 600;
 }
 
 .section-head {

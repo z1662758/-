@@ -1,13 +1,12 @@
 <template>
   <div class="scnet-counterfactual-cockpit">
     <section class="page-head">
-      <div>
-        <p class="eyebrow">URANIUM SUPPLY CHAIN · COUNTERFACTUAL</p>
-        <h1>铀供应链反事实实验</h1>
-        <p class="subtitle">基于事中铀供应链仿真结果设定干预变量与产能方案，运行反事实实验并对比评估策略效果。支持铀矿产能调整、新矿投产阈值、需求波动等铀供应链特有参数。</p>
+      <div class="page-head__left">
+        <h1>反事实实验</h1>
+        <p class="subtitle">基于事中仿真结果，设定干预变量与产能方案，对比评估策略效果。</p>
       </div>
       <div class="page-actions">
-        <el-button type="primary" size="large" :icon="Upload" @click="triggerReportUpload">导入实验报告</el-button>
+        <el-button type="primary" size="default" :icon="Upload" @click="triggerReportUpload">导入实验报告</el-button>
         <input
           ref="reportFileInput"
           class="report-file-input"
@@ -15,17 +14,23 @@
           accept=".json,application/json"
           @change="handleReportUpload"
         />
+        <div class="action-divider"></div>
+        <button class="action-btn action-btn--outline" @click="connectSim" :disabled="isConnected || simState === 'preparing' || currentRunState.running">初始化 / 连接</button>
+        <button class="action-btn action-btn--primary" @click="startSim" :disabled="currentRunState.running || !isConnected || simState === 'preparing' || !activeCounterfactualExperiment">运行</button>
+        <button class="action-btn action-btn--ghost" @click="resetSim" :disabled="currentRunState.running">重置</button>
+        <button class="action-btn action-btn--accent" @click="generateReport" :disabled="!currentRunState.result">生成报告</button>
       </div>
     </section>
 
     <div class="top-row">
+      <!-- 左栏：实验控制区 -->
       <section class="control-panel panel-card panel-card--blue">
         <header class="panel-header">
           <div>
-            <p class="eyebrow">Uranium Supply Chain</p>
-            <h3>反事实实验控制区</h3>
+            <p class="eyebrow">Control Panel</p>
+            <h3>实验控制区</h3>
           </div>
-          <span class="state-badge" :data-state="currentRunState.running ? 'running' : simState">{{ currentRunState.running ? 'RUNNING' : stateLabel }}</span>
+          <span v-if="currentRunState.running || simState !== 'idle'" class="state-badge" :data-state="currentRunState.running ? 'running' : simState">{{ currentRunState.running ? 'RUNNING' : stateLabel }}</span>
         </header>
 
         <div class="panel-body stack">
@@ -41,7 +46,7 @@
           </div>
           <div class="counterfactual-target counterfactual-target--empty block" v-else>
             <strong>尚未选择反事实实验对象</strong>
-            <p>请先在右侧导入实验报告，或切换到已导入报告的事中实验。</p>
+            <p>请先导入实验报告，或切换到已导入报告的事中实验。</p>
           </div>
 
           <div class="control-params parameter-control-panel" v-if="activeCounterfactualExperiment">
@@ -68,52 +73,6 @@
                   />
                   <span class="control-unit">{{ parameter.unit }}</span>
                 </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="control-buttons">
-            <button class="btn btn-secondary" @click="connectSim" :disabled="isConnected || simState === 'preparing' || currentRunState.running">初始化 / 连接</button>
-            <button class="btn btn-primary" @click="startSim" :disabled="currentRunState.running || !isConnected || simState === 'preparing' || !activeCounterfactualExperiment">运行</button>
-            <button class="btn btn-ghost" @click="resetSim" :disabled="currentRunState.running">重置</button>
-            <button class="btn btn-primary" @click="generateReport" :disabled="!currentRunState.result">生成报告</button>
-          </div>
-
-          <div class="backend-run-status block">
-            <div class="backend-run-status__head">
-              <span>后端实验运行 · {{ activeCounterfactualExperiment?.label || '未选择' }}</span>
-              <span class="status-dot" :data-status="currentRunState.status || simState"></span>
-            </div>
-            <p>{{ currentRunState.message }}</p>
-            <div class="backend-task-meta" v-if="currentRunState.taskId">
-              <span>任务：{{ currentRunState.taskId }}</span>
-              <span>状态：{{ taskStatusText(currentRunState.status) }}</span>
-            </div>
-            <div class="backend-task-error" v-if="currentRunState.error">{{ currentRunState.error }}</div>
-            <div class="backend-result-grid" v-if="currentRunState.result">
-              <div>
-                <span>最佳轮次</span>
-                <strong>第 {{ currentRunState.result.bestIteration || '--' }} 轮</strong>
-              </div>
-              <div>
-                <span>完成率</span>
-                <strong>{{ formatPercentValue(currentRunState.result.completionRate) }}</strong>
-              </div>
-              <div>
-                <span>{{ currentRunState.result.isUranium ? '供应缺口率' : '积压率' }}</span>
-                <strong>{{ formatPercentValue(currentRunState.result.backlogRate) }}</strong>
-              </div>
-              <div>
-                <span>综合评分</span>
-                <strong>{{ formatNullableNumber(currentRunState.result.overallScore, 3) }}</strong>
-              </div>
-              <div v-if="currentRunState.result.isUranium && currentRunState.result.networkStability != null">
-                <span>网络稳定性</span>
-                <strong>{{ formatPercentValue(currentRunState.result.networkStability) }}</strong>
-              </div>
-              <div v-if="currentRunState.result.isUranium && currentRunState.result.productionCapacityEst != null">
-                <span>产能估算</span>
-                <strong>{{ formatNullableNumber(currentRunState.result.productionCapacityEst, 0) }} tU/年</strong>
               </div>
             </div>
           </div>
@@ -162,23 +121,15 @@
               <el-button size="default" @click="forceTriggerEvent">立即触发下一事件</el-button>
             </div>
           </div>
-
-          <div class="confirmed-panel" v-if="activeCounterfactualExperiment">
-            <h4>反事实实验对象摘要</h4>
-            <div class="confirmed-summary-row">
-              <div><strong>名称：</strong>{{ activeCounterfactualExperiment.label }}</div>
-              <div><strong>干预变量：</strong>{{ activeCounterfactualExperiment.arguments.intervention }}</div>
-              <div><strong>产能方案：</strong>{{ activeCounterfactualExperiment.arguments.capacityPlan }}</div>
-            </div>
-          </div>
         </div>
       </section>
 
-      <section class="charts-panel settings-panel panel-card panel-card--purple">
+      <!-- 中栏：实验自定义 -->
+      <section class="settings-panel panel-card panel-card--purple">
         <div class="settings-header">
           <div class="header-text">
-            <h3>单实验自定义</h3>
-            <p>选择实验以编辑 Arguments 与 Status 字段</p>
+            <h3>实验自定义</h3>
+            <p>选择实验以编辑参数与状态</p>
           </div>
           <el-button type="primary" plain size="small" @click="createExperiment">新增实验</el-button>
         </div>
@@ -311,6 +262,76 @@
             </el-form>
           </el-card>
         </el-scrollbar>
+      </section>
+
+      <!-- 右栏：实验结论 -->
+      <section class="conclusion-panel panel-card panel-card--green">
+        <header class="panel-header">
+          <div>
+            <p class="eyebrow">Experiment Conclusion</p>
+            <h3>实验结论</h3>
+          </div>
+          <span v-if="currentRunState.result" class="state-badge state-badge--done">已完成</span>
+        </header>
+
+        <div class="panel-body stack">
+          <div class="backend-run-status block">
+            <div class="backend-run-status__head">
+              <span>后端实验运行 · {{ activeCounterfactualExperiment?.label || '未选择' }}</span>
+              <span class="status-dot" :data-status="currentRunState.status || simState"></span>
+            </div>
+            <p>{{ currentRunState.message }}</p>
+            <div class="backend-task-meta" v-if="currentRunState.taskId">
+              <span>任务：{{ currentRunState.taskId }}</span>
+              <span>状态：{{ taskStatusText(currentRunState.status) }}</span>
+            </div>
+            <div class="backend-task-error" v-if="currentRunState.error">{{ currentRunState.error }}</div>
+          </div>
+
+          <div class="result-metrics-block" v-if="currentRunState.result">
+            <h4 class="result-block-title">实验指标结果</h4>
+            <div class="result-metrics-grid">
+              <div class="result-metric-card">
+                <span class="result-metric-label">最佳轮次</span>
+                <strong class="result-metric-value">第 {{ currentRunState.result.bestIteration || '--' }} 轮</strong>
+              </div>
+              <div class="result-metric-card">
+                <span class="result-metric-label">完成率</span>
+                <strong class="result-metric-value">{{ formatPercentValue(currentRunState.result.completionRate) }}</strong>
+              </div>
+              <div class="result-metric-card">
+                <span class="result-metric-label">{{ currentRunState.result.isUranium ? '供应缺口率' : '积压率' }}</span>
+                <strong class="result-metric-value">{{ formatPercentValue(currentRunState.result.backlogRate) }}</strong>
+              </div>
+              <div class="result-metric-card">
+                <span class="result-metric-label">综合评分</span>
+                <strong class="result-metric-value highlight">{{ formatNullableNumber(currentRunState.result.overallScore, 3) }}</strong>
+              </div>
+              <div class="result-metric-card" v-if="currentRunState.result.isUranium && currentRunState.result.networkStability != null">
+                <span class="result-metric-label">网络稳定性</span>
+                <strong class="result-metric-value">{{ formatPercentValue(currentRunState.result.networkStability) }}</strong>
+              </div>
+              <div class="result-metric-card" v-if="currentRunState.result.isUranium && currentRunState.result.productionCapacityEst != null">
+                <span class="result-metric-label">产能估算</span>
+                <strong class="result-metric-value">{{ formatNullableNumber(currentRunState.result.productionCapacityEst, 0) }} tU/年</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="confirmed-panel" v-if="activeCounterfactualExperiment">
+            <h4>实验对象摘要</h4>
+            <div class="confirmed-summary-row">
+              <div><strong>名称：</strong>{{ activeCounterfactualExperiment.label }}</div>
+              <div><strong>干预变量：</strong>{{ activeCounterfactualExperiment.arguments.intervention }}</div>
+              <div><strong>产能方案：</strong>{{ activeCounterfactualExperiment.arguments.capacityPlan }}</div>
+            </div>
+          </div>
+
+          <div class="no-result-placeholder" v-if="!currentRunState.result && !currentRunState.running">
+            <div class="placeholder-icon">📊</div>
+            <p>尚未运行实验，运行后将在此展示实验结论与关键指标。</p>
+          </div>
+        </div>
       </section>
     </div>
 
@@ -1712,19 +1733,50 @@ watch(
   flex: 0 0 auto;
   display: flex;
   justify-content: space-between;
-  gap: 20px;
+  gap: 24px;
   align-items: center;
-  padding: 14px 22px;
+  padding: 18px 28px;
   margin-bottom: 16px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 40%, #3b82f6 70%, #60a5fa 100%);
+  box-shadow: 0 8px 32px rgba(37, 99, 235, 0.28), 0 2px 8px rgba(30, 58, 138, 0.15);
+  position: relative;
+  overflow: hidden;
+}
+
+.scnet-counterfactual-cockpit .page-head::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -10%;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  pointer-events: none;
+}
+
+.scnet-counterfactual-cockpit .page-head::after {
+  content: '';
+  position: absolute;
+  bottom: -60%;
+  left: 5%;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  pointer-events: none;
+}
+
+.scnet-counterfactual-cockpit .page-head__left {
+  position: relative;
+  z-index: 1;
 }
 
 .scnet-counterfactual-cockpit .page-head .eyebrow {
   margin: 0 0 6px;
-  color: #3867f2;
+  color: rgba(255, 255, 255, 0.7);
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.1em;
@@ -1733,23 +1785,109 @@ watch(
 
 .scnet-counterfactual-cockpit .page-head h1 {
   margin: 0;
-  font-size: 26px;
+  font-size: 24px;
   line-height: 1.2;
   font-weight: 900;
+  color: #ffffff;
+  letter-spacing: 1px;
 }
 
 .scnet-counterfactual-cockpit .page-head .subtitle {
-  margin: 8px 0 0;
-  color: #64748b;
+  margin: 6px 0 0;
+  color: rgba(255, 255, 255, 0.75);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .scnet-counterfactual-cockpit .page-actions {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  position: relative;
+  z-index: 1;
+}
+
+.scnet-counterfactual-cockpit .action-divider {
+  width: 1px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.25);
+  margin: 0 4px;
+  border-radius: 1px;
+}
+
+.scnet-counterfactual-cockpit .action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border: none;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+
+.scnet-counterfactual-cockpit .action-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  filter: grayscale(0.2);
+}
+
+.scnet-counterfactual-cockpit .action-btn--primary {
+  background: #ffffff;
+  color: #1e3a8a;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.scnet-counterfactual-cockpit .action-btn--primary:hover:not(:disabled) {
+  background: #f0f5ff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+
+.scnet-counterfactual-cockpit .action-btn--outline {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(6px);
+}
+
+.scnet-counterfactual-cockpit .action-btn--outline:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-1px);
+}
+
+.scnet-counterfactual-cockpit .action-btn--ghost {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  border: 1px solid transparent;
+}
+
+.scnet-counterfactual-cockpit .action-btn--ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.scnet-counterfactual-cockpit .action-btn--accent {
+  background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
+  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.35);
+}
+
+.scnet-counterfactual-cockpit .action-btn--accent:hover:not(:disabled) {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.45);
 }
 
 .scnet-counterfactual-cockpit .report-file-input {
@@ -1759,7 +1897,7 @@ watch(
 .scnet-counterfactual-cockpit .top-row {
   flex: 1 1 auto;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1.15fr 1fr;
   gap: 16px;
   min-height: 0;
 }
@@ -1817,6 +1955,100 @@ watch(
   border-color: #7c3aed;
   background: #7c3aed;
   color: #ffffff;
+}
+
+/* ---- 绿色主题（结论面板） ---- */
+.scnet-counterfactual-cockpit .panel-card--green {
+  border-top: 3px solid #10b981;
+}
+
+.scnet-counterfactual-cockpit .panel-card--green .panel-header {
+  border-bottom-color: #d1fae5;
+  background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%);
+}
+
+.scnet-counterfactual-cockpit .panel-card--green .panel-header .eyebrow {
+  color: #10b981;
+}
+
+.scnet-counterfactual-cockpit .panel-card--green .section-title {
+  color: #059669;
+}
+
+.scnet-counterfactual-cockpit .state-badge--done {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.scnet-counterfactual-cockpit .result-metrics-block {
+  padding: 12px;
+  border: 1px solid #d1fae5;
+  border-radius: var(--radius-md);
+  background: #f0fdf4;
+}
+
+.scnet-counterfactual-cockpit .result-block-title {
+  margin: 0 0 10px;
+  color: #065f46;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.scnet-counterfactual-cockpit .result-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.scnet-counterfactual-cockpit .result-metric-card {
+  padding: 10px 12px;
+  border: 1px solid #d1fae5;
+  border-radius: 8px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.scnet-counterfactual-cockpit .result-metric-label {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.scnet-counterfactual-cockpit .result-metric-value {
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.scnet-counterfactual-cockpit .result-metric-value.highlight {
+  color: #059669;
+  font-size: 18px;
+}
+
+.scnet-counterfactual-cockpit .no-result-placeholder {
+  text-align: center;
+  padding: 32px 16px;
+  color: #94a3b8;
+  border: 1px dashed #d1fae5;
+  border-radius: var(--radius-md);
+  background: #f8fafc;
+}
+
+.scnet-counterfactual-cockpit .no-result-placeholder .placeholder-icon {
+  font-size: 36px;
+  margin-bottom: 10px;
+}
+
+.scnet-counterfactual-cockpit .no-result-placeholder p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #94a3b8;
 }
 
 .scnet-counterfactual-cockpit .eyebrow {

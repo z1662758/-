@@ -2,20 +2,13 @@
   <div class="post-causal-mechanism-page">
     <section class="page-head">
       <div>
-        <p class="eyebrow">URANIUM SUPPLY CHAIN · MECHANISM & CAUSAL</p>
         <h1>机制分析与因果推断</h1>
-        <p class="subtitle">从铀供应链异常现象回推干预策略与机制假设，结合因果图与反事实推理，判断铀矿产能、新矿投产与网络演化的主导驱动力。</p>
+        <p class="subtitle">从异常现象回推机制假设，结合因果图与反事实推理，判断主导驱动力。</p>
       </div>
       <div class="head-actions">
-        <div class="stat-item">
-          <span>事件节点</span>
-          <strong>{{ eventRecordCount }}</strong>
-        </div>
-        <div class="stat-item">
-          <span>主导驱力</span>
-          <strong>{{ dominantDriver }}</strong>
-        </div>
-        <el-button type="primary" plain :icon="Refresh" @click="refreshData">刷新数据</el-button>
+        <span class="inline-stat">事件 <b>{{ eventRecordCount }}</b></span>
+        <span class="inline-stat">驱力 <b>{{ dominantDriver }}</b></span>
+        <el-button text size="small" :icon="Refresh" @click="refreshData" />
       </div>
     </section>
 
@@ -29,10 +22,7 @@
 
     <section class="analysis-pipeline">
       <header class="pipeline-head">
-        <div>
-          <h2>机制推断流程</h2>
-          <p>围绕“现象归纳、策略回推、机制定位、驱动力判断”形成可追溯的宏观分析链。</p>
-        </div>
+        <h2>机制推断流程</h2>
         <el-tag type="info" effect="plain" round>系统动力学视角</el-tag>
       </header>
 
@@ -83,41 +73,11 @@
               <el-button text :icon="Refresh" @click="refreshData">刷新</el-button>
             </header>
             <div class="detail-body">
-              <!-- 分析设置 -->
-              <section class="detail-section">
-                <header class="detail-section-head">
-                  <el-icon><Setting /></el-icon>
-                  <span>分析设置</span>
-                </header>
-                <div class="detail-section-content">
-                  <!-- 设置详情 -->
-                  <div class="detail-subblock">
-                    <h4 class="detail-subblock-title">设置详情</h4>
-                    <div class="detail-param-grid">
-                      <div class="detail-param-item" v-for="p in analysisParams" :key="p.label">
-                        <span class="param-label">{{ p.label }}</span>
-                        <span class="param-value" :class="{ null: p.value === 'NULL' }">{{ p.value }}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <!-- 任务详情 -->
-                  <div class="detail-subblock">
-                    <h4 class="detail-subblock-title">任务详情</h4>
-                    <div class="detail-task-row">
-                      <span class="task-name-label">{{ stepDetailData.settings?.task?.name || '任务名' }}</span>
-                      <el-tag v-if="stepDetailData.settings?.task?.status === 'completed'" size="small" type="success" effect="plain" round style="margin-right:12px">已完成</el-tag>
-                      <div class="task-name-spacer"></div>
-                      <el-button type="primary" size="default" @click.stop="onStartTask" :loading="loading">开始任务</el-button>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <!-- 运行结果 -->
+              <!-- 运行结果（结论置顶） -->
               <section class="detail-section">
                 <header class="detail-section-head">
                   <el-icon><DataLine /></el-icon>
-                  <span>运行结果</span>
+                  <span>分析结论</span>
                 </header>
                 <div class="detail-section-content">
                   <div v-if="runResultText !== '暂无运行结果'" class="detail-run-result">
@@ -127,33 +87,33 @@
                       <span>置信度: {{ stepDetailData.runResult.confidence || '--' }}</span>
                     </div>
                   </div>
-                  <div v-else class="detail-empty-hint">暂无运行结果</div>
+                  <div v-else class="detail-empty-hint">点击"开始任务"获取分析结论</div>
                 </div>
               </section>
 
-              <!-- Agent设置详情 -->
+              <!-- 分析设置 -->
               <section class="detail-section">
                 <header class="detail-section-head">
-                  <el-icon><User /></el-icon>
-                  <span>Agent设置详情</span>
+                  <el-icon><Setting /></el-icon>
+                  <span>分析设置</span>
                 </header>
                 <div class="detail-section-content">
-                  <template v-if="agentList.length > 0">
-                    <div class="agent-list">
-                      <div v-for="(agent, idx) in agentList" :key="idx" class="agent-item">
-                        <div class="agent-item-head">
-                          <el-tag size="small" :type="agent.status === '已执行' ? 'success' : 'info'" effect="light" round>{{ agent.status }}</el-tag>
-                          <span class="agent-role">{{ agent.role }}</span>
-                        </div>
-                        <p class="agent-output">{{ agent.output }}</p>
+                  <div class="detail-subblock">
+                    <div class="detail-param-grid">
+                      <div class="detail-param-item" v-for="p in analysisParams" :key="p.label">
+                        <span class="param-label">{{ p.label }}</span>
+                        <span class="param-value" :class="{ null: p.value === 'NULL' }">{{ p.value }}</span>
                       </div>
                     </div>
-                    <div class="agent-model-info" v-if="stepDetailData.agentConfig?.model">
-                      <span class="model-label">分析模型:</span>
-                      <el-tag size="small" effect="plain" round>{{ stepDetailData.agentConfig.model }}</el-tag>
+                  </div>
+                  <div class="detail-subblock">
+                    <div class="detail-task-row">
+                      <span class="task-name-label">{{ stepDetailData.settings?.task?.name || '任务名' }}</span>
+                      <el-tag v-if="stepDetailData.settings?.task?.status === 'completed'" size="small" type="success" effect="plain" round style="margin-right:12px">已完成</el-tag>
+                      <div class="task-name-spacer"></div>
+                      <el-button type="primary" size="small" @click.stop="onStartTask" :loading="loading">开始任务</el-button>
                     </div>
-                  </template>
-                  <div v-else class="detail-empty-hint">暂无 Agent 配置信息</div>
+                  </div>
                 </div>
               </section>
             </div>
@@ -195,9 +155,21 @@
             </div>
             <el-button type="primary" size="small" @click="runCF" :loading="cfLoading"><el-icon><Connection /></el-icon>执行推理</el-button>
           </div>
-          <div v-if="cfResult" class="cf-result"><el-alert :title="cfResult.summary" type="info" :closable="false" show-icon/>
-            <div class="cf-predictions"><div v-for="p in cfResult.predictions" :key="p.target_variable" class="cf-pred-item"><strong>{{ p.target_variable }}</strong><span :class="p.predicted_effect.startsWith('+')?'pred-pos':'pred-neg'">{{ p.predicted_effect }}</span><span class="pred-conf">置信度 {{ (p.confidence*100).toFixed(0) }}%</span><p>{{ p.rationale }}</p></div></div>
+          <div v-if="cfResult" class="cf-conclusion">
+            <div class="cf-conclusion-head">推理结论</div>
+            <p class="cf-conclusion-summary">{{ cfResult.summary }}</p>
+            <div class="cf-predictions">
+              <div v-for="p in cfResult.predictions" :key="p.target_variable" class="cf-pred-item">
+                <div class="cf-pred-head">
+                  <strong>{{ p.target_variable }}</strong>
+                  <span :class="p.predicted_effect.startsWith('+')?'pred-pos':'pred-neg'">{{ p.predicted_effect }}</span>
+                  <span class="pred-conf">{{ (p.confidence*100).toFixed(0) }}%</span>
+                </div>
+                <p>{{ p.rationale }}</p>
+              </div>
+            </div>
           </div>
+          <div v-else class="cf-placeholder">选择干预变量并点击"执行推理"查看因果推断结论</div>
         </div>
       </div>
     </section>
@@ -462,112 +434,90 @@ onMounted(() => {
 }
 
 .page-head {
+  flex: 0 0 auto;
   display: flex;
   justify-content: space-between;
   gap: 20px;
   align-items: center;
-  padding: 14px 22px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+  padding: 16px 28px;
+  margin-bottom: 14px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 40%, #3b82f6 70%, #60a5fa 100%);
+  box-shadow: 0 8px 32px rgba(37, 99, 235, 0.28), 0 2px 8px rgba(30, 58, 138, 0.15);
+  min-height: 72px;
 }
-
-.eyebrow {
-  margin: 0 0 6px;
-  color: #3867f2;
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
+.page-head > div:first-child { flex-shrink: 0; }
 
 .page-head h1 {
   margin: 0;
-  font-size: 26px;
+  font-size: 24px;
   line-height: 1.2;
   font-weight: 900;
+  color: #ffffff;
+  letter-spacing: 1px;
+  white-space: nowrap;
 }
 
 .subtitle {
-  margin: 8px 0 0;
-  color: #64748b;
+  margin: 6px 0 0;
+  color: rgba(255,255,255,0.75);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .head-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
-  flex: 0 0 auto;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
-.stat-item {
-  min-width: 112px;
-  padding: 10px 13px;
-  border: 1px solid #dbeafe;
-  border-radius: 10px;
-  background: linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%);
-}
-
-.stat-item span {
-  display: block;
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.stat-item strong {
-  display: block;
-  margin-top: 6px;
-  color: #1e3a8a;
-  font-size: 21px;
-  line-height: 1.1;
-}
+.inline-stat { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 6px; background: rgba(255,255,255,0.15); font-size: 12px; color: rgba(255,255,255,0.8); font-weight: 600; white-space: nowrap; }
+.inline-stat b { color: #fff; font-size: 14px; }
 
 .overview-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
 
 .overview-item {
   display: grid;
-  grid-template-columns: 42px 1fr;
+  grid-template-columns: 36px 1fr;
   grid-template-rows: auto auto;
-  column-gap: 12px;
+  column-gap: 10px;
   align-items: center;
-  min-height: 64px;
-  padding: 10px 16px;
+  min-height: 52px;
+  padding: 8px 12px;
   border: 1px solid #e2e8f0;
-  border-left: 3px solid #bfdbfe;
+  border-top: 3px solid #3b82f6;
   border-radius: 10px;
   background: #ffffff;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
 }
 
 .overview-item .el-icon {
   grid-row: 1 / 3;
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
   background: #dbeafe;
-  color: #3867f2;
-  font-size: 18px;
+  color: #3b82f6;
+  font-size: 15px;
 }
 
 .overview-item span {
   color: #64748b;
-  font-size: 13px;
-  font-weight: 800;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .overview-item strong {
   color: #0f172a;
-  font-size: 20px;
+  font-size: 16px;
   line-height: 1.2;
 }
 
@@ -577,7 +527,7 @@ onMounted(() => {
   border: 1px solid #e2e8f0;
   border-radius: 14px;
   background: #ffffff;
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -586,23 +536,25 @@ onMounted(() => {
 .pipeline-head {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  padding: 12px 20px 10px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-top: 3px solid #3b82f6;
   border-bottom: 1px solid #eef2f7;
+  background: linear-gradient(180deg, #eff6ff, #ffffff);
 }
 
 .pipeline-head h2 {
   margin: 0;
-  font-size: 18px;
-  font-weight: 900;
+  font-size: 14px;
+  font-weight: 800;
 }
 
 .pipeline-head p {
-  margin: 5px 0 0;
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 600;
+  margin: 2px 0 0;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 500;
 }
 
 .pipeline-scroll {
@@ -617,10 +569,10 @@ onMounted(() => {
   position: relative;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
   margin: 0;
-  padding: 16px 18px 18px;
+  padding: 10px 12px 12px;
   overflow: hidden;
   align-content: center;
 }
@@ -630,53 +582,36 @@ onMounted(() => {
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  min-height: 245px;
-  padding: 18px 16px 16px;
+  gap: 6px;
+  min-height: 0;
+  padding: 10px 12px 10px;
   border: 1px solid #dbeafe;
-  border-radius: 16px;
+  border-radius: 10px;
   background: #ffffff;
-  box-shadow: 0 18px 36px rgba(30, 64, 175, 0.08);
+  box-shadow: 0 2px 8px rgba(30, 64, 175, 0.06);
   cursor: pointer;
   overflow: hidden;
-  transition: transform 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1),
-              box-shadow 0.3s ease,
-              border-color 0.3s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .pipeline-card::before {
   content: '';
   position: absolute;
-  left: 22px;
-  right: 22px;
+  left: 12px;
+  right: 12px;
   top: 0;
-  height: 5px;
+  height: 3px;
   border-radius: 0 0 999px 999px;
-  transition: height 0.25s ease,
-              left 0.25s ease,
-              right 0.25s ease,
-              background 0.3s ease;
 }
 
 .pipeline-card:hover {
-  transform: translateY(-4px);
-}
-
-.pipeline-card:hover::before {
-  height: 6px;
-  left: 14px;
-  right: 14px;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(30, 64, 175, 0.1);
 }
 
 .pipeline-card.active {
-  transform: translateY(-2px) scale(1.02);
+  transform: none;
   z-index: 2;
-}
-
-.pipeline-card.active::before {
-  height: 6px;
-  left: 10px;
-  right: 10px;
 }
 
 /* ========== 卡片主题色 ========== */
@@ -724,11 +659,11 @@ onMounted(() => {
 /* ========== 步骤详情面板 ========== */
 
 .step-detail-panel {
-  margin: 16px 18px 18px;
+  margin: 8px 12px 12px;
   border: 1px solid #e2e8f0;
-  border-radius: 16px;
+  border-radius: 12px;
   background: #ffffff;
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
   overflow: hidden;
 }
 
@@ -736,31 +671,31 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 14px 20px;
+  padding: 8px 14px;
   border-bottom: 1px solid #eef2f7;
 }
 
 .detail-head-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .detail-step-badge {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
   color: #ffffff;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 900;
 }
 
 .detail-head h3 {
   margin: 0;
-  font-size: 18px;
-  font-weight: 900;
+  font-size: 14px;
+  font-weight: 800;
   color: #0f172a;
 }
 
@@ -768,7 +703,6 @@ onMounted(() => {
   padding: 0;
 }
 
-/* 区块容器 */
 .detail-section {
   border-bottom: 1px solid #eef2f7;
 }
@@ -780,10 +714,10 @@ onMounted(() => {
 .detail-section-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 20px;
+  gap: 6px;
+  padding: 8px 14px;
   background: #f8fafc;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 800;
   color: #1e293b;
   border-bottom: 1px solid #eef2f7;
@@ -791,7 +725,7 @@ onMounted(() => {
 
 .detail-section-head .el-icon {
   color: #64748b;
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .detail-section-content {
@@ -988,8 +922,8 @@ onMounted(() => {
 }
 
 /* ---- 因果推断 ---- */
-.causal-section { flex:0 0 auto; margin-top:12px; border:1px solid #e2e8f0; border-radius:12px; background:#fff; box-shadow:0 6px 16px rgba(15,23,42,0.04); overflow:hidden; }
-.causal-section-head { display:flex; align-items:center; gap:10px; padding:10px 16px; border-bottom:1px solid #eef2f7; background:linear-gradient(90deg,#eff6ff,#fff); font-size:14px; font-weight:800; color:#1e40af; }
+.causal-section { flex:0 0 auto; margin-top:12px; border:1px solid #e2e8f0; border-radius:14px; background:#fff; box-shadow:0 6px 16px rgba(15,23,42,0.06); overflow:hidden; }
+.causal-section-head { display:flex; align-items:center; gap:10px; padding:10px 16px; border-top:3px solid #10b981; border-bottom:1px solid #eef2f7; background:linear-gradient(180deg,#ecfdf5,#fff); font-size:14px; font-weight:800; color:#065f46; }
 .causal-legend { margin-left:auto; display:flex; gap:12px; font-size:11px; font-weight:600; color:#64748b; }
 .legend-dot { width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:3px; }
 .causal-grid { display:grid; grid-template-columns:1fr 360px; gap:0; }
@@ -1002,14 +936,18 @@ onMounted(() => {
 .cf-control { display:flex; flex-direction:column; gap:8px; }
 .cf-field { display:flex; flex-direction:column; gap:3px; }
 .cf-field label { font-size:11px; font-weight:700; color:#64748b; }
-.cf-result { margin-top:10px; }
-.cf-predictions { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
-.cf-pred-item { padding:8px 10px; border:1px solid #e2e8f0; border-radius:8px; background:#fafbfc; }
-.cf-pred-item strong { display:block; font-size:12px; color:#0f172a; }
-.cf-pred-item span { font-size:15px; font-weight:900; }
+.cf-conclusion { margin-top: 10px; border: 1px solid #d1fae5; border-radius: 10px; background: #f0fdf4; overflow: hidden; }
+.cf-conclusion-head { padding: 6px 12px; background: #d1fae5; font-size: 12px; font-weight: 800; color: #065f46; }
+.cf-conclusion-summary { margin: 0; padding: 8px 12px; font-size: 12px; line-height: 1.6; color: #334155; font-weight: 600; }
+.cf-placeholder { margin-top: 10px; padding: 16px; text-align: center; color: #94a3b8; font-size: 12px; border: 1px dashed #e2e8f0; border-radius: 8px; }
+.cf-predictions { display: flex; flex-direction: column; gap: 6px; padding: 0 12px 10px; }
+.cf-pred-item { padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; }
+.cf-pred-head { display: flex; align-items: center; gap: 8px; }
+.cf-pred-head strong { font-size: 12px; color: #0f172a; }
+.cf-pred-head span { font-size: 14px; font-weight: 900; }
 .pred-pos { color:#22c55e; } .pred-neg { color:#ef4444; }
-.pred-conf { font-size:11px!important; color:#94a3b8; margin-left:8px; }
-.cf-pred-item p { margin:4px 0 0; font-size:11px; color:#64748b; }
+.pred-conf { font-size: 11px !important; color: #94a3b8; margin-left: 8px; }
+.cf-pred-item p { margin: 4px 0 0; font-size: 11px; color: #64748b; line-height: 1.4; }
 
 .detail-slide-leave-to {
   opacity: 0;
@@ -1019,9 +957,9 @@ onMounted(() => {
 
 .pipeline-card header {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   align-items: flex-start;
-  min-height: 92px;
+  min-height: 0;
 }
 
 .pipeline-card header > div {
@@ -1033,18 +971,18 @@ onMounted(() => {
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  width: 42px;
-  height: 42px;
-  border-radius: 13px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
   color: #ffffff;
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 900;
 }
 
 .step-title-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   justify-content: space-between;
   min-width: 0;
 }
@@ -1052,23 +990,23 @@ onMounted(() => {
 .step-title-row h3 {
   margin: 0;
   color: #0f172a;
-  font-size: 18px;
-  line-height: 1.12;
-  font-weight: 900;
+  font-size: 13px;
+  line-height: 1.15;
+  font-weight: 800;
   white-space: nowrap;
 }
 
 .pipeline-card header p {
-  margin: 7px 0 0;
-  color: #64748b;
-  font-size: 12px;
-  line-height: 1.45;
-  font-weight: 700;
+  margin: 3px 0 0;
+  color: #94a3b8;
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 600;
 }
 
 .step-kv {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
 }
 
@@ -1076,42 +1014,38 @@ onMounted(() => {
 .step-result span {
   flex: 0 0 auto;
   color: #94a3b8;
-  font-size: 12px;
-  font-weight: 800;
+  font-size: 10px;
+  font-weight: 700;
 }
 
 .step-kv strong {
   color: #0f172a;
-  font-size: 12px;
-  line-height: 1.4;
-  font-weight: 900;
+  font-size: 11px;
+  line-height: 1.3;
+  font-weight: 800;
 }
 
 .step-result {
   margin-top: auto;
-  padding: 12px 13px;
-  border-left: 4px solid;
-  border-radius: 12px;
+  padding: 6px 8px;
+  border-left: 3px solid;
+  border-radius: 6px;
   background: #f8fafc;
 }
 
 .step-result p {
-  margin: 7px 0 0;
+  margin: 3px 0 0;
   color: #334155;
-  font-size: 12px;
-  line-height: 1.45;
-  font-weight: 700;
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 600;
 }
 
 :deep(.step-title-row .el-tag) {
-  height: 26px;
-  padding: 0 10px;
-  border-color: #d9dee7;
-  border-radius: 999px;
-  background: #f3f5f8;
-  color: #8b94a3;
-  font-size: 12px;
-  font-weight: 800;
+  height: 22px;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 700;
 }
 
 @media (max-width: 1180px) {

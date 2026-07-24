@@ -2,30 +2,12 @@
   <div class="anomaly-analysis-page">
     <section class="page-head">
       <div>
-        <p class="eyebrow">SCNET ANOMALY ANALYSIS</p>
         <h1>异常分析</h1>
-        <p class="subtitle">对实验过程中的指标突变、极端事件和网络结构异常进行多维度检测和归因分析。</p>
+        <p class="subtitle">检测实验过程中的指标突变与网络异常，进行多维度归因分析。</p>
       </div>
       <div class="head-actions">
-        <div class="stat-item">
-          <span>异常总数</span>
-          <strong>{{ anomalyCount }}</strong>
-        </div>
-        <div class="stat-item">
-          <span>高严重度</span>
-          <strong style="color:#ef4444">{{ highSeverityCount }}</strong>
-        </div>
-        <el-button type="primary" plain :icon="Refresh" @click="loadAnomalies" :loading="loading">刷新</el-button>
+        <el-button text size="small" :icon="Refresh" @click="loadAnomalies" :loading="loading" />
       </div>
-    </section>
-
-    <!-- 概览卡片 -->
-    <section class="overview-strip">
-      <article v-for="item in overviewCards" :key="item.label" class="overview-card">
-        <el-icon><component :is="item.icon" /></el-icon>
-        <span>{{ item.label }}</span>
-        <strong>{{ item.value }}</strong>
-      </article>
     </section>
 
     <div class="main-grid">
