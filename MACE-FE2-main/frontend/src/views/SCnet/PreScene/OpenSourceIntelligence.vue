@@ -24,24 +24,7 @@
         </div>
 
         <div class="header-main-content">
-          <div class="header-tab-selector">
-            <div
-              v-for="tab in headerTabs"
-              :key="tab.key"
-              class="header-tab-item"
-              :class="{ active: activeHeaderTab === tab.key }"
-              @click="switchTab(tab.key)"
-            >
-              <div class="tab-icon-wrap" :class="tab.iconClass">
-                <el-icon><component :is="tab.icon" /></el-icon>
-              </div>
-              <div class="tab-text">
-                <span class="tab-title">{{ tab.title }}</span>
-                <span class="tab-subtitle">{{ tab.subtitle }}</span>
-              </div>
-              <el-icon class="tab-arrow"><ArrowRight /></el-icon>
-            </div>
-          </div>
+
 
           <div class="header-banner">
             <div class="banner-top">
@@ -58,7 +41,7 @@
             <div class="banner-main">
               <div class="banner-text">
                 <h1>开源情报 <span class="highlight">实时追踪</span></h1>
-                <p>实时监测全球汽车供应链动态：港口拥堵、政策变化、芯片短缺、物流中断、市场需求波动</p>
+                <p>实时监测全球供应链动态：港口拥堵、政策变化、芯片短缺、物流中断、市场需求波动</p>
               </div>
               <div class="banner-stats">
                 <div class="stat">
@@ -80,106 +63,15 @@
               </div>
             </div>
 
-            <div class="banner-btn">
-              <el-button plain type="primary" @click="openSettings">
-                <el-icon><Setting /></el-icon>监控设置
-              </el-button>
-            </div>
+
           </div>
         </div>
       </div>
 
       <!-- 地图区域 -->
-      <div v-show="activeHeaderTab === '供应链地图'" class="map-section">
-        <!-- 爬虫控制面板 -->
-        <div class="crawler-panel">
-          <el-card shadow="never">
-            <div class="crawler-row">
-              <el-select
-                v-model="selectedSourceIds"
-                multiple
-                collapse-tags
-                collapse-tags-tooltip
-                placeholder="选择开源情报网址"
-                style="width: 360px"
-              >
-                <el-option
-                  v-for="source in sourceOptions"
-                  :key="source.id"
-                  :label="source.name"
-                  :value="source.id"
-                >
-                  <span style="float:left">{{ source.name }}</span>
-                  <el-tag
-                    size="small"
-                    style="float:right;margin-left:8px"
-                    :type="source.connector === 'web_scraper' ? 'success' : (source.connector === 'jctrans' ? 'primary' : 'info')"
-                  >
-                    {{ source.connector }}
-                  </el-tag>
-                  <span
-                    v-if="source.healthTag"
-                    style="float:right;font-size:12px"
-                    :style="{ color: source.health_status === 'healthy' ? '#67c23a' : (source.health_status === 'degraded' ? '#e6a23c' : '#f56c6c') }"
-                  >
-                    {{ source.healthTag }}
-                  </span>
-                </el-option>
-              </el-select>
-
-              <el-select
-                v-model="crawlerKeywords"
-                multiple
-                filterable
-                allow-create
-                default-first-option
-                placeholder="输入主题词，例如：港口拥堵、芯片短缺、关税"
-                style="width: 460px"
-              >
-                <el-option
-                  v-for="kw in keywordOptions"
-                  :key="kw"
-                  :label="kw"
-                  :value="kw"
-                />
-              </el-select>
-
-              <el-button type="primary" :loading="crawlLoading" @click="startCrawl">
-                现场爬取
-              </el-button>
-
-              <el-button :loading="eventsLoading" @click="loadEvents">
-                刷新事件
-              </el-button>
-            </div>
-
-            <div class="crawler-tip">
-              已选择 {{ selectedSourceIds.length }} 个网址，主题词 {{ crawlerKeywords.length }} 个。
-              
-            </div>
-
-            <!-- 采集状态汇总 -->
-            <div v-if="crawlStatusList.length" class="crawl-status-summary">
-              <div class="status-title">最近采集状态</div>
-              <div
-                v-for="s in crawlStatusList"
-                :key="s.source_id"
-                class="status-row"
-              >
-                <span
-                  class="status-dot"
-                  :style="{ background: s.status === 'ok' ? '#67c23a' : (s.status === 'empty' ? '#e6a23c' : '#f56c6c') }"
-                ></span>
-                <span class="status-name">{{ s.source_name }}</span>
-                <span class="status-count">{{ s.items_found }} 条</span>
-                <span v-if="s.error" class="status-error">{{ s.error }}</span>
-              </div>
-            </div>
-          </el-card>
-        </div>
-
+      <div class="map-section">
         <div class="map-container">
-          <div id="supplyChainMap" style="width:100%;height:100%"></div>
+          <WorldBaseMap :events="mapEvents" @select-event="selectEvent" />
 
           <div class="map-controls">
             <el-dropdown trigger="click">
@@ -294,7 +186,7 @@
             <span>{{ filteredEvents.length }}条记录</span>
           </div>
 
-          <el-empty v-if="!filteredEvents.length" description="暂无事件，请先选择网址并现场爬取" />
+          <el-empty v-if="!filteredEvents.length" description="暂无风险事件数据" />
 
           <el-row v-else :gutter="16">
             <el-col
@@ -350,9 +242,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { useRoute } from 'vue-router'
+import WorldBaseMap from '@/components/SupplyChain/WorldBaseMap.vue'
 import {
   ArrowRight,
   Back,
@@ -368,6 +260,10 @@ import {
   WarningFilled
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+
+const route = useRoute()
+// 支持 ?scenario=uranium 直接访问铀开源情报
+const isUranium = computed(() => route.query.scenario === 'uranium')
 
 // ========== 后端接口 ==========
 const API_BASE = import.meta.env.VITE_OSINT_API_BASE || 'http://127.0.0.1:9091/SCnet/osint'
@@ -406,9 +302,54 @@ const switchTab = (key) => {
 }
 
 // ========== 滚动新闻 ==========
-const tickerNewsList = ref([
-  { time: '--:--', title: '等待开源情报数据接入', source: 'OSINT' }
-])
+const tickerNewsList = ref(
+  isUranium.value
+    ? [
+      { time: '10:30', title: 'Kazatomprom 硫酸供应谈判陷入僵局，Q4产量或再降 10%', source: 'Reuters' },
+      { time: '09:15', title: '尼日尔军政府拟提高 Somair 合资矿权益金至 20%', source: 'AFP' },
+      { time: '08:00', title: '美国能源部启动第二轮铀战略储备招标 200 万磅', source: 'DOE' },
+      { time: '07:45', title: 'Cameco Cigar Lake 维持满产，Q2 产量超预期 5%', source: 'Cameco' },
+      { time: '07:20', title: '中核内蒙古 ISL 项目产能突破 500 tU/年', source: 'CNNC' },
+      { time: '06:50', title: '法国 Orano 与蒙古签署 Zuuvch-Ovoo 铀矿框架协议', source: 'Orano' },
+      { time: '06:20', title: 'Sprott 实物铀基金周度净流入 4,200 万美元', source: 'Sprott' },
+      { time: '05:50', title: 'IAEA 上调 2050 年全球核电装机预测至 890 GWe', source: 'IAEA' },
+    ]
+    : [
+      { time: '10:30', title: '比亚迪深汕基地月产能突破 5 万辆，创历史新高', source: 'BYD' },
+      { time: '09:15', title: '碳酸锂现货价反弹至 9.8 万元/吨，锂盐厂惜售情绪浓厚', source: 'SMM' },
+      { time: '08:00', title: '欧盟正式通过对华电动车反补贴税，比亚迪/吉利/上汽受影响', source: 'EU' },
+      { time: '07:45', title: '特斯拉上海工厂 Q3 出口量环比下降 15%，受欧洲关税影响', source: 'Reuters' },
+      { time: '07:20', title: '广州港南沙港区滚装船待泊时间延长至 5 天', source: '广州港' },
+      { time: '06:50', title: '长安汽车因英飞凌 MCU 缺货，重庆工厂减产 30%', source: '财联社' },
+      { time: '06:20', title: '宁德时代宜宾基地碳酸锂库存仅够 2 周，紧急补库中', source: 'SMM' },
+      { time: '05:50', title: '中国汽车出口 2025H1 同比增长 28%，新能源占比超 35%', source: 'CAAM' },
+    ]
+)
+
+// 场景切换时更新 ticker
+watch(isUranium, (isU) => {
+  tickerNewsList.value = isU
+    ? [
+      { time: '10:30', title: 'Kazatomprom 硫酸供应谈判陷入僵局，Q4产量或再降 10%', source: 'Reuters' },
+      { time: '09:15', title: '尼日尔军政府拟提高 Somair 合资矿权益金至 20%', source: 'AFP' },
+      { time: '08:00', title: '美国能源部启动第二轮铀战略储备招标 200 万磅', source: 'DOE' },
+      { time: '07:45', title: 'Cameco Cigar Lake 维持满产，Q2 产量超预期 5%', source: 'Cameco' },
+      { time: '07:20', title: '中核内蒙古 ISL 项目产能突破 500 tU/年', source: 'CNNC' },
+      { time: '06:50', title: '法国 Orano 与蒙古签署 Zuuvch-Ovoo 铀矿框架协议', source: 'Orano' },
+      { time: '06:20', title: 'Sprott 实物铀基金周度净流入 4,200 万美元', source: 'Sprott' },
+      { time: '05:50', title: 'IAEA 上调 2050 年全球核电装机预测至 890 GWe', source: 'IAEA' },
+    ]
+    : [
+      { time: '10:30', title: '比亚迪深汕基地月产能突破 5 万辆，创历史新高', source: 'BYD' },
+      { time: '09:15', title: '碳酸锂现货价反弹至 9.8 万元/吨，锂盐厂惜售情绪浓厚', source: 'SMM' },
+      { time: '08:00', title: '欧盟正式通过对华电动车反补贴税，比亚迪/吉利/上汽受影响', source: 'EU' },
+      { time: '07:45', title: '特斯拉上海工厂 Q3 出口量环比下降 15%，受欧洲关税影响', source: 'Reuters' },
+      { time: '07:20', title: '广州港南沙港区滚装船待泊时间延长至 5 天', source: '广州港' },
+      { time: '06:50', title: '长安汽车因英飞凌 MCU 缺货，重庆工厂减产 30%', source: '财联社' },
+      { time: '06:20', title: '宁德时代宜宾基地碳酸锂库存仅够 2 周，紧急补库中', source: 'SMM' },
+      { time: '05:50', title: '中国汽车出口 2025H1 同比增长 28%，新能源占比超 35%', source: 'CAAM' },
+    ]
+})
 
 // ========== 风险类型 ==========
 const riskTypes = ref([
@@ -427,7 +368,9 @@ const riskTypes = ref([
 const events = ref([])
 const sourceOptions = ref([])
 const selectedSourceIds = ref([])
-const crawlerKeywords = ref(['港口拥堵', '芯片短缺', '关税', '物流中断'])
+const crawlerKeywords = ref(isUranium.value
+  ? ['铀矿停产', '地缘政治', '核电站', '硫酸短缺', '运输物流', '库存变化']
+  : ['芯片短缺', '碳酸锂价格', '欧盟关税', '电池原材料', '新能源补贴', '车规芯片'])
 const keywordOptions = ref([])
 const crawlLoading = ref(false)
 const eventsLoading = ref(false)
@@ -450,8 +393,6 @@ const supplyChainIndex = computed(() => {
 })
 
 // ========== 地图相关 ==========
-let map = null
-let markerLayer = null
 const currentFilter = ref(null)
 const visibleMarkersCount = ref(0)
 const selectedEvent = ref(null)
@@ -461,8 +402,6 @@ const searchActive = ref(false)
 const currentPage = ref(1)
 const pageSize = 9
 
-const DEFAULT_CENTER = [35, 105]
-const DEFAULT_ZOOM = 4
 
 // 过滤有效坐标的点
 const mapEvents = computed(() => {
@@ -504,18 +443,10 @@ const getTypeCount = (type) => {
   return events.value.filter(e => e.type === type).length
 }
 
-const refreshMap = () => {
-  nextTick(() => {
-    updateMarkersVisibility()
-    fitMapToEvents()
-  })
-}
 
 const filterByType = (type) => {
   currentFilter.value = type
   currentPage.value = 1
-  updateMarkersVisibility()
-  fitMapToEvents()
 
   ElMessage.info(
     type
@@ -524,60 +455,11 @@ const filterByType = (type) => {
   )
 }
 
-const resetMapView = () => {
-  currentFilter.value = null
-  currentPage.value = 1
-  updateMarkersVisibility()
-  fitMapToEvents()
-}
 
-const updateMarkersVisibility = () => {
-  if (!markerLayer) return
-
-  markerLayer.clearLayers()
-
-  let filtered = mapEvents.value
-
-  if (currentFilter.value) {
-    filtered = mapEvents.value.filter(e => e.type === currentFilter.value)
-  }
-
-  visibleMarkersCount.value = filtered.length
-
-  filtered.forEach(event => {
-    const marker = L.circleMarker([Number(event.lat), Number(event.lng)], {
-      radius: 10,
-      fillColor: event.color || '#909399',
-      color: '#ffffff',
-      weight: 2.5,
-      opacity: 1,
-      fillOpacity: 0.85
-    })
-
-    marker.bindTooltip(
-      `<b>${event.title || '未知事件'}</b><br>${event.location || '未知地点'}<br><span style="color:#ff6b6b">${event.level || '未知'}风险</span>`,
-      {
-        direction: 'top',
-        offset: [0, -15],
-        className: 'custom-tooltip'
-      }
-    )
-
-    marker.on('click', () => {
-      selectEvent(event)
-    })
-
-    markerLayer.addLayer(marker)
-  })
-}
 
 const selectEvent = (event) => {
   selectedEvent.value = event
   activeEventId.value = event.id
-
-  if (map && Number(event.lat) !== 0 && Number(event.lng) !== 0) {
-    map.flyTo([Number(event.lat), Number(event.lng)], 6, { duration: 1 })
-  }
 }
 
 const selectSearchItem = (item) => {
@@ -595,89 +477,10 @@ const openEventUrl = (event) => {
   window.open(event.url, '_blank')
 }
 
-const openSettings = () => {
-  ElMessage.info('设置功能开发中')
-}
 
-const fitMapToEvents = () => {
-  if (!map) return
-
-  const points = currentFilter.value
-    ? mapEvents.value.filter(e => e.type === currentFilter.value)
-    : mapEvents.value
-
-  if (!points.length) {
-    map.setView(DEFAULT_CENTER, DEFAULT_ZOOM)
-    return
-  }
-
-  const bounds = L.latLngBounds(points.map(e => [Number(e.lat), Number(e.lng)]))
-
-  map.fitBounds(bounds, {
-    padding: [36, 36],
-    maxZoom: 8
-  })
-}
 
 // 初始化地图
-const initMap = () => {
-  const container = document.getElementById('supplyChainMap')
 
-  if (!container) {
-    console.error('地图容器未找到')
-    return
-  }
-
-  if (map) {
-    map.remove()
-    map = null
-  }
-
-  map = L.map('supplyChainMap').setView(DEFAULT_CENTER, DEFAULT_ZOOM)
-
-  // 使用高德矢量底图
-  const baseLayer = L.tileLayer(
-    'https://webst0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&style=7&x={x}&y={y}&z={z}',
-    {
-      subdomains: ['1', '2', '3', '4'],
-      attribution: '高德地图',
-      maxZoom: 18,
-      minZoom: 3
-    }
-  )
-
-  baseLayer.on('tileerror', () => {
-    ElMessage.error('地图底图加载失败，请检查网络或地图服务可用性')
-  })
-
-  baseLayer.addTo(map)
-
-  L.control.scale({
-    metric: true,
-    imperial: false,
-    position: 'bottomright'
-  }).addTo(map)
-
-  markerLayer = L.layerGroup().addTo(map)
-
-  updateMarkersVisibility()
-  fitMapToEvents()
-
-  setTimeout(() => {
-    if (map) {
-      map.invalidateSize()
-      updateMarkersVisibility()
-    }
-  }, 200)
-}
-
-const handleResize = () => {
-  if (map) {
-    setTimeout(() => {
-      map.invalidateSize()
-    }, 100)
-  }
-}
 
 // ========== 后端 API ==========
 const loadSources = async () => {
@@ -736,29 +539,68 @@ const loadEvents = async () => {
   eventsLoading.value = true
 
   try {
-    const res = await fetch(`${API_BASE}/events`)
+    const res = await fetch(`${API_BASE}/events?scenario=${isUranium.value ? 'uranium' : 'supply_chain'}`)
     const json = await res.json()
     const payload = unwrapResponseData(json)
 
     if (Array.isArray(payload.events)) {
-      events.value = payload.events
+      // 按场景过滤后端事件
+      const kw = isUranium.value
+        ? ['铀', '核', '矿', '反应堆', 'nuclear', 'uranium', 'mine', 'Kazakh', 'Niger', 'Namibia', 'Cameco', 'U3O8', 'ISL']
+        : ['汽车', '车', 'auto', '芯片', 'chip', '电池', 'battery', '锂', 'lithium', '新能源', 'EV', '电动', '零部件', '整车', '关税', '港口', '产能']
+      events.value = payload.events.filter(e => {
+        const t = (e.title + ' ' + (e.description || '') + ' ' + (e.type || '')).toLowerCase()
+        return kw.some(k => t.includes(k.toLowerCase()))
+      })
     }
 
-    if (Array.isArray(payload.ticker) && payload.ticker.length) {
-      tickerNewsList.value = payload.ticker
-    }
+    // 补充场景事件
+    events.value = [...events.value, ...getScenarioEvents()]
+
 
     currentPage.value = 1
     selectedEvent.value = null
     activeEventId.value = null
 
-    refreshMap()
   } catch (err) {
     console.error(err)
-    ElMessage.error('事件加载失败，请检查后端 /SCnet/osint/events')
+    events.value = getScenarioEvents()
+    ElMessage.warning('后端事件加载失败，使用本地数据')
   } finally {
     eventsLoading.value = false
   }
+}
+
+// 场景特定补充事件
+function getScenarioEvents() {
+  if (isUranium.value) {
+    return [
+      { id: 'u1', title: '中核内蒙古乌拉特中旗 ISL 扩产', location: '巴彦淖尔，中国', lat: 41.57, lng: 108.52, type: '铀矿开采', color: '#67C23A', level: '低', time: '2025-09', description: '中核内蒙古矿业乌拉特中旗 ISL 地浸项目年产能提升至 500 tU，国内自给率提高。', source: 'CNNC' },
+      { id: 'u2', title: '中广核纳米比亚湖山矿扩产获批', location: '斯瓦科普蒙德，纳米比亚', lat: -22.68, lng: 14.53, type: '铀矿开采', color: '#67C23A', level: '低', time: '2025-08', description: '中广核 Husab 矿扩产至 6,000 tU/年获纳米比亚政府批准。', source: 'CGN' },
+      { id: 'u3', title: '中核集团新疆伊犁铀矿地浸产能爬坡', location: '伊犁，中国', lat: 43.92, lng: 81.32, type: '铀矿开采', color: '#409EFF', level: '低', time: '2025-07', description: '新疆伊犁盆地砂岩型铀矿 ISL 产能爬坡至满产，年产量超 500 tU。', source: 'CNNC' },
+      { id: 'u4', title: '秦山核电站延寿改造获批', location: '海盐，中国', lat: 30.44, lng: 120.86, type: '核电政策', color: '#67C23A', level: '低', time: '2025-08', description: '秦山一期 320MWe 机组获 20 年延寿许可，长期铀需求锁定。', source: 'NNSA' },
+      { id: 'u5', title: '宁德核电站 5 号机组首次装料', location: '宁德，中国', lat: 27.05, lng: 120.28, type: '核电政策', color: '#409EFF', level: '低', time: '2025-09', description: '宁德核电 5 号机组（华龙一号）首次装料，年铀需求预计增加约 200 tU。', source: 'CGN' },
+      { id: 'u6', title: '法国 Orano 蒙古铀矿项目推进', location: '乌兰巴托，蒙古', lat: 47.92, lng: 106.92, type: '铀矿开采', color: '#E6A23C', level: '中', time: '2025-07', description: 'Orano 与蒙古政府签署 Zuuvch-Ovoo 铀矿开发框架协议，预计 2028 年投产。', source: 'Orano' },
+      { id: 'u7', title: '哈萨克斯坦硫酸供应谈判破裂', location: '努尔苏丹，哈萨克斯坦', lat: 51.17, lng: 71.45, type: '化学供应', color: '#F56C6C', level: '高', time: '2025-08', description: 'Kazatomprom 与主要硫酸供应商谈判破裂，Q4 产量指引可能再下调 8-12%。', source: 'Kazatomprom' },
+      { id: 'u8', title: '俄罗斯浮动核电站北极投运', location: '佩韦克，俄罗斯', lat: 69.70, lng: 170.31, type: '核电政策', color: '#409EFF', level: '低', time: '2025-08', description: 'Rosatom 第二座浮动核电站 RITM-200M 在北极佩韦克投运，开辟极地铀供应链。', source: 'Rosatom' },
+      { id: 'u9', title: '美国 White Mesa 铀加工厂重启', location: '犹他州，美国', lat: 37.75, lng: -109.55, type: '铀矿开采', color: '#E6A23C', level: '中', time: '2025-07', description: 'Energy Fuels 重启 White Mesa 铀加工厂，处理稀土副产品铀，年产能约 500 tU。', source: 'Energy Fuels' },
+      { id: 'u10', title: '南非 Koeberg 核电站延寿铀招标', location: '开普敦，南非', lat: -33.68, lng: 18.43, type: '核电政策', color: '#409EFF', level: '低', time: '2025-09', description: 'Eskom 为 Koeberg 延寿 20 年发布 5,000 tU 长期采购招标，多家供应商竞标。', source: 'Eskom' },
+    ]
+  }
+  return [
+      { id: 'a1', title: '比亚迪深汕基地产能突破', location: '深圳，中国', lat: 22.54, lng: 114.06, type: '供应链事件', color: '#67C23A', level: '低', time: '2025-09', description: '比亚迪深汕汽车工业园年产能突破 60 万辆，新能源整车出口大幅增长。', source: 'BYD 官方' },
+      { id: 'a2', title: '特斯拉上海超级工厂产能调整', location: '上海，中国', lat: 30.87, lng: 121.90, type: '供应链事件', color: '#E6A23C', level: '中', time: '2025-09', description: '特斯拉上海工厂受欧洲关税影响，对欧盟出口量有所下调，部分产能转向亚太市场。', source: 'Reuters' },
+      { id: 'a3', title: '吉利长春新能源基地投产', location: '长春，中国', lat: 43.88, lng: 125.32, type: '供应链事件', color: '#67C23A', level: '低', time: '2025-08', description: '吉利汽车长春新能源基地正式投产，规划年产能 20 万辆纯电动车。', source: '吉利官方' },
+      { id: 'a4', title: '广州港汽车出口量创新高', location: '广州，中国', lat: 23.13, lng: 113.26, type: '港口拥堵', color: '#409EFF', level: '低', time: '2025-09', description: '广州港南沙港区月度汽车出口突破 10 万辆，滚装船泊位持续紧张。', source: '广州港集团' },
+      { id: 'a5', title: '重庆长安汽车芯片供应趋紧', location: '重庆，中国', lat: 29.56, lng: 106.55, type: '芯片短缺', color: '#F56C6C', level: '高', time: '2025-09', description: '长安汽车因英飞凌 MCU 交付延迟，部分车型产线面临减产风险，影响约 2 万辆/月。', source: '财联社' },
+      { id: 'a6', title: '宁德时代宜宾基地碳酸锂库存告急', location: '宜宾，中国', lat: 28.77, lng: 104.62, type: '原材料事件', color: '#F56C6C', level: '高', time: '2025-08', description: '碳酸锂现货价反弹至 9.5 万/吨，宁德时代宜宾基地库存仅够 2 周生产。', source: 'SMM' },
+      { id: 'a7', title: '武汉东风本田零部件断供', location: '武汉，中国', lat: 30.59, lng: 114.31, type: '供应链事件', color: '#F56C6C', level: '高', time: '2025-08', description: '东风本田因日本电装燃油喷射系统供应中断，三款车型停产检修。', source: '东风集团' },
+      { id: 'a8', title: '柳州五菱新能源汽车出口飙升', location: '柳州，中国', lat: 24.31, lng: 109.41, type: '供应链事件', color: '#67C23A', level: '低', time: '2025-09', description: '上汽通用五菱微型电动车出口东南亚月均超 2 万辆，产能持续扩张。', source: 'SGMW' },
+      { id: 'a9', title: '天津港滚装码头拥堵加剧', location: '天津，中国', lat: 38.98, lng: 117.72, type: '港口拥堵', color: '#E6A23C', level: '中', time: '2025-09', description: '天津港滚装船待泊时间延长至 5-7 天，影响长城、北汽等企业出口节奏。', source: 'Lloyd\'s List' },
+      { id: 'a10', title: '蔚来合肥工厂电池包产线升级', location: '合肥，中国', lat: 31.82, lng: 117.23, type: '供应链事件', color: '#409EFF', level: '低', time: '2025-08', description: '蔚来合肥 NeoPark 电池包产线升级至 150kWh 半固态电池，良率爬坡中。', source: 'NIO' },
+      { id: 'a11', title: '欧盟对中国电动车反补贴税生效', location: '布鲁塞尔，比利时', lat: 50.85, lng: 4.35, type: '政策变化', color: '#F56C6C', level: '高', time: '2025-07', description: '欧盟确认对中国产电动车征收最高 35.3% 反补贴税，比亚迪/吉利/上汽受影响最大。', source: 'EU Commission' },
+      { id: 'a12', title: '印度对华汽车零部件加征关税', location: '新德里，印度', lat: 28.61, lng: 77.23, type: '政策变化', color: '#E6A23C', level: '中', time: '2025-08', description: '印度对从中国进口的汽车电子零部件加征 10-15% 关税，影响 Tier1 供应商出口。', source: '印度商工部' },
+  ]
 }
 
 const startCrawl = async () => {
@@ -831,25 +673,16 @@ onMounted(() => {
   clockTimer = setInterval(updateTime, 1000)
 
   nextTick(async () => {
-    initMap()
     await loadSources()
     await loadKeywords()
     await loadEvents()
-    window.addEventListener('resize', handleResize)
   })
 })
 
 onUnmounted(() => {
-  window.removeEventListener('resize', handleResize)
-
   if (clockTimer) {
     clearInterval(clockTimer)
     clockTimer = null
-  }
-
-  if (map) {
-    map.remove()
-    map = null
   }
 })
 </script>
@@ -1404,7 +1237,4 @@ onUnmounted(() => {
   border-radius: 6px;
 }
 
-:deep(.leaflet-container) {
-  background: #e8eef3;
-}
 </style>

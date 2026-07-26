@@ -67,7 +67,7 @@ export async function rebuildOwlNetwork() {
   return request({ url: '/ontology/owl/network/rebuild', method: 'post' })
 }
 
-// ===== 铀供应链本体网络 =====
+// ===== 供应链本体网络 =====
 export async function getUraniumGraph() {
   return request({ url: '/ontology/uranium/graph', method: 'get' })
 }
@@ -92,7 +92,7 @@ export async function rebuildUraniumNetwork() {
   return request({ url: '/ontology/uranium/rebuild', method: 'post' })
 }
 
-// ===== 铀 OWL 本体推理 =====
+// =====  OWL 本体推理 =====
 export async function getUraniumOwlStats() {
   return request({ url: '/ontology/uranium/owl/stats', method: 'get' })
 }

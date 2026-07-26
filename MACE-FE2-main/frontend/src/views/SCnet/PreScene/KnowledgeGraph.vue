@@ -2,7 +2,7 @@
   <div class="ukg-container">
     <!-- 左侧筛选面板 -->
     <div class="ukg-left-panel">
-      <div class="panel-header">☢️ 铀供应链动态本体网络</div>
+      <div class="panel-header">{{ isAuto ? '🚗' : '☢️' }} {{ isAuto ? '汽车' : '铀' }}供应链动态本体网络</div>
 
       <!-- 时间窗口 (年度: 1997~2024) -->
       <div class="panel-section">
@@ -127,7 +127,7 @@
     <div class="ukg-center">
       <div v-show="loading" class="ukg-loading-overlay">
         <el-icon class="is-loading" :size="40"><Loading/></el-icon>
-        <span>铀供应链图谱加载中...</span>
+        <span>供应链图谱加载中...</span>
       </div>
       <div ref="chartRef" class="ukg-chart"></div>
     </div>
@@ -238,6 +238,9 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useUraniumOntologyStore } from '@/stores/ontology_uranium'
+import { useOntologyStore } from '@/stores/ontology'
+import { useScenarioStore } from '@/stores/scenario'
+import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { Search, Loading } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
@@ -275,7 +278,16 @@ const inferenceTags = computed(() => {
 // 关键年份快跳
 const keyYears = [1997, 2003, 2007, 2011, 2016, 2020, 2022, 2024]
 
-const store = useUraniumOntologyStore()
+const route = useRoute()
+const scenarioStore = useScenarioStore()
+const currentScenario = computed(() => route.query.scenario || scenarioStore.currentScenario || 'uranium')
+const isAuto = computed(() => currentScenario.value === 'supply_chain')
+
+// 场景感知：根据 URL 参数选择对应的 Pinia store
+// 使用简单条件判断，避免 shallowRef 导致 JS 代码需大量修改
+const _uraniumStore = useUraniumOntologyStore()
+const _autoStore = useOntologyStore()
+const store = (currentScenario.value === 'supply_chain') ? _autoStore : _uraniumStore
 const { loading } = storeToRefs(store)
 
 const chartRef = ref(null)
@@ -599,7 +611,7 @@ watch(() => store.selectedNode, () => {
 })
 
 onMounted(async () => {
-  // 加载铀动态网络数据
+  // 加载动态网络数据
   await store.fetchDynamicGraph()
   maxWindowIdx.value = store.dynamicWindows.length - 1
   windowIdx.value = store.dynamicWindows.length - 1

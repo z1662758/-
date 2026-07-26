@@ -4,9 +4,9 @@
     <div class="glass-panel control-panel">
       <div class="panel-title">
         <span class="glow-dot"></span>
-        <span>铀矿供应链拐点预测中枢</span>
+        <span>矿山供应链拐点预测中枢</span>
         <el-tooltip
-          content="基于交期、库存、成本、供应商健康度和订单信号，识别铀矿供应链中可能出现方向性突变的关键节点"
+          content="基于交期、库存、成本、供应商健康度和订单信号，识别矿山供应链中可能出现方向性突变的关键节点"
           placement="top"
           :show-after="200"
         >
@@ -280,7 +280,7 @@ const SCENARIO_FACTOR = {
     defaultLookahead: 6,
     defaultWeights: { policy: 46, sentiment: 26, market: 28 },
     driverScale: { policy: 1.22, sentiment: 0.88, market: 1.05 },
-    turningAlias: '关键铀精矿短缺拐点链路',
+    turningAlias: '关键精矿短缺拐点链路',
     probabilityTitle: '供应短缺拐点概率曲线',
     factorPanelTitle: '短缺触发因素雷达',
     summary: '该场景由矿山产量指引、关键物料库存、供应商准时率和重点矿山产量共同驱动，用于判断供应压力是否从可控紧张转向断供风险。',
@@ -356,7 +356,7 @@ const DEFAULT_TURNING_CONTEXT = {
     { id: 'supplier_health', label: '核心供应商健康度' },
     { id: 'shortage_signal', label: '短缺预警信号' },
     { id: 'cost_signal', label: '成本波动信号' },
-    { id: 'inventory_alert', label: '铀库存压力信号' }
+    { id: 'inventory_alert', label: '库存压力信号' }
   ],
   avgQuality: 81,
   outputTitle: '断供风险拐点预警',

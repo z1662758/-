@@ -9,14 +9,14 @@
               <el-icon><Document /></el-icon>
             </div>
             <div class="page-title">
-              <h1>铀矿供应链情报知识库</h1>
-              <p>基于知识库的智能检索系统：铀矿山生产、地缘政治风险、化学供应、运输物流、核电需求、库存变化</p>
+              <h1>矿山供应链情报知识库</h1>
+              <p>基于知识库的智能检索系统：矿山生产、地缘政治风险、化学供应、运输物流、核电需求、库存变化</p>
             </div>
           </div>
           <div class="header-right">
-            <!-- 铀供应链本体网络 -->
+            <!-- 供应链本体网络 -->
             <el-button type="warning" @click="openKnowledgeGraph">
-              <el-icon><Share /></el-icon> 铀本体网络
+              <el-icon><Share /></el-icon> 本体网络
             </el-button>
             <el-button type="primary" @click="showUploadDialog = true">
               <el-icon><Upload /></el-icon> 导入数据集
@@ -115,7 +115,7 @@
                 v-model="searchQuery"
                 type="textarea"
                 :rows="3"
-                placeholder="请输入关于铀矿供应链的问题，例如：'铀矿山 最新减产政策是什么？'、'尼日尔铀矿权撤销后全球供应如何调整？'"
+                placeholder="请输入关于矿山供应链的问题，例如：'矿山 最新减产政策是什么？'、'尼日尔矿山权撤销后全球供应如何调整？'"
                 @keyup.enter="handleSearch"
               />
               <div class="search-actions">
@@ -170,11 +170,11 @@
                 <div class="placeholder-tips">
                   <p>支持查询：</p>
                   <ul>
-                    <li>铀矿山 产能政策与减产协议</li>
+                    <li>矿山 产能政策与减产协议</li>
                     <li>地缘政治风险事件</li>
-                    <li>铀矿山生产与运输通道</li>
+                    <li>矿山生产与运输通道</li>
                     <li>ISL产能利用率与检修计划</li>
-                    <li>全球铀库存与核电需求数据</li>
+                    <li>全球库存与核电需求数据</li>
                     <li>U3O8现货价走势分析</li>
                   </ul>
                 </div>
@@ -190,7 +190,7 @@
       <div v-if="kgDialogVisible" class="kg-fullscreen-overlay">
         <!-- 顶部工具栏 -->
         <div class="kg-toolbar">
-          <span class="kg-toolbar-title">🛢️ 铀矿供应链知识图谱 — {{ isOwlView ? 'OWL 本体网络' : '动态本体网络' }}</span>
+          <span class="kg-toolbar-title">🛢️ 矿山供应链知识图谱 — {{ isOwlView ? 'OWL 本体网络' : '动态本体网络' }}</span>
           <button class="kg-close-btn" @click="kgDialogVisible = false" title="关闭 (Esc)">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -383,13 +383,13 @@
     <!-- 上传对话框 -->
     <el-dialog
       v-model="showUploadDialog"
-      title="导入铀矿供应链数据集"
+      title="导入矿山供应链数据集"
       width="550px"
       :before-close="closeUploadDialog"
     >
       <el-form ref="uploadFormRef" :model="uploadForm" :rules="uploadRules" label-width="100px">
         <el-form-item label="数据集名称" prop="bookName">
-          <el-input v-model="uploadForm.bookName" placeholder="例如：铀矿山 月度报告 2026" />
+          <el-input v-model="uploadForm.bookName" placeholder="例如：矿山 月度报告 2026" />
         </el-form-item>
         <el-form-item label="数据集文件">
           <el-upload
@@ -458,9 +458,9 @@ const uploadRules = {
 }
 
 const quickQuestions = [
-  '铀矿山 最新的减产政策是什么？',
-  '尼日尔铀矿权撤销后全球供应如何调整？',
-  '全球铀库存消费比最新数据是多少？',
+  '矿山 最新的减产政策是什么？',
+  '尼日尔矿山权撤销后全球供应如何调整？',
+  '全球库存消费比最新数据是多少？',
   '哈萨克斯坦 ISL 产量受硫酸影响几何？',
   '红海航线保险费用上涨对油运的影响？',
   '全球主要ISL产能利用率统计'

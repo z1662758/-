@@ -1,846 +1,322 @@
 <template>
-  <div class="combined-prediction">
+  <div class="pred-root">
+    
 
-    <!-- ── 分析前置：问题设定配置 ─────────────────────────────── -->
-    <div class="gov-panel" :class="{ 'gov-collapsed': govCollapsed }">
-      <div class="gov-header" @click="govCollapsed = !govCollapsed">
-        <div class="gov-header-left">
-          <span class="gov-status-dot" :class="govStatusClass"></span>
-          <span class="gov-title">分析前置 · 铀供应链问题设定</span>
-          <span class="gov-phase-tag">{{ activeTabLabel }}</span>
-        </div>
-        <div class="gov-header-right">
-          <template v-if="govCollapsed">
-            <span class="gov-mandate-chip">{{ selectedMandateLabel }}</span>
-            <span class="gov-domain-summary">{{ activeDomainCount }} 个数据域 · 均质 {{ avgDomainQuality }}%</span>
-          </template>
-          <svg class="gov-chevron" :class="{ rotated: !govCollapsed }" width="14" height="14" viewBox="0 0 14 14">
-            <path d="M3 5l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/>
-          </svg>
+    <!-- 当前态势摘要（从研判带入） -->
+    <div class="sj-dashboard">
+      <div class="sj-db-card price-up">
+        <div class="sj-db-icon">📈</div>
+        <div class="sj-db-info">
+          <div class="sj-db-label">当前价格</div>
+          <div class="sj-db-value">$88-95/lb ↑</div>
+          <div class="sj-db-detail">ESA现货价 · 突破10年高点 · 同比+240%</div>
         </div>
       </div>
+      <div class="sj-db-card supply-tight">
+        <div class="sj-db-icon">⚠️</div>
+        <div class="sj-db-info">
+          <div class="sj-db-label">供需缺口</div>
+          <div class="sj-db-value">~10,000 tU/年</div>
+          <div class="sj-db-detail">产量仅覆盖需求84% · 库存持续下降</div>
+        </div>
+      </div>
+      <div class="sj-db-card risk-high">
+        <div class="sj-db-icon">🚨</div>
+        <div class="sj-db-info">
+          <div class="sj-db-label">风险等级</div>
+          <div class="sj-db-value">中高</div>
+          <div class="sj-db-detail">地缘政治+化工短缺+矿山滞后</div>
+        </div>
+      </div>
+      <div class="sj-db-card overall">
+        <div class="sj-db-icon">🧠</div>
+        <div class="sj-db-info">
+          <div class="sj-db-label">研判结论</div>
+          <div class="sj-db-value">供给偏紧·看涨</div>
+          <div class="sj-db-detail">6-12月价格维持高位，建议增持长协</div>
+        </div>
+      </div>
+    </div>
 
-      <transition name="gov-slide">
-        <div v-show="!govCollapsed" class="gov-body">
-          <div class="gov-grid">
-
-            <!-- 分析议题锁定 -->
-            <div class="gov-col">
-              <div class="gov-col-header">分析议题锁定</div>
-              <div class="mandate-list">
-                <div
-                  v-for="opt in currentGovConfig.mandateOptions"
-                  :key="opt.value"
-                  class="mandate-item"
-                  :class="{ active: selectedMandates[activeKey] === opt.value }"
-                  @click="selectedMandates[activeKey] = opt.value"
-                >
-                  <span class="mandate-radio" :class="{ active: selectedMandates[activeKey] === opt.value }"></span>
-                  <div class="mandate-text">
-                    <div class="mandate-label">{{ opt.label }}</div>
-                    <div class="mandate-desc">{{ opt.desc }}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 数据域覆盖配置 -->
-            <div class="gov-col">
-              <div class="gov-col-header">供应链数据域覆盖</div>
-              <div class="domain-list">
-                <div
-                  v-for="domain in currentGovConfig.dataDomains"
-                  :key="domain.id"
-                  class="domain-row"
-                  :class="{ 'domain-off': !isDomainEnabled(domain.id) }"
-                  @click="toggleDomain(domain.id)"
-                >
-                  <span class="domain-check" :class="{ active: isDomainEnabled(domain.id) }">
-                    <svg v-if="isDomainEnabled(domain.id)" width="10" height="10" viewBox="0 0 10 10">
-                      <path d="M2 5l2.5 2.5L8 3" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-                    </svg>
-                  </span>
-
-                  <div class="domain-info">
-                    <div class="domain-name">{{ domain.label }}</div>
-                    <div class="domain-coverage">{{ domain.coverage }}</div>
-                  </div>
-
-                  <div class="domain-q-wrap">
-                    <div class="domain-q-bar">
-                      <div
-                        class="domain-q-fill"
-                        :style="{ width: domain.quality + '%', background: qualityColor(domain.quality) }"
-                      ></div>
-                    </div>
-                    <span class="domain-q-val" :style="{ color: qualityColor(domain.quality) }">{{ domain.quality }}%</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 分析基线假设 -->
-            <div class="gov-col">
-              <div class="gov-col-header">分析基线假设</div>
-              <div class="assume-list">
-                <div v-for="(a, i) in currentGovConfig.assumptions" :key="i" class="assume-item">
-                  <span class="assume-index">{{ i + 1 }}</span>
-                  <span class="assume-text">{{ a }}</span>
-                </div>
-              </div>
-
-              <div class="gov-time-range">
-                <span class="gov-time-label">时间基准</span>
-                <span class="gov-time-val">{{ currentGovConfig.timeRange }}</span>
-              </div>
-            </div>
-
+    <!-- Row 1: GPR 价格预测 + 预测结论 -->
+    <div class="pred-row">
+      <div class="pred-left">
+        <div class="pred-card">
+          <div class="pred-card-title">{{ scenarioStore.isSupplyChain ? 'GPR 高斯过程回归 — 汽车季度产量预测' : 'GPR 高斯过程回归 — U3O8 现货价预测' }}</div>
+          <div ref="gprChart" class="pred-chart"></div>
+        </div>
+      </div>
+      <div class="pred-right">
+        <div class="pred-card pred-card--highlight">
+          <div class="pred-card-title">预测结论</div>
+          <div class="pred-conclusion">
+            <template v-if="scenarioStore.isSupplyChain">
+              <div class="pred-tag"><span class="pred-tag-label">6个月预测</span><span class="pred-tag-val up">780-820万辆/季</span></div>
+              <div class="pred-tag"><span class="pred-tag-label">12个月预测</span><span class="pred-tag-val up">800-850万辆/季</span></div>
+              <div class="pred-tag"><span class="pred-tag-label">24个月预测</span><span class="pred-tag-val up">3200-3400万辆/年</span></div>
+              <ul class="pred-list">
+                <li>GPR 模型 RBF 核 + 周期核，95% 置信区间随预测期扩大</li>
+                <li>季节项显著（Q4旺季效应），趋势项显示新能源渗透率持续提升</li>
+                <li>最大不确定性来源：欧盟关税政策落地节奏、碳酸锂价格触底反弹时点</li>
+              </ul>
+            </template>
+            <template v-else>
+              <div class="pred-tag"><span class="pred-tag-label">6个月预测</span><span class="pred-tag-val up">$100-115/lb</span></div>
+              <div class="pred-tag"><span class="pred-tag-label">12个月预测</span><span class="pred-tag-val up">$110-130/lb</span></div>
+              <div class="pred-tag"><span class="pred-tag-label">24个月预测</span><span class="pred-tag-val up">$120-145/lb</span></div>
+              <ul class="pred-list">
+                <li>GPR 模型 RBF 核 + 周期核，95% 置信区间随预测期扩大</li>
+                <li>趋势项占主导（年化+18%），周期项显示当前处于上升中段</li>
+                <li>最大不确定性来源：哈萨克斯坦硫酸短缺持续时间、尼日尔出口恢复时间</li>
+              </ul>
+            </template>
           </div>
         </div>
-      </transition>
-    </div>
-    <!-- ── /问题设定配置 ────────────────────────────────────── -->
-
-    <!-- 分析模块切换 -->
-    <div class="switch-shell">
-      <div class="switch-title-wrap">
-        <div class="switch-title">铀供应链态势预测引擎</div>
-        <div class="switch-subtitle">趋势、周期、拐点三模块统一视图 · 核燃料供应链全链条覆盖</div>
       </div>
-
-      <el-radio-group v-model="activeKey" class="switch-group" @change="onTabSwitch">
-        <el-radio-button label="trend">趋势预测</el-radio-button>
-        <el-radio-button label="cycle">周期分析</el-radio-button>
-        <el-radio-button label="turning">拐点识别</el-radio-button>
-      </el-radio-group>
     </div>
 
-    <!-- 当前问题摘要 -->
-    <div class="problem-brief-shell">
-      <div class="problem-brief-card primary">
-        <div class="problem-brief-label">当前问题设定</div>
-        <div class="problem-brief-title">{{ analysisContext.mandate.label }}</div>
-        <div class="problem-brief-text">{{ analysisContext.mandate.desc }}</div>
-      </div>
-
-      <div class="problem-brief-card">
-        <div class="problem-brief-label">证据覆盖</div>
-        <div class="problem-brief-title">
-          {{ analysisContext.activeDomains.length }} 个数据域 · 均质 {{ analysisContext.avgQuality }}%
+    <!-- Row 2: 供需缺口 + 多模型对比 -->
+    <div class="pred-row">
+      <div class="pred-left">
+        <div class="pred-card">
+          <div class="pred-card-title">{{ scenarioStore.isSupplyChain ? '产能与需求预测 (2024-2030)' : '供需缺口预测 (2024-2030)' }}</div>
+          <div ref="gapChart" class="pred-chart"></div>
         </div>
-        <div class="problem-brief-text">{{ analysisContext.domainSummary }}</div>
       </div>
-
-      <div class="problem-brief-card">
-        <div class="problem-brief-label">输出导向</div>
-        <div class="problem-brief-title">{{ analysisContext.outputTitle }}</div>
-        <div class="problem-brief-text">{{ analysisContext.outputHint }}</div>
+      <div class="pred-right">
+        <div class="pred-card">
+          <div class="pred-card-title">多模型预测对比</div>
+          <div ref="modelCompareChart" class="pred-chart" style="height:220px"></div>
+          <div class="pred-model-notes">
+            <template v-if="scenarioStore.isSupplyChain">
+              <span class="pred-model-tag gpr">GPR</span> 均值 810万辆/季
+              <span class="pred-model-tag lstm">LSTM</span> 均值 795万辆/季
+              <span class="pred-model-tag prophet">Prophet</span> 均值 802万辆/季
+              <span class="pred-model-tag rl">RL-GPR</span> 均衡 780-830
+            </template>
+            <template v-else>
+              <span class="pred-model-tag gpr">GPR</span> 均值 $112/lb (2025Q4)
+              <span class="pred-model-tag lstm">LSTM</span> 均值 $105/lb
+              <span class="pred-model-tag prophet">Prophet</span> 均值 $108/lb
+              <span class="pred-model-tag rl">RL-GPR</span> 均衡价 $95-115
+            </template>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="pane-container">
-      <TrendPrediction v-if="activeKey === 'trend'" :analysis-context="analysisContext" />
-      <CyclePrediction v-else-if="activeKey === 'cycle'" :analysis-context="analysisContext" />
-      <TurningPointPrediction v-else-if="activeKey === 'turning'" :analysis-context="analysisContext" />
+    <!-- Row 3: 情景概率演化 + 解读 -->
+    <div class="pred-row">
+      <div class="pred-full">
+        <div class="pred-card">
+          <div class="pred-card-title">情景概率随时间演化</div>
+          <div class="pred-scenario-row">
+            <div class="pred-scenario-chart">
+              <div ref="scenarioEvoChart" class="pred-chart"></div>
+            </div>
+            <div class="pred-scenario-interp">
+              <div class="pred-scenario-interp-title">情景解读</div>
+              <ul class="pred-list" v-if="scenarioStore.isSupplyChain">
+                <li><b>产能受限（黄线↓）：</b>当前主流情景，概率从 55% 逐步降至 28%。芯片缓解+新工厂投产，产能瓶颈逐步解除。</li>
+                <li><b>出口受阻（红线↑）：</b>概率从 25% 升至 42%，反映欧盟关税升级、地缘贸易摩擦等尾部风险积累。</li>
+                <li><b>景气扩张（绿线↑）：</b>概率从 20% 升至 30%，反映新能源渗透加速+海外市场拓展的增量空间。</li>
+              </ul>
+              <ul class="pred-list" v-else>
+                <li><b>供给偏紧（黄线↓）：</b>当前主流情景，概率从 58% 逐步降至 30%。随着新矿山投产和库存策略调整，中期偏紧程度缓解。</li>
+                <li><b>供给危机（红线↑）：</b>概率从 30% 升至 45%，反映尼日尔局势恶化、哈萨克减产等尾部风险积累。</li>
+                <li><b>供给宽松（绿线↑）：</b>概率从 12% 升至 25%，反映新产能释放和需求侧政策的潜在对冲效果。</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script>
-import TrendPrediction from './TrendPrediction.vue'
-import CyclePrediction from './CyclePrediction.vue'
-import TurningPointPrediction from './TurningPointPrediction.vue'
-
-const GOVERNANCE_CONFIG = {
-  trend: {
-    mandateOptions: [
-      {
-        value: 'uranium_price',
-        label: '天然铀价格趋势预判',
-        desc: '跟踪U3O8现货与长协价格、SWU分离功成本、转化服务费变化，判断核燃料成本对核电运营经济性的影响。'
-      },
-      {
-        value: 'mining_supply',
-        label: '铀矿供给压力评估',
-        desc: '监测哈萨克斯坦、加拿大、纳米比亚、尼日尔、澳大利亚等主产区的产量、地缘风险和出口政策变化。'
-      },
-      {
-        value: 'enrichment_capacity',
-        label: '浓缩产能瓶颈监测',
-        desc: '观察全球离心浓缩产能分布（俄罗斯占44%）、制裁影响及欧美浓缩产能扩张进度。'
-      },
-      {
-        value: 'conversion_transport',
-        label: '转化与运输链路趋势',
-        desc: '监测UF6转化产能、黄饼运输通道安全、CASK容器可用性和国际核材料运输合规动态。'
-      }
-    ],
-    dataDomains: [
-      { id: 'u3o8_price', label: 'U3O8 现货/长协价格', quality: 88, coverage: '2023.01 – 2026.06 · 现货价/长协价/SWU成本' },
-      { id: 'mine_output', label: '全球铀矿产量', quality: 85, coverage: '2023.01 – 2026.06 · 哈萨克斯坦/Cameco/Orano/其他' },
-      { id: 'enrichment_swu', label: '浓缩产能与SWU', quality: 82, coverage: '2023.01 – 2026.06 · 离心机/扩散厂/产能利用率' },
-      { id: 'conversion_uf6', label: '转化服务与运输', quality: 76, coverage: '2023.01 – 2026.06 · UF6/黄饼/运输通道' }
-    ],
-    assumptions: [
-      '哈萨克斯坦维持全球最大铀矿供应国地位（约45%），但物流通道和地缘关系仍存在不确定性',
-      '俄罗斯浓缩产能占全球约44%，制裁升级可能迫使欧美加速本土浓缩产能建设',
-      '尼日尔政变后铀矿出口恢复进度缓慢，对欧洲核电燃料供应构成结构性风险'
-    ],
-    timeRange: '2023.01 – 2026.06（核燃料供应链运行基准）+ 未来12个月预测窗口'
-  },
-
-  cycle: {
-    mandateOptions: [
-      {
-        value: 'supply_demand_cycle',
-        label: '铀供需关系周期分析',
-        desc: '综合全球核电装机容量、二次铀供应（尾料再浓缩/稀释HEU）、一次铀矿产量，判断供需平衡阶段。'
-      },
-      {
-        value: 'inventory_cycle',
-        label: '战略储备与库存周期识别',
-        desc: '提取核电运营商燃料库存、中间商囤货行为和战略储备释放的周期性规律。'
-      },
-      {
-        value: 'enrichment_cycle',
-        label: '浓缩服务周期判断',
-        desc: '分析SWU价格周期、富集产能投资回报周期和欠料/超料策略对核电运营成本的影响。'
-      },
-      {
-        value: 'fuel_fabrication_cycle',
-        label: '燃料组件制造节律分析',
-        desc: '观察燃料棒/组件制造周期、换料大修计划和新型事故容错燃料(ATF)导入节奏。'
-      }
-    ],
-    dataDomains: [
-      { id: 'reactor_demand', label: '全球核电装机与需求', quality: 86, coverage: '2020.01 – 2026.06 · 在运/在建/规划机组' },
-      { id: 'secondary_supply', label: '二次铀供应', quality: 80, coverage: '2020.01 – 2026.06 · HEU稀释/尾料再浓缩' },
-      { id: 'fuel_inventory', label: '核燃料库存周期', quality: 78, coverage: '2023.01 – 2026.06 · 运营商库存/中间库存' },
-      { id: 'fabrication_capacity', label: '燃料组件制造产能', quality: 75, coverage: '2023.01 – 2026.06 · 组件产能/换料周期' }
-    ],
-    assumptions: [
-      '全球核电装机容量稳中有升，小型模块化反应堆(SMR)部署进度影响中长期铀需求曲线',
-      '二次铀供应（俄HEU稀释协议到期后的替代来源）将在2028年前后出现明显缺口',
-      '燃料组件制造产能集中度较高，少数供应商的产能波动可能影响多个核电运营商的换料计划'
-    ],
-    timeRange: '2020.01 – 2026.06（供需周期基准）+ 未来24个月预测窗口'
-  },
-
-  turning: {
-    mandateOptions: [
-      {
-        value: 'supply_disruption',
-        label: '供应中断拐点识别',
-        desc: '识别铀矿停产、浓缩厂故障、运输通道封锁等从可控扰动转为实质性供应危机的信号组合。'
-      },
-      {
-        value: 'price_spike',
-        label: '价格暴涨拐点预警',
-        desc: '捕捉U3O8现货价、SWU费用和转化服务费的快速攀升信号，评估对核电发电成本和电价的冲击。'
-      },
-      {
-        value: 'geopolitical_break',
-        label: '地缘断供拐点判断',
-        desc: '判断制裁升级、出口管制、海运封锁等事件是否从单一国家影响扩散为全球核燃料供应链断裂风险。'
-      },
-      {
-        value: 'enrichment_dependency',
-        label: '浓缩依赖度断点风险评估',
-        desc: '监测对俄浓缩服务的单一依赖、欧美浓缩替代产能投运延迟和SWU价格溢价风险。'
-      }
-    ],
-    dataDomains: [
-      { id: 'mine_health', label: '主产铀矿运行健康度', quality: 84, coverage: '2024.01 – 2026.06 · 产量/停产/地缘/ISL酸耗' },
-      { id: 'enrichment_signal', label: '浓缩产能预警信号', quality: 83, coverage: '2024.01 – 2026.06 · SWU价格/产能利用率/交货期' },
-      { id: 'transport_signal', label: '运输安全信号', quality: 79, coverage: '2024.01 – 2026.06 · 航运/铁路/CASK/过境许可' },
-      { id: 'sanction_signal', label: '制裁与政策信号', quality: 81, coverage: '2024.01 – 2026.06 · 俄罗斯/尼日尔/哈萨克斯坦' }
-    ],
-    assumptions: [
-      '俄罗斯浓缩产能短期内不会完全退出市场，但出口限制和制裁升级可能导致SWU价格大幅波动',
-      '尼日尔政变后铀矿出口恢复的不确定性是欧洲核电燃料安全的重要变量',
-      '若U3O8价格连续突破$80-100/lb并叠加浓缩产能短缺，可能触发核电运营商恐慌性囤货'
-    ],
-    timeRange: '2024.01 – 2026.06（高频信号采集）+ 未来6个月拐点窗口'
-  }
-}
-
-const OUTPUT_HINT_MAP = {
-  trend: {
-    uranium_price: {
-      title: '铀价走势前置预警',
-      hint: '后续趋势曲线将重点展示U3O8现货/长协价差、SWU成本和转化服务费变化，判断核电燃料成本压力。'
-    },
-    mining_supply: {
-      title: '铀矿供给压力研判',
-      hint: '后续分析会强化主产区产量、地缘风险和出口政策变量，输出供给缺口和替代来源提示。'
-    },
-    enrichment_capacity: {
-      title: '浓缩产能瓶颈监测',
-      hint: '后续图表将聚焦全球离心浓缩产能分布、SWU价格趋势和制裁影响评估。'
-    },
-    conversion_transport: {
-      title: '转化与运输链路扫描',
-      hint: '后续预测将放大UF6转化产能、运输通道安全性和CASK容器可用性变量。'
-    }
-  },
-
-  cycle: {
-    supply_demand_cycle: {
-      title: '铀供需匹配周期判断',
-      hint: '后续周期分析将把一次铀矿产量、二次铀供应和核电需求作为主线，判断供需平衡阶段。'
-    },
-    inventory_cycle: {
-      title: '库存与战略储备周期定位',
-      hint: '后续周期分解将优先判断当前核燃料库存处于主动补库、被动去库还是战略释放阶段。'
-    },
-    enrichment_cycle: {
-      title: '浓缩服务周期识别',
-      hint: '后续分析会结合SWU价格、产能投资周期和欠料/超料策略，识别浓缩服务周期的波峰波谷。'
-    },
-    fuel_fabrication_cycle: {
-      title: '燃料组件制造节律判断',
-      hint: '后续图表会突出燃料组件制造周期、换料大修计划和新型ATF燃料导入节奏。'
-    }
-  },
-
-  turning: {
-    supply_disruption: {
-      title: '供应中断拐点预警',
-      hint: '后续拐点曲线会提高对铀矿停产、浓缩厂故障和运输通道封锁组合信号的敏感度。'
-    },
-    price_spike: {
-      title: '价格暴涨触发监测',
-      hint: '后续分析会突出U3O8、SWU和转化服务费的快速攀升信号，评估对核电发电成本的冲击。'
-    },
-    geopolitical_break: {
-      title: '地缘断供拐点识别',
-      hint: '后续模型会重点标注制裁升级、出口管制和海运封锁从局部扩散为全局断链的临界点。'
-    },
-    enrichment_dependency: {
-      title: '浓缩依赖断点评估',
-      hint: '后续分析会围绕对俄浓缩依赖度、欧美替代产能投运延迟和SWU溢价风险输出风险节点。'
-    }
-  }
-}
+import { ref, onMounted, onUnmounted } from 'vue'
+import * as echarts from 'echarts'
+import { useScenarioStore } from '@/stores/scenario'
 
 export default {
-  name: 'CombinedPrediction',
-  components: { TrendPrediction, CyclePrediction, TurningPointPrediction },
+  name: 'SituationPrediction',
+  setup() {
+    const scenarioStore = useScenarioStore()
+    const gprChart = ref(null)
+    const gapChart = ref(null)
+    const modelCompareChart = ref(null)
+    const scenarioEvoChart = ref(null)
+    let charts = []
 
-  data() {
-    return {
-      activeKey: 'trend',
-      govCollapsed: false,
-      selectedMandates: {
-        trend: 'uranium_price',
-        cycle: 'supply_demand_cycle',
-        turning: 'supply_disruption'
-      },
-      enabledDomainsMap: {
-        trend: ['u3o8_price', 'mine_output', 'enrichment_swu', 'conversion_uf6'],
-        cycle: ['reactor_demand', 'secondary_supply', 'fuel_inventory', 'fabrication_capacity'],
-        turning: ['mine_health', 'enrichment_signal', 'transport_signal', 'sanction_signal']
-      }
-    }
-  },
-
-  computed: {
-    currentGovConfig() {
-      return GOVERNANCE_CONFIG[this.activeKey] || GOVERNANCE_CONFIG.trend
-    },
-    activeTabLabel() {
-      return { trend: '趋势预测', cycle: '周期分析', turning: '拐点识别' }[this.activeKey] || ''
-    },
-    selectedMandateLabel() {
-      const m = this.selectedMandates[this.activeKey]
-      const opt = this.currentGovConfig.mandateOptions.find(o => o.value === m)
-      return opt ? opt.label : '—'
-    },
-    activeDomainCount() {
-      return (this.enabledDomainsMap[this.activeKey] || []).length
-    },
-    avgDomainQuality() {
-      const enabled = this.enabledDomainsMap[this.activeKey] || []
-      const domains = this.currentGovConfig.dataDomains.filter(d => enabled.includes(d.id))
-      if (!domains.length) return 0
-      return Math.round(domains.reduce((s, d) => s + d.quality, 0) / domains.length)
-    },
-    analysisContext() {
-      const mandateValue = this.selectedMandates[this.activeKey]
-      const activeDomains = this.currentGovConfig.dataDomains.filter(d => (this.enabledDomainsMap[this.activeKey] || []).includes(d.id))
-      const mandate = this.currentGovConfig.mandateOptions.find(o => o.value === mandateValue) || this.currentGovConfig.mandateOptions[0]
-      const outputMeta = OUTPUT_HINT_MAP[this.activeKey]?.[mandateValue] || {
-        title: '统一供应链研判输出',
-        hint: '后续分析内容将基于当前供应链问题设定重新生成。'
-      }
-
-      return {
-        tabKey: this.activeKey,
-        tabLabel: this.activeTabLabel,
-        mandate: {
-          value: mandate?.value || '',
-          label: mandate?.label || '—',
-          desc: mandate?.desc || ''
-        },
-        activeDomains,
-        activeDomainIds: activeDomains.map(d => d.id),
-        avgQuality: this.avgDomainQuality,
-        domainSummary: activeDomains.map(d => d.label).join('、'),
-        timeRange: this.currentGovConfig.timeRange,
-        assumptions: [...this.currentGovConfig.assumptions],
-        outputTitle: outputMeta.title,
-        outputHint: outputMeta.hint
-      }
-    },
-    govStatusClass() {
-      const q = this.avgDomainQuality
-      if (q >= 75) return 'status-good'
-      if (q >= 55) return 'status-warn'
-      return 'status-poor'
-    }
-  },
-
-  watch: {
-    '$route.fullPath': {
-      immediate: true,
-      handler() {
-        this.syncActiveFromRoute()
-      }
-    }
-  },
-
-  methods: {
-    syncActiveFromRoute() {
-      const view = this.$route?.query?.view
-      if (view === 'trend' || view === 'cycle' || view === 'turning') {
-        this.activeKey = view
-        return
-      }
-
-      const path = this.$route?.path || ''
-      if (path.endsWith('/trend')) this.activeKey = 'trend'
-      else if (path.endsWith('/cycle')) this.activeKey = 'cycle'
-      else if (path.endsWith('/turning-point')) this.activeKey = 'turning'
-      else if (path.endsWith('/supply-chain')) this.activeKey = 'trend'
-    },
-    onTabSwitch(tabKey) {
-      this.activeKey = tabKey
-
-      const currentPath = this.$route?.path || '/home/supplyChain/prediction/supply-chain'
-      this.$router.replace({
-        path: currentPath,
-        query: {
-          ...(this.$route?.query || {}),
-          view: tabKey
-        }
+    function initGprChart() {
+      if (!gprChart.value) return
+      const c = echarts.init(gprChart.value); charts.push(c)
+      const xData = ['2019','2020','2021','2022','2023','2024Q1','2024Q2','2024Q3','2024Q4',
+        '2025Q1E','2025Q2E','2025Q3E','2025Q4E','2026Q1E','2026Q2E','2026Q3E','2026Q4E']
+      const hist = [26,25,33,50,58,88,90,92,95,null,null,null,null,null,null,null,null]
+      const mean = [null,null,null,null,null,null,null,null,95,100,106,112,118,122,127,132,138]
+      const upper = [null,null,null,null,null,null,null,null,95,115,125,135,145,152,160,168,176]
+      const lower = [null,null,null,null,null,null,null,null,95,85,88,92,95,98,100,102,104]
+      c.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: { top: 8, right: 10, data: ['历史价格','GPR预测均值','95%置信区间'] },
+        grid: { left: 70, right: 30, top: 45, bottom: 35 },
+        xAxis: { type: 'category', data: xData, axisLabel: { rotate: 30, fontSize: 10 } },
+        yAxis: { type: 'value', name: '$/lb', nameLocation: 'middle', nameGap: 40 },
+        series: [
+          { name: '历史价格', type: 'line', data: hist, smooth: true, lineStyle: { color: '#2563eb', width: 2.5 }, itemStyle: { color: '#2563eb' } },
+          { name: 'GPR预测均值', type: 'line', data: mean, smooth: true, lineStyle: { color: '#ef4444', width: 2.5, type: 'dashed' }, itemStyle: { color: '#ef4444' }, symbol: 'diamond', symbolSize: 8 },
+          { name: '95%置信区间', type: 'line', data: upper, smooth: true, lineStyle: { color: '#fca5a5', width: 1, type: 'dotted' }, symbol: 'none', areaStyle: { color: 'rgba(239,68,68,0.08)' } },
+          { name: '95%置信区间', type: 'line', data: lower, smooth: true, lineStyle: { color: '#fca5a5', width: 1, type: 'dotted' }, symbol: 'none' }
+        ]
       })
-    },
-    isDomainEnabled(domainId) {
-      return (this.enabledDomainsMap[this.activeKey] || []).includes(domainId)
-    },
-    toggleDomain(domainId) {
-      const list = this.enabledDomainsMap[this.activeKey] || []
-      const idx = list.indexOf(domainId)
-
-      if (idx >= 0) {
-        if (list.length > 1) list.splice(idx, 1)
-      } else {
-        list.push(domainId)
-      }
-    },
-    qualityColor(q) {
-      if (q >= 80) return '#22c55e'
-      if (q >= 65) return '#f59e0b'
-      return '#ef4444'
     }
+
+    function initGapChart() {
+      if (!gapChart.value) return
+      const c = echarts.init(gapChart.value); charts.push(c)
+      const yrs = ['2024','2025E','2026E','2027E','2028E','2029E','2030E']
+      c.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: { top: 8, right: 10, data: ['核电需求','矿山产量','库存补充','缺口'] },
+        grid: { left: 65, right: 30, top: 45, bottom: 35 },
+        xAxis: { type: 'category', data: yrs },
+        yAxis: { type: 'value', name: 'ktU', nameLocation: 'middle', nameGap: 40 },
+        series: [
+          { name: '核电需求', type: 'line', data: [59,60,61,63,65,67,70], smooth: true, lineStyle: { color: '#2563eb', width: 2.5 }, symbol: 'circle', symbolSize: 8 },
+          { name: '矿山产量', type: 'line', data: [49,50,51,51,52,53,54], smooth: true, lineStyle: { color: '#10b981', width: 2.5 }, symbol: 'circle', symbolSize: 8 },
+          { name: '库存补充', type: 'bar', data: [6,5,4,2,1,0,0], itemStyle: { color: '#f59e0b', borderRadius: [4,4,0,0] }, barWidth: '30%' },
+          { name: '缺口', type: 'bar', data: [4,5,6,10,12,14,16], itemStyle: { color: '#ef4444', borderRadius: [4,4,0,0] }, barWidth: '30%' }
+        ]
+      })
+    }
+
+    function initModelCompareChart() {
+      if (!modelCompareChart.value) return
+      const c = echarts.init(modelCompareChart.value); charts.push(c)
+      const x = ['2024Q4','2025Q1','2025Q2','2025Q3','2025Q4','2026Q1','2026Q2']
+      c.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: { top: 8, right: 10, data: ['GPR','LSTM','Prophet','RL-GPR优化预测'] },
+        grid: { left: 65, right: 30, top: 45, bottom: 35 },
+        xAxis: { type: 'category', data: x },
+        yAxis: { type: 'value', name: '$/lb', nameLocation: 'middle', nameGap: 40 },
+        series: [
+          { name: 'GPR', type: 'line', smooth: true, data: [95,100,106,112,118,122,127], lineStyle: { color: '#ef4444', width: 2 }, symbol: 'diamond', symbolSize: 6 },
+          { name: 'LSTM', type: 'line', smooth: true, data: [93,98,102,108,112,116,120], lineStyle: { color: '#10b981', width: 2 }, symbol: 'circle', symbolSize: 6 },
+          { name: 'Prophet', type: 'line', smooth: true, data: [94,99,104,108,114,118,122], lineStyle: { color: '#f59e0b', width: 2 }, symbol: 'triangle', symbolSize: 6 },
+          { name: 'RL-GPR优化预测', type: 'line', smooth: true, data: [92,95,98,102,105,108,112], lineStyle: { color: '#6366f1', width: 2, type: 'dashed' }, symbol: 'rect', symbolSize: 6 }
+        ]
+      })
+    }
+
+    function initScenarioEvoChart() {
+      if (!scenarioEvoChart.value) return
+      const c = echarts.init(scenarioEvoChart.value); charts.push(c)
+      const months = ['当前','3月','6月','9月','12月','18月','24月']
+      c.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: { top: 8, right: 10, data: ['供给偏紧','供给危机','供给宽松'] },
+        grid: { left: 55, right: 30, top: 45, bottom: 35 },
+        xAxis: { type: 'category', data: months },
+        yAxis: { type: 'value', name: '概率(%)', nameLocation: 'middle', nameGap: 40, max: 70, axisLabel: { formatter: '{value}%' } },
+        series: [
+          { name: '供给偏紧', type: 'line', smooth: true, data: [58,55,50,45,40,35,30], areaStyle: {}, lineStyle: { color: '#f59e0b', width: 2 }, itemStyle: { color: '#f59e0b' } },
+          { name: '供给危机', type: 'line', smooth: true, data: [30,32,35,38,40,42,45], areaStyle: {}, lineStyle: { color: '#ef4444', width: 2 }, itemStyle: { color: '#ef4444' } },
+          { name: '供给宽松', type: 'line', smooth: true, data: [12,13,15,17,20,23,25], areaStyle: {}, lineStyle: { color: '#10b981', width: 2 }, itemStyle: { color: '#10b981' } }
+        ]
+      })
+    }
+
+    onMounted(() => {
+      setTimeout(() => {
+        initGprChart(); initGapChart(); initModelCompareChart(); initScenarioEvoChart()
+      }, 200)
+    })
+    onUnmounted(() => charts.forEach(c => c.dispose()))
+
+    return { scenarioStore, gprChart, gapChart, modelCompareChart, scenarioEvoChart }
   }
 }
 </script>
 
 <style scoped>
-.combined-prediction {
-  padding: 10px 10px 4px;
-}
+.pred-root { padding: 1.2rem 1.5rem; height: calc(100vh - 60px); overflow-y: auto; }
+.pred-header { margin-bottom: 1rem; }
+.pred-header h1 { font-size: 1.3rem; font-weight: 800; color: #1e293b; margin: 0 0 0.1rem; }
+.pred-header p { font-size: 0.82rem; color: #64748b; margin: 0; }
 
-/* ── 供应链问题设定面板 ──────────────────────────────────────── */
-.gov-panel {
-  margin: 0 12px 12px;
-  border: 1px solid #c7d7f4;
-  border-left: 3px solid #2f6fed;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #f8fbff 0%, #eef4ff 100%);
+/* 态势总览卡片（同研判页） */
+.sj-dashboard { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.2rem; }
+.sj-db-card { background: #fff; border-radius: 16px; border: 1px solid #e2e8f0; padding: 1rem; display: flex; gap: 0.8rem; align-items: flex-start; position: relative; overflow: hidden; }
+.sj-db-card.price-up { border-left: 4px solid #ef4444; }
+.sj-db-card.supply-tight { border-left: 4px solid #f59e0b; }
+.sj-db-card.risk-high { border-left: 4px solid #ef4444; background: linear-gradient(135deg, #fff 0%, #fef2f2 100%); }
+.sj-db-card.overall { border-left: 4px solid #6366f1; background: linear-gradient(135deg, #fff 0%, #eef2ff 100%); }
+.sj-db-icon { font-size: 2rem; flex-shrink: 0; }
+.sj-db-info { flex: 1; min-width: 0; }
+.sj-db-label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
+.sj-db-value { font-size: 1.2rem; font-weight: 800; color: #1e293b; }
+.sj-db-detail { font-size: 0.73rem; color: #64748b; margin-top: 3px; line-height: 1.4; }
+
+@media (max-width: 1024px) { .sj-dashboard { grid-template-columns: repeat(2, 1fr); } }
+
+.pred-row { display: flex; gap: 1rem; margin-bottom: 1rem; }
+.pred-left { flex: 1.5; min-width: 0; }
+.pred-right { flex: 1; min-width: 0; }
+.pred-full { flex: 1; min-width: 0; }
+.pred-scenario-row { display: flex; gap: 1.5rem; }
+.pred-scenario-chart { flex: 1.8; min-width: 0; }
+.pred-scenario-chart .pred-chart { height: 280px; }
+.pred-scenario-interp { flex: 1; min-width: 0; padding-left: 1.5rem; }
+.pred-scenario-interp-title { font-size: 0.85rem; font-weight: 700; color: #475569; margin-bottom: 0.6rem; }
+.pred-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1rem; height: 100%; }
+
+/* 预测结论高亮卡片 —— 用户最关注的核心结论 */
+.pred-card--highlight {
+  background: linear-gradient(135deg, #1e293b 0%, #1e3a5f 40%, #0f172a 100%);
+  border: 1px solid #334155;
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.25), 0 1px 4px rgba(0, 0, 0, 0.15);
+  position: relative;
   overflow: hidden;
-  transition: border-color 0.2s;
 }
-.gov-panel.gov-collapsed {
-  border-left-color: #94b4e8;
-}
-
-.gov-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 16px;
-  cursor: pointer;
-  user-select: none;
-  gap: 12px;
-}
-.gov-header:hover { background: rgba(47, 111, 237, 0.04); }
-
-.gov-header-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-.gov-status-dot {
-  width: 8px; height: 8px;
+.pred-card--highlight::before {
+  content: '';
+  position: absolute;
+  top: -40px; right: -40px;
+  width: 120px; height: 120px;
   border-radius: 50%;
-  flex-shrink: 0;
-  animation: pulse-dot 2s infinite;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+  pointer-events: none;
 }
-.gov-status-dot.status-good { background: #22c55e; }
-.gov-status-dot.status-warn { background: #f59e0b; }
-.gov-status-dot.status-poor { background: #ef4444; }
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.45; }
+.pred-card--highlight .pred-card-title {
+  color: #e2e8f0;
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+  font-size: 0.95rem;
 }
+.pred-card--highlight .pred-conclusion { color: #cbd5e1; }
+.pred-card--highlight .pred-tag { border-bottom-color: rgba(255, 255, 255, 0.08); }
+.pred-card--highlight .pred-tag-label { color: #94a3b8; }
+.pred-card--highlight .pred-tag-val.up { color: #f87171; }
+.pred-card--highlight .pred-list li { color: #cbd5e1; }
+.pred-card--highlight .pred-list li b { color: #e2e8f0; }
+.pred-card-title { font-size: 0.9rem; font-weight: 700; color: #1e293b; margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid #f1f5f9; }
+.pred-chart { width: 100%; height: 280px; }
 
-.gov-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: #1e3a6e;
-  letter-spacing: 0.01em;
-}
-.gov-phase-tag {
-  font-size: 11px;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: #dbeafe;
-  color: #1d4ed8;
-  font-weight: 600;
-}
+.pred-conclusion { font-size: 0.84rem; color: #334155; line-height: 1.7; }
+.pred-tag { display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid #f1f5f9; }
+.pred-tag-label { color: #64748b; }
+.pred-tag-val { font-weight: 700; }
+.pred-tag-val.up { color: #ef4444; }
+.pred-list { padding-left: 1rem; margin: 0.5rem 0 0; }
+.pred-list li { margin-bottom: 0.4rem; }
+.pred-model-notes { margin-top: 0.5rem; font-size: 0.78rem; color: #64748b; display: flex; flex-wrap: wrap; gap: 0.3rem 0.8rem; }
+.pred-model-tag { font-weight: 600; font-size: 0.75rem; padding: 1px 6px; border-radius: 4px; }
+.pred-model-tag.gpr { color: #ef4444; background: #fef2f2; }
+.pred-model-tag.lstm { color: #10b981; background: #ecfdf5; }
+.pred-model-tag.prophet { color: #f59e0b; background: #fffbeb; }
+.pred-model-tag.rl { color: #6366f1; background: #eef2ff; }
 
-.gov-header-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  flex: 1;
-  justify-content: flex-end;
-}
-.gov-mandate-chip {
-  font-size: 12px;
-  font-weight: 600;
-  color: #2f6fed;
-  background: #dbeafe;
-  padding: 2px 10px;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-.gov-domain-summary {
-  font-size: 12px;
-  color: #6b7280;
-  white-space: nowrap;
-}
-.gov-chevron {
-  color: #6b7280;
-  flex-shrink: 0;
-  transition: transform 0.25s ease;
-}
-.gov-chevron.rotated { transform: rotate(180deg); }
-
-.gov-slide-enter-active,
-.gov-slide-leave-active {
-  transition: max-height 0.3s ease, opacity 0.25s ease;
-  max-height: 600px;
-  overflow: hidden;
-}
-.gov-slide-enter-from,
-.gov-slide-leave-to {
-  max-height: 0;
-  opacity: 0;
-}
-
-.gov-body {
-  padding: 0 16px 16px;
-  border-top: 1px solid #dbeafe;
-}
-.gov-grid {
-  display: grid;
-  grid-template-columns: 1.1fr 1fr 0.9fr;
-  gap: 16px;
-  padding-top: 14px;
-}
-
-.gov-col-header {
-  font-size: 11px;
-  font-weight: 700;
-  color: #4b5b7c;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin-bottom: 10px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid #dbeafe;
-}
-
-.mandate-list { display: flex; flex-direction: column; gap: 8px; }
-.mandate-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-}
-.mandate-item:hover { background: #f0f6ff; }
-.mandate-item.active {
-  background: #eff6ff;
-  border-color: #bfdbfe;
-}
-.mandate-radio {
-  width: 14px; height: 14px;
-  border-radius: 50%;
-  border: 2px solid #94a3b8;
-  flex-shrink: 0;
-  margin-top: 2px;
-  transition: border-color 0.15s;
-}
-.mandate-radio.active {
-  border-color: #2f6fed;
-  background: radial-gradient(circle, #2f6fed 40%, transparent 40%);
-}
-.mandate-label {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: #1e3a6e;
-  line-height: 1.3;
-}
-.mandate-desc {
-  font-size: 11px;
-  color: #6b7280;
-  margin-top: 2px;
-  line-height: 1.5;
-}
-
-.domain-list { display: flex; flex-direction: column; gap: 7px; }
-.domain-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid #e5edf8;
-  background: #fff;
-  cursor: pointer;
-  transition: opacity 0.2s, border-color 0.15s;
-}
-.domain-row:hover { border-color: #93c5fd; }
-.domain-row.domain-off { opacity: 0.42; }
-.domain-check {
-  width: 16px; height: 16px;
-  border-radius: 4px;
-  border: 1.5px solid #94a3b8;
-  flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  transition: background 0.15s, border-color 0.15s;
-}
-.domain-check.active {
-  background: #2f6fed;
-  border-color: #2f6fed;
-}
-.domain-info { flex: 1; min-width: 0; }
-.domain-name {
-  font-size: 12px;
-  font-weight: 600;
-  color: #1e3a6e;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.domain-coverage {
-  font-size: 10.5px;
-  color: #9ca3af;
-  margin-top: 1px;
-}
-.domain-q-wrap {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex-shrink: 0;
-}
-.domain-q-bar {
-  width: 52px; height: 5px;
-  background: #e5e7eb;
-  border-radius: 99px;
-  overflow: hidden;
-}
-.domain-q-fill {
-  height: 100%;
-  border-radius: 99px;
-  transition: width 0.3s;
-}
-.domain-q-val {
-  font-size: 11px;
-  font-weight: 700;
-  min-width: 30px;
-  text-align: right;
-}
-
-.assume-list { display: flex; flex-direction: column; gap: 7px; }
-.assume-item {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  font-size: 11.5px;
-  line-height: 1.5;
-}
-.assume-index {
-  flex-shrink: 0;
-  width: 16px; height: 16px;
-  border-radius: 50%;
-  background: #2f6fed;
-  color: #fff;
-  font-size: 10px;
-  font-weight: 700;
-  display: flex; align-items: center; justify-content: center;
-  margin-top: 1px;
-}
-.assume-text { color: #374151; }
-.gov-time-range {
-  margin-top: 12px;
-  padding: 7px 10px;
-  background: #f0f6ff;
-  border-radius: 8px;
-  border: 1px solid #dbeafe;
-}
-.gov-time-label {
-  font-size: 10px;
-  font-weight: 700;
-  color: #6b7280;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  display: block;
-  margin-bottom: 3px;
-}
-.gov-time-val {
-  font-size: 11.5px;
-  color: #1e3a6e;
-  font-weight: 600;
-}
-
-@media (max-width: 900px) {
-  .gov-grid { grid-template-columns: 1fr; }
-}
-
-/* ── /供应链问题设定面板 ──────────────────────────────────────── */
-
-.switch-shell {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 14px;
-  border: 1px solid #e6ebf5;
-  border-radius: 12px;
-  background: linear-gradient(180deg, #fbfdff 0%, #f4f8ff 100%);
-  margin-bottom: 12px;
-  margin-left: 12px;
-  margin-right: 12px;
-}
-
-.switch-title-wrap { min-width: 0; }
-.switch-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: #1f2a44;
-  line-height: 1.1;
-}
-.switch-subtitle {
-  margin-top: 4px;
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.switch-group :deep(.el-radio-button__inner) {
-  border-radius: 999px;
-  border: 1px solid #d8e0ef;
-  margin-left: 6px;
-  min-width: 90px;
-  text-align: center;
-  box-shadow: none;
-}
-.switch-group :deep(.el-radio-button:first-child .el-radio-button__inner) {
-  margin-left: 0;
-}
-.switch-group :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
-  background: #2f6fed;
-  border-color: #2f6fed;
-}
-
-.problem-brief-shell {
-  display: grid;
-  grid-template-columns: 1.15fr 1fr 1fr;
-  gap: 12px;
-  margin: 0 12px 12px;
-}
-
-.problem-brief-card {
-  padding: 14px 16px;
-  border: 1px solid #e6ebf5;
-  border-radius: 12px;
-  background: #ffffff;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
-}
-
-.problem-brief-card.primary {
-  background: linear-gradient(180deg, #fbfdff 0%, #f2f7ff 100%);
-  border-color: #d8e4fb;
-}
-
-.problem-brief-label {
-  font-size: 11px;
-  font-weight: 700;
-  color: #6b7280;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.problem-brief-title {
-  margin-top: 6px;
-  font-size: 15px;
-  font-weight: 700;
-  color: #1f2a44;
-  line-height: 1.35;
-}
-
-.problem-brief-text {
-  margin-top: 6px;
-  font-size: 12px;
-  color: #6b7280;
-  line-height: 1.6;
-}
-
-.pane-container { padding: 0; }
-
-@media (max-width: 980px) {
-  .problem-brief-shell {
-    grid-template-columns: 1fr;
-  }
-  .switch-shell {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .switch-group {
-    width: 100%;
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 8px;
-  }
-  .switch-group :deep(.el-radio-button) { width: 100%; }
-  .switch-group :deep(.el-radio-button__inner) { margin-left: 0; width: 100%; }
-}
+@media (max-width: 1024px) { .pred-row { flex-direction: column; } }
 </style>

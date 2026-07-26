@@ -12,7 +12,23 @@ const situationAnalysis = () => import("../views/SCnet/PreScene/situationAnalysi
 const routes = [
   {
     path: '/',
-    redirect: '/startPage'
+    redirect: '/chatHome'
+  },
+  {
+    path: '/chatHome',
+    name: 'ChatHome',
+    component: () => import("../views/SCnet/ChatHome.vue"),
+    meta: {
+      title: "SCnet - 供应链智能对话"
+    }
+  },
+  {
+    path: '/chatKnowledge',
+    name: 'ChatKnowledge',
+    component: () => import("../views/SCnet/NewKnowledgeCenter.vue"),
+    meta: {
+      title: "SCnet - 知识库"
+    }
   },
   {
     path: '/startPage',
@@ -78,6 +94,11 @@ const routes = [
         path: 'situationAnalysis',
         name: 'situationAnalysis',
         component: situationAnalysis
+      },
+      {
+        path: 'situationJudge',
+        name: 'situationJudge',
+        component: () => import("../views/SCnet/situationJudge.vue")
       },
       {
         path: 'total',

@@ -35,6 +35,10 @@ export default defineConfig({
         target: 'http://localhost:9091/',
         changeOrigin: true
       },
+      '/api/chat': {
+        target: 'http://localhost:9091/',
+        changeOrigin: true
+      },
       // 其他 /api 开头的请求，移除 /api 前缀（后端路由不含 /api）
       '/api': {
         target: 'http://localhost:9091/',

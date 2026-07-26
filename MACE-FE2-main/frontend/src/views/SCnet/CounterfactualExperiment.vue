@@ -1,12 +1,13 @@
 <template>
   <div class="scnet-counterfactual-cockpit">
     <section class="page-head">
-      <div class="page-head__left">
-        <h1>反事实实验</h1>
-        <p class="subtitle">基于事中仿真结果，设定干预变量与产能方案，对比评估策略效果。</p>
+      <div>
+        <p class="eyebrow">URANIUM SUPPLY CHAIN · COUNTERFACTUAL</p>
+        <h1>供应链反事实实验</h1>
+        <p class="subtitle">基于事中供应链仿真结果设定干预变量与产能方案，运行反事实实验并对比评估策略效果。支持矿山产能调整、新矿投产阈值、需求波动等供应链特有参数。</p>
       </div>
       <div class="page-actions">
-        <el-button type="primary" size="default" :icon="Upload" @click="triggerReportUpload">导入实验报告</el-button>
+        <el-button type="primary" size="large" :icon="Upload" @click="triggerReportUpload">导入实验报告</el-button>
         <input
           ref="reportFileInput"
           class="report-file-input"
@@ -14,23 +15,17 @@
           accept=".json,application/json"
           @change="handleReportUpload"
         />
-        <div class="action-divider"></div>
-        <button class="action-btn action-btn--outline" @click="connectSim" :disabled="isConnected || simState === 'preparing' || currentRunState.running">初始化 / 连接</button>
-        <button class="action-btn action-btn--primary" @click="startSim" :disabled="currentRunState.running || !isConnected || simState === 'preparing' || !activeCounterfactualExperiment">运行</button>
-        <button class="action-btn action-btn--ghost" @click="resetSim" :disabled="currentRunState.running">重置</button>
-        <button class="action-btn action-btn--accent" @click="generateReport" :disabled="!currentRunState.result">生成报告</button>
       </div>
     </section>
 
     <div class="top-row">
-      <!-- 左栏：实验控制区 -->
       <section class="control-panel panel-card panel-card--blue">
         <header class="panel-header">
           <div>
-            <p class="eyebrow">Control Panel</p>
-            <h3>实验控制区</h3>
+            <p class="eyebrow">Uranium Supply Chain</p>
+            <h3>反事实实验控制区</h3>
           </div>
-          <span v-if="currentRunState.running || simState !== 'idle'" class="state-badge" :data-state="currentRunState.running ? 'running' : simState">{{ currentRunState.running ? 'RUNNING' : stateLabel }}</span>
+          <span class="state-badge" :data-state="currentRunState.running ? 'running' : simState">{{ currentRunState.running ? 'RUNNING' : stateLabel }}</span>
         </header>
 
         <div class="panel-body stack">
@@ -46,7 +41,7 @@
           </div>
           <div class="counterfactual-target counterfactual-target--empty block" v-else>
             <strong>尚未选择反事实实验对象</strong>
-            <p>请先导入实验报告，或切换到已导入报告的事中实验。</p>
+            <p>请先在右侧导入实验报告，或切换到已导入报告的事中实验。</p>
           </div>
 
           <div class="control-params parameter-control-panel" v-if="activeCounterfactualExperiment">
@@ -73,6 +68,52 @@
                   />
                   <span class="control-unit">{{ parameter.unit }}</span>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="control-buttons">
+            <button class="btn btn-secondary" @click="connectSim" :disabled="isConnected || simState === 'preparing' || currentRunState.running">初始化 / 连接</button>
+            <button class="btn btn-primary" @click="startSim" :disabled="currentRunState.running || !isConnected || simState === 'preparing' || !activeCounterfactualExperiment">运行</button>
+            <button class="btn btn-ghost" @click="resetSim" :disabled="currentRunState.running">重置</button>
+            <button class="btn btn-primary" @click="generateReport" :disabled="!currentRunState.result">生成报告</button>
+          </div>
+
+          <div class="backend-run-status block">
+            <div class="backend-run-status__head">
+              <span>后端实验运行 · {{ activeCounterfactualExperiment?.label || '未选择' }}</span>
+              <span class="status-dot" :data-status="currentRunState.status || simState"></span>
+            </div>
+            <p>{{ currentRunState.message }}</p>
+            <div class="backend-task-meta" v-if="currentRunState.taskId">
+              <span>任务：{{ currentRunState.taskId }}</span>
+              <span>状态：{{ taskStatusText(currentRunState.status) }}</span>
+            </div>
+            <div class="backend-task-error" v-if="currentRunState.error">{{ currentRunState.error }}</div>
+            <div class="backend-result-grid" v-if="currentRunState.result">
+              <div>
+                <span>最佳轮次</span>
+                <strong>第 {{ currentRunState.result.bestIteration || '--' }} 轮</strong>
+              </div>
+              <div>
+                <span>完成率</span>
+                <strong>{{ formatPercentValue(currentRunState.result.completionRate) }}</strong>
+              </div>
+              <div>
+                <span>{{ currentRunState.result.isUranium ? '供应缺口率' : '积压率' }}</span>
+                <strong>{{ formatPercentValue(currentRunState.result.backlogRate) }}</strong>
+              </div>
+              <div>
+                <span>综合评分</span>
+                <strong>{{ formatNullableNumber(currentRunState.result.overallScore, 3) }}</strong>
+              </div>
+              <div v-if="currentRunState.result.isUranium && currentRunState.result.networkStability != null">
+                <span>网络稳定性</span>
+                <strong>{{ formatPercentValue(currentRunState.result.networkStability) }}</strong>
+              </div>
+              <div v-if="currentRunState.result.isUranium && currentRunState.result.productionCapacityEst != null">
+                <span>产能估算</span>
+                <strong>{{ formatNullableNumber(currentRunState.result.productionCapacityEst, 0) }} tU/年</strong>
               </div>
             </div>
           </div>
@@ -121,15 +162,23 @@
               <el-button size="default" @click="forceTriggerEvent">立即触发下一事件</el-button>
             </div>
           </div>
+
+          <div class="confirmed-panel" v-if="activeCounterfactualExperiment">
+            <h4>反事实实验对象摘要</h4>
+            <div class="confirmed-summary-row">
+              <div><strong>名称：</strong>{{ activeCounterfactualExperiment.label }}</div>
+              <div><strong>干预变量：</strong>{{ activeCounterfactualExperiment.arguments.intervention }}</div>
+              <div><strong>产能方案：</strong>{{ activeCounterfactualExperiment.arguments.capacityPlan }}</div>
+            </div>
+          </div>
         </div>
       </section>
 
-      <!-- 中栏：实验自定义 -->
-      <section class="settings-panel panel-card panel-card--purple">
+      <section class="charts-panel settings-panel panel-card panel-card--purple">
         <div class="settings-header">
           <div class="header-text">
-            <h3>实验自定义</h3>
-            <p>选择实验以编辑参数与状态</p>
+            <h3>单实验自定义</h3>
+            <p>选择实验以编辑 Arguments 与 Status 字段</p>
           </div>
           <el-button type="primary" plain size="small" @click="createExperiment">新增实验</el-button>
         </div>
@@ -263,81 +312,11 @@
           </el-card>
         </el-scrollbar>
       </section>
-
-      <!-- 右栏：实验结论 -->
-      <section class="conclusion-panel panel-card panel-card--green">
-        <header class="panel-header">
-          <div>
-            <p class="eyebrow">Experiment Conclusion</p>
-            <h3>实验结论</h3>
-          </div>
-          <span v-if="currentRunState.result" class="state-badge state-badge--done">已完成</span>
-        </header>
-
-        <div class="panel-body stack">
-          <div class="backend-run-status block">
-            <div class="backend-run-status__head">
-              <span>后端实验运行 · {{ activeCounterfactualExperiment?.label || '未选择' }}</span>
-              <span class="status-dot" :data-status="currentRunState.status || simState"></span>
-            </div>
-            <p>{{ currentRunState.message }}</p>
-            <div class="backend-task-meta" v-if="currentRunState.taskId">
-              <span>任务：{{ currentRunState.taskId }}</span>
-              <span>状态：{{ taskStatusText(currentRunState.status) }}</span>
-            </div>
-            <div class="backend-task-error" v-if="currentRunState.error">{{ currentRunState.error }}</div>
-          </div>
-
-          <div class="result-metrics-block" v-if="currentRunState.result">
-            <h4 class="result-block-title">实验指标结果</h4>
-            <div class="result-metrics-grid">
-              <div class="result-metric-card">
-                <span class="result-metric-label">最佳轮次</span>
-                <strong class="result-metric-value">第 {{ currentRunState.result.bestIteration || '--' }} 轮</strong>
-              </div>
-              <div class="result-metric-card">
-                <span class="result-metric-label">完成率</span>
-                <strong class="result-metric-value">{{ formatPercentValue(currentRunState.result.completionRate) }}</strong>
-              </div>
-              <div class="result-metric-card">
-                <span class="result-metric-label">{{ currentRunState.result.isUranium ? '供应缺口率' : '积压率' }}</span>
-                <strong class="result-metric-value">{{ formatPercentValue(currentRunState.result.backlogRate) }}</strong>
-              </div>
-              <div class="result-metric-card">
-                <span class="result-metric-label">综合评分</span>
-                <strong class="result-metric-value highlight">{{ formatNullableNumber(currentRunState.result.overallScore, 3) }}</strong>
-              </div>
-              <div class="result-metric-card" v-if="currentRunState.result.isUranium && currentRunState.result.networkStability != null">
-                <span class="result-metric-label">网络稳定性</span>
-                <strong class="result-metric-value">{{ formatPercentValue(currentRunState.result.networkStability) }}</strong>
-              </div>
-              <div class="result-metric-card" v-if="currentRunState.result.isUranium && currentRunState.result.productionCapacityEst != null">
-                <span class="result-metric-label">产能估算</span>
-                <strong class="result-metric-value">{{ formatNullableNumber(currentRunState.result.productionCapacityEst, 0) }} tU/年</strong>
-              </div>
-            </div>
-          </div>
-
-          <div class="confirmed-panel" v-if="activeCounterfactualExperiment">
-            <h4>实验对象摘要</h4>
-            <div class="confirmed-summary-row">
-              <div><strong>名称：</strong>{{ activeCounterfactualExperiment.label }}</div>
-              <div><strong>干预变量：</strong>{{ activeCounterfactualExperiment.arguments.intervention }}</div>
-              <div><strong>产能方案：</strong>{{ activeCounterfactualExperiment.arguments.capacityPlan }}</div>
-            </div>
-          </div>
-
-          <div class="no-result-placeholder" v-if="!currentRunState.result && !currentRunState.running">
-            <div class="placeholder-icon">📊</div>
-            <p>尚未运行实验，运行后将在此展示实验结论与关键指标。</p>
-          </div>
-        </div>
-      </section>
     </div>
 
     <el-dialog
       v-model="eventDialogVisible"
-      title="铀供应链反事实事件决策"
+      title="供应链反事实事件决策"
       width="520px"
       top="8vh"
       :close-on-click-modal="false"
@@ -347,9 +326,9 @@
       <div class="decision-dialog">
         <p class="decision-desc">{{ eventContext.description }}</p>
         <el-radio-group v-model="pendingDecision" class="decision-options">
-          <el-radio-button label="扩大铀矿产能" />
+          <el-radio-button label="扩大矿山产能" />
           <el-radio-button label="加速新矿开发投产" />
-          <el-radio-button label="调整国际铀采购策略" />
+          <el-radio-button label="调整国际采购策略" />
         </el-radio-group>
       </div>
       <template #footer>
@@ -396,38 +375,38 @@ const buildCounterfactualParameterControls = (report) => {
   const capacityRange = Array.isArray(report.parameters.factoryCapacityRange)
     ? report.parameters.factoryCapacityRange
     : [0, 0]
-  // 检测铀场景 → 使用铀专用单位与描述
+  // 检测场景 → 使用专用单位与描述
   const reportSource = (report.source || '').toLowerCase()
-  const isUranium = reportSource.includes('uranium') || reportSource.includes('铀')
+  const isUranium = reportSource.includes('uranium') || reportSource.includes('')
 
   return [
     {
       key: 'order_multiplier',
-      label: isUranium ? '铀需求强度' : '市场需求强度',
+      label: isUranium ? '需求强度' : '市场需求强度',
       value: roundNumber(report.parameters.orderMultiplier, 2),
       unit: '倍',
       min: 0.5,
       max: 2.5,
       step: 0.05,
-      description: isUranium ? '全球核电反应堆铀需求倍数，基准为当前~123,860 tU/年' : '需求上升压力输入'
+      description: isUranium ? '全球核电反应堆需求倍数，基准为当前~123,860 tU/年' : '需求上升压力输入'
     },
     {
       key: 'factory_capacity_min',
-      label: isUranium ? '铀矿产能下限' : '制造总产能下限',
+      label: isUranium ? '矿山产能下限' : '制造总产能下限',
       value: roundNumber(capacityRange[0], 2),
       unit: isUranium ? 'tU/年' : '单位',
       min: 0,
       step: isUranium ? 100 : 0.01,
-      description: isUranium ? '全球铀矿年产能下限(吨铀/年)，对应已承诺矿山最低产出' : '制造能力区间的保底值'
+      description: isUranium ? '全球矿山年产能下限(吨/年)，对应已承诺矿山最低产出' : '制造能力区间的保底值'
     },
     {
       key: 'factory_capacity_max',
-      label: isUranium ? '铀矿产能上限' : '制造总产能上限',
+      label: isUranium ? '矿山产能上限' : '制造总产能上限',
       value: roundNumber(capacityRange[1], 2),
       unit: isUranium ? 'tU/年' : '单位',
       min: 0,
       step: isUranium ? 100 : 0.01,
-      description: isUranium ? '全球铀矿年产能峰值上限(吨铀/年)，含计划与潜在矿山满产产能' : '制造能力区间的峰值上限'
+      description: isUranium ? '全球矿山年产能峰值上限(吨/年)，含计划与潜在矿山满产产能' : '制造能力区间的峰值上限'
     },
     {
       key: 'reproduction_threshold',
@@ -436,7 +415,7 @@ const buildCounterfactualParameterControls = (report) => {
       unit: isUranium ? 'tU/年' : '单位',
       min: 0,
       step: isUranium ? 50 : 10,
-      description: isUranium ? '触发新铀矿开发的最低供需缺口(吨铀/年)，影响Dasa/Wheeler River等新矿投产时机' : '影响产能扩张触发时点'
+      description: isUranium ? '触发新矿山开发的最低供需缺口(吨/年)，影响Dasa/Wheeler River等新矿投产时机' : '影响产能扩张触发时点'
     },
     {
       key: 'adjustment_ratio',
@@ -446,7 +425,7 @@ const buildCounterfactualParameterControls = (report) => {
       min: 0,
       max: 1,
       step: 0.0001,
-      description: isUranium ? '铀矿扩产/减产的年度调整速率，反映矿山重启(Langer Heinrich)或关停的响应速度' : '事中报告中识别到的产能调整幅度'
+      description: isUranium ? '矿山扩产/减产的年度调整速率，反映矿山重启(Langer Heinrich)或关停的响应速度' : '事中报告中识别到的产能调整幅度'
     }
   ]
 }
@@ -457,7 +436,7 @@ const buildImportedReport = (report) => {
   const capacityRange = formatRange(report.parameters.factoryCapacityRange)
   const adjustmentRatio = formatPercent(report.parameters.adjustmentRatio)
   const reportSource = (report.source || '').toLowerCase()
-  const isUranium = reportSource.includes('uranium') || reportSource.includes('铀')
+  const isUranium = reportSource.includes('uranium') || reportSource.includes('')
 
   const baseMetrics = isUranium ? [
     { label: '最佳轮次', value: `第 ${report.bestIteration} 轮` },
@@ -476,27 +455,27 @@ const buildImportedReport = (report) => {
   ]
 
   const baseBackground = isUranium
-    ? `该报告来自 ${report.timestamp} 的 ${report.totalIterations} 轮铀供应链仿真。实验将铀需求强度设为 ${report.parameters.orderMultiplier.toFixed(2)}x（全球核电铀需求约 ${(report.parameters.orderMultiplier * 123860).toFixed(0)} tU/年），最佳轮次为第 ${report.bestIteration} 轮，订单完成率为 ${formatPercent(report.bestMetrics.orderCompletionRate)}，存在约 ${formatPercent(backlogRate)} 的供应缺口。反事实阶段需重点调整铀矿产能区间与新矿投产阈值，评估不同扩产方案对供应安全的影响。`
+    ? `该报告来自 ${report.timestamp} 的 ${report.totalIterations} 轮供应链仿真。实验将需求强度设为 ${report.parameters.orderMultiplier.toFixed(2)}x（全球核电需求约 ${(report.parameters.orderMultiplier * 123860).toFixed(0)} tU/年），最佳轮次为第 ${report.bestIteration} 轮，订单完成率为 ${formatPercent(report.bestMetrics.orderCompletionRate)}，存在约 ${formatPercent(backlogRate)} 的供应缺口。反事实阶段需重点调整矿山产能区间与新矿投产阈值，评估不同扩产方案对供应安全的影响。`
     : `该报告来自 ${report.timestamp} 的 ${report.totalIterations} 轮事中仿真。实验将市场需求强度设为 ${report.parameters.orderMultiplier.toFixed(2)}x，最佳轮次为第 ${report.bestIteration} 轮，但订单完成率仅 ${formatPercent(report.bestMetrics.orderCompletionRate)}，仍存在约 ${formatPercent(backlogRate)} 的订单积压，需要在反事实阶段重点调整制造总产能与产能响应阈值。`
 
   const baseParamsToModify = isUranium ? [
     {
       key: 'order_multiplier',
-      name: '铀需求强度',
+      name: '需求强度',
       current: `${report.parameters.orderMultiplier.toFixed(2)}x (~${(report.parameters.orderMultiplier * 123860).toFixed(0)} tU/年)`,
-      reason: '基于NEA/IAEA Red Book全球核电反应堆铀需求，用于复现不同核电发展情景下的铀需求背景。'
+      reason: '基于NEA/IAEA Red Book全球核电反应堆需求，用于复现不同核电发展情景下的需求背景。'
     },
     {
       key: 'factory_capacity_range',
-      name: '铀矿产能区间',
+      name: '矿山产能区间',
       current: `${capacityRange} tU/年`,
-      reason: `报告中主要调整参数为铀矿产能区间，调整幅度约 ${adjustmentRatio}。需比较不同扩产方案（ISL优先/大矿优先/均衡扩产）对供应缺口和完成率的影响。`
+      reason: `报告中主要调整参数为矿山产能区间，调整幅度约 ${adjustmentRatio}。需比较不同扩产方案（ISL优先/大矿优先/均衡扩产）对供应缺口和完成率的影响。`
     },
     {
       key: 'reproduction_threshold',
       name: '新矿投产阈值',
       current: `${report.parameters.reproductionThreshold} tU/年`,
-      reason: '该阈值决定新铀矿项目（如Dasa、Wheeler River、Arrow）何时触发开发，是铀供应链中长期产能规划的关键变量。'
+      reason: '该阈值决定新矿山项目（如Dasa、Wheeler River、Arrow）何时触发开发，是供应链中长期产能规划的关键变量。'
     }
   ] : [
     {
@@ -520,12 +499,12 @@ const buildImportedReport = (report) => {
   ]
 
   const baseSuggestion = isUranium
-    ? '优先测试铀矿总产能上调、新矿投产阈值前置、和分阶段扩产(短期ISL+中长期硬岩矿)三类方案，对比供应缺口率与网络稳定性。'
+    ? '优先测试矿山总产能上调、新矿投产阈值前置、和分阶段扩产(短期ISL+中长期硬岩矿)三类方案，对比供应缺口率与网络稳定性。'
     : '优先测试制造总产能上调、产能阈值前置和分阶段扩产三类方案，并对比订单积压率与完成率稳定性。'
 
   return {
     source: report.source,
-    title: isUranium ? `铀供应链报告：${report.source}` : report.title,
+    title: isUranium ? `供应链报告：${report.source}` : report.title,
     background: baseBackground,
     keyMetrics: baseMetrics,
     parametersToModify: baseParamsToModify,
@@ -560,7 +539,7 @@ const normalizeUploadedReport = (payload, fileName) => {
     avgRobustness: normalizeRate(summary.avg_robustness ?? bestIteration?.feedback?.robustness, 0),
     goal: bestIteration?.goal || payload?.goal ||
       ((payload?.system || fileName || '').toLowerCase().includes('uranium')
-        ? '分析全球铀供应链网络演化规律，评估铀矿产能、新矿投产策略对供应安全的影响'
+        ? '分析全球供应链网络演化规律，评估矿山产能、新矿投产策略对供应安全的影响'
         : '市场需求强度上升时，制造总产能需要如何调整，才能减少订单积压并保持完成率稳定'),
     parameters: {
       orderMultiplier: toFiniteNumber(firstParameters.order_multiplier ?? firstParameters.orderMultiplier ?? parameters.order_multiplier ?? parameters.orderMultiplier, 1),
@@ -585,11 +564,11 @@ const normalizeUploadedReport = (payload, fileName) => {
 
 const createEmptyExperiment = (index) => ({
   id: `exp${String(index).padStart(2, '0')}`,
-  label: `铀供应链实验${index}`,
+  label: `供应链实验${index}`,
   hasReport: false,
   report: null,
   arguments: {
-    name: `铀供应链实验${index}`,
+    name: `供应链实验${index}`,
     baseExperiment: EMPTY_TEXT,
     goal: EMPTY_TEXT,
     intervention: EMPTY_TEXT,
@@ -623,36 +602,36 @@ const buildStoredParameterFallback = (experiment) => {
   const adjustmentText = capacity?.reason || ''
   const adjustmentMatch = adjustmentText.match(/-?\d+(?:\.\d+)?%/)
   const reportSource = (experiment?.report?.source || '').toLowerCase()
-  const isUranium = reportSource.includes('uranium') || reportSource.includes('铀')
+  const isUranium = reportSource.includes('uranium') || reportSource.includes('')
 
   return [
     {
       key: 'order_multiplier',
-      label: isUranium ? '铀需求强度' : '市场需求强度',
+      label: isUranium ? '需求强度' : '市场需求强度',
       value: roundNumber(parseNumberFromText(demand?.current || experiment?.arguments?.demandLevel, 1), 2),
       unit: '倍',
       min: 0.5,
       max: 2.5,
       step: 0.05,
-      description: isUranium ? '全球核电反应堆铀需求倍数' : '需求上升压力输入'
+      description: isUranium ? '全球核电反应堆需求倍数' : '需求上升压力输入'
     },
     {
       key: 'factory_capacity_min',
-      label: isUranium ? '铀矿产能下限' : '制造总产能下限',
+      label: isUranium ? '矿山产能下限' : '制造总产能下限',
       value: roundNumber(capacityValues[0], 2),
       unit: isUranium ? 'tU/年' : '单位',
       min: 0,
       step: isUranium ? 100 : 0.01,
-      description: isUranium ? '全球铀矿年产能保底下限' : '制造能力区间的保底值'
+      description: isUranium ? '全球矿山年产能保底下限' : '制造能力区间的保底值'
     },
     {
       key: 'factory_capacity_max',
-      label: isUranium ? '铀矿产能上限' : '制造总产能上限',
+      label: isUranium ? '矿山产能上限' : '制造总产能上限',
       value: roundNumber(capacityValues[1], 2),
       unit: isUranium ? 'tU/年' : '单位',
       min: 0,
       step: isUranium ? 100 : 0.01,
-      description: isUranium ? '全球铀矿年产能峰值上限' : '制造能力区间的峰值上限'
+      description: isUranium ? '全球矿山年产能峰值上限' : '制造能力区间的峰值上限'
     },
     {
       key: 'reproduction_threshold',
@@ -661,7 +640,7 @@ const buildStoredParameterFallback = (experiment) => {
       unit: isUranium ? 'tU/年' : '单位',
       min: 0,
       step: isUranium ? 50 : 10,
-      description: isUranium ? '触发新铀矿开发的供需缺口' : '影响产能扩张触发时点'
+      description: isUranium ? '触发新矿山开发的供需缺口' : '影响产能扩张触发时点'
     },
     {
       key: 'adjustment_ratio',
@@ -671,7 +650,7 @@ const buildStoredParameterFallback = (experiment) => {
       min: 0,
       max: 1,
       step: 0.0001,
-      description: isUranium ? '铀矿扩产/减产的年度调整速率' : '事中报告中识别到的产能调整幅度'
+      description: isUranium ? '矿山扩产/减产的年度调整速率' : '事中报告中识别到的产能调整幅度'
     }
   ]
 }
@@ -686,11 +665,11 @@ const applyReportToExperiment = (experiment, rawReport) => {
     name: experiment.label,
     baseExperiment: rawReport.source,
     goal: rawReport.goal,
-    intervention: isUraniumReport ? '待选择铀供应链干预策略' : '待选择反事实干预策略',
+    intervention: isUraniumReport ? '待选择供应链干预策略' : '待选择反事实干预策略',
     capacityPlan: isUraniumReport
-      ? `铀矿产能区间 ${formatRange(rawReport.parameters.factoryCapacityRange)} tU/年`
+      ? `矿山产能区间 ${formatRange(rawReport.parameters.factoryCapacityRange)} tU/年`
       : `制造总产能区间 ${formatRange(rawReport.parameters.factoryCapacityRange)}`,
-    demandLevel: `铀需求强度 ${rawReport.parameters.orderMultiplier.toFixed(2)}x`
+    demandLevel: `需求强度 ${rawReport.parameters.orderMultiplier.toFixed(2)}x`
   }
   experiment.status = {
     observedRound: String(rawReport.bestIteration),
@@ -713,7 +692,7 @@ const eventDialogVisible = ref(false)
 const eventTriggered = ref(false)
 const eventResolved = ref(false)
 const lastEventDecision = ref('')
-const pendingDecision = ref('扩大铀矿产能')
+const pendingDecision = ref('扩大矿山产能')
 const triggeredEventIds = ref(new Set())
 const selectedExperimentId = ref('exp01')
 const reportFileInput = ref(null)
@@ -742,10 +721,10 @@ const experiments = ref([
 const normalizeStoredExperiments = (storedExperiments) => {
   const normalized = Array.isArray(storedExperiments)
     ? storedExperiments.map((item, index) => {
-        // 迁移旧标签：将 "事中实验N" 统一替换为 "铀供应链实验N"
+        // 迁移旧标签：将 "事中实验N" 统一替换为 "供应链实验N"
         const migratedItem = { ...item }
         const OLD_LABEL_PREFIX = '事中实验'
-        const NEW_LABEL_PREFIX = '铀供应链实验'
+        const NEW_LABEL_PREFIX = '供应链实验'
         if (migratedItem.label && migratedItem.label.startsWith(OLD_LABEL_PREFIX)) {
           const num = migratedItem.label.replace(OLD_LABEL_PREFIX, '')
           migratedItem.label = NEW_LABEL_PREFIX + num
@@ -754,12 +733,12 @@ const normalizeStoredExperiments = (storedExperiments) => {
           const num = migratedItem.arguments.name.replace(OLD_LABEL_PREFIX, '')
           migratedItem.arguments.name = NEW_LABEL_PREFIX + num
         }
-        // 迁移旧 arguments 字段值中的 "制造总产能" → "铀矿产能"
+        // 迁移旧 arguments 字段值中的 "制造总产能" → "矿山产能"
         if (migratedItem.arguments?.capacityPlan && migratedItem.arguments.capacityPlan.startsWith('制造总产能区间')) {
-          migratedItem.arguments.capacityPlan = migratedItem.arguments.capacityPlan.replace('制造总产能区间', '铀矿产能区间') + ' tU/年'
+          migratedItem.arguments.capacityPlan = migratedItem.arguments.capacityPlan.replace('制造总产能区间', '矿山产能区间') + ' tU/年'
         }
         if (migratedItem.arguments?.intervention === '待选择反事实干预策略') {
-          migratedItem.arguments.intervention = '待选择铀供应链干预策略'
+          migratedItem.arguments.intervention = '待选择供应链干预策略'
         }
 
         const restored = {
@@ -840,43 +819,43 @@ const restoreCounterfactualState = () => {
 
 const presetOptions = {
   baseExperiments: [
-    'multi_agent_report_uranium_network_20260702_173720.json (铀网络演化基线)',
+    'multi_agent_report_uranium_network_20260702_173720.json (网络演化基线)',
     'multi_agent_report_uranium2024_20260702_172322.json (NEA/IAEA资源评估基线)',
     '从队列参数创建基准'
   ],
   goals: [
-    '铀矿产能受限时，如何调整再生产阈值与新矿投产节奏以维持完成率和供应安全',
-    '全球核电需求增长(中国/印度在建反应堆)背景下，铀供应链产能需要扩张多少才能满足需求',
+    '矿山产能受限时，如何调整再生产阈值与新矿投产节奏以维持完成率和供应安全',
+    '全球核电需求增长(中国/印度在建反应堆)背景下，供应链产能需要扩张多少才能满足需求',
     '地缘政治风险(尼日尔政变/哈萨克斯坦酸短缺)导致供应紧缩时，如何通过库存与替代采购维持稳定',
-    '铀价大幅波动($30-$136/lb)对供应链网络稳定性和企业利润率的影响评估',
+    '价格大幅波动($30-$136/lb)对供应链网络稳定性和企业利润率的影响评估',
     '新矿开发(Dasa/Wheeler River/Arrow)投产时间对中长期供需缺口的缓解效果分析'
   ],
   interventions: [
     '不干预，沿用基线参数',
-    '铀矿总产能 +30%，新矿投产阈值降低50%',
-    '铀矿总产能 -20%，提高库存缓冲与替代采购',
-    '铀需求强度 +15%(模拟中国/印度新反应堆投运)',
+    '矿山总产能 +30%，新矿投产阈值降低50%',
+    '矿山总产能 -20%，提高库存缓冲与替代采购',
+    '需求强度 +15%(模拟中国/印度新反应堆投运)',
     '产能爬坡速率翻倍(加速矿山扩产响应)',
     '新矿投产阈值翻倍(收紧市场准入，减少新竞争者)'
   ],
   capacityPlans: [
-    '铀矿产能维持基线区间(参考Red Book已承诺矿山)',
+    '矿山产能维持基线区间(参考Red Book已承诺矿山)',
     '阶梯式扩产：2025-2030分阶段投产计划矿山',
     '高峰前置扩产：提前投产Cigar Lake/McArthur River级别大矿',
     'ISL优先扩产：优先扩大哈萨克斯坦ISL产能(低生产成本)',
     '仅提升瓶颈环节：优先解决转换/浓缩环节产能不足'
   ],
   demands: [
-    '铀需求强度 1.00x (当前全球~123,860 tU/年)',
-    '铀需求强度 1.15x (低情景: 中国/印度核电增长)',
-    '铀需求强度 1.30x (高情景: 全球核电复兴)',
-    '铀需求强度 0.85x (低情景: 部分国家弃核)'
+    '需求强度 1.00x (当前全球~123,860 tU/年)',
+    '需求强度 1.15x (低情景: 中国/印度核电增长)',
+    '需求强度 1.30x (高情景: 全球核电复兴)',
+    '需求强度 0.85x (低情景: 部分国家弃核)'
   ]
 }
 
 const eventConfigs = [
-  { id: 'event1', name: '铀矿停产/淹水', triggerStep: 4 },
-  { id: 'event2', name: '铀价剧烈波动', triggerStep: 8 },
+  { id: 'event1', name: '矿山停产/淹水', triggerStep: 4 },
+  { id: 'event2', name: '价格剧烈波动', triggerStep: 8 },
   { id: 'event3', name: '地缘政治供应风险', triggerStep: 12 }
 ]
 
@@ -916,8 +895,8 @@ const eventStatusLabel = computed(() => {
 const lastEventDecisionLabel = computed(() => lastEventDecision.value || '')
 
 const eventContext = computed(() => ({
-  title: '铀供应链反事实决策',
-  description: `当前实验「${selectedExperiment.value?.label || '--'}」进入铀供应链关键事件决策窗口。请基于铀矿产能、新矿投产周期、国际铀市场价格等约束条件，选择最合适的干预策略。`
+  title: '供应链反事实决策',
+  description: `当前实验「${selectedExperiment.value?.label || '--'}」进入供应链关键事件决策窗口。请基于矿山产能、新矿投产周期、国际市场价格等约束条件，选择最合适的干预策略。`
 }))
 
 let timer = null
@@ -946,18 +925,18 @@ const buildCounterfactualParamOverrides = () => {
 
 const buildCounterfactualRunPayload = () => {
   const paramOverrides = buildCounterfactualParamOverrides()
-  // 检测是否为铀数据 → 自动切换 scenario
+  // 检测是否为数据 → 自动切换 scenario
   const reportSource = (activeCounterfactualExperiment.value?.report?.source || '').toLowerCase()
   const reportTitle = (activeCounterfactualExperiment.value?.report?.title || '').toLowerCase()
-  const isUranium = reportSource.includes('uranium') || reportTitle.includes('uranium') || reportTitle.includes('铀')
+  const isUranium = reportSource.includes('uranium') || reportTitle.includes('uranium') || reportTitle.includes('')
   // 检测基线类型：network(28轮网络演化) vs resource(7轮资源评估)
   const isNetworkBaseline = reportSource.includes('uranium_network')
   const scenario = isUranium ? 'uranium' : 'supply_chain'
   const dataDir = isUranium ? 'E:/tju_1/processed' : null
 
   const uraniumGoal = isNetworkBaseline
-    ? '分析全球铀供应链网络演化规律，评估资源分布、产量趋势与核电需求的供需平衡'
-    : '基于NEA/IAEA Red Book数据评估全球铀资源、产量与核电需求，分析铀供应链供需平衡'
+    ? '分析全球供应链网络演化规律，评估资源分布、产量趋势与核电需求的供需平衡'
+    : '基于NEA/IAEA Red Book数据评估全球资源、产量与核电需求，分析供应链供需平衡'
 
   return {
     scenario,
@@ -995,7 +974,7 @@ const buildCounterfactualRunPayload = () => {
     },
     scenario_context: {
       actual_problem: isUranium
-        ? '铀矿产能与新矿投产策略如何调整，以在需求波动和地缘政治风险下维持供应安全和完成率稳定'
+        ? '矿山产能与新矿投产策略如何调整，以在需求波动和地缘政治风险下维持供应安全和完成率稳定'
         : presetOptions.goals[0],
       source_experiment: activeCounterfactualExperiment.value?.label || '',
       source_report: activeCounterfactualExperiment.value?.report?.source || '',
@@ -1067,7 +1046,7 @@ const connectSim = async () => {
 }
 
 /**
- * 基于导入报告数据的合成反事实结果生成（用于没有后端仿真模型的数据，如铀网络数据）
+ * 基于导入报告数据的合成反事实结果生成（用于没有后端仿真模型的数据，如网络数据）
  */
 const runSyntheticCounterfactual = () => {
   const report = activeCounterfactualExperiment.value?.report
@@ -1077,9 +1056,9 @@ const runSyntheticCounterfactual = () => {
   const baseline = report.bestMetrics || {}
   const paramControls = report.counterfactualParameters || []
 
-  // 检测铀场景 → 使用铀专用弹性系数
+  // 检测场景 → 使用专用弹性系数
   const reportSource = (report.source || '').toLowerCase()
-  const isUranium = reportSource.includes('uranium') || reportSource.includes('铀')
+  const isUranium = reportSource.includes('uranium') || reportSource.includes('')
 
   // 计算参数变化比例
   const capacityParam = paramControls.find(p => p.key === 'factory_capacity_max')
@@ -1102,7 +1081,7 @@ const runSyntheticCounterfactual = () => {
   const baselineCompletion = baseline.orderCompletionRate || 0.7
   const baselineProfit = baseline.totalNetProfit || 10000
 
-  // 铀场景弹性系数：铀矿产能对完成率影响更大（铀供应链产能刚性更强），新矿投产阈值有滞后效应
+  // 场景弹性系数：矿山产能对完成率影响更大（供应链产能刚性更强），新矿投产阈值有滞后效应
   const capacityElasticity = isUranium ? 0.75 : 0.6
   const orderElasticity = isUranium ? 0.35 : 0.4
   const thresholdEffect = isUranium ? (1 - thresholdRatio) * 0.15 : 0
@@ -1151,11 +1130,11 @@ const startSim = async () => {
   const capMin = paramOverrides.factory_capacity_range?.[0] || 0
   const capMax = paramOverrides.factory_capacity_range?.[1] || 0
   if (capMin <= 0 && capMax <= 0) {
-    ElMessage.error('铀矿产能参数不能全为 0，请先导入实验报告或手动设置产能上下限')
+    ElMessage.error('矿山产能参数不能全为 0，请先导入实验报告或手动设置产能上下限')
     return
   }
   if (!paramOverrides.order_multiplier || paramOverrides.order_multiplier <= 0) {
-    ElMessage.error('铀需求强度必须大于 0')
+    ElMessage.error('需求强度必须大于 0')
     return
   }
 
@@ -1280,7 +1259,7 @@ const generateReport = () => {
   const isUraniumReport = rs.result?.isUranium ||
     (activeCounterfactualExperiment.value?.report?.source || '').toLowerCase().includes('uranium')
   const report = {
-    title: isUraniumReport ? '铀供应链反事实实验报告' : '供应链反事实实验报告',
+    title: isUraniumReport ? '供应链反事实实验报告' : '供应链反事实实验报告',
     generatedAt: new Date().toISOString(),
     sourceExperiment: {
       label: activeCounterfactualExperiment.value?.label || '',
@@ -1429,7 +1408,7 @@ const summarizeCounterfactualResult = (detail = {}) => {
   const totalOrders = toFiniteNumber(metrics.total_orders)
   const completedOrders = toFiniteNumber(metrics.completed_orders)
   const backlog = Math.max(totalOrders - completedOrders, 0)
-  // 检测铀场景
+  // 检测场景
   const isUranium = (detail.system || '').toLowerCase().includes('uranium') ||
     (detail.timestamp || '').includes('uranium')
 
@@ -1451,7 +1430,7 @@ const summarizeCounterfactualResult = (detail = {}) => {
     reproductionThreshold: toFiniteNumber(params.reproduction_threshold, null),
     rawParameters: params,
     isUranium,
-    // 铀场景额外指标
+    // 场景额外指标
     productionCapacityEst: isUranium ? toFiniteNumber(metrics.production_capacity_est, null) : null,
     networkDensity: isUranium ? toFiniteNumber(metrics.network_density, null) : null,
     networkStability: isUranium ? toFiniteNumber(metrics.network_stability, null) : null,
@@ -1472,7 +1451,7 @@ const buildCounterfactualConclusion = (result = {}) => {
   const isUranium = result.isUranium || result.rawParameters?.scenario === 'uranium'
   const capacityUnit = isUranium ? 'tU/年' : ''
   return isUranium
-    ? `本次铀供应链反事实重跑在铀矿产能区间 ${capacityRange} ${capacityUnit} 下完成，最佳轮次订单完成率为 ${completionRate}，供应缺口率为 ${backlogRate}。建议根据此结果评估铀矿扩产方案与NEA Red Book供需预测的匹配度。`
+    ? `本次供应链反事实重跑在矿山产能区间 ${capacityRange} ${capacityUnit} 下完成，最佳轮次订单完成率为 ${completionRate}，供应缺口率为 ${backlogRate}。建议根据此结果评估矿山扩产方案与NEA Red Book供需预测的匹配度。`
     : `本次反事实重跑在制造总产能区间 ${capacityRange} 下完成，最佳轮次订单完成率为 ${completionRate}，积压率为 ${backlogRate}。`
 }
 
@@ -1670,7 +1649,7 @@ const removeExperiment = () => {
     experiments.value = [createEmptyExperiment(1), createEmptyExperiment(2)]
     selectedExperimentId.value = 'exp01'
     counterfactualParameters.value = []
-    ElMessage.success('已重置为全新的铀供应链实验')
+    ElMessage.success('已重置为全新的供应链实验')
     return
   }
   selectedExperimentId.value = experiments.value[0].id
@@ -1733,50 +1712,19 @@ watch(
   flex: 0 0 auto;
   display: flex;
   justify-content: space-between;
-  gap: 24px;
+  gap: 20px;
   align-items: center;
-  padding: 18px 28px;
+  padding: 14px 22px;
   margin-bottom: 16px;
-  border: none;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 40%, #3b82f6 70%, #60a5fa 100%);
-  box-shadow: 0 8px 32px rgba(37, 99, 235, 0.28), 0 2px 8px rgba(30, 58, 138, 0.15);
-  position: relative;
-  overflow: hidden;
-}
-
-.scnet-counterfactual-cockpit .page-head::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  right: -10%;
-  width: 300px;
-  height: 300px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.06);
-  pointer-events: none;
-}
-
-.scnet-counterfactual-cockpit .page-head::after {
-  content: '';
-  position: absolute;
-  bottom: -60%;
-  left: 5%;
-  width: 220px;
-  height: 220px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.04);
-  pointer-events: none;
-}
-
-.scnet-counterfactual-cockpit .page-head__left {
-  position: relative;
-  z-index: 1;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
 }
 
 .scnet-counterfactual-cockpit .page-head .eyebrow {
   margin: 0 0 6px;
-  color: rgba(255, 255, 255, 0.7);
+  color: #3867f2;
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.1em;
@@ -1785,109 +1733,23 @@ watch(
 
 .scnet-counterfactual-cockpit .page-head h1 {
   margin: 0;
-  font-size: 24px;
+  font-size: 26px;
   line-height: 1.2;
   font-weight: 900;
-  color: #ffffff;
-  letter-spacing: 1px;
 }
 
 .scnet-counterfactual-cockpit .page-head .subtitle {
-  margin: 6px 0 0;
-  color: rgba(255, 255, 255, 0.75);
+  margin: 8px 0 0;
+  color: #64748b;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .scnet-counterfactual-cockpit .page-actions {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
   justify-content: flex-end;
-  position: relative;
-  z-index: 1;
-}
-
-.scnet-counterfactual-cockpit .action-divider {
-  width: 1px;
-  height: 24px;
-  background: rgba(255, 255, 255, 0.25);
-  margin: 0 4px;
-  border-radius: 1px;
-}
-
-.scnet-counterfactual-cockpit .action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 18px;
-  border: none;
-  border-radius: 8px;
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  white-space: nowrap;
-  letter-spacing: 0.3px;
-}
-
-.scnet-counterfactual-cockpit .action-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-  filter: grayscale(0.2);
-}
-
-.scnet-counterfactual-cockpit .action-btn--primary {
-  background: #ffffff;
-  color: #1e3a8a;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-}
-
-.scnet-counterfactual-cockpit .action-btn--primary:hover:not(:disabled) {
-  background: #f0f5ff;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
-}
-
-.scnet-counterfactual-cockpit .action-btn--outline {
-  background: rgba(255, 255, 255, 0.15);
-  color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(6px);
-}
-
-.scnet-counterfactual-cockpit .action-btn--outline:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.25);
-  border-color: rgba(255, 255, 255, 0.5);
-  transform: translateY(-1px);
-}
-
-.scnet-counterfactual-cockpit .action-btn--ghost {
-  background: transparent;
-  color: rgba(255, 255, 255, 0.85);
-  border: 1px solid transparent;
-}
-
-.scnet-counterfactual-cockpit .action-btn--ghost:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-.scnet-counterfactual-cockpit .action-btn--accent {
-  background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
-  color: #ffffff;
-  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.35);
-}
-
-.scnet-counterfactual-cockpit .action-btn--accent:hover:not(:disabled) {
-  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.45);
 }
 
 .scnet-counterfactual-cockpit .report-file-input {
@@ -1897,7 +1759,7 @@ watch(
 .scnet-counterfactual-cockpit .top-row {
   flex: 1 1 auto;
   display: grid;
-  grid-template-columns: 1fr 1.15fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 16px;
   min-height: 0;
 }
@@ -1955,100 +1817,6 @@ watch(
   border-color: #7c3aed;
   background: #7c3aed;
   color: #ffffff;
-}
-
-/* ---- 绿色主题（结论面板） ---- */
-.scnet-counterfactual-cockpit .panel-card--green {
-  border-top: 3px solid #10b981;
-}
-
-.scnet-counterfactual-cockpit .panel-card--green .panel-header {
-  border-bottom-color: #d1fae5;
-  background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%);
-}
-
-.scnet-counterfactual-cockpit .panel-card--green .panel-header .eyebrow {
-  color: #10b981;
-}
-
-.scnet-counterfactual-cockpit .panel-card--green .section-title {
-  color: #059669;
-}
-
-.scnet-counterfactual-cockpit .state-badge--done {
-  border-color: #a7f3d0;
-  background: #ecfdf5;
-  color: #059669;
-}
-
-.scnet-counterfactual-cockpit .result-metrics-block {
-  padding: 12px;
-  border: 1px solid #d1fae5;
-  border-radius: var(--radius-md);
-  background: #f0fdf4;
-}
-
-.scnet-counterfactual-cockpit .result-block-title {
-  margin: 0 0 10px;
-  color: #065f46;
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.scnet-counterfactual-cockpit .result-metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.scnet-counterfactual-cockpit .result-metric-card {
-  padding: 10px 12px;
-  border: 1px solid #d1fae5;
-  border-radius: 8px;
-  background: #ffffff;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.scnet-counterfactual-cockpit .result-metric-label {
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.scnet-counterfactual-cockpit .result-metric-value {
-  color: #0f172a;
-  font-size: 15px;
-  font-weight: 900;
-}
-
-.scnet-counterfactual-cockpit .result-metric-value.highlight {
-  color: #059669;
-  font-size: 18px;
-}
-
-.scnet-counterfactual-cockpit .no-result-placeholder {
-  text-align: center;
-  padding: 32px 16px;
-  color: #94a3b8;
-  border: 1px dashed #d1fae5;
-  border-radius: var(--radius-md);
-  background: #f8fafc;
-}
-
-.scnet-counterfactual-cockpit .no-result-placeholder .placeholder-icon {
-  font-size: 36px;
-  margin-bottom: 10px;
-}
-
-.scnet-counterfactual-cockpit .no-result-placeholder p {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.6;
-  color: #94a3b8;
 }
 
 .scnet-counterfactual-cockpit .eyebrow {

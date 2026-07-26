@@ -22,22 +22,23 @@
         <div v-show="!isCollapse && currentPhase" class="phase-indicator" :class="'phase-' + currentPhase">
           <span class="phase-dot"></span>
           <span class="phase-label">{{ phaseLabels[currentPhase] }}</span>
+        <span class="scenario-menu-badge" :class="currentScenario === 'supply_chain' ? 'is-auto' : 'is-uranium'">{{ scenarioLabel }}</span>
         </div>
 
-        <!--	返回阶段选择	-->
-        <el-menu-item index="/home/SCnet/total" class="back-select-item">
-          <el-icon size="18"><Grid/></el-icon>
+        <!--	返回对话首页	-->
+        <el-menu-item index="/chatHome" class="back-select-item">
+          <el-icon size="18"><ChatDotSquare/></el-icon>
           <template #title>对话首页</template>
         </el-menu-item>
 
         <!-- ========== 事前：风险识别与预警 ========== -->
         <template v-if="currentPhase === 'pre'">
-          <el-menu-item index="/home/SCnet/situationAnalysis">
+          <el-menu-item :index="`/home/SCnet/situationAnalysis?scenario=${currentScenario}`">
             <el-icon size="18"><DataLine/></el-icon>
             <template #title>需求分析</template>
           </el-menu-item>
 
-          <el-menu-item index="/home/SCnet/oilIntelligence">
+          <el-menu-item :index="`/home/SCnet/openSourceIntelligence?scenario=${currentScenario}`">
             <el-icon size="18"><WarningFilled/></el-icon>
             <template #title>开源情报</template>
           </el-menu-item>
@@ -47,14 +48,14 @@
             <template #title>数据集管理</template>
           </el-menu-item> -->
 
-          <el-menu-item index="/home/SCnet/oilSituationAnalysis">
-            <el-icon size="18"><Document/></el-icon>
-            <template #title>知识库</template>
+          <el-menu-item :index="`/home/SCnet/knowledgeGraph?scenario=${currentScenario}`">
+            <el-icon size="18"><Collection/></el-icon>
+            <template #title>本体网络</template>
           </el-menu-item>
 
-          <!-- <el-menu-item index="/home/SCnet/knowledgeGraph">
-            <el-icon size="18"><Collection/></el-icon>
-            <template #title>主体网络</template>
+          <!-- <el-menu-item index="/home/SCnet/oilSituationAnalysis">
+            <el-icon size="18"><Document/></el-icon>
+            <template #title>知识库</template>
           </el-menu-item> -->
 
           <!-- <el-menu-item index="/home/SCnet/openSourceIntelligence">
@@ -65,21 +66,21 @@
           <el-sub-menu index="during-analysis">
             <template #title>
               <el-icon size="18"><DataAnalysis/></el-icon>
-              <span>态势研判</span>
+              <span>态势分析</span>
             </template>
+            <el-menu-item index="/home/SCnet/situationJudge">
+              <el-icon size="18"><DataLine/></el-icon>
+              <template #title>态势研判</template>
+            </el-menu-item>
             <el-menu-item index="/home/SCnet/situationResearch-main">
               <el-icon size="18"><Promotion/></el-icon>
               <template #title>态势预测</template>
             </el-menu-item>
-            <el-menu-item index="/home/SCnet/reportGeneration">
-              <el-icon size="18"><Document/></el-icon>
-              <template #title>报告生成</template>
-            </el-menu-item>
-            <!-- <el-menu-item index="/home/SCnet/oilReportGeneration">
-              <el-icon size="18"><Document/></el-icon>
-              <template #title>石油报告</template>
-            </el-menu-item> -->
           </el-sub-menu>
+          <el-menu-item :index="`/home/SCnet/reportGeneration?scenario=${currentScenario}`">
+            <el-icon size="18"><Document/></el-icon>
+            <template #title>报告生成</template>
+          </el-menu-item>
         </template>
 
         <!-- ========== 事中：应急响应与调度 ========== -->
@@ -147,7 +148,7 @@
 
           <el-menu-item index="/home/SCnet/EXreport">
             <el-icon size="18"><Postcard/></el-icon>
-            <template #title>铀供应链实验报告</template>
+            <template #title>供应链实验报告</template>
           </el-menu-item>
         </template>
 
@@ -161,7 +162,7 @@
         <img src="../assets/images/gameImg.png" style="width: 20px; height: 20px; margin-left: 20px" alt="SCnet"/>
         <transition name="fade-delay" v-show="!isCollapse">
           <div style="height: 100%; display: flex; align-items: center">
-            <span style="margin-left: 0.5rem; color: #606266; font-weight: bold; transition: opacity 3s ease 3s;">铀供应链</span>
+            <span style="margin-left: 0.5rem; color: #606266; font-weight: bold; transition: opacity 3s ease 3s;">供应链</span>
             <el-button circle size="default" style="margin-left: 2.5rem" color="rgb(248, 152, 152)" plain @click="exit()">
               <el-icon><SwitchButton/></el-icon>
             </el-button>
@@ -182,6 +183,13 @@
       :completed-predicate="isDuringStepCompleted"
       @step-click="onDuringStepClick"
     />
+
+    <!-- 浮动切换按钮：转到对话模式 -->
+    <el-tooltip content="切换到AI对话模式" placement="left" effect="dark">
+      <button class="chat-toggle-float-btn" @click="$router.push('/chatHome')">
+        <el-icon :size="20"><ChatDotSquare /></el-icon>
+      </button>
+    </el-tooltip>
   </div>
 </template>
 
@@ -190,14 +198,15 @@ import {
   Aim, Box, Coin, Collection, Connection, DataAnalysis, DataLine, Document, DocumentDelete, Edit,
   Filter, FolderOpened, Grid, House, Memo, Monitor, Notification, Odometer, Operation, Orange,
   PieChart, Place, Postcard, Promotion, ScaleToOriginal, Search, Setting, Share,
-  SwitchButton, TrendCharts, User, WarningFilled
+  SwitchButton, TrendCharts, User, WarningFilled, ChatDotSquare
 } from "@element-plus/icons-vue";
-import {ref, onMounted, onUnmounted, computed} from "vue";
+import {ref, onMounted, onUnmounted, computed, watch} from "vue";
 import {useRoute, useRouter} from "vue-router";
 import {Files, Refresh} from "@element-plus/icons-vue";
 import Header from "@/components/Header.vue";
 import EventPhaseStepper from "@/components/EventPhaseStepper.vue";
 import { useDuringFlowSteps, routeToStepKey } from "@/views/SCnet/composables/useDuringFlowSteps";
+import { useScenarioStore } from "@/stores/scenario";
 import { PHASE_EVENT, PHASE_STORAGE_KEY, ROUTE_TO_PHASE } from "@/constants/scnetPhase";
 
 export default {
@@ -210,7 +219,7 @@ export default {
     EventPhaseStepper,
     Refresh, Files, DataAnalysis, DataLine, DocumentDelete, House, Aim, Box, Collection,
     Document, Notification, Operation, Postcard, Promotion, ScaleToOriginal, Search, Setting,
-    Coin, PieChart, Filter, FolderOpened, Grid, Odometer, SwitchButton, Orange, TrendCharts, User, Header, WarningFilled
+    Coin, PieChart, Filter, FolderOpened, Grid, Odometer, SwitchButton, Orange, TrendCharts, User, Header, WarningFilled, ChatDotSquare
   },
   setup() {
     const route = useRoute()
@@ -223,6 +232,20 @@ export default {
       if (storedPhase.value) return storedPhase.value
       return ROUTE_TO_PHASE[route.path] || ''
     })
+
+    // ── 场景感知：从 URL 或 store 获取当前场景 ──
+    const scenarioStore = useScenarioStore()
+    const currentScenario = computed(() => {
+      return route.query.scenario || scenarioStore.currentScenario || 'uranium'
+    })
+
+    // 监听路由变化，同步场景到 store
+    watch(() => route.query.scenario, (val) => {
+      if (val) scenarioStore.setScenario(val)
+    })
+
+    // 场景标签
+    const scenarioLabel = computed(() => currentScenario.value === 'supply_chain' ? '🚗 汽车' : '☢️ 铀')
 
     const { steps: duringSteps, isStepCompleted: isDuringStepCompleted } = useDuringFlowSteps()
     const duringCurrentKey = computed(() => routeToStepKey(route.path, route.query || {}))
@@ -266,6 +289,8 @@ export default {
     return {
       activeIndex,
       currentPhase,
+      currentScenario,
+      scenarioLabel,
       duringSteps,
       duringCurrentKey,
       showDuringFlowStepper,
@@ -423,5 +448,32 @@ export default {
 /* 返回阶段选择 */
 .back-select-item {
   margin-bottom: 6px;
+}
+
+/* 浮动切换按钮 */
+.chat-toggle-float-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #ffffff;
+  color: #4b5563;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s ease;
+  backdrop-filter: blur(12px);
+}
+.chat-toggle-float-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.06);
+  color: #6366f1;
+  border-color: rgba(99, 102, 241, 0.2);
 }
 </style>

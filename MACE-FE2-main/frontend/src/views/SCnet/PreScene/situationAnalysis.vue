@@ -591,8 +591,10 @@ export default {
       sessions: [],
       activeSessionId: '',
 
-      // 分析阶段：understand（需求理解）→ generate（生成方案）
+      // 分析阶段：understand（需求理解）→ generate（生成方案）→ report（生成报告）
       analysisStage: 'understand',
+      // 当前场景：uranium / auto
+      currentScenario: 'uranium',
       // 是否从 total.vue 入口跳转过来（有转移数据的继续走两阶段，"+号"新建的直接生成）
       isTransferred: false,
       isNewConversation: false,
@@ -663,13 +665,61 @@ export default {
   mounted() {
     this.loadSessions()
 
+    // ── chatHome 入口：从 URL 参数读取场景和会话信息 ──
+    const chatSessionId = this.$route.query.session_id
+    const chatScenario = this.$route.query.scenario
+    const chatMessage = this.$route.query.message
+
     // 检查是否有从 total.vue 传递过来的会话数据
     const transferSessionId = sessionStorage.getItem('scnet_transfer_sessionId')
     const transferMessage = sessionStorage.getItem('scnet_transfer_message')
     const transferModel = sessionStorage.getItem('scnet_transfer_model')
     const transferResponse = sessionStorage.getItem('scnet_transfer_response')
 
-    if (transferSessionId && transferMessage) {
+    if (chatSessionId && chatScenario && !transferSessionId) {
+      // ── 从 chatHome 跳转过来，自动生成报告 ──
+      this.sessionId = chatSessionId
+      this.hasStarted = true
+      this.isNewConversation = false
+      this.analysisStage = 'report'
+      // 存储场景信息
+      this.currentScenario = chatScenario
+
+      if (chatMessage) {
+        this.historyConversations.push({
+          type: 'user',
+          content: decodeURIComponent(chatMessage),
+          timestamp: new Date()
+        })
+        // 自动生成 3 段式报告
+        this.isProcessing = true
+        this.currentState = 'analysis'
+        this.processingText = `正在生成${chatScenario === 'supply_chain' ? '汽车' : '铀'}供应链事前推演报告...`
+        this.callAnalyzeApi(chatMessage, 'report')
+          .then(rawData => this.applyAnalyzeResult(rawData))
+          .catch(err => {
+            this.historyConversations.push({
+              type: 'system',
+              content: `报告生成失败：${err.message || '未知错误'}`,
+              timestamp: new Date()
+            })
+          })
+          .finally(() => {
+            this.isProcessing = false
+            this.abortController = null
+          })
+      } else {
+        // 没有消息内容，加载已保存的分析结果
+        this.loadExistingAnalysis()
+      }
+
+      // 清理URL参数（避免刷新时重复触发）
+      const cleanQuery = { ...this.$route.query }
+      delete cleanQuery.session_id
+      delete cleanQuery.scenario
+      delete cleanQuery.message
+      this.$router.replace({ query: cleanQuery }).catch(() => {})
+    } else if (transferSessionId && transferMessage) {
       // 从 total.vue 入口跳转过来，标记为转移会话
       this.isTransferred = true
       this.isNewConversation = false
@@ -908,6 +958,29 @@ export default {
       }
     },
 
+    async loadExistingAnalysis() {
+      // 尝试从已保存的会话中加载分析结果
+      try {
+        const res = await fetch(`${this.apiRequirementsUrl}?session_id=${this.sessionId}`)
+        const d = await res.json()
+        if (d.success && d.data && d.data.requirementParams) {
+          this.requirementParams = d.data.requirementParams || {}
+          this.currentScenario = this.requirementParams.industry === 'automotive' ? 'auto' : 'uranium'
+          if (d.data.results && d.data.results.length > 0) {
+            this.taskResults = d.data.results
+            this.selectedResult = d.data.results[0] || ''
+            this.currentResult = d.data.results[0] || ''
+          }
+        }
+      } catch (e) {
+        console.warn('加载已有分析结果失败:', e)
+      }
+    },
+
+    scenarioLabel() {
+      return this.currentScenario === 'supply_chain' ? '汽车供应链' : '铀供应链'
+    },
+
     async callAnalyzeApi(message, stage = 'understand') {
       this.abortController = new AbortController()
 
@@ -917,6 +990,10 @@ export default {
       formData.append('model', this.selectedModel)
       formData.append('history', JSON.stringify(this.buildHistoryPayload()))
       formData.append('stage', stage)
+      // 传递场景信息
+      if (this.currentScenario) {
+        formData.append('scenario', this.currentScenario)
+      }
 
       if (this.selectedFile) {
         formData.append('file', this.selectedFile)
