@@ -607,7 +607,7 @@ const generateFallbackReport = () => {
     'Cameco在停产期间从市场采购履约推高现货需求，重启后逐步减少市场采购',
     '加拿大案例证明："停产容易重启难"，供给响应滞后2-5年',
    ],
-   analysis: 'McArthur River爬坡慢于预期说明
+   analysis: 'McArthur River爬坡慢于预期说明：停产4年后重启，地下开采面品位恢复、劳动力重建、供应链修复均需时间，体现了铀矿供给的刚性特征。Cameco在停产期间从市场采购履约的行为也推高了现货需求，重启后逐步减少市场采购将释放部分供给。',
    solutions: [
     { title: '利用重启矿爬坡期锁定长协供应', urgency: '短期', owner: '采购部', effect: '在价格相对低位锁定未来供给' },
     { title: '跟踪McArthur River/Cigar Lake产量', urgency: '持续', owner: '市场研究部', effect: '判断供给恢复节奏' },
@@ -698,7 +698,7 @@ const generateFallbackReport = () => {
    { title: '关注全球投资机会', urgency: '长期', owner: '战略投资部', effect: '获取上游权益保障供应' }
   ]
  }
- return '# 📊 供应链事前分析报告\n\n**生成时间：** ' + new Date().toLocaleString('zh-CN') + '\n**风险等级：** ' + t.riskLevel + ' | **风险评分：** ' + t.riskScore + '/100\n\n---\n\n## 一、关键事实\n\n' + t.facts.map(function(f, i) { return (i + 1) + '. ' + f; }).join('\n') + '\n\n---\n\n## 二、态势研判\n\n' + t.analysis + '\n\n---\n\n## 三、应对方案\n\n| 方案 | 紧迫度 | 责任方 | 预期效果 |\n|------|--------|--------|----------|\n' + t.solutions.map(function(s) { return '| **' + s.title + '** | ' + s.urgency + ' | ' + s.owner + ' | ' + s.effect + ' |'; }).join('\n') + '\n\n---\n\n> ⚠️ 本地模板生成，建议连接后端获取精准供应链分析。\n> 后端 API: POST /scenario/analyze — 可自动检索供应链知识图谱、进行专业态势研判与风险量化评估
+ return '# 📊 供应链事前分析报告\n\n**生成时间：** ' + new Date().toLocaleString('zh-CN') + '\n**风险等级：** ' + t.riskLevel + ' | **风险评分：** ' + t.riskScore + '/100\n\n---\n\n## 一、关键事实\n\n' + t.facts.map(function(f, i) { return (i + 1) + '. ' + f; }).join('\n') + '\n\n---\n\n## 二、态势研判\n\n' + t.analysis + '\n\n---\n\n## 三、应对方案\n\n| 方案 | 紧迫度 | 责任方 | 预期效果 |\n|------|--------|--------|----------|\n' + t.solutions.map(function(s) { return '| **' + s.title + '** | ' + s.urgency + ' | ' + s.owner + ' | ' + s.effect + ' |'; }).join('\n') + '\n\n---\n\n> ⚠️ 本地模板生成，建议连接后端获取精准供应链分析。\n> 后端 API: POST /scenario/analyze — 可自动检索供应链知识图谱、进行专业态势研判与风险量化评估';
 }
 
 
