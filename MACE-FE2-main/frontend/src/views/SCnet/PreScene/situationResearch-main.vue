@@ -42,7 +42,7 @@
     <div class="pred-row">
       <div class="pred-left">
         <div class="pred-card">
-          <div class="pred-card-title">{{ scenarioStore.isSupplyChain ? 'GPR 高斯过程回归 — 汽车季度产量预测' : 'GPR 高斯过程回归 — U3O8 现货价预测' }}</div>
+          <div class="pred-card-title">GPR 高斯过程回归 — U3O8 现货价预测</div>
           <div ref="gprChart" class="pred-chart"></div>
         </div>
       </div>
@@ -50,26 +50,14 @@
         <div class="pred-card pred-card--highlight">
           <div class="pred-card-title">预测结论</div>
           <div class="pred-conclusion">
-            <template v-if="scenarioStore.isSupplyChain">
-              <div class="pred-tag"><span class="pred-tag-label">6个月预测</span><span class="pred-tag-val up">780-820万辆/季</span></div>
-              <div class="pred-tag"><span class="pred-tag-label">12个月预测</span><span class="pred-tag-val up">800-850万辆/季</span></div>
-              <div class="pred-tag"><span class="pred-tag-label">24个月预测</span><span class="pred-tag-val up">3200-3400万辆/年</span></div>
-              <ul class="pred-list">
-                <li>GPR 模型 RBF 核 + 周期核，95% 置信区间随预测期扩大</li>
-                <li>季节项显著（Q4旺季效应），趋势项显示新能源渗透率持续提升</li>
-                <li>最大不确定性来源：欧盟关税政策落地节奏、碳酸锂价格触底反弹时点</li>
-              </ul>
-            </template>
-            <template v-else>
-              <div class="pred-tag"><span class="pred-tag-label">6个月预测</span><span class="pred-tag-val up">$100-115/lb</span></div>
-              <div class="pred-tag"><span class="pred-tag-label">12个月预测</span><span class="pred-tag-val up">$110-130/lb</span></div>
-              <div class="pred-tag"><span class="pred-tag-label">24个月预测</span><span class="pred-tag-val up">$120-145/lb</span></div>
-              <ul class="pred-list">
-                <li>GPR 模型 RBF 核 + 周期核，95% 置信区间随预测期扩大</li>
-                <li>趋势项占主导（年化+18%），周期项显示当前处于上升中段</li>
-                <li>最大不确定性来源：哈萨克斯坦硫酸短缺持续时间、尼日尔出口恢复时间</li>
-              </ul>
-            </template>
+            <div class="pred-tag"><span class="pred-tag-label">6个月预测</span><span class="pred-tag-val up">$100-115/lb</span></div>
+            <div class="pred-tag"><span class="pred-tag-label">12个月预测</span><span class="pred-tag-val up">$110-130/lb</span></div>
+            <div class="pred-tag"><span class="pred-tag-label">24个月预测</span><span class="pred-tag-val up">$120-145/lb</span></div>
+            <ul class="pred-list">
+              <li>GPR 模型 RBF 核 + 周期核，95% 置信区间随预测期扩大</li>
+              <li>趋势项占主导（年化+18%），周期项显示当前处于上升中段</li>
+              <li>最大不确定性来源：哈萨克斯坦硫酸短缺持续时间、尼日尔出口恢复时间</li>
+            </ul>
           </div>
         </div>
       </div>
@@ -79,7 +67,7 @@
     <div class="pred-row">
       <div class="pred-left">
         <div class="pred-card">
-          <div class="pred-card-title">{{ scenarioStore.isSupplyChain ? '产能与需求预测 (2024-2030)' : '供需缺口预测 (2024-2030)' }}</div>
+          <div class="pred-card-title">供需缺口预测 (2024-2030)</div>
           <div ref="gapChart" class="pred-chart"></div>
         </div>
       </div>
@@ -88,18 +76,10 @@
           <div class="pred-card-title">多模型预测对比</div>
           <div ref="modelCompareChart" class="pred-chart" style="height:220px"></div>
           <div class="pred-model-notes">
-            <template v-if="scenarioStore.isSupplyChain">
-              <span class="pred-model-tag gpr">GPR</span> 均值 810万辆/季
-              <span class="pred-model-tag lstm">LSTM</span> 均值 795万辆/季
-              <span class="pred-model-tag prophet">Prophet</span> 均值 802万辆/季
-              <span class="pred-model-tag rl">RL-GPR</span> 均衡 780-830
-            </template>
-            <template v-else>
-              <span class="pred-model-tag gpr">GPR</span> 均值 $112/lb (2025Q4)
-              <span class="pred-model-tag lstm">LSTM</span> 均值 $105/lb
-              <span class="pred-model-tag prophet">Prophet</span> 均值 $108/lb
-              <span class="pred-model-tag rl">RL-GPR</span> 均衡价 $95-115
-            </template>
+            <span class="pred-model-tag gpr">GPR</span> 2025Q4 均值 $122/lb
+            <span class="pred-model-tag lstm">LSTM</span> 2025Q4 均值 $108/lb
+            <span class="pred-model-tag prophet">Prophet</span> 2025Q4 均值 $125/lb
+            <span class="pred-model-tag rl">RL-GPR</span> 均衡 $80-116
           </div>
         </div>
       </div>
@@ -116,12 +96,7 @@
             </div>
             <div class="pred-scenario-interp">
               <div class="pred-scenario-interp-title">情景解读</div>
-              <ul class="pred-list" v-if="scenarioStore.isSupplyChain">
-                <li><b>产能受限（黄线↓）：</b>当前主流情景，概率从 55% 逐步降至 28%。芯片缓解+新工厂投产，产能瓶颈逐步解除。</li>
-                <li><b>出口受阻（红线↑）：</b>概率从 25% 升至 42%，反映欧盟关税升级、地缘贸易摩擦等尾部风险积累。</li>
-                <li><b>景气扩张（绿线↑）：</b>概率从 20% 升至 30%，反映新能源渗透加速+海外市场拓展的增量空间。</li>
-              </ul>
-              <ul class="pred-list" v-else>
+              <ul class="pred-list">
                 <li><b>供给偏紧（黄线↓）：</b>当前主流情景，概率从 58% 逐步降至 30%。随着新矿山投产和库存策略调整，中期偏紧程度缓解。</li>
                 <li><b>供给危机（红线↑）：</b>概率从 30% 升至 45%，反映尼日尔局势恶化、哈萨克减产等尾部风险积累。</li>
                 <li><b>供给宽松（绿线↑）：</b>概率从 12% 升至 25%，反映新产能释放和需求侧政策的潜在对冲效果。</li>
@@ -137,12 +112,10 @@
 <script>
 import { ref, onMounted, onUnmounted } from 'vue'
 import * as echarts from 'echarts'
-import { useScenarioStore } from '@/stores/scenario'
 
 export default {
   name: 'SituationPrediction',
   setup() {
-    const scenarioStore = useScenarioStore()
     const gprChart = ref(null)
     const gapChart = ref(null)
     const modelCompareChart = ref(null)
@@ -198,15 +171,15 @@ export default {
       const x = ['2024Q4','2025Q1','2025Q2','2025Q3','2025Q4','2026Q1','2026Q2']
       c.setOption({
         tooltip: { trigger: 'axis' },
-        legend: { top: 8, right: 10, data: ['GPR','LSTM','Prophet','RL-GPR优化预测'] },
+        legend: { top: 8, right: 10, data: ['GPR','LSTM','Prophet','RL-GPR'] },
         grid: { left: 65, right: 30, top: 45, bottom: 35 },
         xAxis: { type: 'category', data: x },
         yAxis: { type: 'value', name: '$/lb', nameLocation: 'middle', nameGap: 40 },
         series: [
-          { name: 'GPR', type: 'line', smooth: true, data: [95,100,106,112,118,122,127], lineStyle: { color: '#ef4444', width: 2 }, symbol: 'diamond', symbolSize: 6 },
-          { name: 'LSTM', type: 'line', smooth: true, data: [93,98,102,108,112,116,120], lineStyle: { color: '#10b981', width: 2 }, symbol: 'circle', symbolSize: 6 },
-          { name: 'Prophet', type: 'line', smooth: true, data: [94,99,104,108,114,118,122], lineStyle: { color: '#f59e0b', width: 2 }, symbol: 'triangle', symbolSize: 6 },
-          { name: 'RL-GPR优化预测', type: 'line', smooth: true, data: [92,95,98,102,105,108,112], lineStyle: { color: '#6366f1', width: 2, type: 'dashed' }, symbol: 'rect', symbolSize: 6 }
+          { name: 'GPR', type: 'line', smooth: true, data: [95,100,106,112,118,122,127], lineStyle: { color: '#ef4444', width: 2.5 }, symbol: 'diamond', symbolSize: 8 },
+          { name: 'LSTM', type: 'line', smooth: true, data: [88,92,96,100,104,108,112], lineStyle: { color: '#10b981', width: 2 }, symbol: 'circle', symbolSize: 8 },
+          { name: 'Prophet', type: 'line', smooth: true, data: [90,96,101,107,113,119,125], lineStyle: { color: '#f59e0b', width: 2 }, symbol: 'triangle', symbolSize: 8 },
+          { name: 'RL-GPR优化', type: 'line', smooth: true, data: [80,86,92,98,104,110,116], lineStyle: { color: '#6366f1', width: 2, type: 'dashed' }, symbol: 'rect', symbolSize: 8 }
         ]
       })
     }
@@ -236,7 +209,7 @@ export default {
     })
     onUnmounted(() => charts.forEach(c => c.dispose()))
 
-    return { scenarioStore, gprChart, gapChart, modelCompareChart, scenarioEvoChart }
+    return { gprChart, gapChart, modelCompareChart, scenarioEvoChart }
   }
 }
 </script>

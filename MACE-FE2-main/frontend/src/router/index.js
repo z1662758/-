@@ -98,7 +98,7 @@ const routes = [
       {
         path: 'situationJudge',
         name: 'situationJudge',
-        component: () => import("../views/SCnet/situationJudge.vue")
+        component: () => import("../views/SCnet/situationJudgeWrapper.vue")
       },
       {
         path: 'total',
@@ -120,7 +120,7 @@ const routes = [
       {
         path: 'knowledgeGraph',
         name: 'SCnet_KnowledgeGraph',
-        component: () => import("../views/SCnet/PreScene/KnowledgeGraph.vue")
+        component: () => import("../views/SCnet/PreScene/KnowledgeGraphWrapper.vue")
       },
       {
         path: 'openSourceIntelligence',
@@ -135,7 +135,7 @@ const routes = [
       {
         path: 'situationResearch-main',
         name: 'situationResearch-main',
-        component: () => import("../views/SCnet/PreScene/situationResearch-main.vue")
+        component: () => import("../views/SCnet/PreScene/situationResearchWrapper.vue")
       },
       {
         path: 'DisruptRisk',

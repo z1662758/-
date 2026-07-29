@@ -348,6 +348,8 @@ export default {
       // 自动识别场景（铀 / 汽车），仅当检测到明确关键词时切换
       const detected = detectScenario(text)
       if (detected) scenarioStore.setScenario(detected)
+      // 保存用户问题，供报告生成等页面使用
+      if (text) scenarioStore.setLastUserMessage(text)
       if ((!text && attachments.value.length === 0) || isStreaming.value) return
 
       // ── 首次消息（无对话历史）→ 场景检测 + 跳转 situationAnalysis ──

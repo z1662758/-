@@ -498,6 +498,9 @@
                 <div class="status-badge completed">
                   报告已生成
                 </div>
+                <el-button type="primary" size="small" @click="downloadPdf" :loading="pdfDownloading" style="margin-left:8px">
+                  <el-icon><Download /></el-icon> 下载PDF
+                </el-button>
               </div>
               <div
                 v-if="selectedResult || currentResult"
@@ -529,7 +532,8 @@ import {
   Plus,
   ArrowDown,
   Position,
-  Loading
+  Loading,
+  Download
 } from '@element-plus/icons-vue'
 
 export default {
@@ -540,7 +544,8 @@ export default {
     Plus,
     ArrowDown,
     Position,
-    Loading
+    Loading,
+    Download
   },
 
   data() {
@@ -624,7 +629,8 @@ export default {
       ontologyEvidence: [],
       seedNodes: [],
 
-      abortController: null
+      abortController: null,
+      pdfDownloading: false,
     }
   },
 
@@ -788,6 +794,43 @@ export default {
         this.$message(message)
       } else {
         console.log(`[${type}] ${message}`)
+      }
+    },
+
+    async downloadPdf() {
+      const reportText = this.editingContent || this.selectedResult || this.currentResult
+      if (!reportText) {
+        this.notify('warning', '报告内容为空，无法生成PDF')
+        return
+      }
+      this.pdfDownloading = true
+      try {
+        const scenarioName = this.currentScenario === 'supply_chain' ? '汽车供应链' : '铀供应链'
+        const res = await fetch('http://localhost:9091/SCnet/generateReport', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            report_text: reportText,
+            scenario_name: scenarioName,
+            scenario: this.currentScenario || this.$route.query.scenario || 'uranium',
+            session_id: this.sessionId || '',
+          }),
+        })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const blob = await res.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${scenarioName}_事前推演报告.pdf`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        window.URL.revokeObjectURL(url)
+        this.notify('success', 'PDF 报告下载成功')
+      } catch (e) {
+        this.notify('error', `PDF下载失败: ${e.message}`)
+      } finally {
+        this.pdfDownloading = false
       }
     },
 

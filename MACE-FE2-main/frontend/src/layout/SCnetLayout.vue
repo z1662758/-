@@ -68,11 +68,11 @@
               <el-icon size="18"><DataAnalysis/></el-icon>
               <span>态势分析</span>
             </template>
-            <el-menu-item index="/home/SCnet/situationJudge">
+            <el-menu-item :index="`/home/SCnet/situationJudge?scenario=${currentScenario}`">
               <el-icon size="18"><DataLine/></el-icon>
               <template #title>态势研判</template>
             </el-menu-item>
-            <el-menu-item index="/home/SCnet/situationResearch-main">
+            <el-menu-item :index="`/home/SCnet/situationResearch-main?scenario=${currentScenario}`">
               <el-icon size="18"><Promotion/></el-icon>
               <template #title>态势预测</template>
             </el-menu-item>

@@ -247,6 +247,11 @@
      <div class="history-item-right">
       <span class="history-meta">{{ item.metric_used || '—' }} | {{ item.horizon || 0 }}月</span>
       <span class="history-length">{{ item.report_length || 0 }}字</span>
+      <button class="history-pdf-btn" title="下载PDF" @click.stop="downloadHistoryPdf(item)">
+       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+       </svg>
+      </button>
       <button class="history-del-btn" title="删除此报告" @click.stop="deleteHistoryReport(item.report_id)">
        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -267,6 +272,7 @@ import { ref, computed, nextTick, onMounted, watch } from 'vue'
 import { marked } from 'marked'
 import { ElMessage } from 'element-plus'
 import { useSupplyChainStore } from '@/stores/supplyChain'
+import { useScenarioStore } from '@/stores/scenario'
 import { analyzeOilReport, getOilReportKnowledge } from '@/api/oilSupplyChain'
 
 const API_ANALYZE_URL = 'http://localhost:9091/scenario/analyze'
@@ -291,7 +297,8 @@ const thinkingChunks = ref([])
 const thinkingProgress = ref(0)
 const chatMessages = ref(null)
 const reportBody = ref(null)
-const userRequirement = ref('')
+const scenarioStore = useScenarioStore()
+const userRequirement = ref(scenarioStore.lastUserMessage || '')
 const analysisSummary = ref(null)
 const recentConversations = ref([])
 const currentReportId = ref('')
@@ -607,7 +614,7 @@ const generateFallbackReport = () => {
     'Cameco在停产期间从市场采购履约推高现货需求，重启后逐步减少市场采购',
     '加拿大案例证明："停产容易重启难"，供给响应滞后2-5年',
    ],
-   analysis: 'McArthur River爬坡慢于预期说明
+   analysis: 'McArthur River爬坡慢于预期说明项目复产的复杂性。2025年满产将为市场增加约1,800万磅年供给，有助于缓解供需缺口。但新项目建设周期更长（10-15年），当前价格能否持续支撑新矿FID是关键。加拿大作为第二大生产国，其供给恢复速度直接影响全球供需平衡。',
    solutions: [
     { title: '利用重启矿爬坡期锁定长协供应', urgency: '短期', owner: '采购部', effect: '在价格相对低位锁定未来供给' },
     { title: '跟踪McArthur River/Cigar Lake产量', urgency: '持续', owner: '市场研究部', effect: '判断供给恢复节奏' },
@@ -698,7 +705,7 @@ const generateFallbackReport = () => {
    { title: '关注全球投资机会', urgency: '长期', owner: '战略投资部', effect: '获取上游权益保障供应' }
   ]
  }
- return '# 📊 供应链事前分析报告\n\n**生成时间：** ' + new Date().toLocaleString('zh-CN') + '\n**风险等级：** ' + t.riskLevel + ' | **风险评分：** ' + t.riskScore + '/100\n\n---\n\n## 一、关键事实\n\n' + t.facts.map(function(f, i) { return (i + 1) + '. ' + f; }).join('\n') + '\n\n---\n\n## 二、态势研判\n\n' + t.analysis + '\n\n---\n\n## 三、应对方案\n\n| 方案 | 紧迫度 | 责任方 | 预期效果 |\n|------|--------|--------|----------|\n' + t.solutions.map(function(s) { return '| **' + s.title + '** | ' + s.urgency + ' | ' + s.owner + ' | ' + s.effect + ' |'; }).join('\n') + '\n\n---\n\n> ⚠️ 本地模板生成，建议连接后端获取精准供应链分析。\n> 后端 API: POST /scenario/analyze — 可自动检索供应链知识图谱、进行专业态势研判与风险量化评估
+ return '# 📊 供应链事前分析报告\n\n**生成时间：** ' + new Date().toLocaleString('zh-CN') + '\n**风险等级：** ' + t.riskLevel + ' | **风险评分：** ' + t.riskScore + '/100\n\n---\n\n## 一、关键事实\n\n' + t.facts.map(function(f, i) { return (i + 1) + '. ' + f; }).join('\n') + '\n\n---\n\n## 二、态势研判\n\n' + t.analysis + '\n\n---\n\n## 三、应对方案\n\n| 方案 | 紧迫度 | 责任方 | 预期效果 |\n|------|--------|--------|----------|\n' + t.solutions.map(function(s) { return '| **' + s.title + '** | ' + s.urgency + ' | ' + s.owner + ' | ' + s.effect + ' |'; }).join('\n') + '\n\n---\n\n> ⚠️ 本地模板生成，建议连接后端获取精准供应链分析。\n> 后端 API: POST /scenario/analyze — 可自动检索供应链知识图谱、进行专业态势研判与风险量化评估'
 }
 
 
@@ -736,6 +743,26 @@ const deleteHistoryReport = async (reportId) => {
  ElMessage.success('报告已删除')
 }
 
+// ========== 历史报告 PDF 下载 ==========
+const downloadHistoryPdf = async (item) => {
+ if (!item.report) { ElMessage.warning('报告内容为空'); return }
+ ElMessage.info('正在生成 PDF...')
+ try {
+  const scenarioName = scenarioStore.isSupplyChain ? '汽车供应链' : '铀供应链'
+  const res = await fetch('http://localhost:9091/SCnet/generateReport', {
+   method: 'POST', headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ report_text: item.report, scenario_name: scenarioName, scenario: scenarioStore.currentScenario || 'uranium', session_id: item.session_id || '' }),
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const blob = await res.blob(); const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = `${scenarioName}_历史报告_${(item.created_at||'').slice(0,10)}.pdf`
+  document.body.appendChild(a); a.click(); document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  ElMessage.success('PDF 下载成功')
+ } catch (e) { ElMessage.error('PDF生成失败: ' + e.message) }
+}
+
 const loadHistoryReport = (item) => {
  try {
   if (!item || !item.report) {
@@ -765,15 +792,53 @@ function copyReport() {
  })
 }
 
-function exportReport() {
+async function exportReport() {
  if (!reportContent.value) { ElMessage.warning('暂无报告可导出'); return }
- const filename = `供应链分析报告_${new Date().toISOString().slice(0,10)}.md`
- const blob = new Blob([reportContent.value], { type: 'text/markdown;charset=utf-8' })
- const url = URL.createObjectURL(blob)
- const a = document.createElement('a')
- a.href = url; a.download = filename; a.click()
- URL.revokeObjectURL(url)
- ElMessage.success('报告已导出下载')
+ ElMessage.info('正在生成 PDF 报告...')
+ try {
+  const scenarioName = scenarioStore.isSupplyChain ? '汽车供应链' : '铀供应链'
+  // 尝试获取迭代数据用于图表
+  let iterationsData = null
+  try {
+   const raw = localStorage.getItem('scnet_pre_sessions')
+   if (raw) {
+    const sessions = JSON.parse(raw)
+    const active = sessions.find(s => s.id === sessionId || s.active)
+    if (active?.iterations) iterationsData = active.iterations
+   }
+  } catch {}
+  const res = await fetch('http://localhost:9091/SCnet/generateReport', {
+   method: 'POST',
+   headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({
+    report_text: reportContent.value,
+    scenario_name: scenarioName,
+    scenario: scenarioStore.currentScenario || 'uranium',
+    session_id: sessionId.value || '',
+   }),
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${scenarioName}_事前分析报告_${new Date().toISOString().slice(0,10)}.pdf`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  ElMessage.success('PDF 报告下载成功')
+ } catch (e) {
+  console.error('PDF export failed:', e)
+  // 回退到 Markdown 导出
+  const filename = `供应链分析报告_${new Date().toISOString().slice(0,10)}.md`
+  const blob = new Blob([reportContent.value], { type: 'text/markdown;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+  ElMessage.warning('PDF 生成失败，已回退到 Markdown 导出')
+ }
 }
 
 // ========== 从 situationAnalysis 的 session 存储中加载真实对话数据 ==========
@@ -1194,6 +1259,13 @@ onMounted(async () => {
  transition: all 0.15s; margin-left: 4px;
 }
 .history-del-btn:hover { background: #fef2f2; color: #ef4444; border-color: #fecaca; }
+.history-pdf-btn {
+ width: 26px; height: 26px; border: 1px solid transparent; border-radius: 6px;
+ background: transparent; color: #94a3b8; cursor: pointer;
+ display: inline-flex; align-items: center; justify-content: center;
+ transition: all 0.15s; margin-left: 4px;
+}
+.history-pdf-btn:hover { background: #eff6ff; color: #3b82f6; border-color: #bfdbfe; }
 
 .report-actions-right { display: flex; align-items: center; gap: 8px; }
 

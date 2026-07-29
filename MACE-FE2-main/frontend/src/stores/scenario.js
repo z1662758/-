@@ -24,6 +24,14 @@ export const useScenarioStore = defineStore('scenario', () => {
     currentScenario.value === SCENARIO_VALUES.URANIUM
   )
 
+  // 用户最新输入的问题（供报告生成等页面使用）
+  const lastUserMessage = ref(localStorage.getItem('scnet_lastUserMessage') || '')
+
+  function setLastUserMessage(msg) {
+    lastUserMessage.value = msg
+    localStorage.setItem('scnet_lastUserMessage', msg)
+  }
+
   // 切换场景
   function setScenario(value) {
     if (![SCENARIO_VALUES.URANIUM, SCENARIO_VALUES.SUPPLY_CHAIN].includes(value)) return
@@ -48,7 +56,9 @@ export const useScenarioStore = defineStore('scenario', () => {
     label,
     isSupplyChain,
     isUranium,
+    lastUserMessage,
     setScenario,
+    setLastUserMessage,
     toggleScenario
   }
 })

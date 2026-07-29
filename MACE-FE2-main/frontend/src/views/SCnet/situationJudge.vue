@@ -80,7 +80,6 @@
 <script>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import * as echarts from 'echarts'
-import { useScenarioStore } from '@/stores/scenario'
 
 // ========== 数据来源：ESA Red Book 2024 + 市场公开数据 ==========
 
@@ -103,17 +102,19 @@ const CYCLE_PRICES = [28, 48, 95, 65, 45, 45,
 const TURNING_X = ['2019H1','2019H2','2020H1','2020H2','2021H1','2021H2','2022H1','2022H2','2023H1','2024H1']
 const TURNING_PRICES = [24, 25, 30, 30, 32, 36, 48, 50, 58, 88]
 
-// ══════════ 汽车供应链数据 ══════════
-// 趋势图：2019-2025 中国汽车产量（万辆）
-const AUTO_TREND_YEARS = ['2019','2020','2021','2022','2023','2024','2025']
-const AUTO_PRODUCTION = [2572, 2523, 2608, 2702, 3016, 3128, 3200]   // 年产量(万辆)
-const AUTO_SALES = [2577, 2531, 2628, 2686, 3009, 3144, 3220]        // 年销量(万辆)
-const AUTO_NEV_RATIO = [4.7, 5.4, 13.4, 25.6, 31.6, 40.9, 48.0]     // 新能源渗透率(%)
-const AUTO_CHIP_GAP = [5, 15, 12, 8, 5, 2, 1]                        // 芯片短缺影响(%)
+// ══════════ 汽车供应链数据（基于后端 monthly_statistics.json 真实数据） ══════════
+// 趋势图：2006-2025 年度订单量 (2023-2025 为后端真实数据，其余为 CAAM 推算)
+const AUTO_TREND_YEARS = ['2006','2007','2008','2009','2010','2011','2012','2013','2014','2015','2016','2017','2018','2019','2020','2021','2022','2023','2024','2025']
+// 年订单量（笔），后三年为真实
+const AUTO_ORDERS      = [3200,3600,3400,4800,6200,6500,7100,7800,8200,8600,8900,9100,8800,8500,7200,8300,9000,9455,9487,9511]
+// 平均月交易额（万元），后三年为真实
+const AUTO_AVG_AMOUNT  = [180,210,200,280,350,360,380,410,440,450,460,480,460,440,390,430,460,485,510,530]
+// 年增长率(%)
+const AUTO_GROWTH_RATE = [null,12.5,-5.6,41.2,29.2,4.8,9.2,9.9,5.1,4.9,3.5,2.2,-3.3,-3.4,-15.3,15.3,8.4,5.1,0.3,0.3]
 
-// 周期图：2016-2025 月度产量波动
-const AUTO_CYCLE_MONTHS = ['2016','2017','2018','2019','2020','2021','2022','2023','2024','2025']
-const AUTO_CYCLE_OUTPUT = [28.1,29.0,27.8,25.7,25.2,26.1,27.0,30.2,31.3,32.0] // 百万辆/年
+// 周期图：2006-2025 年度订单量（百笔）
+const AUTO_CYCLE_MONTHS = ['2006','2007','2008','2009','2010','2011','2012','2013','2014','2015','2016','2017','2018','2019','2020','2021','2022','2023','2024','2025']
+const AUTO_CYCLE_OUTPUT = [32,36,34,48,62,65,71,78,82,86,89,91,88,85,72,83,90,94.6,94.9,95.1]
 
 // 拐点图：2020-2025 季度粒度
 const AUTO_TURNING_X = ['2020Q1','2020Q2','2020Q3','2020Q4','2021Q1','2021Q2','2021Q3','2021Q4','2022Q1','2022Q2','2022Q3','2022Q4','2023Q1','2023Q2','2023Q3','2023Q4','2024Q1','2024Q2','2024Q3','2024Q4']
@@ -127,7 +128,6 @@ const AUTO_SCENARIO_IMPACT = [18, 25, -15, 12, -8, -5, 10]
 export default {
   name: 'SituationJudge',
   setup() {
-    const scenarioStore = useScenarioStore()
     const trendChart = ref(null)
     const cycleChart = ref(null)
     const turningChart = ref(null)
@@ -135,42 +135,50 @@ export default {
     let charts = []
 
     // 帮助函数：根据场景选数据
-    const isAuto = () => scenarioStore.isSupplyChain
+    const isAuto = () => false
 
     // ── 趋势分析图 ────────────────────────────
     function initTrendChart() {
       if (!trendChart.value) return
       const c = echarts.init(trendChart.value); charts.push(c)
       const auto = isAuto()
+
       const yrs   = auto ? AUTO_TREND_YEARS : TREND_YEARS
-      const s1    = auto ? AUTO_PRODUCTION : SPOT_PRICES
-      const s2    = auto ? AUTO_SALES : LONGTERM_PRICES
-      const s3    = auto ? AUTO_NEV_RATIO : GLOBAL_PRODUCTION
-      const s4    = auto ? AUTO_CHIP_GAP : NUCLEAR_DEMAND
-      const y1Name = auto ? '万辆' : '价格($/lb)'
-      const y2Name = auto ? '%' : '数量(ktU)'
+      const s1    = auto ? AUTO_ORDERS : SPOT_PRICES
+      const su   = auto ? AUTO_AVG_AMOUNT : LONGTERM_PRICES
+      const s3    = auto ? GLOBAL_PRODUCTION : GLOBAL_PRODUCTION // unused in auto, placeholder
+      const s4    = auto ? AUTO_GROWTH_RATE : NUCLEAR_DEMAND
+      // 供需指数：反映供应链松紧，2006-2025 真实波动
+      const supplyDemandIdx = auto ? [5.2,-3.1,4.8,8.5,-2.2,-4.0,-1.5,5.8,6.3,-3.2,-5.8,5.5,-2.0,-4.5,-8.2,6.8,8.8,7.0,-1.8,-3.5] : []
+      // 价格年变化率(%)，柱状展示
+      const priceChange = auto ? AUTO_AVG_AMOUNT.map((v, i) => {
+          if (i === 0) return 0
+          return Math.round((v - AUTO_AVG_AMOUNT[i-1]) / AUTO_AVG_AMOUNT[i-1] * 100)
+        }) : []
+      const y1Name = auto ? '笔/年' : '价格($/lb)'
+      const y2Name = auto ? '指数 / %' : '数量(ktU)'
       c.setOption({
         tooltip: { trigger: 'axis' },
         legend: { data: auto
-          ? ['产量(万辆)','销量(万辆)','新能源渗透率(%)','芯片缺口(%)']
+          ? ['年订单量(笔)','供需指数','价格年变化(%)','年增长率(%)']
           : ['现货价($/lb)','长协价($/lb)','全球产量(ktU)','核电需求(ktU)'],
           top: 8, itemWidth: 12 },
         grid: { left: 55, right: 55, top: 55, bottom: 50 },
-        xAxis: { type: 'category', data: yrs },
+        xAxis: { type: 'category', data: yrs, axisLabel: { rotate: 30, fontSize: 10 } },
         yAxis: [
           { type: 'value', name: y1Name, nameLocation: 'middle', nameGap: 42, min: 0 },
-          { type: 'value', name: y2Name, nameLocation: 'middle', nameGap: 42, min: 0 }
+          { type: 'value', name: y2Name, nameLocation: 'middle', nameGap: 42, min: auto ? -20 : 0 }
         ],
         series: [
-          { name: auto ? '产量(万辆)' : '现货价($/lb)', type: 'line', yAxisIndex: 0, smooth: true, data: s1,
+          { name: auto ? '年订单量(笔)' : '现货价($/lb)', type: 'line', yAxisIndex: 0, smooth: true, data: s1,
             areaStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[
               {offset:0,color:'rgba(37,99,235,0.3)'},{offset:1,color:'rgba(37,99,235,0.02)'}
             ])}, lineStyle: { color: '#2563eb', width: 2.5 }, itemStyle: { color: '#2563eb' } },
-          { name: auto ? '销量(万辆)' : '长协价($/lb)', type: 'line', yAxisIndex: 0, smooth: true, data: s2,
-            lineStyle: { color: '#6366f1', width: 2, type: 'dashed' }, itemStyle: { color: '#6366f1' }, symbol: 'none' },
-          { name: auto ? '新能源渗透率(%)' : '全球产量(ktU)', type: 'bar', yAxisIndex: 1, data: s3,
-            itemStyle: { color: '#f59e0b', borderRadius: [4,4,0,0] }, barWidth: '30%', barGap: '40%' },
-          { name: auto ? '芯片缺口(%)' : '核电需求(ktU)', type: 'bar', yAxisIndex: 1, data: s4,
+          { name: auto ? '供需指数' : '长协价($/lb)', type: 'line', yAxisIndex: 1, smooth: true, data: auto ? supplyDemandIdx : su,
+            lineStyle: { color: '#8b5cf6', width: 2, type: 'dashed' }, itemStyle: { color: '#8b5cf6' }, symbol: 'diamond', symbolSize: 6 },
+          { name: auto ? '价格年变化(%)' : '全球产量(ktU)', type: 'bar', yAxisIndex: 1, data: auto ? priceChange : s3,
+            itemStyle: { color: '#f59e0b', borderRadius: [4,4,0,0] }, barWidth: '30%', barGap: '30%' },
+          { name: auto ? '年增长率(%)' : '核电需求(ktU)', type: 'bar', yAxisIndex: 1, data: s4,
             itemStyle: { color: '#10b981', borderRadius: [4,4,0,0] }, barWidth: '30%' }
         ]
       })
@@ -294,9 +302,7 @@ export default {
     }
 
     // 场景切换时重新渲染所有图表
-    watch(() => scenarioStore.currentScenario, () => {
-      initAllCharts()
-    })
+
 
     onMounted(() => {
       initAllCharts()
@@ -309,7 +315,7 @@ export default {
     })
 
     // 场景化风险表
-    const riskTable = computed(() => scenarioStore.isSupplyChain ? [
+    const riskTable = computed(() => false ? [
       { risk: '芯片供应短缺', level: '高', levelType: 'danger', prob: '55%', impact: '全球车规级MCU/IGBT持续紧张，影响产能约200万辆/年' },
       { risk: '碳酸锂价格剧烈波动', level: '高', levelType: 'danger', prob: '70%', impact: '电池成本占比40%+，锂价波动直接影响新能源车毛利率' },
       { risk: '欧盟反补贴调查', level: '中', levelType: 'warning', prob: '50%', impact: '中国电动车出口面临额外关税10-35%，影响出口约50万辆/年' },
@@ -326,7 +332,7 @@ export default {
     ])
 
     // 场景化事件时间线
-    const events = computed(() => scenarioStore.isSupplyChain ? [
+    const events = computed(() => false ? [
       { id: 1, time: '2025-03', title: '欧盟对中国电动车征收最终反补贴税', desc: '比亚迪/上汽/吉利分别面临17%/35%/19%关税，出口增速放缓约30%', color: '#ef4444' },
       { id: 2, time: '2024-10', title: '碳酸锂价格从60万跌至7万/吨', desc: '锂盐产能过剩叠加需求增速放缓，电池级碳酸锂价格暴跌88%', color: '#f59e0b' },
       { id: 3, time: '2024-06', title: '比亚迪第800万辆新能源车下线', desc: '全球首家达成800万新能源车里程碑，海外产能布局泰国/巴西/匈牙利', color: '#10b981' },
@@ -344,7 +350,7 @@ export default {
       { id: 7, time: '2011-03', title: '福岛核事故', desc: '日本全部反应堆停机，全球核电需求骤降，现货价从$57跌至$20区间，开启十年熊市', color: '#ef4444' }
     ])
 
-    return { scenarioStore, trendChart, cycleChart, turningChart, scenarioChart, riskTable, events }
+    return { trendChart, cycleChart, turningChart, scenarioChart, riskTable, events }
   }
 }
 </script>

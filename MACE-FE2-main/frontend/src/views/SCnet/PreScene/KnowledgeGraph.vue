@@ -6,7 +6,7 @@
 
       <!-- 时间窗口 (年度: 1997~2024) -->
       <div class="panel-section">
-        <label>时间窗口 (1997 ~ 2024)</label>
+        <label>时间窗口 {{ isAuto ? '(2024-01 ~ 2024-12)' : '(1997 ~ 2024)' }}</label>
         <div class="timeline-controls">
           <el-button size="small" :disabled="!windowIdx" @click="windowStep(-1)">◀</el-button>
           <span class="timeline-label">{{ currentYear }}</span>
@@ -53,17 +53,20 @@
       </div>
 
       <!-- OWL 2 DL 推理面板 -->
-      <div class="panel-section owl-section" v-if="store.owlNetworkLabels">
+      <div class="panel-section owl-section">
         <div class="owl-header">
           <span class="owl-badge">OWL 2 DL</span>
           <span class="swrl-badge">SWRL ×{{ store.owlStats?.swrl_rules || 8 }}</span>
-          <el-button size="small" type="primary" link
-                     @click="switchToOwlNetwork"
-                     :loading="store.owlNetworkLoading"
-                     style="margin-left:auto;font-size:10px">
-            {{ store.owlNetworkGraph ? '✓ OWL网络' : '加载网络' }}
-          </el-button>
         </div>
+        <!-- OWL 本体规则网络切换按钮 -->
+        <el-button
+          :type="isOwlView ? 'warning' : 'primary'"
+          size="small"
+          @click="toggleOwlView"
+          :loading="store.owlNetworkLoading"
+          style="width:100%;margin:8px 0 4px">
+          {{ isOwlView ? '📐 返回动态网络' : '🔬 查看本体规则网络' }}
+        </el-button>
         <div class="owl-reasoner">
           <span class="reasoner-dot"></span> HermiT 推理器 &middot; NetworkX 5维中心性
         </div>
@@ -81,6 +84,30 @@
           <el-tooltip content="供应瓶颈" placement="left"><span class="inf-tag inf-critical">瓶颈 {{ store.owlNetworkLabels.SupplyBottleneck?.count || 0 }}</span></el-tooltip>
           <el-tooltip content="资源集中度风险" placement="left"><span class="inf-tag inf-pressure">集中 {{ store.owlNetworkLabels.ResourceConcentrationRisk?.count || 0 }}</span></el-tooltip>
           <el-tooltip content="矿山停产连锁" placement="left"><span class="inf-tag inf-multirisk">连锁 {{ store.owlNetworkLabels.MineCascadeImpact?.count || 0 }}</span></el-tooltip>
+        </div>
+      </div>
+
+      <!-- ⚡ OWL 本体规则判定（OWL 模式下） -->
+      <div class="panel-section" v-if="isOwlView && owlRules.length > 0">
+        <label>⚡ 本体规则判定 ({{ owlRules.length }}条)</label>
+        <div class="rule-cards">
+          <div v-for="(rule, i) in owlRules" :key="'owl-'+i" class="rule-card" :class="'rule-urgency-' + (rule.urgency || 'high')">
+            <div class="rule-card-header">
+              <span class="rule-icon">{{ rule.icon || '🔍' }}</span>
+              <span class="rule-name">{{ rule.rule_name }}</span>
+            </div>
+            <div class="rule-card-body">
+              <div class="rule-desc">{{ rule.description }}</div>
+              <div class="rule-verdict" v-if="rule.verdict">
+                <span class="verdict-label">判定：</span>
+                <span class="verdict-value">{{ rule.verdict }}</span>
+              </div>
+              <div class="rule-affected" v-if="rule.affected?.length">
+                <span class="rule-label">涉及节点：</span>
+                <span v-for="(n, j) in rule.affected.slice(0, 4)" :key="j" class="rule-node-tag">{{ n }}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -135,108 +162,73 @@
     <!-- 右侧详情面板 -->
     <div class="ukg-right-panel" v-if="store.selectedNode">
       <div class="panel-header">
-        节点详情
+        {{ isOwlView ? '本体规则分析' : '节点详情' }}
         <el-button link size="small" @click="store.clearSelection()">✕</el-button>
       </div>
       <div class="detail-content">
-        <div class="detail-field"><label>名称</label><span>{{ store.selectedNode.name }}</span></div>
-        <div class="detail-field"><label>类型</label>
-          <el-tag size="small" :style="{background: getNodeTypeColor(store.selectedNode.nodeType), color:'#fff'}">
-            {{ store.selectedNode.nodeType }}
-          </el-tag>
-        </div>
 
-        <!-- 5维中心性评分 -->
-        <div class="detail-field" v-if="centralityMetrics">
-          <label>5维中心性评分</label>
-          <div class="centrality-card">
-            <div class="cent-row"><span class="cent-dim">度中心性 (0.3)</span><span class="cent-bar-bg"><span class="cent-bar-fill" :style="{width: (centralityMetrics.degree*100).toFixed(1)+'%'}"></span></span><span class="cent-val">{{ (centralityMetrics.degree || 0).toFixed(4) }}</span></div>
-            <div class="cent-row"><span class="cent-dim">介数中心性 (0.3)</span><span class="cent-bar-bg"><span class="cent-bar-fill cent-bet" :style="{width: (centralityMetrics.betweenness*100).toFixed(1)+'%'}"></span></span><span class="cent-val">{{ (centralityMetrics.betweenness || 0).toFixed(4) }}</span></div>
-            <div class="cent-row"><span class="cent-dim">紧密中心性 (0.2)</span><span class="cent-bar-bg"><span class="cent-bar-fill cent-clo" :style="{width: (centralityMetrics.closeness*100).toFixed(1)+'%'}"></span></span><span class="cent-val">{{ (centralityMetrics.closeness || 0).toFixed(4) }}</span></div>
-            <div class="cent-row"><span class="cent-dim">K-Core (0.1)</span><span class="cent-bar-bg"><span class="cent-bar-fill cent-kc" :style="{width: (centralityMetrics.k_core_normalized*100).toFixed(1)+'%'}"></span></span><span class="cent-val">{{ ((centralityMetrics.k_core_normalized || 0)).toFixed(4) }}</span></div>
-            <div class="cent-row"><span class="cent-dim">桥接系数 (0.1)</span><span class="cent-bar-bg"><span class="cent-bar-fill cent-br" :style="{width: (centralityMetrics.bridge_coefficient*100).toFixed(1)+'%'}"></span></span><span class="cent-val">{{ (centralityMetrics.bridge_coefficient || 0).toFixed(4) }}</span></div>
-            <div class="cent-score-total">综合得分: <strong>{{ nodeRoleScore.toFixed(4) }}</strong><el-tag size="small" :type="nodeRoleTag">{{ nodeRoleLabel }}</el-tag></div>
+        <!-- ══════ OWL 模式：本体类定义 + 规则 ══════ -->
+        <template v-if="isOwlView">
+          <div class="owl-rule-header">本体类定义</div>
+
+          <!-- 当前选中节点的类 -->
+          <div class="owl-class-card">
+            <div class="owl-class-name">{{ store.selectedNode.nodeType || 'Thing' }}</div>
+            <div class="owl-class-label">实例: {{ store.selectedNode.name }}</div>
+            <div class="owl-class-props" v-if="classProperties.length">
+              <div class="owl-prop" v-for="p in classProperties" :key="p.key">
+                <span class="owl-prop-key">{{ p.key }}</span>
+                <span class="owl-prop-val">{{ p.value }}</span>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <!-- 触发规则 -->
-        <div class="detail-field" v-if="selectedRuleTriggers.length">
-          <label>触发规则</label>
-          <div style="display:flex;gap:4px;flex-wrap:wrap">
-            <el-tag v-for="(rt, i) in selectedRuleTriggers" :key="i" size="small" type="warning">
-              {{ rt.icon }} {{ rt.rule_name }}
+          <!-- 类的关系定义 -->
+          <div class="owl-section-title">对象属性（关系）</div>
+          <div class="owl-relations">
+            <div class="owl-rel-item" v-for="r in classRelations" :key="r.name">
+              <span class="owl-rel-name">{{ r.name }}</span>
+              <span class="owl-rel-arrow">→</span>
+              <span class="owl-rel-target">{{ r.target }}</span>
+            </div>
+          </div>
+
+          <!-- SWRL 规则 -->
+          <div class="owl-section-title">SWRL 推理规则</div>
+          <div class="owl-rules-list">
+            <div class="owl-rule-item" v-for="(rule, i) in swrlRules" :key="i">
+              <div class="owl-rule-if">IF {{ rule.if }}</div>
+              <div class="owl-rule-then">THEN {{ rule.then }}</div>
+            </div>
+          </div>
+
+          <!-- 当前类适用的推理标签 -->
+          <div class="owl-section-title" v-if="classInferenceLabels.length">该类推理标签</div>
+          <div class="inference-tags-list" v-if="classInferenceLabels.length">
+            <span v-for="tag in classInferenceLabels" :key="tag.key" :class="['inf-tag', tag.cssClass]">{{ tag.label }}</span>
+          </div>
+        </template>
+
+        <!-- ══════ 普通模式 ══════ -->
+        <template v-else>
+          <div class="detail-field"><label>名称</label><span>{{ store.selectedNode.name }}</span></div>
+          <div class="detail-field"><label>类型</label>
+            <el-tag size="small" :style="{background: getNodeTypeColor(store.selectedNode.nodeType), color:'#fff'}">
+              {{ store.selectedNode.nodeType }}
             </el-tag>
           </div>
-        </div>
-
-        <!-- OWL 推理标签 -->
-        <div class="detail-field" v-if="inferenceTags.length">
-          <label>OWL 推理标签</label>
-          <div class="inference-tags-list">
-            <span v-for="tag in inferenceTags" :key="tag.key" :class="['inf-tag', tag.cssClass]">{{ tag.label }}</span>
+          <div class="detail-field" v-for="(val, key) in propsEntries" :key="key">
+            <label>{{ key }}</label><span>{{ formatVal(val) }}</span>
           </div>
-        </div>
-
-        <!-- 🤖 决策建议 -->
-        <div class="detail-field" v-if="selectedActions.length">
-          <label>🤖 建议决策</label>
-          <div class="decision-list">
-            <div v-for="(act, i) in selectedActions" :key="i" class="decision-card" :class="'urgency-' + act.urgency">
-              <div class="decision-header">
-                <span class="decision-dot" :class="'urgency-dot-' + act.urgency"></span>
-                <span class="decision-action">{{ act.action }}</span>
-                <el-tag size="small" :type="act.urgency==='high'?'danger':act.urgency==='medium'?'warning':'info'">
-                  {{ act.urgency==='high'?'紧急':act.urgency==='medium'?'重要':'建议' }}
-                </el-tag>
-              </div>
-              <div class="decision-detail">{{ act.detail }}</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 风险传导路径 -->
-        <div class="detail-field" v-if="store.owlRiskPaths.length">
-          <label>风险传导路径 (OWL推理)</label>
-          <div class="risk-path-list">
-            <div v-for="(p, i) in store.owlRiskPaths.slice(0, 5)" :key="i" class="risk-path-item">
-              <div class="risk-path-event">{{ p.eventName?.slice(0, 40) || p.event }}</div>
-              <div class="risk-path-arrow">&#8627; 影响</div>
-              <div class="risk-path-target">{{ p.targetName?.slice(0, 40) || p.target }}</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="detail-field" v-if="neighbors.length">
-          <label>关联节点 ({{ neighbors.length }})</label>
-          <div class="neighbor-list">
-            <span v-for="n in neighbors.slice(0, 20)" :key="n.id"
-                  class="neighbor-chip" @click="focusNode(n.id)">
-              {{ n.label }} <span style="color:#909399;font-size:10px">({{ n.relation }})</span>
-            </span>
-          </div>
-        </div>
-
-        <div class="detail-field" v-if="propsEntries.length">
-          <label>属性</label>
-          <div class="props-table">
-            <div v-for="(v, k) in propsEntries.slice(0, 18)" :key="k" class="prop-row">
-              <span class="prop-key">{{ k }}</span><span class="prop-val">{{ formatVal(v) }}</span>
-            </div>
-          </div>
-        </div>
+        </template>
       </div>
-    </div>
-    <div class="ukg-right-panel ukg-right-empty" v-else>
-      <div class="panel-header">节点详情</div>
-      <el-empty description="点击节点查看详情" :image-size="60">
-        <template #description><span style="font-size:12px;color:#909399">国家节点为暖橙色主节点<br/>点击查看矿山/企业/事件关联</span></template>
-      </el-empty>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useUraniumOntologyStore } from '@/stores/ontology_uranium'
 import { useOntologyStore } from '@/stores/ontology'
 import { useScenarioStore } from '@/stores/scenario'
@@ -246,6 +238,7 @@ import { Search, Loading } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 
 const MAX_VISIBLE_NODES = 300
+const OWL_MAX_VISIBLE = 80  // OWL 视图限制节点数，保证可读性
 const METRIC_TYPES = new Set(['UraniumProduction', 'UraniumDemand', 'ExplorationMetric',
   'PriceMetric', 'InventoryMetric', 'CostMetric', 'ResourceMetric'])
 const CORE_TYPES = new Set(['Country', 'UraniumMine', 'UraniumCompany',
@@ -276,7 +269,9 @@ const inferenceTags = computed(() => {
 })
 
 // 关键年份快跳
-const keyYears = [1997, 2003, 2007, 2011, 2016, 2020, 2022, 2024]
+const keyYears = computed(() => isAuto.value
+  ? [1, 3, 6, 9, 12]
+  : [1997, 2003, 2007, 2011, 2016, 2020, 2022, 2024])
 
 const route = useRoute()
 const scenarioStore = useScenarioStore()
@@ -284,10 +279,9 @@ const currentScenario = computed(() => route.query.scenario || scenarioStore.cur
 const isAuto = computed(() => currentScenario.value === 'supply_chain')
 
 // 场景感知：根据 URL 参数选择对应的 Pinia store
-// 使用简单条件判断，避免 shallowRef 导致 JS 代码需大量修改
 const _uraniumStore = useUraniumOntologyStore()
 const _autoStore = useOntologyStore()
-const store = (currentScenario.value === 'supply_chain') ? _autoStore : _uraniumStore
+const store = (isAuto.value) ? _autoStore : _uraniumStore
 const { loading } = storeToRefs(store)
 
 const chartRef = ref(null)
@@ -348,6 +342,128 @@ const currentTriggeredRules = computed(() => {
   return gs[key]?.triggered_rules || []
 })
 
+// OWL 本体网络规则判定卡片
+const owlRules = computed(() => {
+  if (!isOwlView.value) return []
+  const labels = store.owlNetworkLabels || {}
+  const rules = []
+  if (labels.HighRiskCountry?.count > 0) rules.push({
+    rule_name: '地缘政治高风险国', icon: '🌍', urgency: 'high',
+    description: `检测到 ${labels.HighRiskCountry.count} 个国家被标记为地缘政治高风险——政局动荡/制裁/冲突多重暴露`,
+    verdict: '【地缘政治高风险国】→ 极高风险',
+    affected: [],
+  })
+  if (labels.SupplyBottleneck?.count > 0) rules.push({
+    rule_name: '供应瓶颈识别', icon: '⚠️', urgency: 'high',
+    description: `识别出 ${labels.SupplyBottleneck.count} 个供应瓶颈节点（单一来源依赖/产能集中度过高）`,
+    verdict: '【供应瓶颈节点】→ 高风险',
+    affected: [],
+  })
+  if (labels.TransportChokepoint?.count > 0) rules.push({
+    rule_name: '运输咽喉节点', icon: '🚢', urgency: 'high',
+    description: `${labels.TransportChokepoint.count} 个节点被判定为运输咽喉——关键港口/通道依赖`,
+    verdict: '【运输咽喉节点】→ 高风险',
+    affected: [],
+  })
+  if (labels.ResourceConcentrationRisk?.count > 0) rules.push({
+    rule_name: '资源集中度风险', icon: '📦', urgency: 'medium',
+    description: `${labels.ResourceConcentrationRisk.count} 个节点资源高度集中——单一国家/企业控制超过40%供给`,
+    verdict: '【资源集中】→ 中高风险',
+    affected: [],
+  })
+  if (labels.MultiRiskCountry?.count > 0) rules.push({
+    rule_name: '多风险聚集国', icon: '🔴', urgency: 'medium',
+    description: `${labels.MultiRiskCountry.count} 个国家面临地缘+物流+政策等多重风险叠加`,
+    verdict: '【多重风险叠加】→ 中风险',
+    affected: [],
+  })
+  if (labels.MineCascadeImpact?.count > 0) rules.push({
+    rule_name: '矿山停产连锁效应', icon: '⛏️', urgency: 'high',
+    description: `${labels.MineCascadeImpact.count} 个节点存在矿山停产连锁——一旦停产将引发下游供应断裂`,
+    verdict: '【矿山停产连锁】→ 极高风险',
+    affected: [],
+  })
+  if (labels.PriceShockTrigger?.count > 0) rules.push({
+    rule_name: '价格冲击触发点', icon: '💹', urgency: 'medium',
+    description: `${labels.PriceShockTrigger.count} 个节点达到价格冲击阈值——供需失衡可能触发价格剧烈波动`,
+    verdict: '【价格冲击预警】→ 中高风险',
+    affected: [],
+  })
+  return rules
+})
+
+// ── OWL 本体类定义与规则（OWL 模式下右侧显示）──
+
+// 铀本体类定义（抽象层级，不涉及具体实例数据）
+const OWL_CLASS_DEFS = {
+  Country: { label: '国家', props: { hasMine: 'UraniumMine', locatedIn: 'Region', operatesFacility: 'FuelCycleFacility' }},
+  UraniumMine: { label: '铀矿山', props: { producesIn: 'Country', operatedBy: 'UraniumCompany', transportsVia: 'TransportRoute' }},
+  UraniumCompany: { label: '铀矿企业', props: { operates: 'UraniumMine', producesIn: 'Country', sellsTo: 'NuclearUtility' }},
+  FuelCycleFacility: { label: '核燃料循环设施', props: { locatedIn: 'Country', operatedBy: 'UraniumCompany', suppliesTo: 'NuclearUtility' }},
+  TransportRoute: { label: '运输路线', props: { connectsCountry: 'Country', passesThrough: 'TransportChokepoint', carriesMaterial: 'UraniumProduction' }},
+  NuclearUtility: { label: '核电业主', props: { consumesIn: 'Country', purchasesFrom: 'UraniumCompany', affectedBy: 'PriceEvent' }},
+  RiskEvent: { label: '风险事件', props: { affectsCountry: 'Country', impactsMine: 'UraniumMine', triggersRule: 'SWRL' }},
+  PolicyEvent: { label: '政策事件', props: { affectsCountry: 'Country', changesRegulation: 'Country' }},
+  PriceEvent: { label: '价格事件', props: { affectsMarket: 'Country', changesPrice: 'PriceMetric' }},
+  GeopoliticalRisk: { label: '地缘政治风险', props: { targetsCountry: 'Country', disruptsRoute: 'TransportRoute' }},
+  TurningPoint: { label: '拐点', props: { marksChange: 'PriceMetric', signalsRule: 'SWRL' }},
+  ScenarioNode: { label: '情景节点', props: { modelsImpact: 'Country', predictsOutcome: 'PriceMetric' }},
+}
+
+// SWRL 推理规则定义（类级别，不涉及具体实例）
+const SWRL_RULES = [
+  { if: 'Country 存在 GeopoliticalRisk 且 sanctions ≥ 2', then: 'Country rdf:type HighRiskCountry' },
+  { if: 'UraniumMine 产量占全球 > 40% 且替代矿山数 = 0', then: 'Mine rdf:type ResourceConcentrationRisk' },
+  { if: 'TransportRoute 必经路线 = true 且替代路线数 = 0', then: 'Route rdf:type TransportChokepoint' },
+  { if: 'Country 同时存在 GeopoliticalRisk + LogisticsRisk + PolicyRisk', then: 'Country rdf:type MultiRiskCountry' },
+  { if: 'UraniumMine 停产 且 影响下游企业 ≥ 3 且 替代需 > 2年', then: 'Mine rdf:type MineCascadeImpact' },
+  { if: '仓库库存消费比 < 2年 且 矿山产量 < 核电需求 × 0.9', then: '市场 rdf:type SupplyBottleneck' },
+  { if: '现货价 > 历史90分位 且 供需缺口 > 10%', then: '市场 rdf:type PriceShockTrigger' },
+]
+
+const classProperties = computed(() => {
+  if (!store.selectedNode) return []
+  const nt = store.selectedNode.nodeType || ''
+  const cls = OWL_CLASS_DEFS[nt]
+  if (!cls) return [{ key: 'owl:Class', value: nt }, { key: 'rdfs:label', value: nt }]
+  return [
+    { key: 'owl:Class', value: nt },
+    { key: 'rdfs:label', value: cls.label },
+    { key: 'rdfs:subClassOf', value: 'Thing' },
+  ]
+})
+
+const classRelations = computed(() => {
+  if (!store.selectedNode) return []
+  const nt = store.selectedNode.nodeType || ''
+  const cls = OWL_CLASS_DEFS[nt]
+  if (!cls) return []
+  return Object.entries(cls.props).map(([prop, target]) => ({
+    name: prop, target: target
+  }))
+})
+
+const swrlRules = computed(() => SWRL_RULES)
+
+const classInferenceLabels = computed(() => {
+  if (!store.selectedNode) return []
+  const props = store.selectedNode.properties || {}
+  const tags = []
+  const defs = [
+    { key: 'HighRiskCountry', label: '高风险国', cssClass: 'inf-danger' },
+    { key: 'SupplyBottleneck', label: '供应瓶颈', cssClass: 'inf-critical' },
+    { key: 'PriceShockTrigger', label: '价格冲击', cssClass: 'inf-warning' },
+    { key: 'TransportChokepoint', label: '运输咽喉', cssClass: 'inf-bottleneck' },
+    { key: 'ResourceConcentrationRisk', label: '资源集中', cssClass: 'inf-pressure' },
+    { key: 'MultiRiskCountry', label: '多风险国', cssClass: 'inf-multirisk' },
+    { key: 'MineCascadeImpact', label: '矿山连锁', cssClass: 'inf-critical' },
+  ]
+  for (const d of defs) {
+    if (props[d.key]) tags.push(d)
+  }
+  return tags
+})
+
 // 选中节点的决策建议
 const selectedActions = computed(() => {
   return store.selectedNode?.suggested_actions || []
@@ -366,9 +482,18 @@ const statsDisplay = computed(() => ({
 const propsEntries = computed(() => {
   const props = store.selectedNode?.properties
   if (!props || typeof props !== 'object') return []
-  return Object.entries(props).filter(([k, v]) =>
-    v !== null && v !== '' && v !== undefined
-  )
+  // 过滤：只显示标量值（字符串/数字/布尔），排除数组、对象和内部字段
+  const skipKeys = ['centrality_metrics', 'role_confidence', 'role',
+    'HighRiskCountry', 'SupplyBottleneck', 'PriceShockTrigger',
+    'TransportChokepoint', 'ResourceConcentrationRisk',
+    'MultiRiskCountry', 'MineCascadeImpact']
+  return Object.entries(props)
+    .filter(([k, v]) =>
+      !skipKeys.includes(k) &&
+      v !== null && v !== '' && v !== undefined &&
+      typeof v !== 'object'
+    )
+    .map(([k, v]) => [k, typeof v === 'number' ? v.toLocaleString() : String(v)])
 })
 
 const neighbors = computed(() => {
@@ -426,6 +551,14 @@ function getNodeTypeColor(nodeType) {
   return TYPE_COLORS[nodeType] || '#999'
 }
 
+function formatPath(p) {
+  if (!p) return ''
+  if (typeof p === 'string') return p
+  if (Array.isArray(p)) return p.join(' → ')
+  if (p.path && Array.isArray(p.path)) return p.path.join(' → ')
+  return JSON.stringify(p).slice(0, 100)
+}
+
 function formatVal(v) {
   if (v === null || v === undefined) return '-'
   if (typeof v === 'object') return JSON.stringify(v).slice(0, 60)
@@ -439,8 +572,9 @@ function getVisibleGraph() {
 
   if (nodes.length <= MAX_VISIBLE_NODES) return { nodes, edges }
 
-  // OWL视图：过滤指标节点，优先核心类型+角色标注
+  // OWL视图：只保留核心节点 + 角色标注 + 中文字段优先
   if (isOwlView.value) {
+    const hasChinese = (s) => /[一-鿿]/.test(s || '')
     const coreNodes = [], metricNodes = [], otherNodes = []
     for (const n of nodes) {
       if (OWL_CORE_TYPES.has(n.nodeType)) coreNodes.push(n)
@@ -452,8 +586,11 @@ function getVisibleGraph() {
       return role === 'key_node' || role === 'bridge_node'
     })
     const plainCore = coreNodes.filter(n => !keyNodes.includes(n))
-    let selected = [...keyNodes, ...plainCore, ...otherNodes, ...metricNodes]
-    if (selected.length > MAX_VISIBLE_NODES) selected = selected.slice(0, MAX_VISIBLE_NODES)
+    // 中文节点优先
+    const cnOthers = otherNodes.filter(n => hasChinese(n.name))
+    const enOthers = otherNodes.filter(n => !hasChinese(n.name))
+    let selected = [...keyNodes, ...plainCore, ...cnOthers, ...enOthers, ...metricNodes]
+    if (selected.length > OWL_MAX_VISIBLE) selected = selected.slice(0, OWL_MAX_VISIBLE)
     const ids = new Set(selected.map(n => n.id))
     return { nodes: selected, edges: edges.filter(e => ids.has(e.source) && ids.has(e.target)) }
   }
@@ -513,11 +650,16 @@ function buildChartOption() {
       type: 'graph', layout: 'force',
       data: nodes.map(n => ({
         id: n.id, name: n.name, category: n.category,
-        symbolSize: n.symbolSize || 20, nodeType: n.nodeType, properties: n.properties,
+        symbolSize: isOwlView.value ? Math.max(18, n.symbolSize || 18) : (n.symbolSize || 20),
+        nodeType: n.nodeType, properties: n.properties,
         itemStyle: n.id === selectedId
           ? { borderColor: '#ff0', borderWidth: 3, shadowBlur: 12, shadowColor: '#ff0' }
-          : undefined,
-        label: { show: (n.symbolSize || 20) > 30, fontSize: 10, position: 'right' }
+          : (n.properties?.role === 'key_node' && isOwlView.value)
+            ? { borderColor: '#ef4444', borderWidth: 3, shadowBlur: 8, shadowColor: '#ef444488' }
+            : (n.properties?.role === 'bridge_node' && isOwlView.value)
+              ? { borderColor: '#f59e0b', borderWidth: 2.5, shadowBlur: 6, shadowColor: '#f59e0b66' }
+              : undefined,
+        label: { show: isOwlView.value || (n.symbolSize || 20) > 30, fontSize: isOwlView.value ? 11 : 10, position: 'right' }
       })),
       edges: edges.map(e => ({
         source: e.source, target: e.target, relation: e.relation,
@@ -561,7 +703,7 @@ function windowStep(dir) {
 function onWindowSlide() { loadWindow() }
 
 function jumpToYear(year) {
-  const targetKey = `t_${year}`
+  const targetKey = isAuto.value ? `t_2024-${String(year).padStart(2, '0')}` : `t_${year}`
   const idx = store.dynamicWindows.indexOf(targetKey)
   if (idx >= 0) { windowIdx.value = idx; loadWindow() }
 }
@@ -592,13 +734,50 @@ function focusNode(nodeId) {
   if (node) store.selectNode(node)
 }
 
-async function switchToOwlNetwork() {
-  if (!store.owlNetworkGraph) await store.fetchOwlNetwork()
-  if (store.owlNetworkGraph) {
-    store.currentView = { ...store.owlNetworkGraph }
-    isOwlView.value = true
-    nextTick(renderChart)
+// 本体类级别图（OWL 模式用，不显示具体实例名）
+function buildUraniumClassGraph() {
+  const classNodes = []
+  const classEdges = []
+  const added = new Set()
+  const addedEdges = new Set()
+
+  for (const [className, cls] of Object.entries(OWL_CLASS_DEFS)) {
+    added.add(className)
+    classNodes.push({
+      id: className, name: cls.label, nodeType: className,
+      properties: { role: className === 'Country' || className === 'UraniumMine' ? 'key_node' : 'normal_node' },
+    })
+    for (const [prop, target] of Object.entries(cls.props)) {
+      const ek = className + '->' + target + ':' + prop
+      if (addedEdges.has(ek)) continue
+      addedEdges.add(ek)
+      if (!added.has(target)) {
+        added.add(target)
+        classNodes.push({
+          id: target, name: target, nodeType: target,
+          properties: { role: 'normal_node' },
+        })
+      }
+      classEdges.push({ source: className, target: target, relation: prop })
+    }
   }
+  const typeSet = new Set(classNodes.map(n => n.nodeType))
+  const categories = [...typeSet].map(t => ({ name: t, itemStyle: { color: TYPE_COLORS[t] || '#999' } }))
+  return { nodes: classNodes, edges: classEdges, categories }
+}
+
+async function toggleOwlView() {
+  if (isOwlView.value) {
+    isOwlView.value = false
+    await loadWindow()
+    return
+  }
+  store.currentView = buildUraniumClassGraph()
+  isOwlView.value = true
+  nextTick(renderChart)
+}
+async function switchToOwlNetwork() {
+  await toggleOwlView()
 }
 
 // Watchers
@@ -702,6 +881,31 @@ onBeforeUnmount(() => {
 .rule-node-tag { font-size: 9px; padding: 1px 5px; background: #fef0f0; color: #F56C6C; border-radius: 2px; border: 1px solid #fab6b6; }
 .rule-event-tag { font-size: 9px; padding: 1px 5px; background: #ecf5ff; color: #409EFF; border-radius: 2px; border: 1px solid #b3d8ff; }
 .rule-more { font-size: 9px; color: #909399; }
+.rule-verdict { margin-top: 4px; font-size: 10px; }
+.verdict-label { color: #909399; }
+.verdict-value { color: #F56C6C; font-weight: 600; }
+.rule-condition { font-size: 10px; color: #606266; margin-bottom: 3px; line-height: 1.4; }
+.rule-consequence { font-size: 10px; color: #E6A23C; font-weight: 500; }
+
+/* ===== OWL 本体类视图 ===== */
+.owl-rule-header { font-size: 13px; font-weight: 700; color: #5c6bc0; padding-bottom: 8px; border-bottom: 2px solid #5c6bc0; margin-bottom: 10px; }
+.owl-class-card { background: #f8f9ff; border-radius: 8px; padding: 10px; border: 1px solid #e8eaf6; margin-bottom: 12px; }
+.owl-class-name { font-size: 15px; font-weight: 700; color: #5c6bc0; }
+.owl-class-label { font-size: 11px; color: #909399; margin-bottom: 8px; }
+.owl-class-props { display: flex; flex-direction: column; gap: 3px; }
+.owl-prop { display: flex; font-size: 11px; }
+.owl-prop-key { color: #606266; min-width: 100px; }
+.owl-prop-val { color: #5c6bc0; font-weight: 500; }
+.owl-section-title { font-size: 12px; font-weight: 600; color: #303133; margin: 14px 0 6px 0; padding-bottom: 4px; border-bottom: 1px solid #ebeef5; }
+.owl-relations { display: flex; flex-direction: column; gap: 4px; }
+.owl-rel-item { display: flex; align-items: center; gap: 8px; font-size: 11px; padding: 4px 8px; background: #f5f7fa; border-radius: 4px; }
+.owl-rel-name { color: #303133; font-weight: 500; min-width: 100px; }
+.owl-rel-arrow { color: #5c6bc0; font-weight: 700; }
+.owl-rel-target { color: #5c6bc0; font-weight: 500; }
+.owl-rules-list { display: flex; flex-direction: column; gap: 6px; }
+.owl-rule-item { font-size: 11px; padding: 6px 8px; background: #fef9e7; border-radius: 4px; border-left: 3px solid #f39c12; }
+.owl-rule-if { color: #7d6608; margin-bottom: 2px; }
+.owl-rule-then { color: #e67e22; font-weight: 600; }
 
 /* ===== 决策建议卡片 ===== */
 .decision-list { display: flex; flex-direction: column; gap: 6px; }

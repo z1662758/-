@@ -82,7 +82,11 @@ export const useOntologyStore = defineStore('ontology', {
       try {
         const res = await getDynamicWindow(windowKey)
         if (res?.success && res.data) {
-          this.currentView = res.data
+          const mg = res.data.merged_graph || {}
+          // 如果窗口数据为空，保留当前视图不变
+          if ((mg.nodes || []).length > 0 || (mg.edges || []).length > 0) {
+            this.currentView = res.data
+          }
         }
       } catch (e) {
         console.error('加载动态窗口失败:', e)
