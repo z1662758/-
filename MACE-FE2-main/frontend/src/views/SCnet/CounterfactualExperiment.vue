@@ -2,7 +2,6 @@
   <div class="scnet-counterfactual-cockpit">
     <section class="page-head">
       <div>
-        <p class="eyebrow">URANIUM SUPPLY CHAIN · COUNTERFACTUAL</p>
         <h1>供应链反事实实验</h1>
         <p class="subtitle">基于事中供应链仿真结果设定干预变量与产能方案，运行反事实实验并对比评估策略效果。支持矿山产能调整、新矿投产阈值、需求波动等供应链特有参数。</p>
       </div>
@@ -15,6 +14,11 @@
           accept=".json,application/json"
           @change="handleReportUpload"
         />
+        <div class="action-divider"></div>
+        <el-button type="primary" plain size="large" @click="connectSim" :disabled="isConnected || simState === 'preparing' || currentRunState.running">初始化 / 连接</el-button>
+        <el-button type="primary" size="large" @click="startSim" :disabled="currentRunState.running || !isConnected || simState === 'preparing' || !activeCounterfactualExperiment">运行</el-button>
+        <el-button type="info" plain size="large" @click="resetSim" :disabled="currentRunState.running">重置</el-button>
+        <el-button type="success" plain size="large" @click="generateReport" :disabled="!currentRunState.result">生成报告</el-button>
       </div>
     </section>
 
@@ -72,12 +76,7 @@
             </div>
           </div>
 
-          <div class="control-buttons">
-            <button class="btn btn-secondary" @click="connectSim" :disabled="isConnected || simState === 'preparing' || currentRunState.running">初始化 / 连接</button>
-            <button class="btn btn-primary" @click="startSim" :disabled="currentRunState.running || !isConnected || simState === 'preparing' || !activeCounterfactualExperiment">运行</button>
-            <button class="btn btn-ghost" @click="resetSim" :disabled="currentRunState.running">重置</button>
-            <button class="btn btn-primary" @click="generateReport" :disabled="!currentRunState.result">生成报告</button>
-          </div>
+          <!-- 关键操作按钮已移至顶部导入实验报告区域 -->
 
           <div class="backend-run-status block">
             <div class="backend-run-status__head">
@@ -311,6 +310,89 @@
             </el-form>
           </el-card>
         </el-scrollbar>
+      </section>
+
+      <section class="results-panel panel-card panel-card--green">
+        <header class="panel-header">
+          <div>
+            <p class="eyebrow">Counterfactual Results</p>
+            <h3>实验结果</h3>
+          </div>
+          <span class="state-badge" :data-state="currentRunState.status || 'idle'">{{ currentRunState.status ? taskStatusText(currentRunState.status) : 'IDLE' }}</span>
+        </header>
+
+        <div class="panel-body stack">
+          <!-- 无结果时 -->
+          <div class="results-empty block" v-if="!currentRunState.result">
+            <div class="results-empty-icon">📋</div>
+            <strong>暂无实验结果</strong>
+            <p>请先导入实验报告，设置参数后点击「运行」开始反事实实验。</p>
+          </div>
+
+          <!-- 有结果时 -->
+          <template v-else>
+            <div class="results-experiment-info block">
+              <div class="results-info-head">
+                <span>实验对象</span>
+              </div>
+              <strong>{{ activeCounterfactualExperiment?.label || '--' }}</strong>
+              <p>{{ activeCounterfactualExperiment?.report?.source || '--' }}</p>
+            </div>
+
+            <div class="results-metrics-grid block">
+              <div class="results-metric">
+                <span class="results-metric-label">最佳轮次</span>
+                <strong class="results-metric-value">第 {{ currentRunState.result.bestIteration || '--' }} 轮</strong>
+              </div>
+              <div class="results-metric">
+                <span class="results-metric-label">完成率</span>
+                <strong class="results-metric-value">{{ formatPercentValue(currentRunState.result.completionRate) }}</strong>
+              </div>
+              <div class="results-metric">
+                <span class="results-metric-label">{{ currentRunState.result.isUranium ? '供应缺口率' : '积压率' }}</span>
+                <strong class="results-metric-value">{{ formatPercentValue(currentRunState.result.backlogRate) }}</strong>
+              </div>
+              <div class="results-metric">
+                <span class="results-metric-label">综合评分</span>
+                <strong class="results-metric-value">{{ formatNullableNumber(currentRunState.result.overallScore, 3) }}</strong>
+              </div>
+            </div>
+
+            <div class="results-extra block" v-if="currentRunState.result.isUranium">
+              <div class="results-extra-row" v-if="currentRunState.result.networkStability != null">
+                <span>网络稳定性</span>
+                <strong>{{ formatPercentValue(currentRunState.result.networkStability) }}</strong>
+              </div>
+              <div class="results-extra-row" v-if="currentRunState.result.productionCapacityEst != null">
+                <span>产能估算</span>
+                <strong>{{ formatNullableNumber(currentRunState.result.productionCapacityEst, 0) }} tU/年</strong>
+              </div>
+            </div>
+
+            <div class="results-comparison block" v-if="currentRunState.result.primary && currentRunState.result.secondary">
+              <div class="results-comparison-head">
+                <span>策略对比</span>
+              </div>
+              <div class="comparison-grid">
+                <div class="comparison-col">
+                  <div class="comparison-label">主策略</div>
+                  <div><span>完成率</span><strong>{{ formatPercentValue(currentRunState.result.primary.completionRate) }}</strong></div>
+                  <div><span>评分</span><strong>{{ formatNullableNumber(currentRunState.result.primary.overallScore, 3) }}</strong></div>
+                </div>
+                <div class="comparison-col">
+                  <div class="comparison-label">次策略</div>
+                  <div><span>完成率</span><strong>{{ formatPercentValue(currentRunState.result.secondary.completionRate) }}</strong></div>
+                  <div><span>评分</span><strong>{{ formatNullableNumber(currentRunState.result.secondary.overallScore, 3) }}</strong></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="results-task block" v-if="currentRunState.taskId">
+              <span>任务ID：{{ currentRunState.taskId }}</span>
+              <span class="results-task-time" v-if="currentRunState.completedAt">完成于 {{ currentRunState.completedAt }}</span>
+            </div>
+          </template>
+        </div>
       </section>
     </div>
 
@@ -1750,6 +1832,16 @@ watch(
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.scnet-counterfactual-cockpit .page-actions .action-divider {
+  width: 1px;
+  height: 32px;
+  background: #d1d5db;
+  margin: 0 4px;
+  flex-shrink: 0;
 }
 
 .scnet-counterfactual-cockpit .report-file-input {
@@ -1759,7 +1851,7 @@ watch(
 .scnet-counterfactual-cockpit .top-row {
   flex: 1 1 auto;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   min-height: 0;
 }
@@ -1817,6 +1909,201 @@ watch(
   border-color: #7c3aed;
   background: #7c3aed;
   color: #ffffff;
+}
+
+/* ---- 绿色主题（实验结果） ---- */
+.scnet-counterfactual-cockpit .panel-card--green {
+  border-top: 3px solid #10b981;
+}
+
+.scnet-counterfactual-cockpit .panel-card--green .panel-header {
+  border-bottom-color: #d1fae5;
+  background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%);
+}
+
+.scnet-counterfactual-cockpit .panel-card--green .panel-header .eyebrow {
+  color: #059669;
+}
+
+/* ---- 实验结果面板 ---- */
+.scnet-counterfactual-cockpit .results-empty {
+  text-align: center;
+  padding: 24px 16px;
+  border: 2px dashed #e2e8f0;
+  border-radius: var(--radius-md);
+  background: #f8fafc;
+}
+
+.scnet-counterfactual-cockpit .results-empty-icon {
+  font-size: 36px;
+  margin-bottom: 12px;
+}
+
+.scnet-counterfactual-cockpit .results-empty strong {
+  display: block;
+  color: var(--text-main);
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
+.scnet-counterfactual-cockpit .results-empty p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.scnet-counterfactual-cockpit .results-experiment-info {
+  border-color: #d1fae5;
+  background: #ecfdf5;
+}
+
+.scnet-counterfactual-cockpit .results-info-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  color: #047857;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.scnet-counterfactual-cockpit .results-experiment-info strong {
+  display: block;
+  color: var(--text-main);
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.scnet-counterfactual-cockpit .results-experiment-info p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.scnet-counterfactual-cockpit .results-metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.scnet-counterfactual-cockpit .results-metric {
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.scnet-counterfactual-cockpit .results-metric-label {
+  display: block;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.scnet-counterfactual-cockpit .results-metric-value {
+  display: block;
+  color: var(--text-main);
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.scnet-counterfactual-cockpit .results-extra {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scnet-counterfactual-cockpit .results-extra-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid #d1fae5;
+  border-radius: 6px;
+  background: #f0fdf4;
+}
+
+.scnet-counterfactual-cockpit .results-extra-row span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.scnet-counterfactual-cockpit .results-extra-row strong {
+  color: #047857;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.scnet-counterfactual-cockpit .results-comparison {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.scnet-counterfactual-cockpit .results-comparison-head {
+  margin-bottom: 10px;
+  color: #92400e;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.scnet-counterfactual-cockpit .comparison-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.scnet-counterfactual-cockpit .comparison-col {
+  padding: 8px;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.scnet-counterfactual-cockpit .comparison-label {
+  font-size: 12px;
+  font-weight: 800;
+  color: #b45309;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #fde68a;
+}
+
+.scnet-counterfactual-cockpit .comparison-col div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+}
+
+.scnet-counterfactual-cockpit .comparison-col span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.scnet-counterfactual-cockpit .comparison-col strong {
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.scnet-counterfactual-cockpit .results-task {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.scnet-counterfactual-cockpit .results-task-time {
+  color: #94a3b8;
+  font-size: 11px;
 }
 
 .scnet-counterfactual-cockpit .eyebrow {

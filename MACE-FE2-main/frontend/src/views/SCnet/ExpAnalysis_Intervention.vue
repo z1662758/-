@@ -2,141 +2,92 @@
   <div class="post-intervention-page">
     <section class="page-head">
       <div>
-        <p class="eyebrow">URANIUM SUPPLY CHAIN · INTERVENTION & ANOMALY</p>
         <h1>干预分析与异常检测</h1>
-        <p class="subtitle">基于供应链实验结果进行干预策略对比评估，同时检测实验过程中的指标突变、极端事件和网络异常。</p>
+        <p class="subtitle">基于实验结果进行干预策略对比评估，检测指标突变与网络异常。</p>
       </div>
       <div class="head-actions">
-        <div class="stat-item" v-if="anomalyCount > 0">
-          <span>异常总数</span><strong>{{ anomalyCount }}</strong>
-        </div>
-        <div class="stat-item" v-if="highSeverityCount > 0">
-          <span>高严重度</span><strong style="color:#ef4444">{{ highSeverityCount }}</strong>
-        </div>
+        <span class="inline-stat">异常 <b>{{ anomalyCount }}</b></span>
+        <span class="inline-stat inline-stat--danger">高严重 <b>{{ highSeverityCount }}</b></span>
       </div>
-    </section>
-
-    <!-- 异常概览卡片 -->
-    <section class="overview-strip" v-if="anomaliesData">
-      <article v-for="item in overviewCards" :key="item.label" class="overview-card">
-        <el-icon><component :is="item.icon" /></el-icon>
-        <span>{{ item.label }}</span><strong>{{ item.value }}</strong>
-      </article>
     </section>
 
     <div class="intervention-layout">
-      <!-- ======== 左：干预策略选择 ======== -->
-      <section class="case-select-panel">
-        <div class="case-select-grid">
-          <!-- 干预策略库（文件树） -->
-          <aside class="case-library">
-            <div class="library-head">
-              <el-icon><Folder /></el-icon>
-              <span>干预策略库</span>
+      <!-- 篮筐1：干预策略库 -->
+      <aside class="observe-panel observe-panel--lib">
+        <div class="panel-head-bar panel-head-bar--blue">
+          <el-icon><Folder /></el-icon>
+          <span>干预策略库</span>
+        </div>
+        <div class="slot-switch">
+          <el-radio-group v-model="activeStrategySlot" size="small">
+            <el-radio-button label="primary">选择策略A</el-radio-button>
+            <el-radio-button label="secondary">选择策略B</el-radio-button>
+          </el-radio-group>
+        </div>
+        <div class="panel-body-fill">
+          <div v-for="folder in strategyFolders" :key="folder.id" class="tree-folder">
+            <div class="tree-folder-head" :class="{ expanded: folder.expanded }" @click="folder.expanded = !folder.expanded">
+              <el-icon><component :is="folderToggleIcon(folder.expanded)" /></el-icon>
+              <el-icon><FolderOpened v-if="folder.expanded" /><Folder v-else /></el-icon>
+              <span class="folder-name">{{ folder.label }}</span>
+              <span class="folder-count">{{ folder.children.length }}</span>
             </div>
-            <div class="slot-switch">
-              <el-radio-group v-model="activeStrategySlot" size="small">
-                <el-radio-button label="primary">选择策略A</el-radio-button>
-                <el-radio-button label="secondary">选择策略B</el-radio-button>
-              </el-radio-group>
-            </div>
-            <div class="library-tree">
+            <div v-show="folder.expanded" class="tree-folder-children">
               <div
-                v-for="folder in strategyFolders"
-                :key="folder.id"
-                class="tree-folder"
+                v-for="child in folder.children" :key="child.id"
+                class="tree-leaf"
+                :class="{
+                  active: isStrategySelected(child.id),
+                  'active-primary': currentStrategy.id === child.id,
+                  'active-secondary': selectedStrategy?.id === child.id
+                }"
+                @click="selectStrategy(child)"
               >
-                <div
-                  class="tree-folder-head"
-                  :class="{ expanded: folder.expanded }"
-                  @click="folder.expanded = !folder.expanded"
-                >
-                  <el-icon><component :is="folderToggleIcon(folder.expanded)" /></el-icon>
-                  <el-icon><FolderOpened v-if="folder.expanded" /><Folder v-else /></el-icon>
-                  <span class="folder-name">{{ folder.label }}</span>
-                  <span class="folder-count">{{ folder.children.length }}</span>
-                </div>
-                <div v-show="folder.expanded" class="tree-folder-children">
-                  <div
-                    v-for="child in folder.children"
-                    :key="child.id"
-                    class="tree-leaf"
-                    :class="{
-                      active: isStrategySelected(child.id),
-                      'active-primary': currentStrategy.id === child.id,
-                      'active-secondary': selectedStrategy?.id === child.id
-                    }"
-                    @click="selectStrategy(child)"
-                  >
-                    <el-icon><Document /></el-icon>
-                    <span class="leaf-name">{{ child.name }}</span>
-                    <span v-if="currentStrategy.id === child.id" class="leaf-badge leaf-badge--primary">A</span>
-                    <span v-if="selectedStrategy?.id === child.id" class="leaf-badge leaf-badge--secondary">B</span>
-                  </div>
-                </div>
+                <el-icon><Document /></el-icon>
+                <span class="leaf-name">{{ child.name }}</span>
+                <span v-if="currentStrategy.id === child.id" class="leaf-badge leaf-badge--primary">A</span>
+                <span v-if="selectedStrategy?.id === child.id" class="leaf-badge leaf-badge--secondary">B</span>
               </div>
             </div>
-          </aside>
+          </div>
+        </div>
+      </aside>
 
-          <!-- 当前干预策略 -->
-          <div class="current-experiment">
-            <!-- 上方面板：对比策略A信息 -->
-            <div
-              class="info-card info-card--primary"
-              :class="{ 'info-card--active': activeStrategySlot === 'primary' }"
-              @click="setActiveStrategySlot('primary')"
-            >
-              <div class="info-card-head">
-                <div class="info-card-title">
-                  <el-icon><DataAnalysis /></el-icon>
-                  <span>对比策略 A</span>
-                </div>
-                <el-tag v-if="activeStrategySlot === 'primary'" size="small" type="primary" round>正在选择</el-tag>
-              </div>
-              <div class="info-card-body">
-                <div class="info-row" v-for="f in strategyInfoFields" :key="f.key">
-                  <span class="info-label">{{ f.label }}</span>
-                  <span class="info-value">{{ currentStrategy[f.key] || '--' }}</span>
-                </div>
-              </div>
+      <!-- 篮筐2：策略对比 -->
+      <section class="observe-panel observe-panel--cmp">
+        <div class="panel-head-bar panel-head-bar--blue">
+          <el-icon><DataAnalysis /></el-icon>
+          <span>策略对比</span>
+          <span class="head-spacer"></span>
+          <el-tag size="small" type="primary" round>策略 A</el-tag>
+          <span class="vs-inline vs-inline--sm">VS</span>
+          <el-tag size="small" type="success" round>策略 B</el-tag>
+        </div>
+        <div class="panel-body-fill">
+          <div class="strategy-compare-table">
+            <div class="strategy-compare-header">
+              <span class="sc-label-col"></span>
+              <span class="sc-val-col sc-val--a">策略 A</span>
+              <span class="sc-val-col sc-val--b">策略 B</span>
             </div>
-
-            <!-- 下方面板：对比策略B信息 -->
-            <div
-              class="info-card info-card--secondary"
-              :class="{ 'info-card--active': activeStrategySlot === 'secondary' }"
-              @click="setActiveStrategySlot('secondary')"
-            >
-              <div class="info-card-head">
-                <div class="info-card-title">
-                  <el-icon><Collection /></el-icon>
-                  <span>对比策略 B</span>
-                </div>
-                <el-tag v-if="activeStrategySlot === 'secondary'" size="small" type="success" round>正在选择</el-tag>
-              </div>
-              <div class="info-card-body">
-                <div class="info-row" v-for="f in strategyInfoFields" :key="f.key">
-                  <span class="info-label">{{ f.label }}</span>
-                  <span class="info-value" :class="{ muted: !selectedStrategy }">{{ selectedStrategy?.[f.key] || '--' }}</span>
-                </div>
-              </div>
+            <div class="strategy-compare-row" v-for="f in strategyInfoFields" :key="f.key">
+              <span class="sc-label-col">{{ f.label }}</span>
+              <span class="sc-val-col sc-val--a">{{ currentStrategy[f.key] || '--' }}</span>
+              <span class="sc-val-col sc-val--b" :class="{ muted: !selectedStrategy }">{{ selectedStrategy?.[f.key] || '--' }}</span>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- ======== 右：干预策略对比 ======== -->
-      <section class="compare-panel">
-        <div class="compare-inner">
-          <header class="compare-head">
-            <div class="compare-head-left">
-              <el-icon :size="18"><TrendCharts /></el-icon>
-              <span>干预策略对比</span>
-            </div>
-            <el-tag size="small" type="info" round>对比视图</el-tag>
-          </header>
+      <!-- 篮筐3：干预策略对比 -->
+      <section class="observe-panel observe-panel--chart">
+        <div class="panel-head-bar panel-head-bar--purple">
+          <el-icon :size="18"><TrendCharts /></el-icon>
+          <span>干预策略对比</span>
+          <el-tag size="small" type="info" round style="margin-left:auto">对比视图</el-tag>
+        </div>
 
-          <div class="compare-body">
+        <div class="panel-body-fill compare-body">
             <div v-if="!currentStrategy.id || !selectedStrategy" class="compare-empty">
               <el-icon :size="44"><TrendCharts /></el-icon>
               <p>选择两个干预策略后查看对比详情</p>
@@ -144,102 +95,49 @@
             </div>
 
             <div v-else class="compare-content">
-              <!-- 策略A横向信息行 -->
-              <div class="card-pair-row">
-                <div class="cmp-card cmp-card--blue">
-                  <div class="cmp-card-head">
-                    <el-icon><Setting /></el-icon>
-                    <span>策略A · 策略参数</span>
-                    <div class="cmp-card-pip blue"></div>
-                  </div>
-                  <div class="cmp-card-body">
-                    <div class="cmp-kv" v-for="p in strategyParamFields" :key="p.key">
-                      <span class="cmp-kv-label">{{ p.label }}</span>
-                      <span class="cmp-kv-value">{{ currentStrategy[p.key] || '--' }}</span>
-                    </div>
-                  </div>
+              <!-- AB策略参数+效果 水平共用列名 -->
+              <div class="cmp-card cmp-card--unified cmp-card--sm">
+                <div class="cmp-card-head">
+                  <span>策略对比</span>
+                  <span class="head-spacer"></span>
+                  <span class="cmp-card-pip blue"></span><span>策略A</span>
+                  <span class="cmp-card-pip purple" style="margin-left:8px"></span><span>策略B</span>
                 </div>
-
-                <div class="cmp-card cmp-card--teal">
-                  <div class="cmp-card-head">
-                    <el-icon><DataLine /></el-icon>
-                    <span>策略A · 预期效果</span>
-                    <div class="cmp-card-pip teal"></div>
-                  </div>
-                  <div class="cmp-card-body">
-                    <div class="cmp-kv" v-for="r in strategyResultFields" :key="r.key">
-                      <span class="cmp-kv-label">{{ r.label }}</span>
-                      <span class="cmp-kv-value">{{ currentStrategy[r.key] || '--' }}</span>
+                <div class="cmp-card-body">
+                  <div class="strategy-compare-table">
+                    <div class="strategy-compare-header">
+                      <span class="sc-label-col"></span>
+                      <span class="sc-val-col sc-val--a">{{ currentStrategy.name }}</span>
+                      <span class="sc-val-col sc-val--b">{{ selectedStrategy.name }}</span>
                     </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 策略B横向信息行 -->
-              <div class="card-pair-row">
-                <div class="cmp-card cmp-card--purple">
-                  <div class="cmp-card-head">
-                    <el-icon><Setting /></el-icon>
-                    <span>策略B · 策略参数</span>
-                    <div class="cmp-card-pip purple"></div>
-                  </div>
-                  <div class="cmp-card-body">
-                    <div class="cmp-kv" v-for="p in strategyParamFields" :key="p.key">
-                      <span class="cmp-kv-label">{{ p.label }}</span>
-                      <span class="cmp-kv-value">{{ selectedStrategy[p.key] || '--' }}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="cmp-card cmp-card--amber">
-                  <div class="cmp-card-head">
-                    <el-icon><DataLine /></el-icon>
-                    <span>策略B · 预期效果</span>
-                    <div class="cmp-card-pip amber"></div>
-                  </div>
-                  <div class="cmp-card-body">
-                    <div class="cmp-kv" v-for="r in strategyResultFields" :key="r.key">
-                      <span class="cmp-kv-label">{{ r.label }}</span>
-                      <span class="cmp-kv-value">{{ selectedStrategy[r.key] || '--' }}</span>
+                    <div class="strategy-compare-row" v-for="f in strategyAllFields" :key="f.key">
+                      <span class="sc-label-col">{{ f.label }}</span>
+                      <span class="sc-val-col sc-val--a">{{ currentStrategy[f.key] || '--' }}</span>
+                      <span class="sc-val-col sc-val--b">{{ selectedStrategy[f.key] || '--' }}</span>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- 结构方程可视化：A vs B 因果路径对比 -->
-            <div class="sem-panel" v-if="currentStrategy.id && selectedStrategy">
-              <div class="sem-head">
-                <el-icon><Promotion /></el-icon>
-                <span>策略因果路径对比（结构方程图）</span>
-                <span class="sem-legend"><span class="sem-dot-a"></span> 策略A（{{ currentStrategy.name }}）</span>
-                <span class="sem-legend"><span class="sem-dot-b"></span> 策略B（{{ selectedStrategy.name }}）</span>
-              </div>
-              <div ref="semChartRef" class="sem-chart"></div>
-            </div>
-
-            <div class="runtime-panel">
-              <div class="runtime-head">
-                <div class="runtime-title">
-                  <el-icon><VideoPlay /></el-icon>
-                  <span>干预策略实际运行</span>
+            <!-- AB综合结论 -->
+            <div class="cmp-card cmp-card--conclusion" v-if="currentStrategy.id && selectedStrategy">
+              <div class="cmp-card-head"><el-icon><Setting /></el-icon><span>策略A vs 策略B · 综合结论</span></div>
+              <div class="cmp-card-body">
+                <p class="conclusion-text">{{ interventionConclusion }}</p>
+                <div v-if="runState.running" class="run-inline-status">⏳ 正在运行干预策略对比实验...</div>
+                <div v-else-if="runState.error" class="run-inline-status run-inline-status--error">{{ runState.error }}</div>
+                <div v-else-if="hasRunResults" class="run-inline-result">
+                  <span v-for="row in runComparisonRows" :key="row.key" class="run-result-chip">
+                    {{ row.label }}：A {{ row.primary }} / B {{ row.secondary }}
+                  </span>
                 </div>
-                <div class="runtime-actions">
-                  <el-tag size="small" type="info" round>基础实验 · 15轮</el-tag>
-                  <el-button
-                    type="primary"
-                    size="small"
-                    :icon="VideoPlay"
-                    :loading="runState.running"
-                    @click="startInterventionRun"
-                  >
+                <div class="conclusion-actions">
+                  <el-button type="primary" size="small" :icon="VideoPlay" :loading="runState.running" @click="startInterventionRun()">
                     {{ runState.running ? '运行中' : '开始运行' }}
                   </el-button>
                   <el-dropdown trigger="click" @command="exportRunReport">
-                    <el-button size="small" plain :icon="Download" :disabled="!hasRunResults">
-                      导出结果
-                      <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-                    </el-button>
+                    <el-button size="small" plain :icon="Download" :disabled="!hasRunResults">导出结果</el-button>
                     <template #dropdown>
                       <el-dropdown-menu>
                         <el-dropdown-item command="html">HTML（.html）</el-dropdown-item>
@@ -250,62 +148,20 @@
                   </el-dropdown>
                 </div>
               </div>
-
-              <div class="runtime-problem">
-                <span>实验问题</span>
-                <strong>{{ interventionProblem }}</strong>
-              </div>
-
-              <div class="runtime-status-grid">
-                <div
-                  v-for="slot in strategySlots"
-                  :key="slot.key"
-                  class="runtime-status-card"
-                  :class="`runtime-status-card--${slot.key}`"
-                >
-                  <div class="runtime-status-top">
-                    <span>{{ slot.label }}</span>
-                    <el-tag size="small" :type="taskStatusType(runState.tasks[slot.key]?.status)" round>
-                      {{ taskStatusText(runState.tasks[slot.key]?.status) }}
-                    </el-tag>
-                  </div>
-                  <strong>{{ slot.strategy?.name || '--' }}</strong>
-                  <p>{{ runState.tasks[slot.key]?.taskId || '等待提交实验任务' }}</p>
-                </div>
-              </div>
-
-              <div v-if="runState.error" class="runtime-alert runtime-alert--error">
-                {{ runState.error }}
-              </div>
-              <div v-else class="runtime-alert">
-                {{ runState.message }}
-              </div>
-
-              <div v-if="hasRunResults" class="runtime-result">
-                <div class="runtime-result-head">
-                  <span>运行结果对比</span>
-                  <el-tag size="small" type="success" round>已完成</el-tag>
-                </div>
-                <div class="result-table">
-                  <div class="result-row result-row--head">
-                    <span>指标</span>
-                    <span>策略A</span>
-                    <span>策略B</span>
-                  </div>
-                  <div class="result-row" v-for="row in runComparisonRows" :key="row.key">
-                    <span>{{ row.label }}</span>
-                    <span :class="{ winner: isBetterRunValue(row, 'primary') }">{{ row.primary }}</span>
-                    <span :class="{ winner: isBetterRunValue(row, 'secondary') }">{{ row.secondary }}</span>
-                  </div>
-                </div>
-              </div>
-              <div v-else class="runtime-placeholder">
-                <el-icon><TrendCharts /></el-icon>
-                <span>运行完成后将在这里展示两个干预策略下的完成率、积压、协作与韧性指标。</span>
-              </div>
             </div>
+
+            <!-- 结构方程可视化：A vs B 因果路径对比 -->
+            <div class="sem-panel" v-if="currentStrategy.id && selectedStrategy">
+              <div class="sem-head">
+                <el-icon><Promotion /></el-icon>
+                <span>策略因果路径对比</span>
+                <span class="sem-legend"><span class="sem-dot-a"></span>A</span>
+                <span class="sem-legend"><span class="sem-dot-b"></span>B</span>
+              </div>
+              <div ref="semChartRef" class="sem-chart"></div>
+            </div>
+
           </div>
-        </div>
       </section>
     </div>
 
@@ -315,7 +171,7 @@
         <div class="anomaly-list-panel">
           <header class="panel-head">
             <el-icon><WarningFilled /></el-icon>
-            <span>供应链异常事件列表</span>
+            <span>铀供应链异常事件列表</span>
             <el-select v-model="severityFilter" placeholder="严重度" size="small" clearable style="width:110px;margin-left:auto">
               <el-option label="全部" value="" /><el-option label="高" value="high" /><el-option label="中" value="medium" /><el-option label="低" value="low" />
             </el-select>
@@ -386,19 +242,19 @@ const mapBackendStrategyToFrontend = (s) => {
     inventory_management: '库存缓冲', pricing_strategy: '价格策略', supplier_selection: '供应链优化'
   }
   const targetMap = {
-    capacity_expansion: '全球矿山产能', collaboration: '贸易网络', emergency_response: '替代供应来源',
-    inventory_management: '战略储备', pricing_strategy: '市场价格', supplier_selection: '供应链节点'
+    capacity_expansion: '全球铀矿产能', collaboration: '铀贸易网络', emergency_response: '替代供应来源',
+    inventory_management: '战略铀储备', pricing_strategy: '铀市场价格', supplier_selection: '铀供应链节点'
   }
   return {
     id: s.id, name: s.name,
-    target: targetMap[s.type] || '供应链全网络', phase: '事中',
+    target: targetMap[s.type] || '铀供应链全网络', phase: '事中',
     expectedCompletionDelta: `+${((s.outcomes?.completion_rate || 0.7) * 100 - 50).toFixed(1)}pp`,
     backlogImprovement: `${((1 - (s.outcomes?.completion_rate || 0.7)) * 100).toFixed(1)}%`,
     collaborationDelta: `+${s.params?.final_collaborations || 0} 次`,
     resilienceDelta: `+${((s.outcomes?.network_density || 0.3) * 1.0).toFixed(2)}`,
-    type: typeMap[s.type] || '基准策略', scope: (s.id && s.id.includes('bottleneck')) ? '定向瓶颈' : '全局供应链',
-    mechanism: s.type === 'capacity_expansion' ? '阶梯式扩产(ISL+硬岩)' : s.type === 'emergency_response' ? '启动替代产能应急预案' : s.type === 'inventory_management' ? '增加战略储备缓冲' : s.type === 'pricing_strategy' ? '长期合约锁定价格' : '多源供应+长期合约',
-    trigger: s.has_extreme_scenario ? '极端事件触发' : (s.outcomes?.completion_rate < 0.5 ? '供应完成率 < 50%' : '供应链基准策略'),
+    type: typeMap[s.type] || '基准策略', scope: (s.id && s.id.includes('bottleneck')) ? '定向瓶颈' : '全局铀供应链',
+    mechanism: s.type === 'capacity_expansion' ? '阶梯扩产' : s.type === 'emergency_response' ? '启动替代产能' : s.type === 'inventory_management' ? '战略储备缓冲' : s.type === 'pricing_strategy' ? '长期合约锁价' : '多源供应',
+    trigger: s.has_extreme_scenario ? '极端事件' : (s.outcomes?.completion_rate < 0.5 ? '完成率<50%' : '基准策略'),
     _backend: s
   }
 }
@@ -461,35 +317,13 @@ const loadStrategiesFromBackend = async () => {
   }
 }
 
-// ---- 供应链干预策略库 ----
+// ---- 铀供应链干预策略库 ----
 const strategyFolders = reactive([
   {
-    id: 'cat_capacity', label: '一、矿山产能扩张', expanded: true,
+    id: 'cat_market', label: '干预策略', expanded: true,
     children: [
-      { id: 'cap_global_30',  name: '【A】全球扩产+30%',    desc: '产能 5.5→10.1万 tU/年 | 完成率+18pp | 利润↑',   target: '所有矿山', phase: '事中', expectedCompletionDelta: '+18.2pp', backlogImprovement: '-28.5%', collaborationDelta: '+18次', resilienceDelta: '+0.35', type: '产能扩张', mechanism: 'ISL+硬岩矿同步阶梯式扩产', trigger: '供应缺口>15%' },
-      { id: 'cap_isl_priority', name: '【B】ISL低成本优先', desc: '产能 5.0→9.0万 tU/年 | 完成率+12pp | 成本优',     target: '哈萨克斯坦ISL矿', phase: '事中', expectedCompletionDelta: '+12.5pp', backlogImprovement: '-20.1%', collaborationDelta: '+8次', resilienceDelta: '+0.22', type: '产能扩张', mechanism: '恢复硫酸供应，ISL利用率80%→满产', trigger: 'ISL利用率<80%' },
-      { id: 'cap_lower_threshold', name: '【C】降低新矿门槛', desc: '投产阈值 6000→3000 | 完成率+16pp | 新矿↑',        target: '计划矿山项目', phase: '事前', expectedCompletionDelta: '+15.8pp', backlogImprovement: '-24.0%', collaborationDelta: '+25次', resilienceDelta: '+0.42', type: '市场准入', mechanism: '降低Dasa/Wheeler River投产门槛', trigger: '中长期供需缺口预警' }
-    ]
-  },
-  {
-    id: 'cat_procurement', label: '二、采购与储备', expanded: true,
-    children: [
-      { id: 'proc_diversify',  name: '【D】采购多元化',    desc: '协作半径→3000 协作厂→50 | 完成率+10pp | 韧性+0.38',   target: '全球贸易网络', phase: '事中', expectedCompletionDelta: '+10.3pp', backlogImprovement: '-16.7%', collaborationDelta: '+28次', resilienceDelta: '+0.38', type: '采购策略', mechanism: '多源供应+长期合约，降低单一来源依赖', trigger: '单一来源>40%' },
-      { id: 'proc_stockpile',   name: '【E】战略储备90天', desc: '投产阈值 6000→4500 | 完成率+8pp | 缓冲↑',            target: '国家储备库', phase: '事前', expectedCompletionDelta: '+7.8pp', backlogImprovement: '-11.4%', collaborationDelta: '+5次', resilienceDelta: '+0.25', type: '库存缓冲', mechanism: '储备从30天提升至90天安全库存', trigger: '地缘政治风险升级' }
-    ]
-  },
-  {
-    id: 'cat_emergency', label: '三、应急响应', expanded: false,
-    children: [
-      { id: 'emer_niger',       name: '【F】尼日尔断供',  desc: '产能 3.8→7.0万 | 调整速率 0.12 | 快速切换',           target: '非洲→替代来源', phase: '事中', expectedCompletionDelta: '+5.5pp', backlogImprovement: '-8.0%', collaborationDelta: '+12次', resilienceDelta: '+0.19', type: '应急响应', mechanism: '启动纳米比亚+加拿大替代产能', trigger: '政局突变/出口中断' },
-      { id: 'emer_kazakh',      name: '【G】哈萨克酸中断', desc: '产能 3.6→6.8万 | 调整速率 0.12 | 启动替代',           target: '中亚→替代ISL', phase: '事中', expectedCompletionDelta: '+6.8pp', backlogImprovement: '-10.5%', collaborationDelta: '+9次', resilienceDelta: '+0.16', type: '应急响应', mechanism: '启动澳Honeymoon+美ISL替代产能', trigger: '硫酸供应中断' }
-    ]
-  },
-  {
-    id: 'cat_market', label: '四、市场与金融', expanded: false,
-    children: [
-      { id: 'mkt_hedge',        name: '【H】长期合约锁价', desc: '调整速率 0.06 | 完成率+4pp | 锁定$55/lb',             target: '市场价格', phase: '事前', expectedCompletionDelta: '+4.2pp', backlogImprovement: '-5.8%', collaborationDelta: '+3次', resilienceDelta: '+0.15', type: '价格策略', mechanism: '$50-60/lb长期合约锁定5-10年价格', trigger: '现货价格>$80/lb' },
-      { id: 'mkt_slow_adjust',  name: '【I】稳健保守',    desc: '调整速率 0.04 | 完成率+2pp | 避免过度投资',            target: '全供应链', phase: '事后', expectedCompletionDelta: '+2.0pp', backlogImprovement: '-3.0%', collaborationDelta: '+1次', resilienceDelta: '+0.05', type: '稳健策略', mechanism: '极低调整速率，依赖合约+储备缓冲', trigger: '市场不确定性高' }
+      { id: 'mkt_hedge',        name: '长期合约锁价', desc: '速率0.06 | 完成率+4pp | $55/lb',             target: '铀市场价格', phase: '事前', expectedCompletionDelta: '+4.2pp', backlogImprovement: '-5.8%', collaborationDelta: '+3次', resilienceDelta: '+0.15', type: '价格策略', mechanism: '长期合约锁定5-10年价格', trigger: '铀价>$80/lb' },
+      { id: 'mkt_slow_adjust',  name: '稳健保守',    desc: '速率0.04 | 完成率+2pp | 保守',            target: '全供应链', phase: '事后', expectedCompletionDelta: '+2.0pp', backlogImprovement: '-3.0%', collaborationDelta: '+1次', resilienceDelta: '+0.05', type: '稳健策略', mechanism: '低调整速率+储备缓冲', trigger: '市场不确定' }
     ]
   }
 ])
@@ -499,7 +333,7 @@ const anomaliesData = ref(null)
 const severityFilter = ref('')
 const selectedAnomalyIndex = ref(null)
 const selectedDetail = ref(null)
-const typeLabels = { order_drop: '需求骤降', completion_change: '供应完成率异常', enterprise_change: '矿山/企业变动', extreme_event: '供应链极端事件', network_disruption: '协作网络中断' }
+const typeLabels = { order_drop: '铀需求骤降', completion_change: '供应完成率异常', enterprise_change: '矿山/企业变动', extreme_event: '铀供应链极端事件', network_disruption: '协作网络中断' }
 const typeLabel = (t) => typeLabels[t] || t
 const anomalyCount = computed(() => anomaliesData.value?.summary?.total_anomalies || 0)
 const highSeverityCount = computed(() => anomaliesData.value?.summary?.by_severity?.high || 0)
@@ -537,6 +371,7 @@ const selectAnomaly = async (index) => {
 }
 
 const activeStrategySlot = ref('secondary')
+const showRuntime = ref(false)
 
 const strategyInfoFields = [
   { key: 'name', label: '策略' },
@@ -558,8 +393,29 @@ const strategyResultFields = [
   { key: 'resilienceDelta', label: '预期韧性提升' }
 ]
 
+const interventionConclusion = computed(() => {
+  const a = currentStrategy, b = selectedStrategy
+  if (!a.id || !b?.id) return '请选择两个策略进行对比'
+  const aComp = parseFloat(a.expectedCompletionDelta) || 0
+  const bComp = parseFloat(b?.expectedCompletionDelta) || 0
+  const aRes = parseFloat(a.resilienceDelta) || 0
+  const bRes = parseFloat(b?.resilienceDelta) || 0
+  if (bComp > aComp && bRes > aRes) return `策略B「${b.name}」在完成率（${b.expectedCompletionDelta}）和韧性（${b.resilienceDelta}）上均优于策略A「${a.name}」（${a.expectedCompletionDelta} / ${a.resilienceDelta}），建议优先采用B方案。`
+  if (aComp > bComp && aRes > bRes) return `策略A「${a.name}」综合表现更优，完成率提升${a.expectedCompletionDelta}，韧性提升${a.resilienceDelta}，建议以A为基准。`
+  return `两策略各有侧重：A「${a.name}」完成率${a.expectedCompletionDelta}，B「${b.name}」完成率${b.expectedCompletionDelta}。建议结合实际场景选择，点击"开始运行"进行仿真验证。`
+})
+
+const strategyAllFields = [
+  { key: 'desc', label: '参数' },
+  { key: 'mechanism', label: '机制' },
+  { key: 'trigger', label: '触发' },
+  { key: 'expectedCompletionDelta', label: '完成率' },
+  { key: 'backlogImprovement', label: '缺口改善' },
+  { key: 'resilienceDelta', label: '韧性' }
+]
+
 const currentStrategy = reactive({ ...strategyFolders[0].children[0] })
-const selectedStrategy = ref({ ...strategyFolders[1].children[0] })
+const selectedStrategy = ref({ ...strategyFolders[0].children[1] })
 
 // ---- 结构方程可视化 ----
 const semChartRef = ref(null)
@@ -634,7 +490,7 @@ function selectStrategy(child) {
   else { selectedStrategy.value = child; clearRunOutputForSelectionChange() }
   renderSEMChart()
 }
-const interventionProblem = '矿山产能受限与核电需求增长背景下，如何选择最优干预策略以维持供应链供应安全和完成率稳定？'
+const interventionProblem = '铀矿产能受限与核电需求增长背景下，如何选择最优干预策略以维持铀供应链供应安全和完成率稳定？'
 const interventionIterations = 15
 const pollingIntervalMs = 5000
 
@@ -813,9 +669,9 @@ const buildInterventionRunPayload = (slotKey, strategy) => {
       selected_strategy: strategy.name,
       strategy_slot: slotKey === 'primary' ? '策略A' : '策略B',
       selected_parameters: [
-        { key: 'order_multiplier', label: '需求强度', value: runtimeConfig.paramOverrides.order_multiplier || 1.0, unit: '倍' },
-        { key: 'factory_capacity_min', label: '矿山产能下限', value: runtimeConfig.paramOverrides.factory_capacity_range[0], unit: 'tU/年' },
-        { key: 'factory_capacity_max', label: '矿山产能上限', value: runtimeConfig.paramOverrides.factory_capacity_range[1], unit: 'tU/年' },
+        { key: 'order_multiplier', label: '铀需求强度', value: runtimeConfig.paramOverrides.order_multiplier || 1.0, unit: '倍' },
+        { key: 'factory_capacity_min', label: '铀矿产能下限', value: runtimeConfig.paramOverrides.factory_capacity_range[0], unit: 'tU/年' },
+        { key: 'factory_capacity_max', label: '铀矿产能上限', value: runtimeConfig.paramOverrides.factory_capacity_range[1], unit: 'tU/年' },
         { key: 'reproduction_threshold', label: '新矿投产阈值', value: runtimeConfig.paramOverrides.reproduction_threshold || 6000, unit: 'tU/年' },
         { key: 'adjustment_ratio', label: '产能爬坡速率', value: runtimeConfig.paramOverrides.adjustment_ratio || 0.08, unit: '比例' }
       ]
@@ -1213,18 +1069,43 @@ function clearRunOutputForSelectionChange() {
   flex: 0 0 auto;
   display: flex;
   justify-content: space-between;
-  gap: 20px;
+  gap: 24px;
   align-items: center;
-  padding: 14px 22px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+  padding: 18px 28px;
+  margin-bottom: 14px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 40%, #3b82f6 70%, #60a5fa 100%);
+  box-shadow: 0 8px 32px rgba(37, 99, 235, 0.28), 0 2px 8px rgba(30, 58, 138, 0.15);
+  position: relative;
+  overflow: hidden;
 }
+
+.page-head::before {
+  content: '';
+  position: absolute;
+  top: -50%; right: -10%;
+  width: 300px; height: 300px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+  pointer-events: none;
+}
+
+.page-head::after {
+  content: '';
+  position: absolute;
+  bottom: -60%; left: 5%;
+  width: 220px; height: 220px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.04);
+  pointer-events: none;
+}
+
+.page-head > div:first-child { position: relative; z-index: 1; }
 
 .eyebrow {
   margin: 0 0 6px;
-  color: #3867f2;
+  color: rgba(255,255,255,0.7);
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.1em;
@@ -1233,68 +1114,37 @@ function clearRunOutputForSelectionChange() {
 
 .page-head h1 {
   margin: 0;
-  font-size: 26px;
+  font-size: 24px;
   line-height: 1.2;
   font-weight: 900;
+  color: #ffffff;
+  letter-spacing: 1px;
 }
 
 .subtitle {
-  margin: 8px 0 0;
-  color: #64748b;
+  margin: 6px 0 0;
+  color: rgba(255,255,255,0.75);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .intervention-layout {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  grid-template-columns: 1fr 1fr 1.5fr;
+  gap: 10px;
   min-height: 500px;
   height: calc(100vh - 280px);
+  align-items: stretch;
 }
 
-.case-select-panel {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
-  overflow: hidden;
-  display: flex;
-  min-height: 0;
-}
-
-.case-select-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  width: 100%;
-  min-height: 0;
-}
-
-/* ---- 干预策略库 ---- */
-.case-library {
-  border-right: 1px solid #eef2f7;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.library-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 14px;
-  font-size: 13px;
-  font-weight: 800;
-  color: #1e293b;
-  border-bottom: 1px solid #eef2f7;
-  background: #f8fafc;
-}
-
-.library-head .el-icon {
-  color: #3b82f6;
-  font-size: 16px;
-}
+.observe-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; box-shadow: 0 6px 16px rgba(15,23,42,0.06); overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+.panel-head-bar { display: flex; align-items: center; gap: 8px; padding: 10px 12px; font-size: 13px; font-weight: 800; color: #1e293b; border-bottom: 1px solid #eef2f7; flex-shrink: 0; }
+.panel-head-bar--blue { border-top: 3px solid #3b82f6; background: linear-gradient(180deg, #eff6ff, #ffffff); }
+.panel-head-bar--blue .el-icon { color: #3b82f6; }
+.panel-head-bar--purple { border-top: 3px solid #8b5cf6; background: linear-gradient(180deg, #f5f3ff, #ffffff); }
+.panel-head-bar--purple .el-icon { color: #8b5cf6; }
+.panel-body-fill { flex: 1; overflow-y: auto; padding: 6px; min-height: 0; }
 
 .slot-switch {
   padding: 10px 12px;
@@ -1452,10 +1302,31 @@ function clearRunOutputForSelectionChange() {
 
 .info-card--primary { border-top: 3px solid #3b82f6; }
 .info-card--secondary { border-top: 3px solid #8b5cf6; }
+.info-card--unified { border-top: 3px solid #3b82f6; cursor: default; }
+.info-card--unified .info-card-head { background: linear-gradient(180deg, #eff6ff, #fafbfc); }
 .info-card--active {
   border-color: #93c5fd;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
 }
+.head-spacer { flex: 1; }
+.vs-inline { width: 24px; height: 24px; border-radius: 50%; background: #3b82f6; color: #fff; display: inline-grid; place-items: center; font-weight: 900; font-size: 10px; flex-shrink: 0; }
+.vs-inline--sm { width: 20px; height: 20px; font-size: 9px; }
+.compare-dual { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+.compare-col { padding: 6px 8px; display: flex; flex-direction: column; gap: 2px; min-height: 0; }
+.compare-col--a { border-right: 1px solid #eef2f7; background: #f8fbff; border-radius: 6px 0 0 6px; }
+.compare-col--b { background: #f8fff8; border-radius: 0 6px 6px 0; }
+.compare-col-label { font-size: 11px; font-weight: 900; color: #2563eb; text-align: center; padding-bottom: 4px; border-bottom: 1px solid #eef2f7; margin-bottom: 2px; }
+.compare-col--b .compare-col-label { color: #059669; }
+
+.strategy-compare-table { display: flex; flex-direction: column; gap: 0; }
+.strategy-compare-header { display: flex; align-items: center; padding: 4px 0 6px; border-bottom: 2px solid #e2e8f0; margin-bottom: 2px; }
+.strategy-compare-row { display: flex; align-items: center; padding: 5px 0; border-bottom: 1px dashed #f1f5f9; }
+.strategy-compare-row:last-child { border-bottom: none; }
+.sc-label-col { width: 70px; flex-shrink: 0; font-size: 12px; font-weight: 700; color: #64748b; text-align: right; padding-right: 12px; }
+.sc-val-col { flex: 1; font-size: 12px; font-weight: 800; color: #0f172a; text-align: center; }
+.sc-val--a { color: #2563eb; }
+.sc-val--b { color: #059669; }
+.sc-val-col.muted { color: #94a3b8; }
 
 .info-card-head {
   display: flex;
@@ -1523,8 +1394,8 @@ function clearRunOutputForSelectionChange() {
 .compare-panel {
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+  border-radius: 14px;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
   display: flex;
   min-height: 0;
   overflow: hidden;
@@ -1542,8 +1413,9 @@ function clearRunOutputForSelectionChange() {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
+  border-top: 3px solid #8b5cf6;
   border-bottom: 1px solid #eef2f7;
-  background: #f8fafc;
+  background: linear-gradient(180deg, #f5f3ff, #ffffff);
 }
 
 .compare-head-left {
@@ -1700,7 +1572,17 @@ function clearRunOutputForSelectionChange() {
 .sem-legend { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: #64748b; }
 .sem-dot-a { width: 10px; height: 10px; border-radius: 50%; background: #3b82f6; display: inline-block; }
 .sem-dot-b { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; display: inline-block; }
-.sem-chart { width: 100%; height: 260px; }
+.sem-chart { width: 100%; height: 200px; }
+
+.cmp-card--conclusion { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; border-top: 3px solid #6366f1; margin-bottom: 8px; }
+.cmp-card--conclusion .cmp-card-head { background: linear-gradient(180deg, #eef2ff, #fafbfc); border-bottom: 1px solid #eef2f7; padding: 8px 12px; font-size: 12px; font-weight: 800; display: flex; align-items: center; gap: 6px; color: #4338ca; }
+.cmp-card--conclusion .cmp-card-body { padding: 10px 14px; background: #fafafe; }
+.conclusion-text { margin: 0 0 8px; font-size: 12px; line-height: 1.65; color: #334155; font-weight: 600; }
+.conclusion-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.run-inline-status { font-size: 12px; color: #6366f1; font-weight: 700; padding: 4px 0; }
+.run-inline-status--error { color: #ef4444; }
+.run-inline-result { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 0; }
+.run-result-chip { font-size: 11px; padding: 3px 8px; border-radius: 4px; background: #f0fdf4; color: #065f46; font-weight: 700; }
 
 .runtime-panel {
   margin-top: 14px;
@@ -1916,9 +1798,11 @@ function clearRunOutputForSelectionChange() {
 }
 
 /* ---- 异常区域 ---- */
-.head-actions .stat-item { min-width: 90px; padding: 8px 12px; border: 1px solid #fecaca; border-radius: 10px; background: linear-gradient(180deg, #fff8f8, #fef2f2); }
-.head-actions .stat-item span { display: block; color: #64748b; font-size: 11px; font-weight: 800; }
-.head-actions .stat-item strong { display: block; margin-top: 4px; color: #991b1b; font-size: 18px; }
+.head-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; position: relative; z-index: 1; }
+.inline-stat { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 6px; background: rgba(255,255,255,0.15); font-size: 12px; color: rgba(255,255,255,0.8); font-weight: 600; }
+.inline-stat b { color: #fff; font-size: 14px; }
+.inline-stat--danger { background: rgba(239,68,68,0.25); }
+.inline-stat--danger b { color: #fecaca; }
 .overview-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .overview-card { display: grid; grid-template-columns: 38px 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center; min-height: 56px; padding: 8px 14px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; }
 .overview-card .el-icon { grid-row: 1/3; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; background: #fecaca; color: #ef4444; font-size: 16px; }
@@ -1926,8 +1810,11 @@ function clearRunOutputForSelectionChange() {
 .overview-card strong { color: #0f172a; font-size: 18px; }
 .anomaly-section { flex: 0 0 auto; margin-top: 10px; }
 .anomaly-grid { display: grid; grid-template-columns: 380px 1fr; gap: 10px; }
-.anomaly-list-panel, .anomaly-detail-panel { border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 6px 16px rgba(15,23,42,0.04); max-height: 360px; }
-.panel-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #eef2f7; font-weight: 800; font-size: 13px; flex-shrink: 0; }
+.anomaly-list-panel { border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 6px 16px rgba(15,23,42,0.04); max-height: 360px; }
+.anomaly-detail-panel { border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 6px 16px rgba(15,23,42,0.04); max-height: 360px; }
+.anomaly-list-panel .panel-head { border-top: 3px solid #ef4444; }
+.anomaly-detail-panel .panel-head { border-top: 3px solid #f59e0b; }
+.panel-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #eef2f7; font-weight: 800; font-size: 13px; flex-shrink: 0; background: #fafbfc; }
 .panel-body { flex: 1; overflow-y: auto; padding: 6px; }
 .anomaly-item { padding: 10px; margin: 2px 0; border: 1px solid #eef2f7; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
 .anomaly-item:hover { border-color: #fca5a5; background: #fffafa; }

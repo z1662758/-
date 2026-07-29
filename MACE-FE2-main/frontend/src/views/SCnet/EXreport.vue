@@ -2,9 +2,8 @@
   <div class="post-report-page">
     <section class="report-head">
       <div>
-        <p class="eyebrow">URANIUM SUPPLY CHAIN · REPORT</p>
-        <h1>供应链实验报告</h1>
-        <p class="subtitle">基于供应链事中仿真与反事实分析结果，生成矿山产能、供应安全、网络韧性等关键指标对比与因素总结。</p>
+        <h1>实验报告</h1>
+        <p class="subtitle">基于事中仿真与反事实分析结果，汇总关键指标对比与因素总结。</p>
       </div>
       <div class="head-actions">
         <el-dropdown trigger="click" @command="exportReport">
@@ -14,12 +13,13 @@
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item command="txt">文本（.txt）</el-dropdown-item>
               <el-dropdown-item command="html">HTML（.html）</el-dropdown-item>
+              <el-dropdown-item command="txt">文本（.txt）</el-dropdown-item>
+              <el-dropdown-item command="pdf">PDF（打印保存）</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        <el-button type="primary" plain :icon="Refresh" @click="refreshReport" :loading="loading">重新生成报告</el-button>
+        <el-button text size="small" :icon="Refresh" @click="refreshReport" :loading="loading" />
       </div>
     </section>
 
@@ -31,7 +31,7 @@
     <el-empty
       v-else-if="!reportData"
       class="empty-report"
-      description="请先选择或完成一个供应链实验"
+      description="请先选择或完成一个铀供应链实验"
       :image-size="120"
     />
 
@@ -84,11 +84,21 @@
           </div>
         </section>
 
+        <!-- 综合结论 -->
+        <section class="report-section report-conclusion">
+          <header class="section-head">
+            <h2>综合结论</h2>
+          </header>
+          <div class="conclusion-body">
+            <p>{{ reportConclusion }}</p>
+          </div>
+        </section>
+
         <section class="report-section">
           <header class="section-head">
             <div>
               <h2>实验对比总览</h2>
-              <p>汇总供应链实验基本信息、关键参数与核心输出指标。</p>
+              <p>汇总实验基本信息、关键参数与核心输出指标。</p>
             </div>
             <span class="generated-at">生成时间：{{ generatedAt }}</span>
           </header>
@@ -436,7 +446,7 @@ const experimentRows = computed(() => {
   return [{
     id: 'Exp-01',
     shortLabel: 'Exp-01',
-    label: safeGetValue(reportData.value, 'goal', '') || '供应链仿真实验',
+    label: safeGetValue(reportData.value, 'goal', '') || '铀供应链仿真实验',
     source: getStatusText(safeGetValue(reportData.value, 'status', '')),
     paramsMap: {
       ...baseParams,
@@ -471,8 +481,22 @@ const completionImprovementLabel = computed(() => {
   return `${Math.max(0, ((best - first) / first) * 100).toFixed(1)}%`;
 });
 
+const reportConclusion = computed(() => {
+  const data = reportData.value
+  if (!data) return ''
+  const best = bestExperimentLabel.value
+  const total = experimentRows.value.length
+  const completed = experimentRows.value.filter(r => r.rawCompletionRate > 0).length
+  const avgCompletion = data.avg_completion_rate ? `${(data.avg_completion_rate * 100).toFixed(1)}%` : '--'
+  const bestScore = data.best_score ? Number(data.best_score).toFixed(3) : '--'
+  const bestIter = data.best_iteration || '--'
+  const enterpriseCount = data.enterprise_count || '--'
+  return `本次实验共纳入 ${total} 组仿真（已完成 ${completed} 组），涉及 ${enterpriseCount} 家企业，平均订单完成率 ${avgCompletion}，综合得分 ${bestScore}。表现最优为「${best}」（第 ${bestIter} 轮），其完成率与净利润均领先于其他实验。建议以此参数配置为基准，在反事实实验中进一步验证策略鲁棒性。`
+})
+
+const MAX_OVERVIEW_ROWS = 5
 const overviewRows = computed(() => {
-  return experimentRows.value.map((row) => ({
+  return experimentRows.value.slice(0, MAX_OVERVIEW_ROWS).map((row) => ({
     id: row.id,
     label: row.label,
     source: row.source,
@@ -521,17 +545,17 @@ const metricCellClass = (key, row) => {
 };
 
 const factorEffectMap = {
-  order_multiplier: '全球核电反应堆需求倍数，直接影响矿山订单量和供应压力。',
-  factory_capacity_range: '矿山年产能上下限(tU/年)，决定全球供应能否满足核电需求。',
-  capacity_range: '矿山产能区间，约束供给侧承载能力，影响供应缺口大小。',
-  reproduction_threshold: '触发新矿山开发的供需缺口阈值，影响Dasa/Wheeler River等新矿投产时机。',
-  adjustment_ratio: '矿山扩产/减产的年度调整速率，反映矿山重启与关停的响应速度。',
-  network_density: '供应链网络连接密度，反映贸易伙伴多样性和供应渠道丰富度。',
+  order_multiplier: '全球核电反应堆铀需求倍数，直接影响铀矿订单量和供应压力。',
+  factory_capacity_range: '铀矿年产能上下限(tU/年)，决定全球铀供应能否满足核电需求。',
+  capacity_range: '铀矿产能区间，约束供给侧承载能力，影响供应缺口大小。',
+  reproduction_threshold: '触发新铀矿开发的供需缺口阈值，影响Dasa/Wheeler River等新矿投产时机。',
+  adjustment_ratio: '铀矿扩产/减产的年度调整速率，反映矿山重启与关停的响应速度。',
+  network_density: '铀供应链网络连接密度，反映贸易伙伴多样性和供应渠道丰富度。',
   network_stability: '网络面对地缘政治冲击和矿山停产时的稳定性，关键韧性指标。',
-  production_capacity_est: '全球矿山年产能估算(tU/年)，参考NEA/IAEA Red Book数据。',
-  max_iterations: '决定仿真搜索深度，影响最优供应链策略被发现的概率。',
-  total_enterprises: '供应链中矿山/贸易商/核电企业节点数，影响网络规模与协作复杂度。',
-  key_params: '聚合供应链实验关注变量，是解释实验结论的核心参数集合。'
+  production_capacity_est: '全球铀矿年产能估算(tU/年)，参考NEA/IAEA Red Book数据。',
+  max_iterations: '决定仿真搜索深度，影响最优铀供应链策略被发现的概率。',
+  total_enterprises: '铀供应链中矿山/贸易商/核电企业节点数，影响网络规模与协作复杂度。',
+  key_params: '聚合铀供应链实验关注变量，是解释实验结论的核心参数集合。'
 };
 
 const factorSummaries = computed(() => {
@@ -552,18 +576,18 @@ const topFactor = computed(() => factorSummaries.value[0] || null);
 
 const pathSummaries = computed(() => [
   {
-    title: '需求冲击传导路径',
-    chain: '全球核电需求↑ → 矿山订单量激增 → 现有矿山产能承压 → 供应完成率波动→供应缺口扩大',
-    note: '解释核电发展情景（中国/印度在建反应堆）对供应链的基础影响。'
+    title: '铀需求冲击传导路径',
+    chain: '全球核电需求↑ → 铀矿订单量激增 → 现有矿山产能承压 → 供应完成率波动→供应缺口扩大',
+    note: '解释核电发展情景（中国/印度在建反应堆）对铀供应链的基础影响。'
   },
   {
-    title: '矿山产能调节路径',
-    chain: '矿山产能配置(tU/年) → 订单处理能力 → 供应缺口/库存变化 → 利润与供应安全回升',
+    title: '铀矿产能调节路径',
+    chain: '铀矿产能配置(tU/年) → 订单处理能力 → 供应缺口/库存变化 → 利润与供应安全回升',
     note: '最优轮次的产能区间可作为后续反事实实验的参考基线。'
   },
   {
     title: '地缘政治风险传导路径',
-    chain: '产国政局突变 → 关键矿山停产 → 供应网络切换 → 替代产能启动 → 完成率恢复',
+    chain: '产铀国政局突变 → 关键矿山停产 → 供应网络切换 → 替代产能启动 → 完成率恢复',
     note: linkedSession.value ? '该路径可与原始建模过程中的任务拆解继续联动。' : '建议补充NEA Red Book数据以增强预测准确性。'
   }
 ]);
@@ -656,7 +680,7 @@ const generateReportHtml = (data) => {
 <html>
 <head>
   <meta charset="utf-8">
-  <title>供应链实验报告_${safeGetValue(data, 'experiment_id', '-')}</title>
+  <title>实验报告_${safeGetValue(data, 'experiment_id', '-')}</title>
   <style>
     body { font-family: "Microsoft YaHei", Arial, sans-serif; color: #0f172a; line-height: 1.6; padding: 24px; }
     section, article { break-inside: avoid; }
@@ -670,7 +694,7 @@ const generateReportHtml = (data) => {
   </style>
 </head>
 <body>
-  <h1>供应链实验报告</h1>
+  <h1>实验报告</h1>
   <p>生成时间：${new Date().toLocaleString('zh-CN')}</p>
   ${content}
 </body>
@@ -678,7 +702,7 @@ const generateReportHtml = (data) => {
 };
 
 // 导出报告
-const exportReport = (format = 'txt') => {
+const exportReport = (format = 'html') => {
   if (!reportData.value) {
     ElMessage.warning('没有可导出的报告数据');
     return;
@@ -687,13 +711,24 @@ const exportReport = (format = 'txt') => {
   exporting.value = true;
 
   try {
+    if (format === 'pdf') {
+      const w = window.open('', '_blank');
+      if (!w) { ElMessage.warning('浏览器拦截了弹窗，请允许后重试'); exporting.value = false; return; }
+      w.document.open();
+      w.document.write(generateReportHtml(reportData.value));
+      w.document.close();
+      setTimeout(() => { w.print(); exporting.value = false; }, 500);
+      ElMessage.success('已打开PDF打印窗口，请选择"另存为PDF"保存');
+      return;
+    }
+
     const isHtml = format === 'html';
     const content = isHtml ? generateReportHtml(reportData.value) : generateReportText(reportData.value);
     const blob = new Blob([content], { type: isHtml ? 'text/html;charset=utf-8' : 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `供应链实验报告_${reportData.value.experiment_id}.${isHtml ? 'html' : 'txt'}`;
+    link.download = `实验报告_${reportData.value.experiment_id}.${isHtml ? 'html' : 'txt'}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -706,7 +741,7 @@ const exportReport = (format = 'txt') => {
     }
     ElMessage.error('导出报告失败');
   } finally {
-    exporting.value = false;
+    if (format !== 'pdf') exporting.value = false;
   }
 };
 
@@ -716,7 +751,7 @@ const generateReportText = (data) => {
   const paramText = params.map(p => `${p.label}：${p.value}`).join('\n') || '无';
 
   return `
-供应链实验报告
+实验报告
 ==========================================
 
 一、实验概览
@@ -724,11 +759,11 @@ const generateReportText = (data) => {
 实验ID：${safeGetValue(data, 'experiment_id', '-')}
 实验目标：${safeGetValue(data, 'goal', '-')}
 迭代次数：${safeGetValue(data, 'iterations', 0)}轮
-供应链节点：${safeGetValue(data, 'enterprise_count', 0)}个
+铀供应链节点：${safeGetValue(data, 'enterprise_count', 0)}个
 创建时间：${formatDate(safeGetValue(data, 'created_at', ''))}
 实验状态：${getStatusText(safeGetValue(data, 'status', ''))}
 
-二、供应链关键参数
+二、铀供应链关键参数
 ------------------------------------------
 ${paramText}
 
@@ -747,7 +782,7 @@ ${paramText}
 
 平均订单完成率为 ${formatPercent(data.avg_completion_rate)}，平均净利润为 ${formatProfit(data.avg_profit)}。
 
-建议：基于最优轮次的矿山产能和新矿投产策略，参考NEA Red Book预测，在实际供应链规划中应用最优配置以保障供应安全。
+建议：基于最优轮次的铀矿产能和新矿投产策略，参考NEA Red Book预测，在实际铀供应链规划中应用最优配置以保障供应安全。
 
 ==========================================
 报告生成时间：${new Date().toLocaleString('zh-CN')}
@@ -763,9 +798,9 @@ const formatDate = (dateStr) => {
 // 格式化参数名称
 const formatParamName = (key) => {
   const nameMap = {
-    order_multiplier: '需求强度',
-    factory_capacity_range: '矿山产能区间',
-    capacity_range: '矿山产能区间',
+    order_multiplier: '铀需求强度',
+    factory_capacity_range: '铀矿产能区间',
+    capacity_range: '铀矿产能区间',
     reproduction_threshold: '新矿投产阈值',
     adjustment_ratio: '产能爬坡速率',
     network_density: '网络密度',
@@ -1004,6 +1039,32 @@ onMounted(() => {
   border-radius: 8px;
   background: #ffffff;
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
+}
+
+.report-conclusion {
+  border-left: 4px solid #3b82f6;
+  background: linear-gradient(135deg, #eff6ff, #ffffff);
+}
+
+.report-conclusion .section-head {
+  padding: 10px 16px;
+  border-bottom: 1px solid #dbeafe;
+}
+
+.report-conclusion .section-head h2 {
+  color: #1d4ed8;
+}
+
+.conclusion-body {
+  padding: 12px 16px;
+}
+
+.conclusion-body p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.75;
+  color: #334155;
+  font-weight: 600;
 }
 
 .section-head {

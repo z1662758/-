@@ -2,20 +2,13 @@
   <div class="post-causal-mechanism-page">
     <section class="page-head">
       <div>
-        <p class="eyebrow">URANIUM SUPPLY CHAIN · MECHANISM & CAUSAL</p>
         <h1>机制分析与因果推断</h1>
-        <p class="subtitle">从供应链异常现象回推干预策略与机制假设，结合因果图与反事实推理，判断矿山产能、新矿投产与网络演化的主导驱动力。</p>
+        <p class="subtitle">从异常现象回推机制假设，结合因果图与反事实推理，判断主导驱动力。</p>
       </div>
       <div class="head-actions">
-        <div class="stat-item">
-          <span>事件节点</span>
-          <strong>{{ eventRecordCount }}</strong>
-        </div>
-        <div class="stat-item">
-          <span>主导驱力</span>
-          <strong>{{ dominantDriver }}</strong>
-        </div>
-        <el-button type="primary" plain :icon="Refresh" @click="refreshData">刷新数据</el-button>
+        <span class="inline-stat">事件 <b>{{ eventRecordCount }}</b></span>
+        <span class="inline-stat">驱力 <b>{{ dominantDriver }}</b></span>
+        <el-button text size="small" :icon="Refresh" @click="refreshData" />
       </div>
     </section>
 
@@ -29,10 +22,7 @@
 
     <section class="analysis-pipeline">
       <header class="pipeline-head">
-        <div>
-          <h2>机制推断流程</h2>
-          <p>围绕“现象归纳、策略回推、机制定位、驱动力判断”形成可追溯的宏观分析链。</p>
-        </div>
+        <h2>机制推断流程</h2>
         <el-tag type="info" effect="plain" round>系统动力学视角</el-tag>
       </header>
 
@@ -83,41 +73,11 @@
               <el-button text :icon="Refresh" @click="refreshData">刷新</el-button>
             </header>
             <div class="detail-body">
-              <!-- 分析设置 -->
-              <section class="detail-section">
-                <header class="detail-section-head">
-                  <el-icon><Setting /></el-icon>
-                  <span>分析设置</span>
-                </header>
-                <div class="detail-section-content">
-                  <!-- 设置详情 -->
-                  <div class="detail-subblock">
-                    <h4 class="detail-subblock-title">设置详情</h4>
-                    <div class="detail-param-grid">
-                      <div class="detail-param-item" v-for="p in analysisParams" :key="p.label">
-                        <span class="param-label">{{ p.label }}</span>
-                        <span class="param-value" :class="{ null: p.value === 'NULL' }">{{ p.value }}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <!-- 任务详情 -->
-                  <div class="detail-subblock">
-                    <h4 class="detail-subblock-title">任务详情</h4>
-                    <div class="detail-task-row">
-                      <span class="task-name-label">{{ stepDetailData.settings?.task?.name || '任务名' }}</span>
-                      <el-tag v-if="stepDetailData.settings?.task?.status === 'completed'" size="small" type="success" effect="plain" round style="margin-right:12px">已完成</el-tag>
-                      <div class="task-name-spacer"></div>
-                      <el-button type="primary" size="default" @click.stop="onStartTask" :loading="loading">开始任务</el-button>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <!-- 运行结果 -->
+              <!-- 运行结果（结论置顶） -->
               <section class="detail-section">
                 <header class="detail-section-head">
                   <el-icon><DataLine /></el-icon>
-                  <span>运行结果</span>
+                  <span>分析结论</span>
                 </header>
                 <div class="detail-section-content">
                   <div v-if="runResultText !== '暂无运行结果'" class="detail-run-result">
@@ -127,33 +87,33 @@
                       <span>置信度: {{ stepDetailData.runResult.confidence || '--' }}</span>
                     </div>
                   </div>
-                  <div v-else class="detail-empty-hint">暂无运行结果</div>
+                  <div v-else class="detail-empty-hint">点击"开始任务"获取分析结论</div>
                 </div>
               </section>
 
-              <!-- Agent设置详情 -->
+              <!-- 分析设置 -->
               <section class="detail-section">
                 <header class="detail-section-head">
-                  <el-icon><User /></el-icon>
-                  <span>Agent设置详情</span>
+                  <el-icon><Setting /></el-icon>
+                  <span>分析设置</span>
                 </header>
                 <div class="detail-section-content">
-                  <template v-if="agentList.length > 0">
-                    <div class="agent-list">
-                      <div v-for="(agent, idx) in agentList" :key="idx" class="agent-item">
-                        <div class="agent-item-head">
-                          <el-tag size="small" :type="agent.status === '已执行' ? 'success' : 'info'" effect="light" round>{{ agent.status }}</el-tag>
-                          <span class="agent-role">{{ agent.role }}</span>
-                        </div>
-                        <p class="agent-output">{{ agent.output }}</p>
+                  <div class="detail-subblock">
+                    <div class="detail-param-grid">
+                      <div class="detail-param-item" v-for="p in analysisParams" :key="p.label">
+                        <span class="param-label">{{ p.label }}</span>
+                        <span class="param-value" :class="{ null: p.value === 'NULL' }">{{ p.value }}</span>
                       </div>
                     </div>
-                    <div class="agent-model-info" v-if="stepDetailData.agentConfig?.model">
-                      <span class="model-label">分析模型:</span>
-                      <el-tag size="small" effect="plain" round>{{ stepDetailData.agentConfig.model }}</el-tag>
+                  </div>
+                  <div class="detail-subblock">
+                    <div class="detail-task-row">
+                      <span class="task-name-label">{{ stepDetailData.settings?.task?.name || '任务名' }}</span>
+                      <el-tag v-if="stepDetailData.settings?.task?.status === 'completed'" size="small" type="success" effect="plain" round style="margin-right:12px">已完成</el-tag>
+                      <div class="task-name-spacer"></div>
+                      <el-button type="primary" size="small" @click.stop="onStartTask" :loading="loading">开始任务</el-button>
                     </div>
-                  </template>
-                  <div v-else class="detail-empty-hint">暂无 Agent 配置信息</div>
+                  </div>
                 </div>
               </section>
             </div>
@@ -166,7 +126,7 @@
     <section class="causal-section">
       <header class="causal-section-head">
         <el-icon><Connection /></el-icon>
-        <span>供应链因果推断</span>
+        <span>铀供应链因果推断</span>
         <span class="causal-legend">
           <span class="legend-dot" style="background:#3b82f6"></span>干预变量
           <span class="legend-dot" style="background:#eab308"></span>中间变量
@@ -195,9 +155,21 @@
             </div>
             <el-button type="primary" size="small" @click="runCF" :loading="cfLoading"><el-icon><Connection /></el-icon>执行推理</el-button>
           </div>
-          <div v-if="cfResult" class="cf-result"><el-alert :title="cfResult.summary" type="info" :closable="false" show-icon/>
-            <div class="cf-predictions"><div v-for="p in cfResult.predictions" :key="p.target_variable" class="cf-pred-item"><strong>{{ p.target_variable }}</strong><span :class="p.predicted_effect.startsWith('+')?'pred-pos':'pred-neg'">{{ p.predicted_effect }}</span><span class="pred-conf">置信度 {{ (p.confidence*100).toFixed(0) }}%</span><p>{{ p.rationale }}</p></div></div>
+          <div v-if="cfResult" class="cf-conclusion">
+            <div class="cf-conclusion-head">推理结论</div>
+            <p class="cf-conclusion-summary">{{ cfResult.summary }}</p>
+            <div class="cf-predictions">
+              <div v-for="p in cfResult.predictions" :key="p.target_variable" class="cf-pred-item">
+                <div class="cf-pred-head">
+                  <strong>{{ p.target_variable }}</strong>
+                  <span :class="p.predicted_effect.startsWith('+')?'pred-pos':'pred-neg'">{{ p.predicted_effect }}</span>
+                  <span class="pred-conf">{{ (p.confidence*100).toFixed(0) }}%</span>
+                </div>
+                <p>{{ p.rationale }}</p>
+              </div>
+            </div>
           </div>
+          <div v-else class="cf-placeholder">选择干预变量并点击"执行推理"查看因果推断结论</div>
         </div>
       </div>
     </section>
@@ -359,12 +331,12 @@ const loadMechanismAnalysis = async () => {
       ElMessage.success('机制分析数据加载完成')
     }
   } catch (e) {
-    console.warn('加载机制分析数据失败，使用场景默认视图:', e?.message || e)
-    // 使用场景 fallback 数据，确保页面始终可展示
+    console.warn('加载机制分析数据失败，使用铀场景默认视图:', e?.message || e)
+    // 使用铀场景 fallback 数据，确保页面始终可展示
     analysisData.value = buildUraniumFallbackData()
     eventRecordCount.value = 3
-    dominantDriver.value = '需求增长'
-    ElMessage.info('使用供应链本地分析视图（可点击"开始任务"或"刷新数据"重试）')
+    dominantDriver.value = '铀需求增长'
+    ElMessage.info('使用铀供应链本地分析视图（可点击"开始任务"或"刷新数据"重试）')
   } finally {
     loading.value = false
   }
@@ -379,21 +351,21 @@ const onStartTask = () => {
 }
 
 // ---- 因果推断逻辑 ----
-const cfVariable = ref('矿山产能')
+const cfVariable = ref('铀矿产能')
 const cfChange = ref('+20%')
 const cfLoading = ref(false)
 const cfResult = ref(null)
-const cfVariables = ['矿山产能', '新矿投产阈值', '需求强度', '产能爬坡速率', '网络协作密度']
+const cfVariables = ['铀矿产能', '新矿投产阈值', '铀需求强度', '产能爬坡速率', '网络协作密度']
 const cfChanges = ['+10%', '+20%', '+50%', '-10%', '-20%']
 
 const causalEdges = ref([
-  { source: '矿山产能', target: '月均订单处理量', strength: 0.72, description: '产能决定订单处理能力上限' },
-  { source: '矿山产能', target: '网络协作密度', strength: 0.45, description: '产能变化影响协作需求' },
-  { source: '新矿投产阈值', target: '矿山产能', strength: 0.58, description: '阈值决定新矿进入市场的速度' },
+  { source: '铀矿产能', target: '月均订单处理量', strength: 0.72, description: '产能决定订单处理能力上限' },
+  { source: '铀矿产能', target: '网络协作密度', strength: 0.45, description: '产能变化影响协作需求' },
+  { source: '新矿投产阈值', target: '铀矿产能', strength: 0.58, description: '阈值决定新矿进入市场的速度' },
   { source: '新矿投产阈值', target: '供应链节点数', strength: 0.35, description: '低阈值吸引更多矿山企业' },
-  { source: '需求强度', target: '月均订单处理量', strength: 0.85, description: '核电需求直接决定订单量' },
-  { source: '需求强度', target: '网络协作密度', strength: 0.52, description: '高需求促进贸易伙伴增加' },
-  { source: '产能爬坡速率', target: '矿山产能', strength: 0.65, description: '调整速率影响产能响应速度' },
+  { source: '铀需求强度', target: '月均订单处理量', strength: 0.85, description: '核电需求直接决定铀订单量' },
+  { source: '铀需求强度', target: '网络协作密度', strength: 0.52, description: '高需求促进贸易伙伴增加' },
+  { source: '产能爬坡速率', target: '铀矿产能', strength: 0.65, description: '调整速率影响产能响应速度' },
   { source: '产能爬坡速率', target: '供应完成率', strength: 0.48, description: '快速调整有助于提升完成率' },
   { source: '月均订单处理量', target: '供应完成率', strength: -0.35, description: '订单过多可能导致完成率下降' },
   { source: '月均订单处理量', target: '系统总利润', strength: 0.65, description: '订单量是利润的基础' },
@@ -423,29 +395,29 @@ const runCF = async () => {
   finally { cfLoading.value = false }
 }
 const buildLocalCFResult = (baseComp=0.7, baseProfit=50000, factor=0.2) => ({
-  summary: `改变"${cfVariable.value}"${cfChange.value}后，供应链系统预计将产生以下影响`,
+  summary: `改变"${cfVariable.value}"${cfChange.value}后，铀供应链系统预计将产生以下影响`,
   predictions: [
-    { target_variable: '供应完成率', predicted_effect: `${(factor*0.6*100).toFixed(1).replace('-','')}pp`, confidence: 0.78, rationale: '矿山产能调整直接缓解/加剧供应瓶颈' },
+    { target_variable: '供应完成率', predicted_effect: `${(factor*0.6*100).toFixed(1).replace('-','')}pp`, confidence: 0.78, rationale: '铀矿产能调整直接缓解/加剧供应瓶颈' },
     { target_variable: '系统总利润', predicted_effect: `${(factor*0.9*100).toFixed(1)}%`, confidence: 0.72, rationale: '产能变化影响总产出和利润规模' },
     { target_variable: '网络韧性', predicted_effect: `${(factor*0.4*100).toFixed(1)}%`, confidence: 0.60, rationale: '产能调整可能吸引新矿山企业进入或退出' },
   ]
 })
 
-// 场景本地 fallback（后端无数据时使用）
+// 铀场景本地 fallback（后端无数据时使用）
 const buildUraniumFallbackData = () => ({
-  overview: { anomaly_type: '矿山产能瓶颈', completion_rate: '68.4%', backtrack_confidence: '72%', counterfactual_rounds: 7 },
+  overview: { anomaly_type: '铀矿产能瓶颈', completion_rate: '68.4%', backtrack_confidence: '72%', counterfactual_rounds: 7 },
   pipeline: {
-    phenomenon: { title:'供应链现象归纳', badge:'异常检测', tagType:'info', description:'从7轮供应链迭代中检测到3个异常现象：供应完成率骤降、哈萨克斯坦产能波动、价格冲击传导', input:'供应链实验结果 7轮', preview:'关键异常：供应完成率降至58.2%（Cigar Lake淹水影响）、ISL矿山利用率下降至72%、价格从$30飙升至$136/lb' },
-    strategy: { title:'供应链策略回推', badge:'策略推断', tagType:'warning', description:'回溯供应链异常现象，反推可能实施的干预策略', input:'异常现象簇 + 迭代上下文', preview:'候选策略：扩大ISL低成本产能、新矿投产阈值前置、多源采购分散风险、启动战略储备释放' },
-    mechanism: { title:'供应链机制定位', badge:'因果链路', tagType:'primary', description:'定位供应链演化的核心因果机制链', input:'现象簇 + 策略候选', preview:'主导机制：需求-产能耦合机制（全球核电需求增长→矿山产能承压→供应完成率波动→价格上涨→新矿投资增加）' },
-    driver: { title:'供应链驱动力判断', badge:'系统动力学', tagType:'success', description:'主导驱动力：全球核电需求增长（中国/印度在建反应堆）+ 地缘政治扰动', input:'机制分析 + 指标时序', preview:'系统在"核电需求增长"主导下运行，存在需求-产能正反馈环和地缘政治风险负反馈环，中长期趋于新均衡（参考NEA Red Book）' }
+    phenomenon: { title:'铀供应链现象归纳', badge:'异常检测', tagType:'info', description:'从7轮铀供应链迭代中检测到3个异常现象：供应完成率骤降、哈萨克斯坦产能波动、铀价冲击传导', input:'铀供应链实验结果 7轮', preview:'关键异常：供应完成率降至58.2%（Cigar Lake淹水影响）、ISL矿山利用率下降至72%、铀价从$30飙升至$136/lb' },
+    strategy: { title:'铀供应链策略回推', badge:'策略推断', tagType:'warning', description:'回溯铀供应链异常现象，反推可能实施的干预策略', input:'异常现象簇 + 迭代上下文', preview:'候选策略：扩大ISL低成本产能、新矿投产阈值前置、多源采购分散风险、启动战略储备释放' },
+    mechanism: { title:'铀供应链机制定位', badge:'因果链路', tagType:'primary', description:'定位铀供应链演化的核心因果机制链', input:'现象簇 + 策略候选', preview:'主导机制：铀需求-产能耦合机制（全球核电需求增长→铀矿产能承压→供应完成率波动→铀价上涨→新矿投资增加）' },
+    driver: { title:'铀供应链驱动力判断', badge:'系统动力学', tagType:'success', description:'主导驱动力：全球核电需求增长（中国/印度在建反应堆）+ 地缘政治扰动', input:'机制分析 + 指标时序', preview:'系统在"核电需求增长"主导下运行，存在需求-产能正反馈环和地缘政治风险负反馈环，中长期趋于新均衡（参考NEA Red Book）' }
   },
   detail: {
-    settings: { params:{param_a:'供应链迭代数据',param_b:'异常检测阈值',param_c:'置信度权重',param_d:'驱动因子库'}, params_values:{param_a:'7轮有效迭代',param_b:'completion<50%, ISL利用率<80%',param_c:'0.72',param_d:'需求/地缘/成本/产能四因子'}, task:{name:'供应链机制推断',status:'completed'} },
-    run_result: { summary:'完成供应链机制分析。检测到3个异常现象，回推出6项候选策略，定位4个因果机制，识别主导驱动力为"全球核电需求增长"。建议结合NEA Red Book供需预测进行策略验证。', iterations_analyzed:7, confidence:0.72 },
-    agent_config: { agents_involved:[{role:'异常检测Agent',status:'已执行',output:'3条供应链异常'},{role:'策略推断Agent',status:'已执行',output:'6组候选策略'},{role:'机制定位Agent',status:'已执行',output:'4组因果机制'},{role:'驱动力判定Agent',status:'已执行',output:'核电需求增长'}], model:'uranium-dynamics-v1', analysis_phase:'post' }
+    settings: { params:{param_a:'铀供应链迭代数据',param_b:'异常检测阈值',param_c:'置信度权重',param_d:'驱动因子库'}, params_values:{param_a:'7轮有效迭代',param_b:'completion<50%, ISL利用率<80%',param_c:'0.72',param_d:'需求/地缘/成本/产能四因子'}, task:{name:'铀供应链机制推断',status:'completed'} },
+    run_result: { summary:'完成铀供应链机制分析。检测到3个异常现象，回推出6项候选策略，定位4个因果机制，识别主导驱动力为"全球核电需求增长"。建议结合NEA Red Book供需预测进行策略验证。', iterations_analyzed:7, confidence:0.72 },
+    agent_config: { agents_involved:[{role:'异常检测Agent',status:'已执行',output:'3条铀供应链异常'},{role:'策略推断Agent',status:'已执行',output:'6组候选策略'},{role:'机制定位Agent',status:'已执行',output:'4组因果机制'},{role:'驱动力判定Agent',status:'已执行',output:'核电需求增长'}], model:'uranium-dynamics-v1', analysis_phase:'post' }
   },
-  meta: { total_iterations:7, total_anomalies:3, primary_driver:'需求增长', average_confidence:0.72 }
+  meta: { total_iterations:7, total_anomalies:3, primary_driver:'铀需求增长', average_confidence:0.72 }
 })
 
 onMounted(() => {
@@ -462,112 +434,90 @@ onMounted(() => {
 }
 
 .page-head {
+  flex: 0 0 auto;
   display: flex;
   justify-content: space-between;
   gap: 20px;
   align-items: center;
-  padding: 14px 22px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+  padding: 16px 28px;
+  margin-bottom: 14px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 40%, #3b82f6 70%, #60a5fa 100%);
+  box-shadow: 0 8px 32px rgba(37, 99, 235, 0.28), 0 2px 8px rgba(30, 58, 138, 0.15);
+  min-height: 72px;
 }
-
-.eyebrow {
-  margin: 0 0 6px;
-  color: #3867f2;
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
+.page-head > div:first-child { flex-shrink: 0; }
 
 .page-head h1 {
   margin: 0;
-  font-size: 26px;
+  font-size: 24px;
   line-height: 1.2;
   font-weight: 900;
+  color: #ffffff;
+  letter-spacing: 1px;
+  white-space: nowrap;
 }
 
 .subtitle {
-  margin: 8px 0 0;
-  color: #64748b;
+  margin: 6px 0 0;
+  color: rgba(255,255,255,0.75);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .head-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
-  flex: 0 0 auto;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
-.stat-item {
-  min-width: 112px;
-  padding: 10px 13px;
-  border: 1px solid #dbeafe;
-  border-radius: 10px;
-  background: linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%);
-}
-
-.stat-item span {
-  display: block;
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.stat-item strong {
-  display: block;
-  margin-top: 6px;
-  color: #1e3a8a;
-  font-size: 21px;
-  line-height: 1.1;
-}
+.inline-stat { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 6px; background: rgba(255,255,255,0.15); font-size: 12px; color: rgba(255,255,255,0.8); font-weight: 600; white-space: nowrap; }
+.inline-stat b { color: #fff; font-size: 14px; }
 
 .overview-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
 
 .overview-item {
   display: grid;
-  grid-template-columns: 42px 1fr;
+  grid-template-columns: 36px 1fr;
   grid-template-rows: auto auto;
-  column-gap: 12px;
+  column-gap: 10px;
   align-items: center;
-  min-height: 64px;
-  padding: 10px 16px;
+  min-height: 52px;
+  padding: 8px 12px;
   border: 1px solid #e2e8f0;
-  border-left: 3px solid #bfdbfe;
+  border-top: 3px solid #3b82f6;
   border-radius: 10px;
   background: #ffffff;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
 }
 
 .overview-item .el-icon {
   grid-row: 1 / 3;
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
   background: #dbeafe;
-  color: #3867f2;
-  font-size: 18px;
+  color: #3b82f6;
+  font-size: 15px;
 }
 
 .overview-item span {
   color: #64748b;
-  font-size: 13px;
-  font-weight: 800;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .overview-item strong {
   color: #0f172a;
-  font-size: 20px;
+  font-size: 16px;
   line-height: 1.2;
 }
 
@@ -577,7 +527,7 @@ onMounted(() => {
   border: 1px solid #e2e8f0;
   border-radius: 14px;
   background: #ffffff;
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -586,23 +536,25 @@ onMounted(() => {
 .pipeline-head {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  padding: 12px 20px 10px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-top: 3px solid #3b82f6;
   border-bottom: 1px solid #eef2f7;
+  background: linear-gradient(180deg, #eff6ff, #ffffff);
 }
 
 .pipeline-head h2 {
   margin: 0;
-  font-size: 18px;
-  font-weight: 900;
+  font-size: 14px;
+  font-weight: 800;
 }
 
 .pipeline-head p {
-  margin: 5px 0 0;
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 600;
+  margin: 2px 0 0;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 500;
 }
 
 .pipeline-scroll {
@@ -617,10 +569,10 @@ onMounted(() => {
   position: relative;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
   margin: 0;
-  padding: 16px 18px 18px;
+  padding: 10px 12px 12px;
   overflow: hidden;
   align-content: center;
 }
@@ -630,53 +582,36 @@ onMounted(() => {
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  min-height: 245px;
-  padding: 18px 16px 16px;
+  gap: 6px;
+  min-height: 0;
+  padding: 10px 12px 10px;
   border: 1px solid #dbeafe;
-  border-radius: 16px;
+  border-radius: 10px;
   background: #ffffff;
-  box-shadow: 0 18px 36px rgba(30, 64, 175, 0.08);
+  box-shadow: 0 2px 8px rgba(30, 64, 175, 0.06);
   cursor: pointer;
   overflow: hidden;
-  transition: transform 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1),
-              box-shadow 0.3s ease,
-              border-color 0.3s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .pipeline-card::before {
   content: '';
   position: absolute;
-  left: 22px;
-  right: 22px;
+  left: 12px;
+  right: 12px;
   top: 0;
-  height: 5px;
+  height: 3px;
   border-radius: 0 0 999px 999px;
-  transition: height 0.25s ease,
-              left 0.25s ease,
-              right 0.25s ease,
-              background 0.3s ease;
 }
 
 .pipeline-card:hover {
-  transform: translateY(-4px);
-}
-
-.pipeline-card:hover::before {
-  height: 6px;
-  left: 14px;
-  right: 14px;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(30, 64, 175, 0.1);
 }
 
 .pipeline-card.active {
-  transform: translateY(-2px) scale(1.02);
+  transform: none;
   z-index: 2;
-}
-
-.pipeline-card.active::before {
-  height: 6px;
-  left: 10px;
-  right: 10px;
 }
 
 /* ========== 卡片主题色 ========== */
@@ -724,11 +659,11 @@ onMounted(() => {
 /* ========== 步骤详情面板 ========== */
 
 .step-detail-panel {
-  margin: 16px 18px 18px;
+  margin: 8px 12px 12px;
   border: 1px solid #e2e8f0;
-  border-radius: 16px;
+  border-radius: 12px;
   background: #ffffff;
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
   overflow: hidden;
 }
 
@@ -736,31 +671,31 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 14px 20px;
+  padding: 8px 14px;
   border-bottom: 1px solid #eef2f7;
 }
 
 .detail-head-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .detail-step-badge {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
   color: #ffffff;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 900;
 }
 
 .detail-head h3 {
   margin: 0;
-  font-size: 18px;
-  font-weight: 900;
+  font-size: 14px;
+  font-weight: 800;
   color: #0f172a;
 }
 
@@ -768,7 +703,6 @@ onMounted(() => {
   padding: 0;
 }
 
-/* 区块容器 */
 .detail-section {
   border-bottom: 1px solid #eef2f7;
 }
@@ -780,10 +714,10 @@ onMounted(() => {
 .detail-section-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 20px;
+  gap: 6px;
+  padding: 8px 14px;
   background: #f8fafc;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 800;
   color: #1e293b;
   border-bottom: 1px solid #eef2f7;
@@ -791,7 +725,7 @@ onMounted(() => {
 
 .detail-section-head .el-icon {
   color: #64748b;
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .detail-section-content {
@@ -988,8 +922,8 @@ onMounted(() => {
 }
 
 /* ---- 因果推断 ---- */
-.causal-section { flex:0 0 auto; margin-top:12px; border:1px solid #e2e8f0; border-radius:12px; background:#fff; box-shadow:0 6px 16px rgba(15,23,42,0.04); overflow:hidden; }
-.causal-section-head { display:flex; align-items:center; gap:10px; padding:10px 16px; border-bottom:1px solid #eef2f7; background:linear-gradient(90deg,#eff6ff,#fff); font-size:14px; font-weight:800; color:#1e40af; }
+.causal-section { flex:0 0 auto; margin-top:12px; border:1px solid #e2e8f0; border-radius:14px; background:#fff; box-shadow:0 6px 16px rgba(15,23,42,0.06); overflow:hidden; }
+.causal-section-head { display:flex; align-items:center; gap:10px; padding:10px 16px; border-top:3px solid #10b981; border-bottom:1px solid #eef2f7; background:linear-gradient(180deg,#ecfdf5,#fff); font-size:14px; font-weight:800; color:#065f46; }
 .causal-legend { margin-left:auto; display:flex; gap:12px; font-size:11px; font-weight:600; color:#64748b; }
 .legend-dot { width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:3px; }
 .causal-grid { display:grid; grid-template-columns:1fr 360px; gap:0; }
@@ -1002,14 +936,18 @@ onMounted(() => {
 .cf-control { display:flex; flex-direction:column; gap:8px; }
 .cf-field { display:flex; flex-direction:column; gap:3px; }
 .cf-field label { font-size:11px; font-weight:700; color:#64748b; }
-.cf-result { margin-top:10px; }
-.cf-predictions { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
-.cf-pred-item { padding:8px 10px; border:1px solid #e2e8f0; border-radius:8px; background:#fafbfc; }
-.cf-pred-item strong { display:block; font-size:12px; color:#0f172a; }
-.cf-pred-item span { font-size:15px; font-weight:900; }
+.cf-conclusion { margin-top: 10px; border: 1px solid #d1fae5; border-radius: 10px; background: #f0fdf4; overflow: hidden; }
+.cf-conclusion-head { padding: 6px 12px; background: #d1fae5; font-size: 12px; font-weight: 800; color: #065f46; }
+.cf-conclusion-summary { margin: 0; padding: 8px 12px; font-size: 12px; line-height: 1.6; color: #334155; font-weight: 600; }
+.cf-placeholder { margin-top: 10px; padding: 16px; text-align: center; color: #94a3b8; font-size: 12px; border: 1px dashed #e2e8f0; border-radius: 8px; }
+.cf-predictions { display: flex; flex-direction: column; gap: 6px; padding: 0 12px 10px; }
+.cf-pred-item { padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; }
+.cf-pred-head { display: flex; align-items: center; gap: 8px; }
+.cf-pred-head strong { font-size: 12px; color: #0f172a; }
+.cf-pred-head span { font-size: 14px; font-weight: 900; }
 .pred-pos { color:#22c55e; } .pred-neg { color:#ef4444; }
-.pred-conf { font-size:11px!important; color:#94a3b8; margin-left:8px; }
-.cf-pred-item p { margin:4px 0 0; font-size:11px; color:#64748b; }
+.pred-conf { font-size: 11px !important; color: #94a3b8; margin-left: 8px; }
+.cf-pred-item p { margin: 4px 0 0; font-size: 11px; color: #64748b; line-height: 1.4; }
 
 .detail-slide-leave-to {
   opacity: 0;
@@ -1019,9 +957,9 @@ onMounted(() => {
 
 .pipeline-card header {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   align-items: flex-start;
-  min-height: 92px;
+  min-height: 0;
 }
 
 .pipeline-card header > div {
@@ -1033,18 +971,18 @@ onMounted(() => {
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  width: 42px;
-  height: 42px;
-  border-radius: 13px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
   color: #ffffff;
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 900;
 }
 
 .step-title-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   justify-content: space-between;
   min-width: 0;
 }
@@ -1052,23 +990,23 @@ onMounted(() => {
 .step-title-row h3 {
   margin: 0;
   color: #0f172a;
-  font-size: 18px;
-  line-height: 1.12;
-  font-weight: 900;
+  font-size: 13px;
+  line-height: 1.15;
+  font-weight: 800;
   white-space: nowrap;
 }
 
 .pipeline-card header p {
-  margin: 7px 0 0;
-  color: #64748b;
-  font-size: 12px;
-  line-height: 1.45;
-  font-weight: 700;
+  margin: 3px 0 0;
+  color: #94a3b8;
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 600;
 }
 
 .step-kv {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
 }
 
@@ -1076,42 +1014,38 @@ onMounted(() => {
 .step-result span {
   flex: 0 0 auto;
   color: #94a3b8;
-  font-size: 12px;
-  font-weight: 800;
+  font-size: 10px;
+  font-weight: 700;
 }
 
 .step-kv strong {
   color: #0f172a;
-  font-size: 12px;
-  line-height: 1.4;
-  font-weight: 900;
+  font-size: 11px;
+  line-height: 1.3;
+  font-weight: 800;
 }
 
 .step-result {
   margin-top: auto;
-  padding: 12px 13px;
-  border-left: 4px solid;
-  border-radius: 12px;
+  padding: 6px 8px;
+  border-left: 3px solid;
+  border-radius: 6px;
   background: #f8fafc;
 }
 
 .step-result p {
-  margin: 7px 0 0;
+  margin: 3px 0 0;
   color: #334155;
-  font-size: 12px;
-  line-height: 1.45;
-  font-weight: 700;
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 600;
 }
 
 :deep(.step-title-row .el-tag) {
-  height: 26px;
-  padding: 0 10px;
-  border-color: #d9dee7;
-  border-radius: 999px;
-  background: #f3f5f8;
-  color: #8b94a3;
-  font-size: 12px;
-  font-weight: 800;
+  height: 22px;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 700;
 }
 
 @media (max-width: 1180px) {
