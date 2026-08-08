@@ -107,7 +107,7 @@
               </el-icon>
               <h2 class="kc-detail-title">{{ currentLib.name }}</h2>
               <el-switch
-                v-if="!['config', 'subject', 'environment', 'rules', 'experts', 'ontology'].includes(activeLibrary)"
+                v-if="!['config', 'subject', 'subject_uranium', 'subject_auto', 'environment', 'environment_uranium', 'environment_auto', 'rules', 'rules_uranium', 'rules_auto', 'experts', 'ontology', 'ontology_uranium', 'ontology_auto'].includes(activeLibrary)"
                 :model-value="currentLib.enabled"
                 @change="(v) => toggleLibrary(activeLibrary, v)"
                 size="small"
@@ -118,8 +118,8 @@
           </div>
         </div>
 
-        <!-- Stats row (仅四库展示，配置/专家观点不显示) -->
-        <div v-if="!['config','experts','ontology'].includes(activeLibrary)" class="kc-detail-stats">
+        <!-- Stats row (仅四库展示，配置/专家观点/本体编辑不显示) -->
+        <div v-if="!['config','experts','ontology','ontology_uranium','ontology_auto'].includes(activeLibrary)" class="kc-detail-stats">
           <div v-for="s in libraryStats" :key="s.label" class="kc-stat-card">
             <div class="kc-stat-card__value">{{ s.value }}</div>
             <div class="kc-stat-card__label">{{ s.label }}</div>
@@ -128,7 +128,7 @@
         </div>
 
         <!-- Action buttons (仅四库展示) -->
-        <div v-if="!['config','experts','ontology'].includes(activeLibrary)" class="kc-detail-actions">
+        <div v-if="!['config','experts','ontology','ontology_uranium','ontology_auto'].includes(activeLibrary)" class="kc-detail-actions">
           <el-button size="small" type="primary" @click="showUploadDialog = true">
             <el-icon><Upload /></el-icon>
             上传文档
@@ -152,7 +152,7 @@
         </div>
 
         <!-- Tabbed content（四库: Graph / Docs / Entities） -->
-        <template v-if="!['config','experts','ontology'].includes(activeLibrary)">
+        <template v-if="!['config','experts','ontology','ontology_uranium','ontology_auto'].includes(activeLibrary)">
           <el-tabs v-model="viewMode" class="kc-detail-tabs">
             <el-tab-pane label="知识图谱" name="graph">
               <div v-if="currentLib.graphData" ref="graphRef" class="kc-graph-container" />
@@ -179,10 +179,12 @@
               <el-empty v-else description="暂无实体数据" :image-size="80" />
             </el-tab-pane>
           </el-tabs>
-
         </template>
 
-        <!-- 配置库详情 -->
+        <!-- 专家观点 -->
+        <div v-else-if="activeLibrary === 'experts'" class="kc-experts-page">
+          <el-empty description="专家观点功能开发中" :image-size="120" />
+        </div>
         <div v-else-if="activeLibrary === 'config'" class="kc-config-page">
           <div class="kc-config-placeholder">
             <div class="kc-config-placeholder__icon">
@@ -193,8 +195,8 @@
           </div>
         </div>
 
-        <!-- 本体编辑 -->
-        <div v-else-if="activeLibrary === 'ontology'" class="kc-ontology-page">
+        <!-- 本体编辑（铀 & 汽车共用） -->
+        <div v-else-if="['ontology','ontology_uranium','ontology_auto'].includes(activeLibrary)" class="kc-ontology-page">
           <div class="kc-ontology-layout">
             <!-- ===== LEFT: Config Panel ===== -->
             <div class="kc-ontology-config">
@@ -332,27 +334,9 @@
           </div>
         </div>
 
-        <!-- 专家观点库详情 -->
+        <!-- 专家观点库详情（暂时注释） -->
         <div v-else-if="activeLibrary === 'experts'" class="kc-expert-page">
-          <div style="display:flex;gap:12px;align-items:center;margin-bottom:20px;flex-wrap:wrap;">
-            <el-select v-model="cognitiveSelectedBook" placeholder="请选择要提取认知的书籍/文章" style="width:360px" @change="extractCognitiveModel(false)" clearable>
-              <el-option v-for="b in dataset.books" :key="b.name" :label="b.name" :value="b.name" />
-            </el-select>
-            <el-button :disabled="!cognitiveSelectedBook" :loading="extracting" type="primary" @click="extractCognitiveModel(true)">
-              <el-icon><RefreshRight /></el-icon> 提取/刷新认知模型
-            </el-button>
-          </div>
-
-          <div v-if="cognitiveModelData" class="kc-expert-section">
-            <div class="kc-expert-graph-wrap"><div class="kc-expert-graph-title"><el-icon><Connection /></el-icon> 认知模型流程图谱</div><div style="font-size:12px;color:#94a3b8;margin-bottom:6px;">拖拽节点可微调布局</div><div id="cognitiveChart" class="kc-expert-chart"></div></div>
-            <div class="kc-expert-markdown-wrap"><div class="kc-expert-graph-title"><el-icon><Document /></el-icon> 模型深度解析</div><div class="cognitive-markdown" v-html="cognitiveMarkdownHtml"></div></div>
-          </div>
-          <div v-else-if="extracting" class="kc-expert-loading">
-            <el-icon class="is-loading" size="40" color="#409eff"><Loading /></el-icon>
-            <div style="font-size:15px;font-weight:500;color:#374151;">AI 正在深度阅读文章，提取核心实体与因果认知模型...</div>
-            <div style="font-size:13px;color:#94a3b8;">此过程可能需要 15-30 秒</div>
-          </div>
-          <el-empty v-else :image-size="80" description="请选择上方书籍/文章并点击提取认知模型" />
+          <el-empty description="专家观点功能开发中" :image-size="120" />
         </div>
       </div>
     </template>
@@ -652,49 +636,12 @@
           <span class="kc-dialog-dot kc-dialog-dot--close" @click="showPapersDialog = false"></span>
           <span class="kc-dialog-dot kc-dialog-dot--minimize"></span>
           <span class="kc-dialog-dot kc-dialog-dot--maximize"></span>
-          <span class="kc-dialog-title">研究论文库</span>
+          <span class="kc-dialog-title">专家文档库</span>
         </div>
       </template>
       <div class="kc-resource-dialog__content">
-        <div class="kc-resource-toolbar">
-          <el-input v-model="sidebarPaperQuery" placeholder="搜索论文..." prefix-icon="Search" size="small" clearable class="kc-resource-search" />
-          <el-button size="small" type="primary" plain @click="showSideCrawlDialog = true">
-            <el-icon><Plus /></el-icon>
-            爬取
-          </el-button>
-          <el-button size="small" type="primary" @click="showPaperUploadDialog = true">
-            <el-icon><Upload /></el-icon>
-            上传
-          </el-button>
-        </div>
-        <div class="kc-sb-stats-row kc-resource-stats">
-          <div class="kc-sb-stat"><span class="kc-sb-stat__v">{{ sidebarPaperStats.total }}</span><span class="kc-sb-stat__l">总数</span></div>
-          <div class="kc-sb-stat"><span class="kc-sb-stat__v">{{ sidebarPaperStats.downloaded }}</span><span class="kc-sb-stat__l">已下载</span></div>
-          <div class="kc-sb-stat"><span class="kc-sb-stat__v">{{ sidebarPaperStats.keywordCount }}</span><span class="kc-sb-stat__l">关键词</span></div>
-        </div>
-        <div v-loading="loading.papers" class="kc-resource-list kc-resource-list--papers">
-          <div v-for="p in sidebarFilteredPapers" :key="p.name" class="kc-sb-paper-card">
-            <div class="kc-sb-paper-top">
-              <span class="kc-sb-paper-title">{{ p.title || p.name }}</span>
-            </div>
-            <div class="kc-sb-paper-meta">
-              <span v-if="p.authors?.length" class="kc-sb-paper-authors">{{ p.authors.slice(0,2).join(', ') }}{{ p.authors.length > 2 ? ' 等' : '' }}</span>
-              <span v-if="p.date" class="kc-sb-paper-date">{{ p.date }}</span>
-            </div>
-            <div class="kc-sb-paper-tags">
-              <el-tag v-for="kw in getPaperKeywords(p).slice(0,3)" :key="kw" size="small" class="kc-sb-tag">{{ kw }}</el-tag>
-              <el-tag v-for="cat in (p.categories || []).slice(0,2)" :key="cat" :type="getCategoryType(cat)" size="small" class="kc-sb-tag">{{ getCategoryLabel(cat) }}</el-tag>
-            </div>
-            <div class="kc-sb-paper-actions">
-              <el-tooltip content="下载PDF"><el-button link type="primary" size="small" @click="handleDownload(p)"><el-icon><Download /></el-icon></el-button></el-tooltip>
-              <el-tooltip content="AI拓展"><el-button link type="primary" size="small" @click="handleExpandPaper(p)"><el-icon><MagicStick /></el-icon></el-button></el-tooltip>
-              <el-popconfirm title="删除这篇论文?" @confirm="handleDeletePaper(p)"><template #reference><el-button link type="danger" size="small"><el-icon><Delete /></el-icon></el-button></template></el-popconfirm>
-            </div>
-          </div>
-          <div v-if="!sidebarFilteredPapers.length && !loading.papers" class="kc-sb-empty">
-            <el-empty description="暂无论文" :image-size="80" />
-          </div>
-        </div>
+        <!-- 研究论文功能暂不可用 -->
+        <el-empty description="暂无研究论文数据" :image-size="120" />
       </div>
     </el-dialog>
 
@@ -948,7 +895,7 @@ export default {
       // Resource data
       showPapersDialog: false,
       showOsintDialog: false,
-      sidebarTab: 'papers',
+      sidebarTab: 'dataset',
       sidebarPaperQuery: '',
       sidebarCategoryFilter: '',
       sidebarDatasetFilter: '',
@@ -974,17 +921,15 @@ export default {
       sidebarTabs: [
         { key: 'dataset', label: '专家文档库', icon: 'FolderOpened' },
         { key: 'osint', label: '开源情报库', icon: 'DataAnalysis' },
-        { key: 'papers', label: '研究论文库', icon: 'Reading' },
       ],
       knowledgeSections: [
         {
           key: 'resources',
           title: '知识资源',
-          desc: '汇聚专家文档、开源情报与研究论文，提供可追溯的证据材料。',
+          desc: '汇聚专家文档与开源情报，提供可追溯的证据材料。',
           items: [
             { key: 'dataset', title: '专家文档库', desc: '沉淀专家报告、书籍和领域文档', icon: 'FolderOpened', theme: 'dataset', meta: 'Docs', action: 'dialog', dialog: 'dataset' },
             { key: 'osint', title: '开源情报库', desc: '跟踪事件新闻与公开情报', icon: 'DataAnalysis', theme: 'osint', meta: 'OSINT', action: 'dialog', dialog: 'osint' },
-            { key: 'papers', title: '研究论文库', desc: '检索、爬取和管理研究论文', icon: 'Reading', theme: 'papers', meta: 'arXiv / PDF', action: 'dialog', dialog: 'papers' },
           ],
         },
         {
@@ -993,7 +938,6 @@ export default {
           desc: '将资料转化为观点、概念和关系，形成可解释的认知结构。',
           items: [
             { key: 'experts', title: '专家观点', desc: '抽取专家认知模型和观点网络', icon: 'Connection', theme: 'experts', meta: '观点图谱', action: 'library', library: 'experts' },
-            { key: 'ontology', title: '本体编辑', desc: '编辑领域概念、实体类型和关系规则', icon: 'Collection', theme: 'ontology', meta: 'Ontology', action: 'library', library: 'ontology' },
           ],
         },
         {
@@ -1001,9 +945,9 @@ export default {
           title: '仿真资产',
           desc: '面向实验与推演复用，组织主体、环境和规则资产。',
           items: [
-            { key: 'subject', title: '主体库', desc: 'Agent 角色、组织与行为知识', icon: 'UserFilled', theme: 'subject', meta: 'Agent', action: 'library', library: 'subject' },
-            { key: 'environment', title: '环境库', desc: '地理空间、场景条件与外部约束', icon: 'MapLocation', theme: 'environment', meta: 'Scene', action: 'library', library: 'environment' },
-            { key: 'rules', title: '规则库', desc: '博弈规则、红线条件与行为约束', icon: 'List', theme: 'rules', meta: 'Rules', action: 'library', library: 'rules' },
+            { key: 'subject', title: '主体库', desc: 'Agent 角色、组织与行为知识（按场景切换）', icon: 'UserFilled', theme: 'subject', meta: 'Agent', action: 'library', library: 'subject' },
+            { key: 'environment', title: '环境库', desc: '地理空间、场景条件与外部约束（按场景切换）', icon: 'MapLocation', theme: 'environment', meta: 'Scene', action: 'library', library: 'environment' },
+            { key: 'rules', title: '规则库', desc: '博弈规则、红线条件与行为约束（按场景切换）', icon: 'List', theme: 'rules', meta: 'Rules', action: 'library', library: 'rules' },
           ],
         },
       ],
@@ -1180,51 +1124,113 @@ export default {
       },
 
       libraries: {
-        subject: {
-          name: '主体库', desc: '博弈主体 Agent 知识体系',
-          docCount: 12, chunkCount: 342, entityCount: 156, relationCount: 423,
-          enabled: true, keywords: ['肯尼迪', '赫鲁晓夫', '卡斯特罗'],
+        // ── 主体库（铀 & 汽车两套） ──
+        subject_uranium: {
+          name: '主体库（铀）', desc: '铀供应链博弈主体 Agent 知识体系',
+          docCount: 8, chunkCount: 210, entityCount: 98, relationCount: 256,
+          enabled: true, keywords: ['Kazatomprom', 'Cameco', 'CNNC', 'Orano', '哈萨克斯坦'],
           documents: [
-            { name: 'John F. Kennedy 档案', type: '人物', chunks: 45, uploadTime: '2024-01-10' },
-            { name: 'Nikita Khrushchev 档案', type: '人物', chunks: 38, uploadTime: '2024-01-12' },
-            { name: 'Fidel Castro 档案', type: '人物', chunks: 22, uploadTime: '2024-01-14' },
+            { name: 'Kazatomprom 企业档案', type: '供应商', chunks: 32, uploadTime: '2024-03-10' },
+            { name: 'CNNC 中核集团档案', type: '采购商', chunks: 28, uploadTime: '2024-03-12' },
+            { name: 'Cameco 企业档案', type: '供应商', chunks: 25, uploadTime: '2024-03-14' },
           ],
           entityCategories: {
-            person: { name: '人物', count: 45, entities: ['John F. Kennedy', 'Nikita Khrushchev', 'Fidel Castro', 'Robert McNamara', 'Dean Rusk'], overflow: 40 },
-            org: { name: '组织', count: 28, entities: ['CIA', 'KGB', 'UN Security Council', 'Warsaw Pact', 'NATO'], overflow: 23 },
-            event: { name: '事件', count: 35, entities: ['Bay of Pigs Invasion', 'Cuban Missile Crisis', 'Berlin Blockade'], overflow: 32 },
-            location: { name: '地点', count: 22, entities: ['Cuba', 'Soviet Union', 'United States', 'Berlin', 'Turkey'], overflow: 17 },
+            supplier: { name: '供应商', count: 31, entities: ['Kazatomprom', 'Cameco', 'Orano', 'Uranium One', 'BHP'], overflow: 26 },
+            buyer: { name: '采购商', count: 18, entities: ['CNNC', 'CGN', 'EDF', 'KHNP', 'Exelon'], overflow: 13 },
+            regulator: { name: '监管机构', count: 9, entities: ['IAEA', 'NRC', 'EURATOM', 'CNCA'], overflow: 5 },
+            port: { name: '港口', count: 8, entities: ['连云港', '防城港', '秦皇岛', '圣彼得堡'], overflow: 4 },
           },
           graphData: true,
         },
-        environment: {
-          name: '环境库', desc: '博弈环境与地理空间信息',
-          docCount: 8, chunkCount: 245, entityCount: 89, relationCount: 201,
-          enabled: true, keywords: ['加勒比海', '导弹发射井', '海上封锁线'],
+        subject_auto: {
+          name: '主体库（汽车）', desc: '汽车供应链博弈主体 Agent 知识体系',
+          docCount: 10, chunkCount: 280, entityCount: 124, relationCount: 345,
+          enabled: true, keywords: ['比亚迪', '特斯拉', '宁德时代', '博世', '芯片'],
           documents: [
-            { name: '加勒比海地区军事部署图', type: '地理', chunks: 56, uploadTime: '2024-01-08' },
-            { name: '苏联导弹射程分析', type: '军事', chunks: 34, uploadTime: '2024-01-16' },
+            { name: '比亚迪企业档案', type: '整车厂', chunks: 45, uploadTime: '2024-03-10' },
+            { name: '宁德时代企业档案', type: '电池供应商', chunks: 38, uploadTime: '2024-03-12' },
+            { name: '博世汽车电子档案', type: 'Tier1', chunks: 30, uploadTime: '2024-03-14' },
           ],
           entityCategories: {
-            person: { name: '人物', count: 12, entities: ['Nikita Khrushchev', 'John F. Kennedy'], overflow: 10 },
-            org: { name: '组织', count: 18, entities: ['US Navy', 'US Air Force', 'Strategic Air Command'], overflow: 15 },
-            location: { name: '地点', count: 34, entities: ['Cuba', 'Florida', 'Turkey', 'Berlin', 'Moscow', 'Washington DC'], overflow: 28 },
+            oem: { name: '整车厂', count: 22, entities: ['比亚迪', '特斯拉', '上汽', '蔚来', '小鹏', '理想'], overflow: 16 },
+            tier1: { name: 'Tier1供应商', count: 35, entities: ['博世', '大陆', '电装', '采埃孚', '宁德时代'], overflow: 30 },
+            chip: { name: '芯片厂商', count: 15, entities: ['英飞凌', '瑞萨', 'NXP', 'TI', '地平线'], overflow: 10 },
+            port: { name: '港口/物流', count: 10, entities: ['上海港', '宁波港', '天津港', '汉堡港'], overflow: 6 },
           },
           graphData: true,
+        },
+        // ── 环境库（铀 & 汽车两套） ──
+        environment_uranium: {
+          name: '环境库（铀）', desc: '铀矿地理分布、地缘政治环境与运输通道',
+          docCount: 6, chunkCount: 190, entityCount: 72, relationCount: 168,
+          enabled: true, keywords: ['哈萨克斯坦', '尼日尔', '纳米比亚', '运输路线', '海上封锁'],
+          documents: [
+            { name: '哈萨克斯坦铀矿地理分布图', type: '地理', chunks: 42, uploadTime: '2024-02-08' },
+            { name: '全球铀运输通道分析', type: '物流', chunks: 35, uploadTime: '2024-02-16' },
+          ],
+          entityCategories: {
+            mine: { name: '矿山', count: 25, entities: ['Inkai', 'McArthur River', 'Cigar Lake', 'Olympic Dam', 'SOMAIR'], overflow: 20 },
+            country: { name: '国家/地区', count: 18, entities: ['哈萨克斯坦', '加拿大', '澳大利亚', '尼日尔', '纳米比亚', '俄罗斯'], overflow: 12 },
+            route: { name: '运输路线', count: 12, entities: ['中亚→中国', '北美→欧洲', '非洲→欧洲', '澳大利亚→亚洲'], overflow: 8 },
+          },
+          graphData: true,
+        },
+        environment_auto: {
+          name: '环境库（汽车）', desc: '汽车产业布局、区域市场与贸易政策环境',
+          docCount: 8, chunkCount: 230, entityCount: 94, relationCount: 212,
+          enabled: true, keywords: ['长三角', '珠三角', '欧洲市场', '碳关税', '电池回收'],
+          documents: [
+            { name: '中国新能源汽车产业布局图', type: '产业地理', chunks: 52, uploadTime: '2024-02-08' },
+            { name: '欧盟汽车贸易政策汇编', type: '政策', chunks: 38, uploadTime: '2024-02-16' },
+          ],
+          entityCategories: {
+            cluster: { name: '产业集群', count: 15, entities: ['长三角', '珠三角', '京津冀', '成渝', '中部'], overflow: 10 },
+            market: { name: '目标市场', count: 20, entities: ['中国', '欧盟', '东南亚', '俄罗斯', '中东', '南美'], overflow: 14 },
+            policy: { name: '政策环境', count: 12, entities: ['碳关税', '反补贴调查', '双积分政策', 'IRA法案', '国六排放'], overflow: 7 },
+          },
+          graphData: true,
+        },
+        // ── 规则库（铀 & 汽车两套） ──
+        rules_uranium: {
+          name: '规则库（铀）', desc: '铀供应链博弈规则、红线条件与行为约束',
+          docCount: 5, chunkCount: 95, entityCount: 38, relationCount: 72,
+          enabled: true, keywords: ['供应中断', '价格阈值', '制裁规则', '长协违约'],
+          documents: [
+            { name: '铀供应中断情景规则集', type: '规则', chunks: 32, uploadTime: '2024-01-05' },
+            { name: '国际核贸易管制条例', type: '法规', chunks: 24, uploadTime: '2024-01-20' },
+          ],
+          entityCategories: {
+            sanction: { name: '制裁规则', count: 10, entities: ['俄铀进口禁令', '尼日尔出口限制', '伊朗禁运'], overflow: 7 },
+            contract: { name: '合约规则', count: 8, entities: ['长协违约', 'spot采购上限', '库存警戒线'], overflow: 5 },
+            price: { name: '价格规则', count: 6, entities: ['$120/lb 触发线', '$40/lb 成本底线', '溢价上限15%'], overflow: 3 },
+          },
+          graphData: true,
+        },
+        rules_auto: {
+          name: '规则库（汽车）', desc: '汽车供应链博弈规则、贸易壁垒与合规约束',
+          docCount: 6, chunkCount: 110, entityCount: 42, relationCount: 78,
+          enabled: true, keywords: ['关税规则', '芯片禁运', '电池合规', '原产地规则'],
+          documents: [
+            { name: '中欧汽车贸易规则集', type: '贸易规则', chunks: 35, uploadTime: '2024-01-05' },
+            { name: '车规芯片出口管制条例', type: '法规', chunks: 28, uploadTime: '2024-01-20' },
+          ],
+          entityCategories: {
+            tariff: { name: '关税壁垒', count: 8, entities: ['EU反补贴税17-35%', 'US Section 301', '碳边境税CBAM'], overflow: 5 },
+            tech: { name: '技术管制', count: 7, entities: ['芯片出口管制', '电池技术限制', '数据安全合规'], overflow: 4 },
+            standard: { name: '准入标准', count: 6, entities: ['Euro NCAP', 'GB国标', 'UN R155网络安全'], overflow: 3 },
+          },
+          graphData: true,
+        },
+        // ── 本体编辑 & 专家观点（保留共用） ──
+        environment: {
+          name: '环境库', desc: '博弈环境与地理空间信息（旧版，请使用场景版本）',
+          docCount: 0, chunkCount: 0, entityCount: 0, relationCount: 0,
+          enabled: false, keywords: [], documents: [], entityCategories: {}, graphData: false,
         },
         rules: {
-          name: '规则库', desc: '博弈规则与行为约束条件',
-          docCount: 5, chunkCount: 89, entityCount: 34, relationCount: 67,
-          enabled: true, keywords: ['威慑平衡', '红线规则', ' escalation'],
-          documents: [
-            { name: '核威慑博弈规则集', type: '规则', chunks: 28, uploadTime: '2024-01-05' },
-            { name: '危机升级阶梯模型', type: '模型', chunks: 19, uploadTime: '2024-01-20' },
-          ],
-          entityCategories: {
-            event: { name: '事件', count: 15, entities: ['Nuclear Strike', 'Naval Blockade', 'Diplomatic Negotiation'], overflow: 12 },
-            org: { name: '组织', count: 8, entities: ['UN', 'NATO', 'WTO'], overflow: 5 },
-          },
-          graphData: true,
+          name: '规则库', desc: '博弈规则与行为约束条件（旧版，请使用场景版本）',
+          docCount: 0, chunkCount: 0, entityCount: 0, relationCount: 0,
+          enabled: false, keywords: [], documents: [], entityCategories: {}, graphData: false,
         },
       },
     }
@@ -1297,9 +1303,9 @@ export default {
 
       return {
         papers: [
-          { label: '论文', value: paperTotal, loading: paperLoading },
-          { label: '已下载', value: paperDownloaded, loading: paperLoading },
-          { label: '关键词', value: paperKeywordCount, loading: paperLoading },
+          { label: '论文', value: 0, loading: false },
+          { label: '已下载', value: 0, loading: false },
+          { label: '关键词', value: 0, loading: false },
         ],
         osint: [
           { label: '情报', value: osintEvents.length, loading: osintLoading },
@@ -1321,9 +1327,9 @@ export default {
           { label: '关系', value: this.ontologyGraphData.links.length },
           { label: '规则', value: this.ontologyStats.decision.rules },
         ],
-        subject: libraryStats('subject'),
-        environment: libraryStats('environment'),
-        rules: libraryStats('rules'),
+        subject: libraryStats(this.scenarioStore.isSupplyChain ? 'subject_auto' : 'subject_uranium'),
+        environment: libraryStats(this.scenarioStore.isSupplyChain ? 'environment_auto' : 'environment_uranium'),
+        rules: libraryStats(this.scenarioStore.isSupplyChain ? 'rules_auto' : 'rules_uranium'),
       }
     },
     ontologyCategoryTags() {
@@ -1414,7 +1420,6 @@ export default {
       this.resourceCache.expertStatsLoaded = false
       this.fetchBookList(true)
       if (this.activeLibrary) {
-        this.fetchSidebarPapers(true)
         this.fetchSidebarOsint(true)
       }
     },
@@ -1422,8 +1427,6 @@ export default {
 
   mounted() {
     this.fetchBookList()
-    this.fetchSidebarPapers()
-    this.fetchPaperStats()
     this.fetchSidebarOsint()
   },
 
@@ -1564,10 +1567,7 @@ export default {
     openKnowledgeEntry(item) {
       if (!item) return
       if (item.action === 'dialog') {
-        if (item.dialog === 'papers') {
-          this.showPapersDialog = true
-          this.switchSidebarTab('papers')
-        } else if (item.dialog === 'osint') {
+        if (item.dialog === 'osint') {
           this.showOsintDialog = true
           this.switchSidebarTab('osint')
         } else if (item.dialog === 'dataset') {
@@ -1576,16 +1576,23 @@ export default {
         return
       }
       if (item.action === 'library' && item.library) {
-        this.activeLibrary = item.library
+        // 主体库/环境库/规则库/本体编辑按场景自动切换
+        const scenarioSuffix = this.scenarioStore.isSupplyChain ? '_auto' : '_uranium'
+        if (['subject', 'environment', 'rules', 'ontology'].includes(item.library)) {
+          this.activeLibrary = item.library + scenarioSuffix
+        } else if (item.library === 'ontology_uranium') {
+          this.activeLibrary = 'ontology_uranium'
+        } else if (item.library === 'ontology_auto') {
+          this.activeLibrary = 'ontology_auto'
+        } else {
+          this.activeLibrary = item.library
+        }
       }
     },
     switchSidebarTab(key) {
       this.sidebarTab = key
       if (key === 'osint') {
         this.fetchSidebarOsint()
-      }
-      if (key === 'papers') {
-        this.fetchSidebarPapers()
       }
       if (key === 'dataset') {
         // fetchBookList already called from mounted
@@ -1809,28 +1816,7 @@ export default {
       this.$refs.osintUploadRef?.clearFiles()
     },
     async submitPaperUpload() {
-      const files = this.$refs.paperUploadRef?.uploadFiles || []
-      const rawFile = files[0]?.raw
-      if (!rawFile) {
-        this.$message.warning('请先选择要上传的论文文件')
-        return
-      }
-      this.paperUploadLoading = true
-      try {
-        const res = await uploadPaper(rawFile)
-        if (res?.success || Number(res?.code) === 200) {
-          this.$message.success('论文上传成功')
-          this.showPaperUploadDialog = false
-          await this.fetchSidebarPapers(true)
-        } else {
-          this.$message.error(res?.message || '论文上传失败，请重试')
-        }
-      } catch (e) {
-        this.$message.error('论文上传服务暂不可用')
-        console.warn('[Paper Upload Error]', e)
-      } finally {
-        this.paperUploadLoading = false
-      }
+      this.$message.info('研究论文功能暂不可用')
     },
     async submitOsintUpload() {
       const files = this.$refs.osintUploadRef?.uploadFiles || []

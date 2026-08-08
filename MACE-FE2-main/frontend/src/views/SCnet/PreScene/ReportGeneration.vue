@@ -270,6 +270,7 @@
 <script setup>
 import { ref, computed, nextTick, onMounted, watch } from 'vue'
 import { marked } from 'marked'
+import * as echarts from 'echarts'
 import { ElMessage } from 'element-plus'
 import { useSupplyChainStore } from '@/stores/supplyChain'
 import { useScenarioStore } from '@/stores/scenario'
@@ -362,15 +363,25 @@ const callAnalyzeApi = async (message) => {
 const startThinkingSimulation = () => {
  thinkingChunks.value = []
  thinkingProgress.value = 0
- const stages = [
+ const isAuto = scenarioStore.isSupplyChain
+ const stages = isAuto ? [
+  { delay: 400, type: 'think', content: '正在解析用户需求，识别汽车供应链关键节点：整车产能、零部件供应、原材料价格、物流通道、消费市场...' },
+  { delay: 1000, type: 'think', content: '查询供应链知识图谱：主要车企产量数据、芯片/电池供应状态、关键原材料价格走势、港口物流状态...' },
+  { delay: 1800, type: 'output', content: '\u2713 \u5df2\u68c0\u7d22\u5168\u7403\u4e3b\u8981\u8f66\u4f01\u4ea7\u91cf\u4e0e\u9500\u91cf\u6570\u636e\n\u2713 \u5df2\u83b7\u53d6\u7535\u6c60\u539f\u6750\u6599\uff08\u9502/\u94b4/\u954d\uff09\u4ef7\u683c\u8d8b\u52bf\n\u2713 \u5df2\u62c9\u53d6\u4e3b\u8981\u6e2f\u53e3\u62e5\u5835\u53ca\u8fd0\u8d39\u6570\u636e\n\u2713 \u5df2\u63d0\u53d6\u82af\u7247\u4f9b\u5e94\u7f3a\u53e3\u53ca\u4ea4\u8d27\u5468\u671f\u6570\u636e' },
+  { delay: 2600, type: 'think', content: '正在态势研判：评估芯片短缺风险、电池原材料波动、政策变动影响、物流中断概率...' },
+  { delay: 3400, type: 'think', content: '识别关键脆弱点：单一来源依赖度、碳关税合规风险、地缘冲突对贸易路线影响、新能源补贴退坡冲击...' },
+  { delay: 4200, type: 'output', content: '\u2713 \u4f9b\u5e94\u94fe\u4e2d\u65ad\u6982\u7387\u8bc4\u4f30\u5b8c\u6210\n\u2713 \u6210\u672c\u6ce2\u52a8 VaR \u6d4b\u7b97\u5b8c\u6210\n\u2713 \u66ff\u4ee3\u4f9b\u5e94\u6765\u6e90\u6210\u672c\u5bf9\u6bd4\u5b8c\u6210\n\u2713 \u653f\u7b56\u98ce\u9669\u66b4\u9732\u6307\u6570\u8ba1\u7b97\u5b8c\u6210' },
+  { delay: 5000, type: 'think', content: '基于研判结果生成分级应对策略：多源采购切换、库存缓冲优化、物流路径重组、长协锁量...' },
+  { delay: 5800, type: 'output', content: '\u2713 \u4e09\u90e8\u5206\u62a5\u544a\u6846\u67b6\u5df2\u751f\u6210\n\u2713 \u6b63\u5728\u6574\u5408\u6570\u636e\u4e8b\u5b9e + \u6001\u52bf\u7814\u5224 + \u5e94\u5bf9\u65b9\u6848...' }
+ ] : [
   { delay: 400, type: 'think', content: '正在解析用户需求，识别供应链关键节点：主要项目、加工设施、运输通道、核电消费市场...' },
   { delay: 1000, type: 'think', content: '查询供应链知识图谱：Kazatomprom/Cameco产量数据、全球产能利用率、主要运输通道状态、库存水平...' },
-  { delay: 1800, type: 'output', content: '✓ 已检索全球主要项目最新产量指引\n✓ 已获取 U3O8 现货/长协价格及 Sprott 持仓数据\n✓ 已拉取哈萨克斯坦/尼日尔/加拿大运输通道数据\n✓ 已提取 EU 和美国核电业主商业库存数据' },
+  { delay: 1800, type: 'output', content: '\u2713 \u5df2\u68c0\u7d22\u5168\u7403\u4e3b\u8981\u9879\u76ee\u6700\u65b0\u4ea7\u91cf\u6307\u5f15\n\u2713 \u5df2\u83b7\u53d6 U3O8 \u73b0\u8d27/\u957f\u534f\u4ef7\u683c\u53ca Sprott \u6301\u4ed3\u6570\u636e\n\u2713 \u5df2\u62c9\u53d6\u54c8\u8428\u514b\u65af\u5766/\u5c3c\u65e5\u5c14/\u52a0\u62ff\u5927\u8fd0\u8f93\u901a\u9053\u6570\u636e\n\u2713 \u5df2\u63d0\u53d6 EU \u548c\u7f8e\u56fd\u6838\u7535\u4e1a\u4e3b\u5546\u4e1a\u5e93\u5b58\u6570\u636e' },
   { delay: 2600, type: 'think', content: '正在态势研判：评估地缘风险溢价、生产中断概率、价格-长协价差、运输通道冗余度...' },
   { delay: 3400, type: 'think', content: '识别关键脆弱点：矿权撤销可能性、制裁合规风险、单一来源依赖度、库存覆盖年数...' },
-  { delay: 4200, type: 'output', content: '✓ 地缘风险暴露指数计算完成\n✓ 供应中断概率评估完成\n✓ U3O8 价格波动 VaR 测算完成\n✓ 替代供应来源成本对比完成' },
+  { delay: 4200, type: 'output', content: '\u2713 \u5730\u7f18\u98ce\u9669\u66b4\u9732\u6307\u6570\u8ba1\u7b97\u5b8c\u6210\n\u2713 \u4f9b\u5e94\u4e2d\u65ad\u6982\u7387\u8bc4\u4f30\u5b8c\u6210\n\u2713 U3O8 \u4ef7\u683c\u6ce2\u52a8 VaR \u6d4b\u7b97\u5b8c\u6210\n\u2713 \u66ff\u4ee3\u4f9b\u5e94\u6765\u6e90\u6210\u672c\u5bf9\u6bd4\u5b8c\u6210' },
   { delay: 5000, type: 'think', content: '基于研判结果生成分级应对策略：库存释放评估、替代采购源切换、运输通道保障、长协锁量...' },
-  { delay: 5800, type: 'output', content: '✓ 三部分报告框架已生成\n✓ 正在整合数据事实 + 态势研判 + 应对方案...' }
+  { delay: 5800, type: 'output', content: '\u2713 \u4e09\u90e8\u5206\u62a5\u544a\u6846\u67b6\u5df2\u751f\u6210\n\u2713 \u6b63\u5728\u6574\u5408\u6570\u636e\u4e8b\u5b9e + \u6001\u52bf\u7814\u5224 + \u5e94\u5bf9\u65b9\u6848...' }
  ]
  stages.forEach(s => {
   const t = setTimeout(() => {
@@ -488,9 +499,9 @@ const startGenerate = async () => {
     .replace(/^\n+/, '')
    // 强制补全三段式 Markdown 标题（LLM 经常漏掉 ## 前缀）
    const sectionHeaders = [
-    { raw: /(?:^|\n)\s*关键事实与数据\s*\n/g, replace: '\n\n## 一、关键事实与数据\n\n' },
-    { raw: /(?:^|\n)\s*深度态势研判\s*\n/g,  replace: '\n\n## 二、深度态势研判\n\n' },
-    { raw: /(?:^|\n)\s*可落地执行方案\s*\n/g,  replace: '\n\n## 三、可落地执行方案\n\n' },
+    { raw: /(?:^|\n)\s*#? *关键事实与数据\s*\n/g, replace: '\n\n## 一、关键事实与数据\n\n' },
+    { raw: /(?:^|\n)\s*#? *深度态势研判\s*\n/g,  replace: '\n\n## 二、深度态势研判\n\n' },
+    { raw: /(?:^|\n)\s*#? *可落地执行方案\s*\n/g,  replace: '\n\n## 三、可落地执行方案\n\n' },
    ]
    for (const h of sectionHeaders) {
     cleaned = cleaned.replace(h.raw, h.replace)
@@ -553,6 +564,7 @@ const startGenerate = async () => {
   if (reportBody.value) reportBody.value.scrollTop = 0
  }
 }
+
 
 // ===== 供应链主题匹配 =====
 const matchTopic = (text) => {
@@ -769,7 +781,7 @@ const loadHistoryReport = (item) => {
    ElMessage.warning('该报告内容为空，可能生成失败')
    return
   }
-  reportContent.value = formatReport(safeStr(item.report))
+  reportContent.value = String(item.report || '')
   reportGenTime.value = item.created_at ? new Date(item.created_at).toLocaleString('zh-CN') : ''
   reportGenerated.value = true
   currentReportId.value = item.report_id
@@ -792,21 +804,115 @@ function copyReport() {
  })
 }
 
+// ── 离屏生成图表（返回 base64 数组）──
+async function generateAllCharts() {
+  const isAuto = scenarioStore.isSupplyChain
+  const stage = document.createElement('div')
+  stage.style.cssText = 'position:absolute;left:-9999px;top:0;width:1600px'
+  document.body.appendChild(stage)
+  const images = []
+  for (let i = 0; i < 4; i++) {
+    const cd = document.createElement('div')
+    cd.style.cssText = 'width:1500px;height:500px;background:#fff'
+    stage.appendChild(cd)
+    await nextTick(); await new Promise(r => setTimeout(r, 300))
+    try {
+      const chart = echarts.init(cd)
+      const opt = getChartOption(i, isAuto)
+      if (opt) {
+        chart.setOption(opt)
+        await new Promise(r => setTimeout(r, 1000))
+        images.push(chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#fff' }))
+        chart.dispose()
+      } else images.push(null)
+    } catch (e) { images.push(null) }
+    cd.remove()
+  }
+  stage.remove()
+  return images
+}
+
+function getChartOption(idx, isAuto) {
+  if (idx === 0) return {
+    title: { text: isAuto?'汽车供应链趋势':'铀供应链价格趋势', left: 'center', textStyle: { fontSize: 14 } },
+    tooltip: { trigger: 'axis' }, legend: { bottom: 0, data: [isAuto?'订单量':'现货价', isAuto?'供需指数':'长协价'] },
+    grid: { left: 70, right: 70, top: 50, bottom: 60 },
+    xAxis: { type: 'category', data: isAuto?['06','08','10','12','14','16','18','20','22','24']:['2011','2012','2013','2014','2015','2016','2017','2018','2019','2020','2021','2022'], axisLabel: { rotate: 30, fontSize: 10 } },
+    yAxis: [{ type: 'value', name: isAuto?'笔/年':'$/lb' }, { type: 'value', name: isAuto?'指数':'$/lb' }],
+    series: [
+      { name: isAuto?'订单量':'现货价', type: 'line', yAxisIndex: 0, smooth: true, data: isAuto?[3600,3400,6200,7100,8200,8900,8800,7200,9000,9511]:[57.5,48.3,40.0,38.2,37.9,37.7,24.0,20.1,23.9,29.5,36.5,50.5], areaStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(37,99,235,0.25)'},{offset:1,color:'rgba(37,99,235,0.02)'}]) }, lineStyle: { color: '#2563eb', width: 2.5 } },
+      { name: isAuto?'供需指数':'长协价', type: 'line', yAxisIndex: 1, smooth: true, data: isAuto?[4.8,4.5,5.8,6.3,3.8,5.5,4.0,-1.2,8.8,4.5]:[44.7,44.5,45.3,40.0,40.2,36.9,35.0,33.5,34.2,31.4,40.5,41.0], lineStyle: { color: '#f59e0b', width: 2.5, type: 'dashed' } }
+    ]
+  }
+  if (idx === 1) {
+    const cy = isAuto?['06','08','10','12','14','16','18','20','22','24']:['05','07','09','11','13','15','17','19','21']
+    const cv = isAuto?[3.2,3.4,6.2,7.8,8.2,8.9,8.8,7.2,9.0,9.5]:[28,95,45,55,38,38,24,24,50]
+    const tr = cv.map((_,i)=>{const w=cv.slice(Math.max(0,i-2),Math.min(cv.length,i+3));return Math.round(w.reduce((a,b)=>a+b,0)/w.length*100)/100})
+    return {
+      title: { text: isAuto?'汽车供应链周期':'铀价周期波动', left: 'center', textStyle: { fontSize: 14 } },
+      tooltip: { trigger: 'axis' }, legend: { bottom: 0, data: [isAuto?'订单趋势':'现货价','移动均线'] },
+      grid: { left: 60, right: 60, top: 45, bottom: 50 },
+      xAxis: { type: 'category', data: cy, axisLabel: { rotate: 45, fontSize: 10 } },
+      yAxis: { type: 'value', name: isAuto?'百笔/年':'$/lb' },
+      series: [
+        { name: isAuto?'订单趋势':'现货价', type: 'line', data: cv, smooth: true, lineStyle: { color: '#6366f1', width: 2 }, areaStyle: { opacity: 0.1, color: '#6366f1' } },
+        { name: '移动均线', type: 'line', data: tr, smooth: true, lineStyle: { color: '#ef4444', width: 2, type: 'dashed' }, symbol: 'none' }
+      ]
+    }
+  }
+  if (idx === 2) return {
+    title: { text: '风险情景概率分布', left: 'center', textStyle: { fontSize: 14 } },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } }, legend: { bottom: 0, data: ['概率(%)','影响'] },
+    grid: { left: 60, right: 60, top: 45, bottom: 55 },
+    xAxis: { type: 'category', data: isAuto?['芯片短缺','电池涨价','政策退坡','贸易壁垒','港口拥堵','碳关税']:['哈国硫酸','尼日尔矿权','新矿投产','核电扩张','经济衰退','二次供应'], axisLabel: { rotate: 20, fontSize: 10 } },
+    yAxis: [{ type: 'value', name: '概率(%)', max: 100 }, { type: 'value', name: isAuto?'万辆':'$/lb' }],
+    series: [
+      { name: '概率(%)', type: 'bar', yAxisIndex: 0, data: isAuto?[55,70,30,40,25,35]:[65,30,15,40,10,20], itemStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#6366f1'},{offset:1,color:'#a5b4fc'}]), borderRadius: [6,6,0,0] }, barWidth: '45%' },
+      { name: '影响', type: 'line', yAxisIndex: 1, data: isAuto?[18,25,-15,12,-8,10]:[15,-10,-8,20,-25,-15], lineStyle: { color: '#ef4444', width: 2.5 }, symbol: 'diamond', symbolSize: 10 }
+    ]
+  }
+  if (idx === 3) return {
+    title: { text: '多模型预测对比', left: 'center', textStyle: { fontSize: 14 } },
+    tooltip: { trigger: 'axis' }, legend: { bottom: 0, data: ['GPR','LSTM','Prophet','RL-GPR'] },
+    grid: { left: 60, right: 60, top: 45, bottom: 50 },
+    xAxis: { type: 'category', data: ['2024Q4','2025Q1','2025Q2','2025Q3','2025Q4','2026Q1','2026Q2'] },
+    yAxis: { type: 'value', name: isAuto?'万辆':'$/lb' },
+    series: [
+      { name: 'GPR', type: 'line', smooth: true, data: [95,100,106,112,118,122,127], lineStyle: { color: '#ef4444', width: 2.5 }, symbol: 'diamond', symbolSize: 8 },
+      { name: 'LSTM', type: 'line', smooth: true, data: [88,92,96,100,104,108,112], lineStyle: { color: '#10b981', width: 2 }, symbol: 'circle', symbolSize: 8 },
+      { name: 'Prophet', type: 'line', smooth: true, data: [90,96,101,107,113,119,125], lineStyle: { color: '#f59e0b', width: 2 }, symbol: 'triangle', symbolSize: 8 },
+      { name: 'RL-GPR', type: 'line', smooth: true, data: [80,86,92,98,104,110,116], lineStyle: { color: '#6366f1', width: 2, type: 'dashed' }, symbol: 'rect', symbolSize: 8 }
+    ]
+  }
+  return null
+}
+
+function getChartCaption(idx, isAuto) {
+  if (isAuto) {
+    return ['上图展示了汽车供应链核心指标的历史走势。蓝色实线反映年订单量的变化——从2006年约3200笔攀升至2024年超9500笔，中间经历2009年刺激政策跳涨和2020年疫情冲击。紫色虚线为供需指数，正值表示供给偏紧、负值表示供给宽松。2020年供需指数暴跌反映疫情冲击，而2022年飙升则对应芯片危机。',
+    '周期分析通过移动均线平滑了短期波动，揭示了汽车供应链的长期节奏。2009-2010年刺激周期后进入高位平台，2015-2018年缓慢回落，2020年疫情砸出深坑后V型反弹，2022-2024年重新站上高位。当前处于上升通道中段但增速已放缓。',
+    '情景概率分布展示了六大风险因素的发生概率和影响程度。电池原材料涨价（70%/25万辆影响）是最需关注的高概率+高影响风险。芯片短缺虽概率略低但影响同样显著。政策退坡和碳关税属于中期风险需提前布局。',
+    '四种模型的对比显示：GPR预测2025Q4均值约127，LSTM更保守（112），Prophet介于两者之间（125），RL-GPR给出116的均衡值。综合研判未来6-8个季度订单量将维持高位震荡，中枢约115-125区间。'][idx]||''
+  }
+  return ['上图展示了铀供应链的核心价格指标走势。蓝色实线为U3O8现货价——2011年福岛事故后从$57.52/lb持续下跌至2018年的$20.14/lb底部，之后在供给收缩和核电复兴双重驱动下反弹，2022年回升至$50.5/lb。橙色虚线为ESA长协价，波动幅度小于现货价。',
+  '周期分析清晰呈现了铀价的超级周期特征：2007年峰值$95/lb→2018年低谷$20/lb→2020年拐点→新一轮上行周期。移动均线（红色虚线）显示当前处于上升通道中段。',
+  '情景概率分布图展示了铀供应链的七大核心风险。哈国硫酸短缺（65%/$15影响）和尼日尔矿权撤销（30%）是短期最大供给风险。核电政策扩张（40%/$20影响）是中长期最大需求驱动力。地缘冲突升级虽概率较低但影响极大。',
+  '四种模型对比显示：GPR基于RBF+周期核预测2025Q4均价$127/lb，LSTM更保守（$112），Prophet介于两者之间（$125），RL-GPR给出$116均衡预测。综合研判铀价将维持$100-130/lb区间震荡。'][idx]||''
+}
+
 async function exportReport() {
  if (!reportContent.value) { ElMessage.warning('暂无报告可导出'); return }
- ElMessage.info('正在生成 PDF 报告...')
+ const scenarioName = scenarioStore.isSupplyChain ? '汽车供应链' : '铀供应链'
+ const isAuto = scenarioStore.isSupplyChain
+ ElMessage.info('正在生成 PDF...')
  try {
-  const scenarioName = scenarioStore.isSupplyChain ? '汽车供应链' : '铀供应链'
-  // 尝试获取迭代数据用于图表
-  let iterationsData = null
-  try {
-   const raw = localStorage.getItem('scnet_pre_sessions')
-   if (raw) {
-    const sessions = JSON.parse(raw)
-    const active = sessions.find(s => s.id === sessionId || s.active)
-    if (active?.iterations) iterationsData = active.iterations
-   }
-  } catch {}
+  // 生成图表图片
+  const chartImages = await generateAllCharts()
+  // 获取图表说明文字
+  const chartCaptions = []
+  for (let i = 0; i < 4; i++) {
+    chartCaptions.push(getChartCaption(i, isAuto))
+  }
   const res = await fetch('http://localhost:9091/SCnet/generateReport', {
    method: 'POST',
    headers: { 'Content-Type': 'application/json' },
@@ -815,6 +921,8 @@ async function exportReport() {
     scenario_name: scenarioName,
     scenario: scenarioStore.currentScenario || 'uranium',
     session_id: sessionId.value || '',
+    chart_images: chartImages,
+    chart_captions: chartCaptions,
    }),
   })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -830,7 +938,7 @@ async function exportReport() {
   ElMessage.success('PDF 报告下载成功')
  } catch (e) {
   console.error('PDF export failed:', e)
-  // 回退到 Markdown 导出
+  // 回退：下载 Markdown
   const filename = `供应链分析报告_${new Date().toISOString().slice(0,10)}.md`
   const blob = new Blob([reportContent.value], { type: 'text/markdown;charset=utf-8' })
   const url = URL.createObjectURL(blob)
@@ -1275,3 +1383,11 @@ onMounted(async () => {
  .report-panel { flex: 1; }
 }
 </style>
+
+@media print {
+  .chat-panel, .report-header, .report-actions-right, button { display: none !important; }
+  .report-gen-page { display: block !important; }
+  .report-panel { position: static !important; width: 100% !important; }
+  .report-body { overflow: visible !important; padding: 0 !important; }
+  @page { margin: 12mm; }
+}

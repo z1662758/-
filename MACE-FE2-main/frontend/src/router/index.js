@@ -106,7 +106,11 @@ const routes = [
         component: total
       },
 
-      // ========== 事前 placeholder ==========
+      {
+        path: 'resultVerification',
+        name: 'SCnet_ResultVerification',
+        component: () => import("../views/SCnet/PreScene/ResultVerificationWrapper.vue")
+      },
       {
         path: 'knowledgeBase',
         name: 'SCnet_KnowledgeBase',

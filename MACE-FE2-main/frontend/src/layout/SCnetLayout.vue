@@ -76,6 +76,12 @@
               <el-icon size="18"><Promotion/></el-icon>
               <template #title>态势预测</template>
             </el-menu-item>
+            <!-- 结果校验暂时注释
+            <el-menu-item :index="`/home/SCnet/resultVerification?scenario=${currentScenario}`">
+              <el-icon size="18"><CircleCheck/></el-icon>
+              <template #title>结果验证</template>
+            </el-menu-item>
+            -->
           </el-sub-menu>
           <el-menu-item :index="`/home/SCnet/reportGeneration?scenario=${currentScenario}`">
             <el-icon size="18"><Document/></el-icon>
@@ -198,7 +204,7 @@ import {
   Aim, Box, Coin, Collection, Connection, DataAnalysis, DataLine, Document, DocumentDelete, Edit,
   Filter, FolderOpened, Grid, House, Memo, Monitor, Notification, Odometer, Operation, Orange,
   PieChart, Place, Postcard, Promotion, ScaleToOriginal, Search, Setting, Share,
-  SwitchButton, TrendCharts, User, WarningFilled, ChatDotSquare
+  SwitchButton, TrendCharts, User, WarningFilled, ChatDotSquare, CircleCheck
 } from "@element-plus/icons-vue";
 import {ref, onMounted, onUnmounted, computed, watch} from "vue";
 import {useRoute, useRouter} from "vue-router";
@@ -219,7 +225,7 @@ export default {
     EventPhaseStepper,
     Refresh, Files, DataAnalysis, DataLine, DocumentDelete, House, Aim, Box, Collection,
     Document, Notification, Operation, Postcard, Promotion, ScaleToOriginal, Search, Setting,
-    Coin, PieChart, Filter, FolderOpened, Grid, Odometer, SwitchButton, Orange, TrendCharts, User, Header, WarningFilled, ChatDotSquare
+    Coin, PieChart, Filter, FolderOpened, Grid, Odometer, SwitchButton, Orange, TrendCharts, User, Header, WarningFilled, ChatDotSquare, CircleCheck
   },
   setup() {
     const route = useRoute()

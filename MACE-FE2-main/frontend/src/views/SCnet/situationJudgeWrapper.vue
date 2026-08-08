@@ -1,14 +1,15 @@
 <template>
-  <SituationJudgeUranium v-if="scenario === 'uranium'" />
-  <SituationJudgeAuto v-else />
+  <SituationJudge :scenario="scenario" />
 </template>
 
 <script setup>
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import SituationJudgeUranium from './situationJudge.vue'
-import SituationJudgeAuto from './situationJudge_auto.vue'
+import SituationJudge from './situationJudge.vue'
 
 const route = useRoute()
-const scenario = computed(() => route.query.scenario || 'uranium')
+const scenario = computed(() => {
+  const s = route.query.scenario || 'uranium'
+  return s === 'supply_chain' ? 'auto' : s
+})
 </script>
