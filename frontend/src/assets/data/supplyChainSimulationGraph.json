@@ -1,0 +1,97 @@
+{
+  "agents": [
+    {
+      "id": "supplier_steel",
+      "name": "钢材供应商",
+      "category": "supplier",
+      "description": "提供原材料钢材，承担一级供应职能。",
+      "configurable_params": [
+        { "key": "delivery_lead_time", "label": "交付周期(天)", "type": "number", "default": 7, "min": 1, "max": 30 },
+        { "key": "supply_capacity_range", "label": "月供应能力(吨)", "type": "range", "default": [800, 1500], "min": 0, "max": 3000 }
+      ]
+    },
+    {
+      "id": "supplier_chip",
+      "name": "芯片供应商",
+      "category": "supplier",
+      "description": "提供电子元器件，受国际行情影响较大。",
+      "configurable_params": [
+        { "key": "delivery_lead_time", "label": "交付周期(天)", "type": "number", "default": 14, "min": 1, "max": 60 },
+        { "key": "supply_capacity_range", "label": "月供应能力(万件)", "type": "range", "default": [50, 120], "min": 0, "max": 300 }
+      ]
+    },
+    {
+      "id": "manufacturing_corporation",
+      "name": "制造总厂",
+      "category": "manufacturer",
+      "description": "统筹下属工厂排产、协调上游供应。",
+      "configurable_params": [
+        { "key": "collaboration_radius", "label": "协同半径(km)", "type": "number", "default": 800, "min": 100, "max": 3000 },
+        { "key": "max_collaboration_factories", "label": "最大协同工厂数", "type": "number", "default": 3, "min": 1, "max": 10 },
+        { "key": "max_concurrent_orders", "label": "并发订单上限", "type": "number", "default": 50, "min": 1, "max": 200 },
+        { "key": "factory_capacity_range", "label": "工厂产能区间", "type": "range", "default": [500, 2000], "min": 0, "max": 5000 }
+      ]
+    },
+    {
+      "id": "factory_east",
+      "name": "华东工厂",
+      "category": "factory",
+      "description": "高产能基地，主要面向线上零售。",
+      "configurable_params": [
+        { "key": "capacity_range", "label": "日产能区间", "type": "range", "default": [800, 1500], "min": 0, "max": 3000 },
+        { "key": "operating_cost_range", "label": "运营成本区间(万)", "type": "range", "default": [25, 45], "min": 0, "max": 100 },
+        { "key": "quality_level_range", "label": "质量等级区间", "type": "range", "default": [85, 95], "min": 0, "max": 100 }
+      ]
+    },
+    {
+      "id": "factory_south",
+      "name": "华南工厂",
+      "category": "factory",
+      "description": "靠近港口，承担出口与线下补货。",
+      "configurable_params": [
+        { "key": "capacity_range", "label": "日产能区间", "type": "range", "default": [600, 1100], "min": 0, "max": 3000 },
+        { "key": "operating_cost_range", "label": "运营成本区间(万)", "type": "range", "default": [20, 38], "min": 0, "max": 100 },
+        { "key": "quality_level_range", "label": "质量等级区间", "type": "range", "default": [80, 92], "min": 0, "max": 100 }
+      ]
+    },
+    {
+      "id": "retailer_online",
+      "name": "线上零售商",
+      "category": "retailer",
+      "description": "电商主力渠道，面向 C 端用户。",
+      "configurable_params": [
+        { "key": "market_reach_range", "label": "市场覆盖区间(万人)", "type": "range", "default": [200, 500], "min": 0, "max": 1000 },
+        { "key": "customer_satisfaction_range", "label": "顾客满意度区间", "type": "range", "default": [80, 95], "min": 0, "max": 100 },
+        { "key": "inventory_capacity", "label": "仓储容量(万件)", "type": "number", "default": 60, "min": 0, "max": 200 },
+        { "key": "markup_rate_range", "label": "加价率区间(%)", "type": "range", "default": [15, 35], "min": 0, "max": 100 }
+      ]
+    },
+    {
+      "id": "retailer_offline",
+      "name": "线下经销商",
+      "category": "retailer",
+      "description": "区域门店网络，承接 B 端与本地客户。",
+      "configurable_params": [
+        { "key": "market_reach_range", "label": "市场覆盖区间(万人)", "type": "range", "default": [80, 220], "min": 0, "max": 1000 },
+        { "key": "customer_satisfaction_range", "label": "顾客满意度区间", "type": "range", "default": [75, 90], "min": 0, "max": 100 },
+        { "key": "inventory_capacity", "label": "仓储容量(万件)", "type": "number", "default": 35, "min": 0, "max": 200 },
+        { "key": "markup_rate_range", "label": "加价率区间(%)", "type": "range", "default": [20, 40], "min": 0, "max": 100 }
+      ]
+    }
+  ],
+  "relationship_net": [
+    { "id": "rel_steel_to_mfg", "source": "supplier_steel", "target": "manufacturing_corporation", "relationship": "原料供应" },
+    { "id": "rel_chip_to_mfg", "source": "supplier_chip", "target": "manufacturing_corporation", "relationship": "元件供应" },
+    { "id": "rel_mfg_to_east", "source": "manufacturing_corporation", "target": "factory_east", "relationship": "调度生产" },
+    { "id": "rel_mfg_to_south", "source": "manufacturing_corporation", "target": "factory_south", "relationship": "调度生产" },
+    { "id": "rel_east_to_online", "source": "factory_east", "target": "retailer_online", "relationship": "供货" },
+    { "id": "rel_east_to_offline", "source": "factory_east", "target": "retailer_offline", "relationship": "补货" },
+    { "id": "rel_south_to_offline", "source": "factory_south", "target": "retailer_offline", "relationship": "供货" }
+  ],
+  "attribute_explain": {
+    "supplier": "上游原料/元器件提供方，决定生产瓶颈与采购成本。",
+    "manufacturer": "总装与排产中枢，统筹下属工厂的产能分配。",
+    "factory": "执行制造的实体，承担产能、成本、质量三角约束。",
+    "retailer": "面向终端客户的渠道节点，影响市场覆盖与满意度。"
+  }
+}

@@ -1,0 +1,359 @@
+{
+  "nodes": [
+    {
+      "id": "policy-sandbox",
+      "type": "group",
+      "position": {
+        "x": 80,
+        "y": 200
+      },
+      "label": "政策沙盘",
+      "data": {
+        "color": "#2C3E50",
+        "description": "政策沙盘顶层结构",
+        "childrenCount": 2,
+        "completedChildren": 0,
+        "level": 0
+      },
+      "style": {
+        "width": "200px",
+        "height": "150px"
+      }
+    },
+    {
+      "id": "environment",
+      "type": "group",
+      "position": {
+        "x": 380,
+        "y": 100
+      },
+      "label": "环境",
+      "data": {
+        "color": "#3498DB",
+        "description": "环境因素分析",
+        "childrenCount": 2,
+        "completedChildren": 0,
+        "level": 1
+      },
+      "style": {
+        "width": "180px",
+        "height": "120px"
+      },
+      "parentNode": "policy-sandbox"
+    },
+    {
+      "id": "agents",
+      "type": "group",
+      "position": {
+        "x": 380,
+        "y": 280
+      },
+      "label": "主体",
+      "data": {
+        "color": "#E74C3C",
+        "description": "博弈智能体（参考OODA）",
+        "childrenCount": 3,
+        "completedChildren": 0,
+        "level": 1
+      },
+      "style": {
+        "width": "180px",
+        "height": "120px"
+      },
+      "parentNode": "policy-sandbox"
+    },
+    {
+      "id": "physical-env",
+      "type": "default",
+      "position": {
+        "x": 680,
+        "y": 50
+      },
+      "label": "物理环境",
+      "data": {
+        "color": "#5DADE2",
+        "description": "地理环境-世界地图，地缘条件",
+        "status": "pending",
+        "progress": 0,
+        "tags": [
+          "地理",
+          "地缘"
+        ],
+        "level": 2
+      },
+      "style": {
+        "width": "180px",
+        "height": "120px"
+      },
+      "parentNode": "environment"
+    },
+    {
+      "id": "social-env",
+      "type": "default",
+      "position": {
+        "x": 680,
+        "y": 180
+      },
+      "label": "社会环境",
+      "data": {
+        "color": "#5DADE2",
+        "description": "国际体系，关系网络、历史背景、制度规则",
+        "status": "pending",
+        "progress": 0,
+        "tags": [
+          "国际",
+          "制度"
+        ],
+        "level": 2
+      },
+      "style": {
+        "width": "180px",
+        "height": "120px"
+      },
+      "parentNode": "environment"
+    },
+    {
+      "id": "intrinsic-attr",
+      "type": "default",
+      "position": {
+        "x": 680,
+        "y": 310
+      },
+      "label": "固有属性",
+      "data": {
+        "color": "#EC7063",
+        "description": "智能体的基本属性特征",
+        "status": "pending",
+        "progress": 0,
+        "tags": [
+          "属性",
+          "特征"
+        ],
+        "level": 2
+      },
+      "style": {
+        "width": "180px",
+        "height": "120px"
+      },
+      "parentNode": "agents"
+    },
+    {
+      "id": "role-profile",
+      "type": "default",
+      "position": {
+        "x": 680,
+        "y": 440
+      },
+      "label": "角色档案",
+      "data": {
+        "color": "#EC7063",
+        "description": "Agent集合配置",
+        "status": "pending",
+        "progress": 0,
+        "tags": [
+          "角色",
+          "档案"
+        ],
+        "level": 2
+      },
+      "style": {
+        "width": "180px",
+        "height": "120px"
+      },
+      "parentNode": "agents"
+    },
+    {
+      "id": "modeling-method",
+      "type": "default",
+      "position": {
+        "x": 680,
+        "y": 570
+      },
+      "label": "建模方式",
+      "data": {
+        "color": "#EC7063",
+        "description": "不同建模方式所需知识",
+        "status": "pending",
+        "progress": 0,
+        "tags": [
+          "建模",
+          "知识"
+        ],
+        "level": 2
+      },
+      "style": {
+        "width": "180px",
+        "height": "120px"
+      },
+      "parentNode": "agents"
+    },
+    {
+      "id": "rational-agent",
+      "type": "custom",
+      "position": {
+        "x": 980,
+        "y": 480
+      },
+      "label": "理性行为体",
+      "data": {
+        "color": "#F39C12",
+        "description": "理性决策行为模型",
+        "status": "pending",
+        "progress": 0,
+        "tags": [
+          "理性",
+          "决策"
+        ],
+        "level": 3
+      },
+      "style": {
+        "width": "180px",
+        "height": "120px"
+      },
+      "parentNode": "modeling-method"
+    },
+    {
+      "id": "org-modeling",
+      "type": "custom",
+      "position": {
+        "x": 980,
+        "y": 590
+      },
+      "label": "组织建模",
+      "data": {
+        "color": "#F39C12",
+        "description": "组织结构行为建模",
+        "status": "pending",
+        "progress": 0,
+        "tags": [
+          "组织",
+          "结构"
+        ],
+        "level": 3
+      },
+      "style": {
+        "width": "180px",
+        "height": "120px"
+      },
+      "parentNode": "modeling-method"
+    },
+    {
+      "id": "game-group",
+      "type": "custom",
+      "position": {
+        "x": 980,
+        "y": 700
+      },
+      "label": "博弈集团",
+      "data": {
+        "color": "#F39C12",
+        "description": "博弈论集团模型",
+        "status": "pending",
+        "progress": 0,
+        "tags": [
+          "博弈",
+          "集团"
+        ],
+        "level": 3
+      },
+      "style": {
+        "width": "180px",
+        "height": "120px"
+      },
+      "parentNode": "modeling-method"
+    }
+  ],
+  "edges": [
+    {
+      "id": "policy-environment",
+      "source": "policy-sandbox",
+      "target": "environment",
+      "type": "smoothstep",
+      "animated": false,
+      "label": "环境分析",
+      "color": "#2C3E50"
+    },
+    {
+      "id": "policy-agents",
+      "source": "policy-sandbox",
+      "target": "agents",
+      "type": "smoothstep",
+      "animated": false,
+      "label": "主体建模",
+      "color": "#2C3E50"
+    },
+    {
+      "id": "environment-physical",
+      "source": "environment",
+      "target": "physical-env",
+      "type": "straight",
+      "animated": false,
+      "label": "包含",
+      "color": "#3498DB"
+    },
+    {
+      "id": "environment-social",
+      "source": "environment",
+      "target": "social-env",
+      "type": "straight",
+      "animated": false,
+      "label": "包含",
+      "color": "#3498DB"
+    },
+    {
+      "id": "agents-intrinsic",
+      "source": "agents",
+      "target": "intrinsic-attr",
+      "type": "straight",
+      "animated": false,
+      "label": "包含",
+      "color": "#E74C3C"
+    },
+    {
+      "id": "agents-role",
+      "source": "agents",
+      "target": "role-profile",
+      "type": "straight",
+      "animated": false,
+      "label": "包含",
+      "color": "#E74C3C"
+    },
+    {
+      "id": "agents-modeling",
+      "source": "agents",
+      "target": "modeling-method",
+      "type": "straight",
+      "animated": false,
+      "label": "包含",
+      "color": "#E74C3C"
+    },
+    {
+      "id": "modeling-rational",
+      "source": "modeling-method",
+      "target": "rational-agent",
+      "type": "curve",
+      "animated": true,
+      "label": "建模方式",
+      "color": "#F39C12"
+    },
+    {
+      "id": "modeling-org",
+      "source": "modeling-method",
+      "target": "org-modeling",
+      "type": "curve",
+      "animated": true,
+      "label": "建模方式",
+      "color": "#F39C12"
+    },
+    {
+      "id": "modeling-game",
+      "source": "modeling-method",
+      "target": "game-group",
+      "type": "curve",
+      "animated": true,
+      "label": "建模方式",
+      "color": "#F39C12"
+    }
+  ],
+  "timestamp": "2025-09-22T09:45:29.453Z"
+}

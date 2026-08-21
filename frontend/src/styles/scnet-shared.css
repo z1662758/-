@@ -1,0 +1,213 @@
+/**
+ * SCnet 供应链场景 — 共享视觉与布局变量
+ * 由 SCnetLayout 根节点 .scnet-shell 注入，子页面继承 CSS 变量
+ */
+
+.scnet-shell {
+  --scnet-brand: #4f46e5;
+  --scnet-brand-light: #6366f1;
+  --scnet-accent: #0ea5e9;
+  --scnet-brand-muted: rgba(79, 70, 229, 0.1);
+  --scnet-surface: #f1f5f9;
+  --scnet-elevated: #ffffff;
+  --scnet-border: rgba(15, 23, 42, 0.08);
+  --scnet-text: #0f172a;
+  --scnet-text-secondary: #64748b;
+  --scnet-radius: 12px;
+  --scnet-radius-sm: 10px;
+  --scnet-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 4px 24px rgba(15, 23, 42, 0.06);
+  --scnet-sidenav-width: 200px;
+  --scnet-sidenav-collapsed: 64px;
+}
+
+.scnet-router-view {
+  flex: 1;
+  min-height: 0;
+  height: calc(100vh - 60px);
+  overflow: auto;
+  background: var(--scnet-surface);
+  box-sizing: border-box;
+}
+
+.scnet-page {
+  min-height: 100%;
+  box-sizing: border-box;
+  padding: 16px 20px 24px;
+}
+
+.scnet-page--embed {
+  padding: 0;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.scnet-page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 16px;
+  margin-bottom: 20px;
+  padding: 16px 18px;
+  background: var(--scnet-elevated);
+  border-radius: var(--scnet-radius);
+  border: 1px solid var(--scnet-border);
+  box-shadow: var(--scnet-shadow);
+}
+
+.scnet-page-header__titles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.scnet-page-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--scnet-text);
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+.scnet-page-sub {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--scnet-text-secondary);
+  max-width: 52rem;
+  line-height: 1.45;
+}
+
+.scnet-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.scnet-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: var(--scnet-elevated);
+  border-bottom: 1px solid var(--scnet-border);
+  box-shadow: var(--scnet-shadow);
+  flex-shrink: 0;
+  min-height: 52px;
+  gap: 12px;
+}
+
+.scnet-toolbar-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.scnet-toolbar-brand-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--scnet-text);
+  letter-spacing: -0.02em;
+}
+
+.scnet-toolbar-brand-sub {
+  font-size: 12px;
+  color: var(--scnet-text-secondary);
+}
+
+/* 侧栏：与主内容区协调 */
+.scnet-sidenav {
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  left: 0;
+  top: 0;
+  height: 100vh;
+  z-index: 1001;
+  background: var(--scnet-elevated);
+  border-right: 1px solid var(--scnet-border);
+  box-shadow: 2px 0 12px rgba(15, 23, 42, 0.04);
+}
+
+.scnet-sidenav__brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 10px 12px 12px;
+  min-height: 48px;
+  border-bottom: 1px solid var(--scnet-border);
+}
+
+.scnet-sidenav__brand-text {
+  color: var(--scnet-brand);
+  font-weight: 800;
+  font-size: 17px;
+  letter-spacing: -0.03em;
+}
+
+.scnet-sidenav__toggle {
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.scnet-sidenav__toggle:hover {
+  background: var(--scnet-brand-muted);
+}
+
+.scnet-sidenav__foot {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-top: 1px solid var(--scnet-border);
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--scnet-text-secondary);
+}
+
+.scnet-shell .scnet-sidenav .el-menu {
+  border-right: none;
+  background: transparent;
+}
+
+.scnet-shell .scnet-sidenav .el-menu-item {
+  margin: 2px 8px;
+  border-radius: 8px;
+  height: 44px;
+  line-height: 44px;
+}
+
+.scnet-shell .scnet-sidenav .el-menu-item.is-active {
+  background: var(--scnet-brand-muted) !important;
+  color: var(--scnet-brand) !important;
+  font-weight: 600;
+}
+
+.scnet-shell .scnet-sidenav .el-menu-item:hover {
+  background: rgba(79, 70, 229, 0.06);
+}
+
+.scnet-shell .scnet-router-view .el-card {
+  border-radius: var(--scnet-radius-sm);
+  border: 1px solid var(--scnet-border);
+  box-shadow: var(--scnet-shadow);
+}
+
+.scnet-shell .scnet-router-view .el-card__header {
+  border-bottom: 1px solid var(--scnet-border);
+}
+
+.knowledge-create-root {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
