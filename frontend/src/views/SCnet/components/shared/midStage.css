@@ -62,6 +62,26 @@
   font-family: var(--mid-font-sans);
 }
 
+/* 决策分析页面统一外框：滚动交给 SCnetLayout，页面本身只负责自然撑开内容。 */
+.analysis-workspace {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100%;
+  padding: 8px 0 32px;
+  gap: 12px;
+  overflow: visible;
+}
+.analysis-workspace > .analysis-link-tabs,
+.analysis-workspace > .analysis-hero {
+  flex-shrink: 0;
+}
+.analysis-workspace > .analysis-link-tabs {
+  margin-top: 0;
+}
+.analysis-workspace > .analysis-hero {
+  margin-top: 0;
+}
+
 /* 状态徽标 - idle / queued / running / completed */
 .status-pill {
   display: inline-flex;

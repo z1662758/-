@@ -568,13 +568,16 @@ import { Plus, Warning } from '@element-plus/icons-vue'
 import { getExperimentProgress, stopExperiment } from '@/api/scenarioModeling'
 import { unwrapApiData, assertApiSuccess } from '@/utils/apiEnvelope'
 import { getExperimentDetail } from '@/api/supplyChain'
+import {
+  parseTaskParams as parseParams,
+  resolveExperimentIdFromTask
+} from '@/utils/scnetTaskUtils'
 
 const router = useRouter()
 const store = useSupplyChainStore()
 
 const lastViewedTaskId = ref(localStorage.getItem('sc_lastViewedTaskId') || null)
 
-const parsedParamsCache = {}
 const recentQueuedTaskId = ref(localStorage.getItem('sc_recentQueuedTaskId') || '')
 
 const runningProgress = ref({
@@ -675,19 +678,6 @@ const runningStageText = computed(() => {
   }
   return txt
 })
-
-const parseParams = (paramsStr) => {
-  if (paramsStr == null || paramsStr === '') return null
-  if (typeof paramsStr === 'object') return paramsStr
-  if (parsedParamsCache[paramsStr]) return parsedParamsCache[paramsStr]
-  try {
-    const parsed = JSON.parse(paramsStr)
-    parsedParamsCache[paramsStr] = parsed
-    return parsed
-  } catch {
-    return null
-  }
-}
 
 const formatModelName = (model) => {
   const nameMap = {
@@ -802,11 +792,6 @@ const getDeltaClass = (value) => {
   if (n > 0) return 'delta-up'
   if (n < 0) return 'delta-down'
   return 'delta-flat'
-}
-
-const extractExperimentId = (resultPath) => {
-  const match = resultPath?.match(/multi_agent_report_(\d{8}_\d{6})\.json/)
-  return match ? match[1] : null
 }
 
 const formatParamValue = (value) => {
@@ -1028,8 +1013,8 @@ const buildAdjustedParamText = (paramsObj) => {
 }
 
 const isCurrentExperiment = (task) => {
-  if (!task.result_path || !currentExperimentId.value) return false
-  return extractExperimentId(task.result_path) === currentExperimentId.value
+  if (!currentExperimentId.value) return false
+  return resolveExperimentIdFromTask(task) === currentExperimentId.value
 }
 
 const buildIterationRows = (iterations) => {
@@ -1074,7 +1059,7 @@ const syncRecentQueuedMarker = () => {
 }
 
 const fetchTaskIterationData = async (task) => {
-  const experimentId = extractExperimentId(task?.result_path)
+  const experimentId = resolveExperimentIdFromTask(task)
   if (!experimentId) {
     throw new Error('无法解析实验ID')
   }
@@ -1244,7 +1229,7 @@ const viewExperiment = async (task) => {
       iconClass: 'el-icon-loading'
     })
 
-    const experimentId = extractExperimentId(task.result_path)
+    const experimentId = resolveExperimentIdFromTask(task)
 
     if (experimentId) {
       await store.selectExperiment(experimentId)

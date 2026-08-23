@@ -1,5 +1,5 @@
 <template>
-  <div class="mid-stage-bg gm-page">
+  <div class="mid-stage-bg gm-page analysis-workspace">
     <AnalysisLinkTabs active="gameTheory">
       <template #right>
         <el-select
@@ -464,9 +464,10 @@ function formatPayoff(cell) {
   flex-direction: column;
   gap: 10px;
   min-height: 100%;
-  padding: 4px 0 14px;
+  padding: 8px 0 32px;
   font-family: var(--mid-font-sans);
 }
+.gm-page.analysis-workspace { overflow: visible; }
 
 .game-empty {
   margin: 0 8px;

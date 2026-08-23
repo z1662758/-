@@ -1,5 +1,5 @@
 <template>
-  <div class="scenario-page mid-stage-bg scenario-console">
+  <div class="scenario-page mid-stage-bg scenario-console analysis-workspace">
     <AnalysisLinkTabs active="scenario">
       <template #right>
         <el-button plain size="small" @click="navigateTo(SCNET_ROUTES.interface)">
@@ -465,9 +465,10 @@ watch(activeWindowIndex, () => {
   flex-direction: column;
   gap: 10px;
   min-height: 100%;
-  padding-bottom: 10px;
+  padding: 8px 0 32px;
   font-family: var(--mid-font-sans);
 }
+.scenario-console.analysis-workspace { overflow: visible; }
 
 .scenario-summary-grid,
 .scenario-workbench {

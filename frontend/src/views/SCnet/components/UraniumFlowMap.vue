@@ -325,8 +325,8 @@ function buildRouteLineStyle(item) {
   const base = item.lineStyle || {}
   return {
     ...base,
-    width: Number(base.width || 2.4) + (isRouteFocusMode.value ? 1.1 : 0),
-    opacity: isRouteFocusMode.value ? 0.96 : 0.84
+    width: Math.min(2.8, Number(base.width || 1.8) + (isRouteFocusMode.value ? 0.7 : 0)),
+    opacity: isRouteFocusMode.value ? 0.92 : 0.68
   }
 }
 
@@ -378,11 +378,11 @@ function buildReferenceCorridorNodeStyle(route) {
   const active = !selectedStaticCorridorId.value || route.id === selectedStaticCorridorId.value
   // 陆运画实线（铁路/公路），海运画虚线（航段），多式联运画点划线（换装衔接）
   const dashType = route.type === 'land' ? 'solid' : (route.type === 'sea' ? 'dashed' : 'dotted')
-  const baseWidth = route.type === 'land' ? 3.2 : 2.6
+  const baseWidth = route.type === 'land' ? 2.1 : 1.7
   return {
     color: route.color,
-    width: active ? baseWidth : baseWidth - 0.8,
-    opacity: active ? 0.74 : 0.22,
+    width: active ? baseWidth : Math.max(1, baseWidth - 0.5),
+    opacity: active ? 0.58 : 0.14,
     type: dashType
   }
 }
@@ -592,8 +592,8 @@ function buildOption() {
         symbol: ['none', 'arrow'],
         symbolSize: 7,
         lineStyle: {
-          width: 2.6,
-          opacity: 0.82
+          width: 1.8,
+          opacity: 0.68
         },
         data: lineData.map((item) => ({
           coords: item.coords,
@@ -616,7 +616,7 @@ function buildOption() {
         z: 2.5,
         symbolSize: (_value, params) => params?.data?.symbolSize || 10,
         label: {
-          show: true,
+          show: Boolean(selectedStaticCorridorId.value),
           position: 'right',
           formatter: ({ data }) => {
             if (selectedStaticCorridorId.value) {
@@ -630,6 +630,7 @@ function buildOption() {
           borderRadius: 999,
           padding: [2, 6]
         },
+        emphasis: { label: { show: true } },
         data: referenceHubData.map((item) => buildReferenceHubNode(item))
       },
       {
@@ -639,7 +640,7 @@ function buildOption() {
         z: 3,
         symbolSize: (_value, params) => params?.data?.symbolSize || 10,
         label: {
-          show: true,
+          show: Boolean(activeRouteKey.value),
           position: 'right',
           formatter: ({ data }) => {
             if (activeRouteKey.value) return data?.raw?.routeKeys?.includes(activeRouteKey.value) ? data.name : ''
@@ -651,6 +652,7 @@ function buildOption() {
           borderRadius: 999,
           backgroundColor: 'rgba(255,255,255,0.76)'
         },
+        emphasis: { label: { show: true } },
         data: hubData.map((item) => buildHubNode(item))
       },
       {
@@ -660,7 +662,7 @@ function buildOption() {
         z: 3.5,
         symbolSize: (_value, params) => params?.data?.symbolSize || 10,
         label: {
-          show: true,
+          show: false,
           position: 'right',
           formatter: ({ data }) => data?.forceLabel ? data.name : '',
           color: '#0369a1',
@@ -669,6 +671,7 @@ function buildOption() {
           borderRadius: 999,
           padding: [2, 6]
         },
+        emphasis: { label: { show: true } },
         data: enterprisePortData.map((item) => buildEnterprisePortNode(item))
       },
       {
@@ -677,7 +680,7 @@ function buildOption() {
         coordinateSystem: 'geo',
         z: 4,
         label: {
-          show: true,
+          show: Boolean(activeRouteKey.value),
           position: 'right',
           formatter: ({ data }) => {
             if (activeRouteKey.value) return data?.forceLabel ? data.name : ''
@@ -689,6 +692,7 @@ function buildOption() {
           borderRadius: 999,
           padding: [2, 6]
         },
+        emphasis: { label: { show: true } },
         symbolSize: (_value, params) => params?.data?.symbolSize || 12,
         itemStyle: {
           color: '#22c55e',
@@ -704,7 +708,7 @@ function buildOption() {
         z: 5,
         symbolSize: (_value, params) => params?.data?.symbolSize || 12,
         label: {
-          show: true,
+          show: Boolean(activeRouteKey.value),
           position: 'right',
           formatter: ({ data }) => {
             if (activeRouteKey.value) return data?.forceLabel ? data.name : ''
@@ -713,6 +717,7 @@ function buildOption() {
           color: '#9a3412',
           fontSize: 10
         },
+        emphasis: { label: { show: true } },
         itemStyle: {
           color: '#f97316',
           borderColor: '#fff7ed',

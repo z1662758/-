@@ -40,6 +40,7 @@ export const ROUTE_TO_PHASE = Object.freeze({
   '/home/SCnet/expAnalysisDecisionTree': 'during',
   '/home/SCnet/expAnalysisScenario': 'during',
   '/home/SCnet/expAnalysisGameTheory': 'during',
+  '/home/SCnet/expAnalysisOverview': 'during',
 
   '/home/SCnet/expAnalysisObserve': 'post',
   '/home/SCnet/expAnalysisIntervention': 'post',

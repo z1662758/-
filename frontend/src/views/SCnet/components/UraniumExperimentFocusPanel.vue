@@ -8,7 +8,6 @@
       </div>
 
       <div class="focus-actions">
-        <el-tag size="small" type="info" effect="plain">{{ presetLabel }}</el-tag>
         <el-button size="small" link @click="emit('view-config')">查看全量配置</el-button>
         <el-button size="small" type="primary" @click="emit('view-experiment')">查看推演</el-button>
       </div>
@@ -31,7 +30,8 @@
           <span class="legend-chip emerald"><i></i>库存覆盖 (右轴)</span>
         </div>
       </div>
-      <div ref="chartRef" class="focus-chart"></div>
+      <div v-if="orderedRows.length" ref="chartRef" class="focus-chart"></div>
+      <el-empty v-else class="focus-chart-empty" description="等待产生迭代结果" :image-size="56" />
     </section>
   </section>
 </template>
@@ -87,23 +87,7 @@ const titleText = computed(() => (
 const subtitleText = computed(() => {
   const taskId = String(props.task?.task_id || '').trim()
   const shortTaskId = taskId.length > 18 ? `${taskId.slice(0, 14)}...` : taskId || '-'
-  const yearRange = `${props.experiment?.plan?.start_year ?? 2024} - ${props.experiment?.plan?.end_year ?? 2028}`
-  return `任务 ${shortTaskId} · 年窗 ${yearRange} · ${orderedRows.value.length || 0} 轮结果`
-})
-
-const presetLabel = computed(() => {
-  const presetName = props.experiment?.preset_name || props.experiment?.template_name || ''
-  const labelMap = {
-    baseline: '基准实验',
-    balanced: '平衡方案',
-    feedback_optimization: '反馈优化',
-    security_first: '保供优先',
-    cost_first: '成本优先',
-    shock_response: '冲击响应',
-    historical_replay: '历史复现',
-    extreme_shock: '极端冲击'
-  }
-  return labelMap[presetName] || presetName || '铀实验'
+  return `任务 ${shortTaskId} · ${orderedRows.value.length || 0} 轮结果`
 })
 
 const kpiCards = computed(() => [
@@ -127,7 +111,10 @@ const kpiCards = computed(() => [
   },
   {
     label: '最优库存覆盖',
-    value: formatUraniumMetricValue('final_inventory_coverage_years', bestInventoryRow.value?.inventory_coverage_years),
+    value: formatUraniumMetricValue(
+      'final_inventory_coverage_years',
+      bestInventoryRow.value?.final_inventory_coverage_years ?? bestInventoryRow.value?.inventory_coverage_years
+    ),
     hint: formatAchievementText(bestInventoryRow.value, '最佳库存结果'),
     tone: 'emerald'
   }
@@ -272,7 +259,12 @@ function normalizePercent(value) {
 }
 
 function renderChart() {
-  if (!chartRef.value || !orderedRows.value.length) return
+  if (!chartRef.value || !orderedRows.value.length) {
+    if (chartInstance) {
+      chartInstance.clear()
+    }
+    return
+  }
   if (!chartInstance) {
     chartInstance = echarts.init(chartRef.value)
     if (typeof ResizeObserver !== 'undefined') {
@@ -453,6 +445,14 @@ onUnmounted(() => {
   width: 100%;
   height: 240px;
   margin-top: 10px;
+}
+
+.focus-chart-empty {
+  height: 190px;
+  margin-top: 8px;
+  border: 1px dashed #dbe4f0;
+  border-radius: var(--mid-radius-sm);
+  background: #f8fafc;
 }
 
 @media (max-width: 1200px) {

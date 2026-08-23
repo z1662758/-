@@ -237,7 +237,7 @@ function resolveGeoCoordinate({ country, location, portTag } = {}) {
 
 function buildTransportStrokeWidth(quantity, baseWidth = 2.6) {
   const amount = Math.max(0, safeNumber(quantity, 0))
-  return clamp(baseWidth + Math.sqrt(amount) / 28, baseWidth, baseWidth + 3.4)
+  return clamp(baseWidth + Math.sqrt(amount) / 44, baseWidth, baseWidth + 1.6)
 }
 
 function createWaypoint(name, coord, kind, detail = '') {

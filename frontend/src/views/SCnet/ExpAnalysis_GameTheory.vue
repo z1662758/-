@@ -1,5 +1,5 @@
 <template>
-  <div class="gt-page">
+  <div class="gt-page analysis-workspace legacy-analysis-page">
     <!-- 工具栏 -->
     <div class="toolbar">
       <div class="tl-left">
@@ -312,9 +312,12 @@ onMounted(() => {
 
 <style scoped>
 .gt-page {
-  padding: 20px;
+  box-sizing: border-box;
+  padding: 16px 20px 32px;
   background: #f5f7fa;
   min-height: 100%;
+  height: auto;
+  overflow: visible;
 }
 
 .toolbar {

@@ -1,5 +1,5 @@
 <template>
-  <div class="mid-stage-bg dt-page dt-cockpit">
+  <div class="mid-stage-bg dt-page dt-cockpit analysis-workspace">
     <AnalysisLinkTabs active="decisionTree">
       <template #right>
         <el-button type="primary" size="small" @click="resetTreeView" :disabled="!isTreeReady">
@@ -954,13 +954,14 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .dt-page {
-  padding: 4px 0 16px;
+  padding: 8px 0 32px;
   min-height: 100%;
   display: flex;
   flex-direction: column;
   gap: 10px;
   font-family: var(--mid-font-sans);
 }
+.dt-page.analysis-workspace { overflow: visible; }
 
 .decision-empty {
   margin: 0 8px;

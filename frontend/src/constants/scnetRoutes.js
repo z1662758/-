@@ -31,6 +31,7 @@ export const SCNET_ROUTES = Object.freeze({
   expAnalysisGameTheory: `${SCNET_BASE}/expAnalysisGameTheory`,
   expAnalysisDecisionTree: `${SCNET_BASE}/expAnalysisDecisionTree`,
   expAnalysisScenario: `${SCNET_BASE}/expAnalysisScenario`,
+  expAnalysisOverview: `${SCNET_BASE}/expAnalysisOverview`,
 
   expAnalysisObserve: `${SCNET_BASE}/expAnalysisObserve`,
   expAnalysisIntervention: `${SCNET_BASE}/expAnalysisIntervention`,
@@ -39,6 +40,7 @@ export const SCNET_ROUTES = Object.freeze({
 })
 
 export const SCNET_DECISION_ROUTE_BY_TAB = Object.freeze({
+  overview: SCNET_ROUTES.expAnalysisOverview,
   gameTheory: SCNET_ROUTES.expAnalysisGameTheory,
   decisionTree: SCNET_ROUTES.expAnalysisDecisionTree,
   scenario: SCNET_ROUTES.expAnalysisScenario,

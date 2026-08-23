@@ -33,141 +33,89 @@
 
         <!-- ========== 事前：风险识别与预警 ========== -->
         <template v-if="currentPhase === 'pre'">
-          <el-menu-item :index="`/home/SCnet/situationAnalysis?scenario=${currentScenario}`">
-            <el-icon size="18"><DataLine/></el-icon>
-            <template #title>需求分析</template>
+          <el-menu-item
+            v-for="item in preMainMenuItems"
+            :key="item.index"
+            :index="item.index"
+          >
+            <el-icon size="18"><component :is="item.icon" /></el-icon>
+            <template #title>{{ item.label }}</template>
           </el-menu-item>
 
-          <el-menu-item :index="`/home/SCnet/openSourceIntelligence?scenario=${currentScenario}`">
-            <el-icon size="18"><WarningFilled/></el-icon>
-            <template #title>开源情报</template>
-          </el-menu-item>
-
-          <!-- <el-menu-item index="/home/SCnet/knowledgeCreate">
-            <el-icon size="18"><FolderOpened/></el-icon>
-            <template #title>数据集管理</template>
-          </el-menu-item> -->
-
-          <el-menu-item :index="`/home/SCnet/knowledgeGraph?scenario=${currentScenario}`">
-            <el-icon size="18"><Collection/></el-icon>
-            <template #title>本体网络</template>
-          </el-menu-item>
-
-          <!-- <el-menu-item index="/home/SCnet/oilSituationAnalysis">
-            <el-icon size="18"><Document/></el-icon>
-            <template #title>知识库</template>
-          </el-menu-item> -->
-
-          <!-- <el-menu-item index="/home/SCnet/openSourceIntelligence">
-            <el-icon size="18"><Search/></el-icon>
-            <template #title>开源情报</template>
-          </el-menu-item> -->
-
-          <el-sub-menu index="during-analysis">
+          <el-sub-menu index="pre-analysis">
             <template #title>
               <el-icon size="18"><DataAnalysis/></el-icon>
               <span>态势分析</span>
             </template>
-            <el-menu-item :index="`/home/SCnet/situationJudge?scenario=${currentScenario}`">
-              <el-icon size="18"><DataLine/></el-icon>
-              <template #title>态势研判</template>
+            <el-menu-item
+              v-for="item in preAnalysisMenuItems"
+              :key="item.index"
+              :index="item.index"
+            >
+              <el-icon size="18"><component :is="item.icon" /></el-icon>
+              <template #title>{{ item.label }}</template>
             </el-menu-item>
-            <el-menu-item :index="`/home/SCnet/situationResearch-main?scenario=${currentScenario}`">
-              <el-icon size="18"><Promotion/></el-icon>
-              <template #title>态势预测</template>
-            </el-menu-item>
-            <!-- 结果校验暂时注释
-            <el-menu-item :index="`/home/SCnet/resultVerification?scenario=${currentScenario}`">
-              <el-icon size="18"><CircleCheck/></el-icon>
-              <template #title>结果验证</template>
-            </el-menu-item>
-            -->
           </el-sub-menu>
-          <el-menu-item :index="`/home/SCnet/reportGeneration?scenario=${currentScenario}`">
-            <el-icon size="18"><Document/></el-icon>
-            <template #title>报告生成</template>
+          <el-menu-item
+            v-for="item in preTailMenuItems"
+            :key="item.index"
+            :index="item.index"
+          >
+            <el-icon size="18"><component :is="item.icon" /></el-icon>
+            <template #title>{{ item.label }}</template>
           </el-menu-item>
         </template>
 
         <!-- ========== 事中：应急响应与调度 ========== -->
         <template v-else-if="currentPhase === 'during'">
-          <!--
-            事中入口已收敛到「对话首页 · 事中决策」：在那里输入问题即建会话并直接进入想定生成分析，
-            所以铀场景这里直接指向分析页，不再有单独的「想定生成」需求输入步骤。
-            汽车场景的想定生成仍是 5 步向导（另一套 store），保留其入口。
-          -->
           <el-menu-item
-            v-if="currentScenario === 'uranium'"
-            :index="`/home/SCnet/scenarioAnalysis?scenario=${currentScenario}`"
+            v-for="item in duringMainMenuItems"
+            :key="item.index"
+            :index="item.index"
           >
-            <el-icon size="18"><Edit/></el-icon>
-            <template #title>想定生成分析</template>
-          </el-menu-item>
-          <el-menu-item v-else :index="`/home/SCnet/scenarioModeling?scenario=${currentScenario}`">
-            <el-icon size="18"><Edit/></el-icon>
-            <template #title>想定生成分析</template>
-          </el-menu-item>
-          <el-menu-item :index="`/home/SCnet/experimentManager?scenario=${currentScenario}`">
-            <el-icon size="18"><Monitor/></el-icon>
-            <template #title>实验运行</template>
-          </el-menu-item>
-          <el-menu-item :index="`/home/SCnet/interface?scenario=${currentScenario}`">
-            <el-icon size="18"><Place/></el-icon>
-            <template #title>推演界面</template>
+            <el-icon size="18"><component :is="item.icon" /></el-icon>
+            <template #title>{{ item.label }}</template>
           </el-menu-item>
           <el-sub-menu index="during-analysis">
             <template #title>
               <el-icon size="18"><DataAnalysis/></el-icon>
               <span>决策分析</span>
             </template>
-            <el-menu-item :index="`/home/SCnet/expAnalysisGameTheory?scenario=${currentScenario}`">
-              <el-icon size="18"><Grid/></el-icon>
-              <template #title>博弈论分析</template>
+            <el-menu-item
+              v-for="item in duringAnalysisMenuItems"
+              :key="item.index"
+              :index="item.index"
+            >
+              <el-icon size="18"><component :is="item.icon" /></el-icon>
+              <template #title>{{ item.label }}</template>
             </el-menu-item>
-            <el-menu-item :index="`/home/SCnet/expAnalysisDecisionTree?scenario=${currentScenario}`">
-              <el-icon size="18"><Promotion/></el-icon>
-              <template #title>决策树分析</template>
-            </el-menu-item>
-            <el-menu-item :index="`/home/SCnet/expAnalysisScenario?scenario=${currentScenario}`">
-              <el-icon size="18"><TrendCharts/></el-icon>
-              <template #title>情景分析</template>
-            </el-menu-item>
-
           </el-sub-menu>
-
-
         </template>
 
         <!-- ========== 事后：复盘优化与重构 ========== -->
-        
         <template v-else-if="currentPhase === 'post'">
-          <el-menu-item index="/home/SCnet/counterfactualExperiment">
-            <el-icon size="18"><PieChart/></el-icon>
-            <template #title>反事实实验</template>
+          <el-menu-item
+            v-for="item in postMainMenuItems"
+            :key="item.index"
+            :index="item.index"
+          >
+            <el-icon size="18"><component :is="item.icon" /></el-icon>
+            <template #title>{{ item.label }}</template>
           </el-menu-item>
           <el-sub-menu index="post-analysis">
             <template #title>
               <el-icon size="18"><DataAnalysis/></el-icon>
               <span>实验分析</span>
             </template>
-            <el-menu-item index="/home/SCnet/expAnalysisObserve">
-              <el-icon size="18"><Search/></el-icon>
-              <template #title>观察分析</template>
-            </el-menu-item>
-            <el-menu-item index="/home/SCnet/expAnalysisIntervention">
-              <el-icon size="18"><Operation/></el-icon>
-              <template #title>干预分析</template>
-            </el-menu-item>
-            <el-menu-item index="/home/SCnet/expAnalysisMechanism">
-              <el-icon size="18"><ScaleToOriginal/></el-icon>
-              <template #title>机制与因果</template>
+            <el-menu-item
+              v-for="item in postAnalysisMenuItems"
+              :key="item.index"
+              :index="item.index"
+            >
+              <el-icon size="18"><component :is="item.icon" /></el-icon>
+              <template #title>{{ item.label }}</template>
             </el-menu-item>
           </el-sub-menu>
-
-          <el-menu-item index="/home/SCnet/EXreport">
-            <el-icon size="18"><Postcard/></el-icon>
-            <template #title>供应链实验报告</template>
-          </el-menu-item>
         </template>
 
         <!-- index 不可为 "0"：router 模式下会执行 router.push("0") 导致无法访问 -->
@@ -178,8 +126,8 @@
       </el-menu>
       <div style="height: 60px; width: 100%; display: flex; align-items: center; border-right: #DCDFE6 1px solid">
         <img src="../assets/images/gameImg.png" style="width: 20px; height: 20px; margin-left: 20px" alt="SCnet"/>
-        <transition name="fade-delay" v-show="!isCollapse">
-          <div style="height: 100%; display: flex; align-items: center">
+        <transition name="fade-delay">
+          <div v-show="!isCollapse" style="height: 100%; display: flex; align-items: center">
             <span style="margin-left: 0.5rem; color: #606266; font-weight: bold; transition: opacity 3s ease 3s;">供应链</span>
             <el-button circle size="default" style="margin-left: 2.5rem" color="rgb(248, 152, 152)" plain @click="exit()">
               <el-icon><SwitchButton/></el-icon>
@@ -189,8 +137,10 @@
       </div>
     </div>
     <div :class="isCollapse ? 'body-pos-shrink' : 'body-pos-expand'">
-      <Header style="flex-shrink: 0; z-index: 2000"/>
-      <router-view class="scnet-router-view"/>
+      <AppHeader style="flex-shrink: 0; z-index: 2000"/>
+      <div class="scnet-router-host">
+        <router-view />
+      </div>
     </div>
 
     <!-- 事中阶段：右侧悬浮流程步骤条（对齐学长 PowerGame 实现） -->
@@ -213,15 +163,15 @@
 
 <script>
 import {
-  Aim, Box, Coin, Collection, Connection, DataAnalysis, DataLine, Document, DocumentDelete, Edit,
-  Filter, FolderOpened, Grid, House, Memo, Monitor, Notification, Odometer, Operation, Orange,
-  PieChart, Place, Postcard, Promotion, ScaleToOriginal, Search, Setting, Share,
+  Aim, Box, Coin, Collection, DataAnalysis, DataLine, Document, DocumentDelete, Edit,
+  FolderOpened, Grid, House, Memo, Monitor, Notification, Odometer, Operation, Orange,
+  PieChart, Place, Postcard, Promotion, ScaleToOriginal, Search as SearchIcon, Setting,
   SwitchButton, TrendCharts, User, WarningFilled, ChatDotSquare, CircleCheck
 } from "@element-plus/icons-vue";
 import {ref, onMounted, onUnmounted, computed, watch} from "vue";
 import {useRoute, useRouter} from "vue-router";
 import {Files, Refresh} from "@element-plus/icons-vue";
-import Header from "@/components/Header.vue";
+import AppHeader from "@/components/Header.vue";
 import EventPhaseStepper from "@/components/EventPhaseStepper.vue";
 import { useDuringFlowSteps, routeToStepKey } from "@/views/SCnet/composables/useDuringFlowSteps";
 import {
@@ -230,6 +180,42 @@ import {
 } from "@/views/SCnet/composables/useDuringFlowSteps_uranium";
 import { useScenarioStore } from "@/stores/scenario";
 import { PHASE_EVENT, PHASE_STORAGE_KEY, ROUTE_TO_PHASE } from "@/constants/scnetPhase";
+
+const PRE_MAIN_MENU_ITEMS = Object.freeze([
+  { index: '/home/SCnet/situationAnalysis', label: '需求分析', icon: DataLine },
+  { index: '/home/SCnet/openSourceIntelligence', label: '开源情报', icon: WarningFilled },
+  { index: '/home/SCnet/knowledgeGraph', label: '本体网络', icon: Collection },
+  { index: '/home/SCnet/reportGeneration', label: '报告生成', icon: Document }
+])
+
+const PRE_ANALYSIS_MENU_ITEMS = Object.freeze([
+  { index: '/home/SCnet/situationJudge', label: '态势研判', icon: DataLine },
+  { index: '/home/SCnet/situationResearch-main', label: '态势预测', icon: Promotion }
+])
+
+const DURING_MAIN_MENU_ITEMS = Object.freeze([
+  { path: 'scenario', key: 'scenario', label: '想定生成分析', icon: Edit },
+  { index: '/home/SCnet/experimentManager', label: '实验运行', icon: Monitor },
+  { index: '/home/SCnet/interface', label: '推演界面', icon: Place }
+])
+
+const DURING_ANALYSIS_MENU_ITEMS = Object.freeze([
+  { index: '/home/SCnet/expAnalysisOverview', label: '结论总览', icon: Odometer },
+  { index: '/home/SCnet/expAnalysisGameTheory', label: '博弈论分析', icon: Grid },
+  { index: '/home/SCnet/expAnalysisDecisionTree', label: '决策树分析', icon: Promotion },
+  { index: '/home/SCnet/expAnalysisScenario', label: '情景分析', icon: TrendCharts }
+])
+
+const POST_MAIN_MENU_ITEMS = Object.freeze([
+  { index: '/home/SCnet/counterfactualExperiment', label: '反事实实验', icon: PieChart },
+  { index: '/home/SCnet/EXreport', label: '供应链实验报告', icon: Postcard }
+])
+
+const POST_ANALYSIS_MENU_ITEMS = Object.freeze([
+  { index: '/home/SCnet/expAnalysisObserve', label: '观察分析', icon: SearchIcon },
+  { index: '/home/SCnet/expAnalysisIntervention', label: '干预分析', icon: Operation },
+  { index: '/home/SCnet/expAnalysisMechanism', label: '机制与因果', icon: ScaleToOriginal }
+])
 
 export default {
   name: "SCnetLayout",
@@ -240,8 +226,8 @@ export default {
     Edit,
     EventPhaseStepper,
     Refresh, Files, DataAnalysis, DataLine, DocumentDelete, House, Aim, Box, Collection,
-    Document, Notification, Operation, Postcard, Promotion, ScaleToOriginal, Search, Setting,
-    Coin, PieChart, Filter, FolderOpened, Grid, Odometer, SwitchButton, Orange, TrendCharts, User, Header, WarningFilled, ChatDotSquare, CircleCheck
+    Document, Notification, Operation, Postcard, Promotion, ScaleToOriginal, SearchIcon, Setting,
+    Coin, PieChart, FolderOpened, Grid, Odometer, SwitchButton, Orange, TrendCharts, User, AppHeader, WarningFilled, ChatDotSquare, CircleCheck
   },
   setup() {
     const route = useRoute()
@@ -249,10 +235,10 @@ export default {
     const activeIndex = ref('1')
     const storedPhase = ref(localStorage.getItem(PHASE_STORAGE_KEY) || '')
 
-    // currentPhase 优先读 localStorage，若为空则根据当前路由推断
+    // currentPhase 优先按当前路由推断，避免旧的 localStorage 状态把菜单带偏；
+    // 仅当路由无法识别时再回落到 localStorage。
     const currentPhase = computed(() => {
-      if (storedPhase.value) return storedPhase.value
-      return ROUTE_TO_PHASE[route.path] || ''
+      return ROUTE_TO_PHASE[route.path] || storedPhase.value || ''
     })
 
     // ── 场景感知：从 URL 或 store 获取当前场景 ──
@@ -340,6 +326,26 @@ export default {
       currentPhase,
       currentScenario,
       scenarioLabel,
+      preMainMenuItems: computed(() => PRE_MAIN_MENU_ITEMS.map((item) => ({
+        ...item,
+        index: `${item.index}?scenario=${currentScenario.value}`
+      }))),
+      preAnalysisMenuItems: computed(() => PRE_ANALYSIS_MENU_ITEMS.map((item) => ({
+        ...item,
+        index: `${item.index}?scenario=${currentScenario.value}`
+      }))),
+      duringMainMenuItems: computed(() => DURING_MAIN_MENU_ITEMS.map((item) => ({
+        ...item,
+        index: item.path === 'scenario'
+          ? `/home/SCnet/${isUraniumScenario.value ? 'scenarioAnalysis' : 'scenarioModeling'}?scenario=${currentScenario.value}`
+          : `${item.index}?scenario=${currentScenario.value}`
+      }))),
+      duringAnalysisMenuItems: computed(() => DURING_ANALYSIS_MENU_ITEMS.map((item) => ({
+        ...item,
+        index: `${item.index}?scenario=${currentScenario.value}`
+      }))),
+      postMainMenuItems: POST_MAIN_MENU_ITEMS,
+      postAnalysisMenuItems: POST_ANALYSIS_MENU_ITEMS,
       duringSteps,
       duringCurrentKey,
       showDuringFlowStepper,
@@ -405,6 +411,8 @@ export default {
   flex-direction: column;
   flex: 1;
   min-width: 0;
+  min-height: 0;
+  height: 100vh;
   width: calc(100vw - 200px);
   max-width: calc(100vw - 200px);
   margin-left: 200px;
@@ -416,17 +424,29 @@ export default {
   flex-direction: column;
   flex: 1;
   min-width: 0;
+  min-height: 0;
+  height: 100vh;
   width: calc(100vw - 64px);
   max-width: calc(100vw - 64px);
   margin-left: 64px;
   transition: all 0.3s ease-in-out;
 }
 
-.scnet-router-view {
-  flex: 1;
+.scnet-router-host {
+  flex: 1 1 auto;
   min-height: 0;
-  height: calc(100vh - 60px);
-  overflow: auto;
+  height: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  background: #f1f5f9;
+}
+
+.scnet-router-host > * {
+  display: block;
+  width: 100%;
+  min-height: 100%;
+  box-sizing: border-box;
 }
 
 .fade-delay-enter-active {

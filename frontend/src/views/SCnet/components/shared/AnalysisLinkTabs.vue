@@ -41,13 +41,14 @@ const props = defineProps({
   active: {
     type: String,
     required: true,
-    validator: v => ['gameTheory', 'decisionTree', 'scenario'].includes(v)
+    validator: v => ['overview', 'gameTheory', 'decisionTree', 'scenario'].includes(v)
   }
 })
 
 const router = useRouter()
 
 const tabs = computed(() => [
+  { value: 'overview',    label: '总览',   icon: markRaw(DataAnalysis) },
   { value: 'gameTheory',   label: '博弈论', icon: markRaw(Grid) },
   { value: 'decisionTree', label: '决策树', icon: markRaw(Promotion) },
   { value: 'scenario',     label: '情景',   icon: markRaw(TrendCharts) }
@@ -59,7 +60,7 @@ watch(() => props.active, v => { activeRef.value = v })
 function handleChange(value) {
   if (value === props.active) return
   const target = SCNET_DECISION_ROUTE_BY_TAB[value]
-  if (target) router.push(target)
+  if (target) router.push({ path: target, query: router.currentRoute.value.query })
 }
 </script>
 

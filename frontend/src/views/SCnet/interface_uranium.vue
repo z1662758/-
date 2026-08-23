@@ -20,7 +20,6 @@
       <template #center>
         <div v-if="isUraniumMode" class="uranium-header-context">
           <span>{{ uraniumActiveYearLabel }}</span>
-          <strong>{{ uraniumPresetLabel }}</strong>
         </div>
       </template>
       <template #right>
@@ -308,20 +307,6 @@ const uraniumFocusedRoute = computed(() => (
   uraniumRouteRows.value.find((item) => getUraniumRouteKey(item) === uraniumFocusedRouteKey.value)
   || null
 ))
-const uraniumPresetLabel = computed(() => {
-  const presetName = uraniumExperiment.value?.preset_name || uraniumExperiment.value?.template_name || ''
-  const labelMap = {
-    baseline: '基准实验',
-    balanced: '平衡方案',
-    feedback_optimization: '反馈优化',
-    security_first: '保供优先',
-    cost_first: '成本优先',
-    shock_response: '冲击响应',
-    historical_replay: '历史复现',
-    extreme_shock: '极端冲击'
-  }
-  return labelMap[presetName] || presetName || '铀实验'
-})
 const uraniumCorridorRows = computed(() => URANIUM_CORRIDOR_ROWS)
 const uraniumTransportHubRows = computed(() => URANIUM_TRANSPORT_HUB_ROWS)
 const uraniumSelectedStaticCorridor = computed(() => (
@@ -418,7 +403,7 @@ const uraniumFocusedRouteFacts = computed(() => {
 const headerTitle = '铀供应链推演界面'
 const headerSubtitle = computed(() => (
   isUraniumMode.value
-    ? `${uraniumPresetLabel.value} · ${uraniumYearRows.value.length} 个年度窗口`
+    ? `${uraniumYearRows.value.length} 个年度窗口`
     : '等待选择实验'
 ))
 

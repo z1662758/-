@@ -66,8 +66,7 @@
               <span class="progress-kicker">运行中任务</span>
               <div class="progress-hero-title">{{ truncateGoal(runningTask?.user_goal || '当前实验任务运行中') }}</div>
               <div class="progress-hero-meta">
-                <span class="progress-hero-pill primary">{{ getUraniumPresetLabel(runningTask) }}</span>
-                <span class="progress-hero-pill">{{ getUraniumYearRangeLabel(runningTask) }}</span>
+                <span class="progress-hero-pill primary">铀供应链仿真</span>
               </div>
             </div>
           </div>
@@ -85,17 +84,6 @@
               :status="runningProgress.total > 0 && runningProgress.completed >= runningProgress.total ? 'success' : ''"
               :stroke-width="16"
             />
-          </div>
-
-          <div class="progress-brief-grid">
-            <div class="progress-brief-item">
-              <span>已用时</span>
-              <strong>{{ formatDuration(runningProgress.elapsed_time) }}</strong>
-            </div>
-            <div class="progress-brief-item">
-              <span>预计剩余</span>
-              <strong>{{ runningProgress.estimated_remaining != null ? formatDuration(runningProgress.estimated_remaining) : '-' }}</strong>
-            </div>
           </div>
 
           <div v-if="progressAdjustmentRows.length" class="progress-adjust-inline">
@@ -118,8 +106,7 @@
               <span class="progress-kicker">排队任务</span>
               <div class="progress-hero-title">{{ truncateGoal(pendingTask?.user_goal || '待执行实验任务') }}</div>
               <div class="progress-hero-meta">
-                <span class="progress-hero-pill warning">{{ getUraniumPresetLabel(pendingTask) }}</span>
-                <span class="progress-hero-pill">{{ getUraniumYearRangeLabel(pendingTask) }}</span>
+                <span class="progress-hero-pill warning">等待执行</span>
               </div>
             </div>
             <div class="progress-hero-side">
@@ -128,21 +115,10 @@
             </div>
           </div>
 
-          <div class="progress-brief-grid">
-            <div class="progress-brief-item">
-              <span>任务 ID</span>
-              <strong class="mono" :title="pendingTask.task_id">{{ formatShortId(pendingTask.task_id) }}</strong>
-            </div>
-            <div class="progress-brief-item">
-              <span>排队任务数</span>
-              <strong>{{ overviewStats.pending || 0 }}</strong>
-            </div>
-            <div class="progress-brief-item">
-              <span>预计等待</span>
-              <strong>{{ pendingEstimatedSeconds != null ? formatDuration(pendingEstimatedSeconds) : '-' }}</strong>
-            </div>
+          <div class="progress-pending-meta">
+            <span>队列第 {{ pendingPosition || '-' }} 位</span>
+            <span class="mono" :title="pendingTask.task_id">{{ formatShortId(pendingTask.task_id) }}</span>
           </div>
-          <div class="progress-note info">任务已提交，页面会自动刷新并接管下一轮运行状态。</div>
         </div>
 
         <el-empty
@@ -189,14 +165,56 @@
           </div>
         </template>
 
+        <div class="ledger-toolbar">
+          <div class="ledger-toolbar-main">
+            <el-input
+              v-model="ledgerQuery"
+              class="ledger-search"
+              clearable
+              placeholder="搜索目标、任务 ID 或实验 ID"
+              :prefix-icon="Search"
+            />
+            <el-select v-model="ledgerStatus" class="ledger-status-select" placeholder="全部状态">
+              <el-option label="全部状态" value="all" />
+              <el-option label="运行中" value="running" />
+              <el-option label="排队中" value="pending" />
+              <el-option label="已完成" value="completed" />
+              <el-option label="失败" value="failed" />
+              <el-option label="已取消" value="cancelled" />
+            </el-select>
+            <el-select v-model="ledgerSort" class="ledger-sort-select" :prefix-icon="Sort">
+              <el-option label="最近创建" value="created_desc" />
+              <el-option label="最早创建" value="created_asc" />
+              <el-option label="状态优先" value="status" />
+            </el-select>
+          </div>
+          <div class="ledger-toolbar-actions">
+            <span class="ledger-result-count">
+              显示 {{ filteredTaskRows.length }} / {{ displayTaskRows.length }} 条
+            </span>
+            <el-button text size="small" :disabled="!hasLedgerFilters" @click="resetLedgerFilters">
+              清除筛选
+            </el-button>
+            <el-button text size="small" :loading="refreshing" @click="refreshLedger">
+              <el-icon><Refresh /></el-icon>
+              刷新
+            </el-button>
+          </div>
+        </div>
+
         <div v-if="displayTaskRows.length === 0" class="empty-list">
           <el-empty description="暂无实验任务" :image-size="100" />
+        </div>
+        <div v-else-if="filteredTaskRows.length === 0" class="empty-list filtered-empty">
+          <el-empty description="没有匹配的实验任务" :image-size="80">
+            <el-button type="primary" plain size="small" @click="resetLedgerFilters">清除筛选</el-button>
+          </el-empty>
         </div>
 
         <template v-else>
           <div class="ledger-list">
             <article
-              v-for="row in displayTaskRows"
+              v-for="row in filteredTaskRows"
               :key="row.task_id"
               class="ledger-record"
               :class="[
@@ -220,15 +238,7 @@
                   </div>
                   <h4 class="ledger-record-title">{{ truncateGoal(row.user_goal) }}</h4>
                   <div class="plan-chip-row">
-                    <template v-if="isUraniumTask(row)">
-                      <el-tag size="small" type="success" effect="plain" class="plan-chip" round>
-                        {{ getUraniumPresetLabel(row) }}
-                      </el-tag>
-                      <el-tag size="small" type="info" effect="plain" class="plan-chip" round>
-                        {{ getUraniumYearRangeLabel(row) }}
-                      </el-tag>
-                    </template>
-                    <el-tag v-else size="small" type="success" effect="plain" class="plan-chip" round>
+                    <el-tag v-if="!isUraniumTask(row)" size="small" type="success" effect="plain" class="plan-chip" round>
                       {{ formatModelName(parseParams(row.params)?.model) }}
                     </el-tag>
                     <el-tag
@@ -357,7 +367,9 @@
                   type="primary"
                   @click="toggleTaskExpansion(row)"
                 >
-                  {{ expandRowKeys.includes(row.task_id) ? '收起迭代日志' : '展开迭代日志' }}
+                  <el-icon v-if="expandRowKeys.includes(row.task_id)"><ArrowUp /></el-icon>
+                  <el-icon v-else><ArrowDown /></el-icon>
+                  {{ expandRowKeys.includes(row.task_id) ? '收起日志' : '展开日志' }}
                 </el-button>
               </div>
 
@@ -538,7 +550,12 @@ import {
   Setting,
   Connection,
   More,
-  CopyDocument
+  CopyDocument,
+  Search,
+  Sort,
+  Refresh,
+  ArrowDown,
+  ArrowUp
 } from '@element-plus/icons-vue'
 import './components/shared/midStage.css'
 import MidStagePageHeader from './components/shared/MidStagePageHeader.vue'
@@ -553,6 +570,13 @@ import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 import {
   formatUraniumMetricValue
 } from '@/utils/uraniumDuringAdapter'
+import {
+  getTaskParams,
+  isUraniumTask,
+  normalizeScenarioName,
+  parseTaskParams as parseParams,
+  resolveExperimentIdFromTask
+} from '@/utils/scnetTaskUtils'
 
 const router = useRouter()
 const store = useSupplyChainStore()
@@ -572,7 +596,6 @@ function navigateFromBanner(path) {
   router.push(path)
 }
 
-const parsedParamsCache = {}
 const recentQueuedTaskId = ref(localStorage.getItem('sc_recentQueuedTaskId') || '')
 
 const runningProgress = ref({
@@ -615,6 +638,10 @@ const openRoundDrawer = (row) => {
 const currentUraniumExperimentId = computed(() => demoStore.selectedExperimentId)
 const taskHistory = computed(() => demoStore.taskRows || [])
 const uraniumHistory = computed(() => demoStore.history || [])
+const ledgerQuery = ref('')
+const ledgerStatus = ref('all')
+const ledgerSort = ref('created_desc')
+const refreshing = ref(false)
 
 const uraniumQueueRows = computed(() => (
   taskHistory.value.filter((item) => isUraniumTask(item) && item.status !== 'completed')
@@ -661,6 +688,41 @@ const displayTaskRows = computed(() => {
   ]
 })
 
+const filteredTaskRows = computed(() => {
+  const query = ledgerQuery.value.trim().toLowerCase()
+  const status = ledgerStatus.value
+  const statusOrder = { running: 0, pending: 1, failed: 2, completed: 3, cancelled: 4 }
+  return displayTaskRows.value
+    .filter((row) => {
+      if (status !== 'all' && row.status !== status) return false
+      if (!query) return true
+      return [
+        row.user_goal,
+        row.task_id,
+        row.experiment_id,
+        resolveExperimentIdFromTask(row)
+      ].some((value) => String(value || '').toLowerCase().includes(query))
+    })
+    .sort((a, b) => {
+      if (ledgerSort.value === 'status') {
+        return (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9)
+      }
+      const aTime = new Date(a.created_at || 0).getTime()
+      const bTime = new Date(b.created_at || 0).getTime()
+      return ledgerSort.value === 'created_asc' ? aTime - bTime : bTime - aTime
+    })
+})
+
+const hasLedgerFilters = computed(() => (
+  Boolean(ledgerQuery.value.trim()) || ledgerStatus.value !== 'all' || ledgerSort.value !== 'created_desc'
+))
+
+const resetLedgerFilters = () => {
+  ledgerQuery.value = ''
+  ledgerStatus.value = 'all'
+  ledgerSort.value = 'created_desc'
+}
+
 const runningTask = computed(() => {
   return uraniumQueueRows.value.find(t => t.status === 'running') || null
 })
@@ -682,11 +744,6 @@ const pendingPosition = computed(() => {
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
   const idx = pendingRows.findIndex(t => t.task_id === pendingTask.value.task_id)
   return idx >= 0 ? idx + 1 : null
-})
-
-const pendingEstimatedSeconds = computed(() => {
-  if (!pendingPosition.value) return null
-  return pendingPosition.value * 12 * 60
 })
 
 const showRunningSection = computed(() => {
@@ -749,61 +806,11 @@ const runningStageText = computed(() => {
   return txt
 })
 
-const parseParams = (paramsStr) => {
-  if (paramsStr == null || paramsStr === '') return null
-  if (typeof paramsStr === 'object') return paramsStr
-  if (parsedParamsCache[paramsStr]) return parsedParamsCache[paramsStr]
-  try {
-    const parsed = JSON.parse(paramsStr)
-    parsedParamsCache[paramsStr] = parsed
-    return parsed
-  } catch {
-    return null
-  }
-}
-
 const formatModelName = (model) => {
   const nameMap = {
     qwen: 'Qwen', deepseek: 'DeepSeek', kimi: 'Kimi', glm: 'GLM'
   }
   return nameMap[model] || model || '-'
-}
-
-const normalizeScenarioName = (value) => {
-  const normalized = String(value || '').trim().toLowerCase().replace(/-/g, '_')
-  if (['uranium', 'uranium_supply_chain', 'nuclear_fuel', 'nuclearfuel'].includes(normalized)) return 'uranium'
-  if (['automotive', 'supply_chain', 'supplychain', 'car', 'auto'].includes(normalized)) return 'automotive'
-  return normalized || 'automotive'
-}
-
-const getTaskParams = (task) => parseParams(task?.params) || {}
-const isUraniumTask = (task) => normalizeScenarioName(getTaskParams(task).scenario) === 'uranium'
-
-const getUraniumPresetName = (task) => {
-  const params = getTaskParams(task)
-  return params.preset_name || params.template_name || 'baseline'
-}
-
-const getUraniumPresetLabel = (task) => {
-  const presetName = String(getUraniumPresetName(task)).trim()
-  const labelMap = {
-    baseline: '基准实验',
-    balanced: '平衡方案',
-    feedback_optimization: '反馈优化',
-    security_first: '保供优先',
-    cost_first: '成本优先',
-    shock_response: '冲击响应',
-    historical_replay: '历史复现',
-    extreme_shock: '极端冲击'
-  }
-  return labelMap[presetName] || presetName || '-'
-}
-
-const getUraniumYearRangeLabel = (task) => {
-  const params = getTaskParams(task)
-  const startYear = params.start_year ?? '-'
-  const endYear = params.end_year ?? '-'
-  return `${startYear} - ${endYear}`
 }
 
 const taskIterationsMap = ref({})
@@ -1074,17 +1081,6 @@ const getTaskLifecycleText = (task) => {
   return `创建于 ${formatTime(task.created_at)}`
 }
 
-const formatDuration = (seconds) => {
-  if (seconds == null || Number.isNaN(Number(seconds))) return '-'
-  const total = Math.max(0, Math.floor(Number(seconds)))
-  const h = Math.floor(total / 3600)
-  const m = Math.floor((total % 3600) / 60)
-  const s = total % 60
-  if (h > 0) return `${h}h ${m}m`
-  if (m > 0) return `${m}m ${s}s`
-  return `${s}s`
-}
-
 const formatScore = (score) => {
   if (score == null || Number.isNaN(Number(score))) return '-'
   return Number(score).toFixed(3)
@@ -1104,24 +1100,6 @@ const isNativePlanner = (plannerStrategy) => {
 const formatInteger = (value) => {
   if (value == null || Number.isNaN(Number(value))) return '-'
   return Math.round(Number(value)).toLocaleString('zh-CN')
-}
-
-const extractExperimentId = (resultPath) => {
-  const automotiveMatch = resultPath?.match(/multi_agent_report_(\d{8}_\d{6})\.json/)
-  if (automotiveMatch) return automotiveMatch[1]
-  const uraniumMatch = resultPath?.match(/uranium_during_([^/]+)\.json/)
-  return uraniumMatch ? uraniumMatch[1] : null
-}
-
-const resolveExperimentIdFromTask = (task) => {
-  if (!task || typeof task !== 'object') return null
-  const directId = task.experiment_id || task.experimentId
-  if (directId) return String(directId)
-  const params = getTaskParams(task)
-  if (params.experiment_id || params.experimentId) {
-    return String(params.experiment_id || params.experimentId)
-  }
-  return extractExperimentId(task.result_path)
 }
 
 const formatParamValue = (value) => {
@@ -1430,13 +1408,23 @@ const copyTaskConfigId = async () => {
 }
 
 const refreshData = async () => {
+  if (refreshing.value) return
+  refreshing.value = true
   try {
     await demoStore.ensureInitialized()
     syncRecentQueuedMarker()
   } catch (error) {
     console.error('刷新数据失败:', error)
     ElMessage.error('刷新失败')
+  } finally {
+    refreshing.value = false
   }
+}
+
+const refreshLedger = async () => {
+  await refreshData()
+  await fetchRunningProgress()
+  scheduleMetricsFetch()
 }
 
 const viewExperiment = async (task) => {
@@ -1725,7 +1713,7 @@ onUnmounted(() => {
 }
 
 .iteration-progress-section {
-  margin: 4px 0 10px;
+  margin: 2px 0 4px;
 }
 
 .iteration-progress-section :deep(.el-card) {
@@ -1740,7 +1728,7 @@ onUnmounted(() => {
 }
 
 .iteration-progress-section :deep(.el-card__body) {
-  padding: 10px 14px 14px;
+  padding: 8px 14px 10px;
 }
 
 .progress-card-header {
@@ -1761,7 +1749,7 @@ onUnmounted(() => {
 .progress-content {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 7px;
 }
 
 .progress-hero {
@@ -1769,7 +1757,7 @@ onUnmounted(() => {
   align-items: stretch;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 8px 12px;
   border-radius: var(--mid-radius-md);
   border: 1px solid var(--ux-border);
   background:
@@ -1865,8 +1853,8 @@ onUnmounted(() => {
 .progress-track-panel {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 6px;
+  padding: 8px 12px;
   border-radius: var(--mid-radius-md);
   border: 1px solid var(--ux-border);
   background: linear-gradient(180deg, #f9fbfe 0%, #ffffff 100%);
@@ -1900,6 +1888,16 @@ onUnmounted(() => {
   font-size: var(--mid-fs-body);
   color: var(--el-text-color-primary);
   line-height: 1.5;
+}
+
+.progress-pending-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 2px 0;
+  color: var(--ux-muted);
+  font-size: var(--mid-fs-label);
 }
 
 .progress-brief-grid {
@@ -1999,7 +1997,51 @@ onUnmounted(() => {
 }
 
 .experiment-list :deep(.el-card__body) {
-  padding: 10px 14px 14px;
+  padding: 0 14px 14px;
+}
+
+.ledger-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.ledger-toolbar-main,
+.ledger-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ledger-toolbar-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.ledger-search {
+  width: min(360px, 100%);
+}
+
+.ledger-status-select {
+  width: 124px;
+}
+
+.ledger-sort-select {
+  width: 124px;
+}
+
+.ledger-result-count {
+  color: var(--ux-muted);
+  font-size: var(--mid-fs-label);
+  white-space: nowrap;
+}
+
+.filtered-empty {
+  padding-top: 12px;
 }
 
 .empty-list {
@@ -2450,6 +2492,16 @@ onUnmounted(() => {
   border-top: 1px dashed #dbe4f0;
 }
 
+.ledger-expand-action {
+  flex-shrink: 0;
+}
+
+.ledger-expand-action :deep(.el-button) {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .ledger-footer-actions {
   display: flex;
   flex-wrap: wrap;
@@ -2847,6 +2899,20 @@ onUnmounted(() => {
   .ledger-metric-inline {
     grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   }
+
+  .ledger-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .ledger-toolbar-main,
+  .ledger-toolbar-actions {
+    width: 100%;
+  }
+
+  .ledger-toolbar-actions {
+    justify-content: space-between;
+  }
 }
 
 @media (max-width: 768px) {
@@ -2866,6 +2932,25 @@ onUnmounted(() => {
 
   .list-header-stats {
     margin-left: 0;
+  }
+
+  .ledger-toolbar-main {
+    flex-wrap: wrap;
+  }
+
+  .ledger-search {
+    width: 100%;
+  }
+
+  .ledger-status-select,
+  .ledger-sort-select {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .ledger-toolbar-actions {
+    align-items: center;
+    flex-wrap: wrap;
   }
 
   .ledger-record-footer {

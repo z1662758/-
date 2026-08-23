@@ -228,6 +228,7 @@ import { runExperiment } from '@/api/scenarioModeling'
 import { getQueueHistory } from '@/api/queue'
 import { getExperimentDetail, getInterventionStrategies, compareInterventions, getAnomalies, getAnomalyDetail, getExperiments } from '@/api/supplyChain'
 import { unwrapApiData } from '@/utils/apiEnvelope'
+import { resolveExperimentIdFromTask } from '@/utils/scnetTaskUtils'
 
 // 后端加载的策略数据
 const backendStrategies = ref([])
@@ -768,8 +769,8 @@ const pollRunTasks = async () => {
         task.error = found.error_message || '后端实验运行失败'
       }
 
-      if (found.status === 'completed' && found.result_path && !runState.results[slot.key]) {
-        const experimentId = extractExperimentId(found.result_path)
+      if (found.status === 'completed' && (found.result_path || found.result_relpath) && !runState.results[slot.key]) {
+        const experimentId = resolveExperimentIdFromTask(found)
         task.experimentId = experimentId
         if (experimentId) {
           const detail = unwrapApiData(await getExperimentDetail(experimentId))
@@ -805,11 +806,6 @@ const pollRunTasks = async () => {
   } catch (error) {
     runState.message = `轮询队列状态失败，稍后自动重试：${error?.message || '未知错误'}`
   }
-}
-
-const extractExperimentId = (resultPath = '') => {
-  const matched = String(resultPath).match(/multi_agent_report_(\d{8}_\d{6})\.json$/)
-  return matched ? matched[1] : ''
 }
 
 const findBestIteration = (iterations = []) => {

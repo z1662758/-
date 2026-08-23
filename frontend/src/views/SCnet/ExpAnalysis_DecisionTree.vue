@@ -1,5 +1,5 @@
 <template>
-  <div class="supply-chain-page">
+  <div class="supply-chain-page analysis-workspace legacy-analysis-page">
     <!-- 顶部工具栏 -->
     <div class="toolbar">
       <div class="tl-left">
@@ -361,9 +361,12 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .supply-chain-page {
-  padding: 20px;
+  box-sizing: border-box;
+  padding: 16px 20px 32px;
   background-color: #f5f7fa;
-  min-height: 100vh;
+  min-height: 100%;
+  height: auto;
+  overflow: visible;
   display: flex;
   flex-direction: column;
 }

@@ -429,6 +429,7 @@ import { runExperiment } from '@/api/scenarioModeling'
 import { getQueueHistory } from '@/api/queue'
 import { getExperimentDetail, healthCheck } from '@/api/supplyChain'
 import { unwrapApiData } from '@/utils/apiEnvelope'
+import { resolveExperimentIdFromTask } from '@/utils/scnetTaskUtils'
 
 const SIM_TOTAL_STEPS_DEFAULT = 15
 const EMPTY_TEXT = '无内容，需导入实验报告'
@@ -1437,8 +1438,8 @@ const pollRunTask = async () => {
       return
     }
 
-    if (task.status === 'completed' && task.result_path) {
-      const experimentId = extractExperimentId(task.result_path)
+    if (task.status === 'completed' && (task.result_path || task.result_relpath)) {
+      const experimentId = resolveExperimentIdFromTask(task)
       rs.experimentId = experimentId
       if (experimentId) {
         const detail = unwrapApiData(await getExperimentDetail(experimentId))
@@ -1466,11 +1467,6 @@ const stopLocalProgressTicker = () => {
     window.clearInterval(timer)
     timer = null
   }
-}
-
-const extractExperimentId = (resultPath = '') => {
-  const matched = String(resultPath).match(/multi_agent_report_(\d{8}_\d{6})\.json$/)
-  return matched ? matched[1] : ''
 }
 
 const findBestIteration = (iterations = []) => {

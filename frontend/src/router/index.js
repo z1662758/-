@@ -171,6 +171,11 @@ const routes = [
 
       // ========== 事中 · 决策分析 ==========
       {
+        path: 'expAnalysisOverview',
+        name: 'SCnet_ExpAnalysisOverview',
+        component: () => import("../views/SCnet/ExpAnalysis_OverviewWrapper.vue")
+      },
+      {
         path: 'expAnalysisDecisionTree',
         name: 'SCnet_ExpAnalysisDecisionTree',
         component: () => import("../views/SCnet/ExpAnalysis_DecisionTreeWrapper.vue")

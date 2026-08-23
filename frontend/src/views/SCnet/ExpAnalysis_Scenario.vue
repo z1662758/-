@@ -1,5 +1,5 @@
 <template>
-  <div class="scenario-analysis">
+  <div class="scenario-analysis analysis-workspace legacy-analysis-page">
     <!-- 卡片1: 标题区域 -->
     <div class="card-1">
       <div class="card-header">
@@ -1024,14 +1024,16 @@ export default {
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 .scenario-analysis {
-  padding: 20px;
+  box-sizing: border-box;
+  padding: 16px 20px 32px;
   background: linear-gradient(180deg, #f5f7fa 0%, #e8ecf1 100%);
-  height: calc(100vh - 40px);
+  min-height: 100%;
+  height: auto;
   display: flex;
   flex-direction: column;
   gap: 20px;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  overflow-x: hidden;
+  overflow: visible;
 }
 
 /* ========== 卡片1: 标题区域 ========== */
