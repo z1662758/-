@@ -47,7 +47,7 @@
                     <span class="message-sender">{{ msg.type === 'user' ? '您' : 'AI助手' }}</span>
                     <span class="message-time">{{ formatTime(msg.timestamp) }}</span>
                   </div>
-                  <div class="message-text" style="white-space: pre-wrap;">{{ msg.content }}</div>
+                  <div v-if="!msg.analysisData" class="message-text" style="white-space: pre-wrap;">{{ msg.content }}</div>
 
                   <!-- 如果是判断结果，显示要素表格 -->
                   <div v-if="msg.data && msg.type === 'system' && msg.data.flag === 0 && msg.data.goal" class="requirement-mini-table">
@@ -76,40 +76,56 @@
 
                   <!-- 分析结果结构化展示 -->
                   <div v-if="msg.analysisData" class="analysis-result-card">
-                    <div class="analysis-section understanding-section">
-                      <div class="section-title">
-                        <span class="section-icon">📌</span>
-                        <span>目标理解</span>
+                    <div class="analysis-card-header">
+                      <div>
+                        <strong>实验设计已生成</strong>
+                        <span>已完成需求拆解与变量识别</span>
                       </div>
-                      <div class="section-content">{{ msg.analysisData.understanding }}</div>
+                      <span class="analysis-total">{{ msg.analysisData.subtasks?.length || 0 }} 项任务</span>
                     </div>
-
                     <div class="analysis-section tasks-section">
                       <div class="section-title">
-                        <span class="section-icon">📋</span>
                         <span>任务拆解</span>
                       </div>
                       <div class="task-chips">
                         <div v-for="(task, i) in msg.analysisData.subtasks" :key="i" class="task-chip">
                           <span class="chip-number">{{ i + 1 }}</span>
-                          <span class="chip-emoji">{{ task.emoji }}</span>
-                          <span class="chip-text">{{ (task.title || task.description || '').substring(0, 35) }}{{ (task.title || task.description || '').length > 35 ? '...' : '' }}</span>
-                          <span class="chip-agent">{{ getAgentDisplayName(task.agent_type || task.assigned_agent) }}</span>
+                          <div class="task-chip-main">
+                            <span class="chip-text">{{ task.title || task.description || '' }}</span>
+                            <span class="chip-agent">{{ getAgentDisplayName(task.agent_type || task.assigned_agent) }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="analysis-section variables-section entity-flow-section" v-if="getSelectedEntities(msg).length">
+                      <div class="section-title">
+                        <span>实体选择</span>
+                      </div>
+                      <div class="var-group">
+                        <div class="var-tags">
+                          <span v-for="(entity, i) in getVisibleSelectedEntities(msg)" :key="i" class="var-tag entity">{{ entity }}</span>
+                          <span v-if="getSelectedEntities(msg).length > 6" class="var-tag more-tag">另有 {{ getSelectedEntities(msg).length - 6 }} 个</span>
                         </div>
                       </div>
                     </div>
 
                     <div class="analysis-section variables-section">
-                      <div class="var-group" v-if="msg.analysisData.influenceFactors?.length">
-                        <span class="var-label">影响因素</span>
-                        <div class="var-tags">
-                          <span v-for="(f, i) in msg.analysisData.influenceFactors" :key="i" class="var-tag influence">{{ f }}</span>
-                        </div>
+                      <div class="section-title">
+                        <span>变量识别</span>
                       </div>
-                      <div class="var-group" v-if="msg.analysisData.responseVars?.length">
-                        <span class="var-label">响应变量</span>
-                        <div class="var-tags">
-                          <span v-for="(v, i) in msg.analysisData.responseVars" :key="i" class="var-tag response">{{ v }}</span>
+                      <div class="variable-groups">
+                        <div class="var-group influence-group" v-if="msg.analysisData.influenceFactors?.length">
+                          <span class="var-label">影响因素 <b>{{ msg.analysisData.influenceFactors.length }}</b></span>
+                          <div class="var-tags">
+                            <span v-for="(f, i) in msg.analysisData.influenceFactors" :key="i" class="var-tag influence">{{ f }}</span>
+                          </div>
+                        </div>
+                        <div class="var-group response-group" v-if="msg.analysisData.responseVars?.length">
+                          <span class="var-label">响应变量 <b>{{ msg.analysisData.responseVars.length }}</b></span>
+                          <div class="var-tags">
+                            <span v-for="(v, i) in msg.analysisData.responseVars" :key="i" class="var-tag response">{{ v }}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -127,7 +143,7 @@
                         <span class="completion-task-text">{{ task.title || task.description || '' }}</span>
                       </div>
                     </div>
-                    <div class="completion-hint">可继续在下方输入框迭代调整，或前往「实体图」核对智能体设计。</div>
+                    <div class="completion-hint">可继续在下方输入框迭代调整，或前往「实验设计」查看方案。</div>
                   </div>
                 </div>
               </div>
@@ -206,20 +222,18 @@
                 v-if="tasks.length > 0"
                 class="experiment-design-summary"
               >
-                <div class="eds-section eds-goal">
-                  <div class="eds-goal-tag">
-                    <span class="eds-goal-tag-label">分析阶段</span>
-                    <span class="eds-goal-tag-value">{{ experimentDesign.goalCategory }}</span>
-                  </div>
-                  <div class="eds-goal-text">
-                    <span class="eds-label">目标理解</span>
-                    <span class="eds-goal-explain">{{ experimentDesign.goalExplain || experimentDesign.userGoal || '—' }}</span>
-                  </div>
-                </div>
-
                 <div class="eds-section eds-vars">
+                  <div class="eds-vars-col" v-if="experimentDesign.entities.length">
+                    <div class="eds-col-title"><span>实体</span><b>{{ experimentDesign.entities.length }}</b></div>
+                    <ul class="eds-col-list">
+                      <li v-for="(item, i) in experimentDesign.entities" :key="'e' + i">{{ item }}</li>
+                    </ul>
+                  </div>
+                  <div class="eds-vars-arrow" v-if="experimentDesign.entities.length">
+                    <el-icon><Right /></el-icon>
+                  </div>
                   <div class="eds-vars-col">
-                    <div class="eds-col-title">影响因素</div>
+                    <div class="eds-col-title"><span>影响因素</span><b>{{ experimentDesign.factors.length }}</b></div>
                     <ul class="eds-col-list" v-if="experimentDesign.factors.length">
                       <li v-for="(item, i) in experimentDesign.factors" :key="'f' + i">{{ item }}</li>
                     </ul>
@@ -229,7 +243,7 @@
                     <el-icon><Right /></el-icon>
                   </div>
                   <div class="eds-vars-col">
-                    <div class="eds-col-title">响应变量</div>
+                    <div class="eds-col-title"><span>响应变量</span><b>{{ experimentDesign.responses.length }}</b></div>
                     <ul class="eds-col-list" v-if="experimentDesign.responses.length">
                       <li v-for="(item, i) in experimentDesign.responses" :key="'r' + i">{{ item }}</li>
                     </ul>
@@ -260,8 +274,8 @@
                       align="center"
                     >
                       <template #header>
-                        <el-tooltip :content="key" placement="top">
-                          <span>Var{{ idx + 1 }}</span>
+                        <el-tooltip :content="getParameterDisplayName(key, idx)" placement="top">
+                          <span>{{ getParameterDisplayName(key, idx) }}</span>
                         </el-tooltip>
                       </template>
                     </el-table-column>
@@ -281,7 +295,7 @@
 
                 <div class="eds-next">
                   <el-button type="primary" round :disabled="isProcessing" @click="goToNextPage">
-                    下一步：查看实体图
+                    下一步：查看实验设计
                   </el-button>
                 </div>
               </div>
@@ -356,6 +370,7 @@ export default {
       const responses = (this.toDisplayNameList(r.response_var || []) || [])
         .map(x => this.sanitizeDisplayText(x))
         .filter(Boolean)
+      const entities = this.extractSelectedEntities(r)
 
       const expBlock = (r.exp_params && typeof r.exp_params === 'object')
         ? (r.exp_params.exp_params && typeof r.exp_params.exp_params === 'object' ? r.exp_params.exp_params : r.exp_params)
@@ -386,6 +401,7 @@ export default {
         goalExplain,
         factors,
         responses,
+        entities,
         expMethod,
         factorKeys,
         paramRows,
@@ -405,6 +421,66 @@ export default {
   },
   methods: {
     ...ScenarioModelingLogic.methods,
+    extractSelectedEntities(result = {}) {
+      const goal = result?.goal_decomposition || {}
+      const direct = [
+        result?.selected_entities,
+        result?.entities,
+        goal?.selected_entities,
+        goal?.entities,
+        goal?.object,
+        result?.object
+      ]
+      const names = direct.flatMap((value) => {
+        if (Array.isArray(value)) return this.toDisplayNameList(value)
+        if (typeof value === 'string') return value.split(/[、,，;；]/).map(item => this.sanitizeDisplayText(item))
+        if (value && typeof value === 'object') return this.toDisplayNameList([value])
+        return []
+      }).filter(Boolean)
+      if (names.length) return Array.from(new Set(names))
+
+      return []
+    },
+    getSelectedEntities(msg = {}) {
+      const explicit = Array.isArray(msg?.analysisData?.selectedEntities)
+        ? msg.analysisData.selectedEntities.filter(Boolean)
+        : []
+      if (explicit.length) return explicit
+
+      const currentSessionId = this.store?.currentSessionId || this.sessionId || ''
+      const candidates = [
+        {
+          payload: this.store?.setAgentsResult,
+          sessionId: this.store?.setAgentsResultSessionId
+        },
+        {
+          payload: this.store?.agentDesignPayload,
+          sessionId: this.store?.agentDesignPayloadSessionId
+        }
+      ]
+      for (const candidate of candidates) {
+        if (!candidate.payload || (currentSessionId && candidate.sessionId && candidate.sessionId !== currentSessionId)) continue
+        const agents = Array.isArray(candidate.payload?.agents) ? candidate.payload.agents : []
+        const names = agents.map((agent) => this.sanitizeDisplayText(
+          agent?.name || agent?.displayName || agent?.label || agent?.entity_name || ''
+        )).filter(Boolean)
+        if (names.length) return Array.from(new Set(names))
+      }
+      const requirementObject = this.store?.scenarioRequirementMeta?.object
+      if (Array.isArray(requirementObject)) return this.toDisplayNameList(requirementObject)
+      if (typeof requirementObject === 'string' && requirementObject.trim()) {
+        return requirementObject.split(/[、,，;；]/).map(item => this.sanitizeDisplayText(item)).filter(Boolean)
+      }
+      return []
+    },
+    getVisibleSelectedEntities(msg = {}) {
+      return this.getSelectedEntities(msg).slice(0, 6)
+    },
+    getParameterDisplayName(key, index) {
+      const raw = this.sanitizeDisplayText(key || '')
+      if (!/^var[ _-]?\d+$/i.test(raw)) return raw || `参数${index + 1}`
+      return this.experimentDesign.factors[index] || `影响因素${index + 1}`
+    },
     /**
      * 把已有的 apiResult 一次性渲染为已完成态（用于快照/store 恢复路径）
      */
@@ -432,6 +508,7 @@ export default {
             analysisData: {
               understanding: normalized?.goal_decomposition?.goal_understanding || '系统将分步骤完成您的需求分析',
               subtasks,
+              selectedEntities: this.extractSelectedEntities(normalized),
               influenceFactors: factors,
               responseVars: responses
             }
@@ -447,7 +524,7 @@ export default {
       this.currentResult = {
         agent_type: 'SUMMARY',
         title: '实验设计生成完成',
-        description: '已加载实验设计方案。点击「下一步」进入实体图核对智能体设计，或在下方输入框继续迭代。',
+        description: '已加载实验设计方案。点击「下一步」查看完整实验设计，或在下方输入框继续迭代。',
         emoji: '🎉'
       }
       this.editingContent = this.currentResult
@@ -580,6 +657,29 @@ export default {
 .task-panel {
   min-height: 0;
 }
+.conversation-panel { width: 47%; }
+.task-panel { width: 53%; }
+.conversation-panel :deep(.panel-header),
+.task-panel :deep(.panel-header) { padding: 14px 18px; }
+.conversation-panel :deep(.conversation-messages) { padding: 16px; gap: 14px; }
+.conversation-panel :deep(.message-wrapper.system .message-bubble) { width: 100%; max-width: 100%; }
+.conversation-panel :deep(.message-avatar) { width: 34px; height: 34px; font-size: 16px; }
+.conversation-panel :deep(.conversation-input-area) { padding: 12px 16px; }
+.conversation-panel :deep(.input-container) { margin-bottom: 0; }
+.conversation-panel :deep(.conversation-input) { padding: 11px 14px; font-size: 14px; }
+.conversation-panel :deep(.send-button),
+.conversation-panel :deep(.upload-icon-button) { width: 42px; height: 42px; }
+.conversation-panel :deep(.analysis-result-card) { margin-top: 6px; }
+.conversation-panel :deep(.analysis-card-header) { padding: 10px 12px; }
+.conversation-panel :deep(.analysis-section) { padding: 10px 12px; }
+.conversation-panel :deep(.task-chips) { gap: 6px; }
+.conversation-panel :deep(.task-chip) { padding: 7px 8px; gap: 7px; }
+.conversation-panel :deep(.chip-number) { width: 18px; height: 18px; }
+.conversation-panel :deep(.task-chip-main) { gap: 3px; }
+.conversation-panel :deep(.variable-groups) { gap: 7px; }
+.conversation-panel :deep(.variable-groups .var-group) { padding: 8px; }
+.conversation-panel :deep(.var-tags) { gap: 4px; }
+.conversation-panel :deep(.var-tag) { padding: 2px 8px; font-size: 11px; }
 .execution-state {
   min-height: 0;
 }
@@ -604,17 +704,17 @@ export default {
   background: #94a3b8;
 }
 .experiment-design-summary {
-  margin: 14px 18px 0;
+  margin: 12px 14px 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 9px;
   color: #1f2937;
 }
 .experiment-design-summary .eds-section {
   background: #ffffff;
   border: 1px solid #dbeafe;
   border-radius: 10px;
-  padding: 12px 14px;
+  padding: 10px 12px;
 }
 .experiment-design-summary .eds-section-title {
   font-size: 13px;
@@ -689,10 +789,26 @@ export default {
   align-items: center;
 }
 .eds-col-title {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   font-size: 13px;
   font-weight: 700;
   color: #4338ca;
   margin-bottom: 6px;
+}
+.eds-col-title b {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #e0e7ff;
+  color: #4338ca;
+  font-size: 11px;
 }
 .eds-col-list {
   margin: 0;
@@ -739,6 +855,7 @@ export default {
 
 .eds-params-table {
   width: 100%;
+  overflow-x: auto;
 }
 .eds-params-table :deep(.el-table) {
   font-size: 12px;
@@ -799,5 +916,21 @@ export default {
 .eds-next .el-button {
   min-width: 168px;
   font-weight: 600;
+}
+
+@media (max-width: 1180px) {
+  .eds-vars {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .eds-vars-arrow {
+    transform: rotate(90deg);
+    padding: 0;
+  }
+}
+
+@media (max-width: 960px) {
+  .conversation-panel,
+  .task-panel { width: 100%; }
 }
 </style>

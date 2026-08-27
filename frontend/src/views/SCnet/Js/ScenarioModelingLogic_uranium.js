@@ -1206,7 +1206,7 @@ export default {
       this.currentResult = {
         agent_type: 'SUMMARY',
         title: '实验设计生成完成',
-        description: '已完成目标分析与实验设计。可在右侧查看实验设计概览，或点击「下一步」进入实体图核对智能体设计。',
+        description: '已完成目标分析与实验设计。可在右侧查看方案概览，或点击「下一步」查看完整实验设计。',
         emoji: '🎉'
       }
 
@@ -1215,7 +1215,7 @@ export default {
       this.pushMessage({
         type: 'system',
         content: this.agentDesignSynced
-          ? `✅ 实验设计已生成，已形成 ${this.tasks.length} 项子任务并同步实体图配置。请点击「下一步」继续。`
+          ? `✅ 实验设计已生成，已形成 ${this.tasks.length} 项子任务并同步实体方案配置。请点击「下一步」继续。`
           : `✅ 实验设计已生成，已形成 ${this.tasks.length} 项子任务。请点击「下一步」继续同步智能体配置并提交实验。`,
         timestamp: new Date(),
         completionData: {
@@ -1487,6 +1487,9 @@ export default {
           analysisData: {
             understanding: goalDecomp.goal_understanding || '系统将分步骤完成您的需求分析',
             subtasks: subtasks,
+            selectedEntities: typeof this.extractSelectedEntities === 'function'
+              ? this.extractSelectedEntities(parsedApiResult)
+              : [],
             influenceFactors: this.toDisplayNameList(parsedApiResult.influence_factor || []),
             responseVars: this.toDisplayNameList(parsedApiResult.response_var || [])
           }
@@ -1757,7 +1760,7 @@ export default {
         return
       }
       if (!this.tasks?.length) {
-        this.pushMessage({ type: 'system', content: '⚠️ 暂无拆解任务, 无法进入实体图查看。', timestamp: new Date() })
+        this.pushMessage({ type: 'system', content: '⚠️ 暂无拆解任务，无法进入实验设计。', timestamp: new Date() })
         return
       }
       if (!this.agentDesignSynced && !this.agentDesignSyncing) {

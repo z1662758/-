@@ -3,109 +3,137 @@
     <div class="agent-studio-wrapper">
       <div class="right-inner-layout">
         <div class="sidebar left-sidebar">
-          <el-tabs v-model="activeLeftTab" stretch class="left-sidebar-tabs">
-            <el-tab-pane label="Agents" name="agents">
-              <div class="panel-header">
-                <span>{{ readOnly ? '自动化方案实体' : '企业实体' }}</span>
-              </div>
-              <div class="search-box">
-                <el-input
-                  v-model="searchKeywordProxy"
-                  placeholder="搜索企业实体..."
-                  :prefix-icon="Search"
-                  size="small"
-                />
-              </div>
-              <el-scrollbar class="sidebar-scroll" style="height: calc(100% - 96px);">
-                <div class="agent-list">
-                  <div class="agent-group" v-for="(group, key) in groupedAgents" :key="key">
-                    <div class="group-title">
-                      <el-icon><Folder /></el-icon> {{ categoryLabelMap[key] || key }}
-                      <span class="group-count">({{ group.length }})</span>
-                    </div>
-                    <div
-                      class="agent-item"
-                      v-for="agent in group"
-                      :key="agent.id"
-                      :class="{ active: selectedNode?.id === agent.id }"
-                      @click="handleLocateAgent(agent.id)"
-                      @dblclick.stop="!readOnly && $emit('open-agent-method-dialog', agent)"
-                    >
-                      <div class="agent-icon" :class="agent.category">
-                        <el-icon v-if="agent.category === 'supply'"><Box /></el-icon>
-                        <el-icon v-else-if="agent.category === 'transport'"><Guide /></el-icon>
-                        <el-icon v-else-if="agent.category === 'sales'"><Sell /></el-icon>
-                        <el-icon v-else-if="agent.category === 'other'"><Grid /></el-icon>
-                        <el-icon v-else><OfficeBuilding /></el-icon>
-                      </div>
-                      <div class="agent-info">
-                        <div class="agent-name">{{ agent.name }}</div>
-                        <div class="agent-category">
-                          {{ categoryLabelMap[agent.category] || agent.category }}
-                          <span v-if="agent.entityCount" class="entity-count">x{{ agent.entityCount }}</span>
-                        </div>
-                      </div>
+          <div class="panel-header">
+            <div class="panel-heading-copy">
+              <strong>{{ readOnly ? '方案实体' : '企业实体' }}</strong>
+              <span>按业务层级浏览</span>
+            </div>
+            <span class="panel-count">{{ totalAgentCount }}</span>
+          </div>
+          <div class="search-box">
+            <el-input v-model="searchKeywordProxy" placeholder="搜索实体名称" :prefix-icon="Search" clearable size="small" />
+          </div>
+          <el-scrollbar class="sidebar-scroll">
+            <div class="agent-list">
+              <div class="agent-group" v-for="(group, key) in groupedAgents" :key="key">
+                <div class="group-title">
+                  <span><el-icon><Folder /></el-icon>{{ categoryLabelMap[key] || key }}</span>
+                  <span class="group-count">{{ group.length }}</span>
+                </div>
+                <button
+                  class="agent-item"
+                  v-for="agent in group"
+                  :key="agent.id"
+                  :class="{ active: selectedNode?.id === agent.id }"
+                  type="button"
+                  @click="handleLocateAgent(agent.id)"
+                  @dblclick.stop="!readOnly && $emit('open-agent-method-dialog', agent)"
+                >
+                  <div class="agent-icon" :class="agent.category">
+                    <el-icon v-if="agent.category === 'supply'"><Box /></el-icon>
+                    <el-icon v-else-if="agent.category === 'transport'"><Guide /></el-icon>
+                    <el-icon v-else-if="agent.category === 'sales'"><Sell /></el-icon>
+                    <el-icon v-else-if="agent.category === 'other'"><Grid /></el-icon>
+                    <el-icon v-else><OfficeBuilding /></el-icon>
+                  </div>
+                  <div class="agent-info">
+                    <div class="agent-name">{{ agent.name }}</div>
+                    <div class="agent-category">
+                      {{ categoryLabelMap[agent.category] || agent.category }}
+                      <span v-if="agent.entityCount" class="entity-count">× {{ agent.entityCount }}</span>
                     </div>
                   </div>
-                </div>
-              </el-scrollbar>
-            </el-tab-pane>
-          </el-tabs>
+                  <span class="agent-locate">›</span>
+                </button>
+              </div>
+              <el-empty v-if="totalAgentCount === 0" description="暂无匹配实体" :image-size="70" />
+            </div>
+          </el-scrollbar>
         </div>
 
         <div class="right-content-area">
           <div class="canvas-area">
-            <div class="canvas-toolbar">Version 1.1</div>
-            <VueFlow
-              v-model:nodes="nodesProxy"
-              v-model:edges="edgesProxy"
-              style="width: 100%; height: 100%;"
-              :fit-view-on-init="true"
-              :min-zoom="0.6"
-              :max-zoom="1.2"
-              @node-click="payload => $emit('select-node', payload)"
-            >
-              <template #node-CardNode="nodeProps">
-                <div class="custom-node" :class="nodeProps.data.category">
-                  <div class="node-header">
-                    <div class="node-title">
-                      {{ nodeProps.data.name }}
-                      <span v-if="nodeProps.data.entityCount" class="entity-badge">x{{ nodeProps.data.entityCount }}</span>
-                    </div>
-                    <div class="node-tag">{{ categoryLabelMap[nodeProps.data.category] || nodeProps.data.category }}</div>
-                  </div>
-                  <div class="node-body">
-                    <div v-if="nodeProps.data.selectedMethod" class="node-method">方法：{{ nodeProps.data.selectedMethod }}</div>
-                  </div>
-                  <Handle id="t-top" type="target" :position="Position.Top" class="handle-top" />
-                  <Handle id="s-bottom" type="source" :position="Position.Bottom" class="handle-bottom" />
-                  <Handle id="t-left" type="target" :position="Position.Left" class="handle-left" />
-                  <Handle id="t-right" type="target" :position="Position.Right" class="handle-right target-right" />
-                  <Handle id="s-right" type="source" :position="Position.Right" class="handle-right source-right" />
+            <div class="canvas-toolbar">
+              <div class="canvas-summary">
+                <strong>实体关系</strong>
+                <span>{{ nodesProxy.length }} 个实体</span>
+                <span>{{ edgesProxy.length }} 条关系</span>
+              </div>
+              <div class="canvas-actions">
+                <div class="canvas-legend">
+                  <span v-for="item in visibleCategories" :key="item.key" class="legend-item">
+                    <i :class="item.key"></i>{{ item.label }}
+                  </span>
                 </div>
-              </template>
-              <Background variant="dots" gap="20" color="#e5e7eb" />
-              <Controls />
-            </VueFlow>
+                <el-button size="small" plain :icon="FullScreen" @click="fitCanvas">适配视图</el-button>
+              </div>
+            </div>
+            <div class="canvas-stage">
+              <VueFlow
+                v-model:nodes="nodesProxy"
+                v-model:edges="edgesProxy"
+                style="width: 100%; height: 100%;"
+                :fit-view-on-init="true"
+                :min-zoom="0.6"
+                :max-zoom="1.2"
+                @node-click="payload => $emit('select-node', payload)"
+              >
+                <template #node-CardNode="nodeProps">
+                  <div class="custom-node" :class="[nodeProps.data.category, { selected: nodeProps.selected }]">
+                    <div class="node-header">
+                      <div class="node-title">
+                        {{ nodeProps.data.name }}
+                        <span v-if="nodeProps.data.entityCount" class="entity-badge">× {{ nodeProps.data.entityCount }}</span>
+                      </div>
+                      <div class="node-tag">{{ categoryLabelMap[nodeProps.data.category] || nodeProps.data.category }}</div>
+                    </div>
+                    <div class="node-body">
+                      <div v-if="nodeProps.data.selectedMethod" class="node-method">方法：{{ nodeProps.data.selectedMethod }}</div>
+                      <div v-else class="node-method muted">点击查看实体详情</div>
+                    </div>
+                    <Handle id="t-top" type="target" :position="Position.Top" class="handle-top" />
+                    <Handle id="s-bottom" type="source" :position="Position.Bottom" class="handle-bottom" />
+                    <Handle id="t-left" type="target" :position="Position.Left" class="handle-left" />
+                    <Handle id="t-right" type="target" :position="Position.Right" class="handle-right target-right" />
+                    <Handle id="s-right" type="source" :position="Position.Right" class="handle-right source-right" />
+                  </div>
+                </template>
+                <Background variant="dots" gap="20" color="#e5e7eb" />
+                <Controls />
+              </VueFlow>
+              <div v-if="nodesProxy.length === 0" class="canvas-empty">
+                <span>⌁</span>
+                <strong>方案关系尚未生成</strong>
+                <p>完成智能对话后，实体与关系将在这里展示</p>
+              </div>
+            </div>
           </div>
 
           <div class="properties-panel">
-            <div class="panel-header">Properties</div>
-            <el-scrollbar style="height: calc(100% - 44px);">
+            <div class="panel-header">
+              <span>实体详情</span>
+              <span class="panel-header-hint">{{ selectedNode ? '已选择' : '未选择' }}</span>
+            </div>
+            <el-scrollbar class="properties-scroll">
               <div v-if="!selectedNode" class="empty-tip">
-                {{ readOnly ? '点击节点查看后端自动生成的实体参数' : '点击节点配置企业实体参数' }}
+                <div class="empty-tip-icon">◎</div>
+                <strong>选择一个实体</strong>
+                <span>{{ readOnly ? '点击左侧目录或画布节点，查看实体参数与说明' : '点击节点配置企业实体参数' }}</span>
               </div>
               <div v-else class="property-card">
                 <div class="property-summary">
-                  <div class="property-summary-row">
-                    <span>实体</span>
-                    <strong>{{ selectedNode?.data?.name || selectedNode?.id }}</strong>
+                  <div class="property-hero">
+                    <div class="property-hero-icon" :class="selectedNode?.data?.category">
+                      <el-icon><OfficeBuilding /></el-icon>
+                    </div>
+                    <div>
+                      <strong>{{ selectedNode?.data?.name || selectedNode?.id }}</strong>
+                      <span>{{ categoryLabelMap[selectedNode?.data?.category] || selectedNode?.data?.category || '未分类' }}</span>
+                    </div>
                   </div>
                   <div class="property-summary-row">
-                    <span>层级</span>
-                    <el-tag size="small" effect="plain">
-                      {{ categoryLabelMap[selectedNode?.data?.category] || selectedNode?.data?.category || '未分类' }}
-                    </el-tag>
+                    <span>参数数量</span>
+                    <strong>{{ getConfigurableParams(selectedNode.id).length }} 项</strong>
                   </div>
                   <div v-if="selectedNode?.data?.description" class="property-summary-copy">
                     {{ selectedNode.data.description }}
@@ -115,16 +143,16 @@
                   </div>
                 </div>
                 <template v-if="getConfigurableParams(selectedNode.id).length > 0">
-                  <div style="font-size:12px;font-weight:600;color:#303133;margin-bottom:8px;">{{ readOnly ? '实体参数（只读）' : '实体参数' }}</div>
-                  <el-form size="small" label-position="top" style="padding: 0 4px;">
+                  <div class="property-section-title">{{ readOnly ? '实体参数（只读）' : '实体参数' }}</div>
+                  <el-form size="small" label-position="top" class="property-form">
                     <el-form-item
                       v-for="param in getConfigurableParams(selectedNode.id)"
                       :key="param.key"
                       :label="param.label"
-                      style="margin-bottom: 12px;"
+                      class="property-form-item"
                     >
                       <template v-if="param.type === 'range'">
-                        <div style="display:flex;gap:6px;align-items:center;width:100%;">
+                        <div class="range-inputs">
                           <el-input-number
                             size="small"
                             :model-value="getParamValue(selectedNode.id, param.key, 0, param)"
@@ -132,11 +160,11 @@
                             :max="param.max"
                             :step="param.step"
                             controls-position="right"
-                            style="flex:1;"
+                            class="range-input"
                             :disabled="readOnly"
                             @update:model-value="val => emitParamUpdate(selectedNode.id, param.key, 0, val, param)"
                           />
-                          <span style="color:#909399;font-size:11px;">~</span>
+                          <span class="range-divider">至</span>
                           <el-input-number
                             size="small"
                             :model-value="getParamValue(selectedNode.id, param.key, 1, param)"
@@ -144,7 +172,7 @@
                             :max="param.max"
                             :step="param.step"
                             controls-position="right"
-                            style="flex:1;"
+                            class="range-input"
                             :disabled="readOnly"
                             @update:model-value="val => emitParamUpdate(selectedNode.id, param.key, 1, val, param)"
                           />
@@ -158,7 +186,7 @@
                           :max="param.max"
                           :step="param.step"
                           controls-position="right"
-                          style="width:100%;"
+                          class="number-input"
                           :disabled="readOnly"
                           @update:model-value="val => emitParamUpdate(selectedNode.id, param.key, null, val, param)"
                         />
@@ -206,7 +234,7 @@
 
 <script setup>
 import { computed, onMounted, onBeforeUnmount, nextTick, ref } from 'vue'
-import { Search, Folder, OfficeBuilding, Grid, Box, Sell, Guide } from '@element-plus/icons-vue'
+import { Search, Folder, OfficeBuilding, Grid, Box, Sell, Guide, FullScreen } from '@element-plus/icons-vue'
 import { VueFlow, Handle, Position, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
@@ -278,7 +306,10 @@ const emit = defineEmits([
 ])
 
 const { fitView } = useVueFlow()
-const activeLeftTab = ref('agents')
+const totalAgentCount = computed(() => Object.values(props.groupedAgents || {}).reduce((sum, group) => sum + (group?.length || 0), 0))
+const visibleCategories = computed(() => Object.entries(props.groupedAgents || {})
+  .filter(([, group]) => Array.isArray(group) && group.length)
+  .map(([key]) => ({ key, label: props.categoryLabelMap[key] || key })))
 
 const nodesProxy = computed({
   get: () => props.nodes,
@@ -319,6 +350,10 @@ const emitParamUpdate = (agentId, paramKey, index, val, param) => {
 
 const handleResize = () => {
   fitView({ padding: 0.1 })
+}
+
+const fitCanvas = () => {
+  fitView({ padding: 0.12, duration: 500 })
 }
 
 onMounted(() => {
@@ -378,6 +413,19 @@ onBeforeUnmount(() => {
   font-size: 14px;
   border-bottom: 1px solid #e5e7eb;
   background-color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.panel-heading-copy { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.panel-heading-copy strong { color: #0f172a; font-size: 14px; }
+.panel-heading-copy span { color: #94a3b8; font-size: 10px; font-weight: 500; }
+.panel-count { min-width: 24px; height: 24px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 12px; background: #eff6ff; color: #2563eb; }
+.panel-count,
+.panel-header-hint {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 500;
 }
 
 .sidebar.left-sidebar .left-sidebar-tabs {
@@ -433,6 +481,7 @@ onBeforeUnmount(() => {
 
 .sidebar-scroll {
   flex: 1;
+  height: calc(100% - 96px);
   overflow-y: auto;
 }
 
@@ -456,6 +505,7 @@ onBeforeUnmount(() => {
   background-color: #f1f5f9;
   border-radius: 6px;
 }
+.group-title > span:first-child { display: inline-flex; align-items: center; gap: 6px; }
 
 .group-count {
   font-size: 12px;
@@ -465,6 +515,9 @@ onBeforeUnmount(() => {
 }
 
 .agent-item {
+  width: 100%;
+  font-family: inherit;
+  text-align: left;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -475,7 +528,12 @@ onBeforeUnmount(() => {
   transition: all 0.2s ease;
   background-color: #fff;
   border: 1px solid transparent;
+  outline: none;
 }
+.agent-item:focus-visible { border-color: #38bdf8; box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.16); }
+.agent-locate { color: #cbd5e1; font-size: 20px; line-height: 1; transition: transform 0.2s ease; }
+.agent-item:hover .agent-locate { color: #0284c7; transform: translateX(2px); }
+.agent-item.active .agent-locate { color: #fff; }
 
 .agent-item:hover {
   background-color: #e0f2fe;
@@ -551,6 +609,10 @@ onBeforeUnmount(() => {
   font-weight: 500;
   font-size: 14px;
   margin-bottom: 2px;
+  color: #1e293b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .agent-item.active .agent-name {
@@ -561,6 +623,7 @@ onBeforeUnmount(() => {
   font-size: 12px;
   color: #64748b;
 }
+.agent-info { min-width: 0; }
 
 .entity-count {
   font-size: 11px;
@@ -586,24 +649,42 @@ onBeforeUnmount(() => {
   flex: 1;
   min-width: 0;
   height: 100%;
+  display: flex;
+  flex-direction: column;
   background: #ffffff;
   border: 1px solid #dbeafe;
   border-radius: 10px;
-  position: relative;
-  padding: 8px;
+  padding: 0;
+  overflow: hidden;
 }
 
 .canvas-toolbar {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  z-index: 10;
-  font-size: 14px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   color: #64748b;
-  background: rgba(255,255,255,0.8);
-  padding: 4px 12px;
-  border-radius: 4px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 9px 10px 9px 12px;
 }
+.canvas-stage { flex: 1; min-height: 0; position: relative; background: linear-gradient(180deg, #fff, #f8fbff); }
+.canvas-summary,
+.canvas-actions,
+.canvas-legend { display: flex; align-items: center; }
+.canvas-summary { gap: 10px; font-size: 11px; white-space: nowrap; }
+.canvas-summary strong { color: #0f172a; font-size: 13px; }
+.canvas-summary span { padding-left: 10px; border-left: 1px solid #e2e8f0; }
+.canvas-actions { gap: 12px; }
+.canvas-legend { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.legend-item { display: inline-flex; align-items: center; gap: 4px; color: #475569; font-size: 10px; white-space: nowrap; }
+.legend-item i { width: 7px; height: 7px; border-radius: 50%; background: #94a3b8; }
+.legend-item i.supply { background: #6366f1; }
+.legend-item i.transport { background: #0891b2; }
+.legend-item i.manufacturing { background: #f97316; }
+.legend-item i.sales { background: #ec4899; }
+.legend-item i.other { background: #94a3b8; }
 
 .properties-panel {
   width: 320px;
@@ -623,7 +704,11 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid #e5e7eb;
   background: #f8fafc;
   margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
+.properties-scroll { height: calc(100% - 44px); }
 
 .custom-node {
   width: 200px;
@@ -634,6 +719,29 @@ onBeforeUnmount(() => {
   transition: all 0.2s;
   overflow: hidden;
 }
+.custom-node:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 9px 24px rgba(15, 23, 42, 0.16);
+}
+.custom-node.selected {
+  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.16), 0 10px 26px rgba(15, 23, 42, 0.18);
+}
+.canvas-empty {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  z-index: 5;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  color: #94a3b8;
+  text-align: center;
+}
+.canvas-empty > span { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 50%; background: #eff6ff; color: #3b82f6; font-size: 25px; }
+.canvas-empty strong { color: #475569; font-size: 13px; }
+.canvas-empty p { margin: 0; font-size: 11px; }
 
 .custom-node.enterprise {
   border-color: #3b82f6;
@@ -733,6 +841,7 @@ onBeforeUnmount(() => {
   font-size: 11px;
   color: #64748b;
 }
+.node-method.muted { color: #94a3b8; }
 
 .handle-left, .handle-right, .handle-top, .handle-bottom {
   width: 8px;
@@ -756,12 +865,44 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   border: 1px solid #e5e7eb;
 }
+.properties-panel :deep(.el-form-item__label) {
+  padding-bottom: 4px;
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.properties-panel :deep(.el-input-number) { max-width: 100%; }
+.properties-panel :deep(.el-input-number .el-input__wrapper) { box-shadow: 0 0 0 1px #dbeafe inset; }
 
 .property-summary {
   display: grid;
   gap: 8px;
   margin-bottom: 12px;
 }
+.property-hero {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.property-hero-icon {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #64748b;
+  color: #fff;
+}
+.property-hero-icon.supply { background: #6366f1; }
+.property-hero-icon.transport { background: #0891b2; }
+.property-hero-icon.manufacturing { background: #f97316; }
+.property-hero-icon.sales { background: #ec4899; }
+.property-hero > div:last-child { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.property-hero strong { color: #0f172a; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.property-hero span { color: #64748b; font-size: 11px; }
 
 .property-summary-row {
   display: flex;
@@ -804,11 +945,27 @@ onBeforeUnmount(() => {
 }
 
 .empty-tip {
+  min-height: 180px;
+  padding: 32px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   color: #94a3b8;
   text-align: center;
-  padding-top: 20px;
   font-size: 12px;
+  line-height: 1.6;
 }
+.empty-tip-icon { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: #eff6ff; color: #3b82f6; font-size: 24px; }
+.empty-tip strong { color: #334155; font-size: 13px; }
+.property-section-title { margin-bottom: 8px; color: #303133; font-size: 12px; font-weight: 600; }
+.property-form { padding: 0 4px; }
+.property-form-item { margin-bottom: 12px; }
+.range-inputs { width: 100%; display: flex; align-items: center; gap: 6px; }
+.range-input { flex: 1; min-width: 0; }
+.range-divider { flex-shrink: 0; color: #909399; font-size: 11px; }
+.number-input { width: 100%; }
 
 .method-dialog-hint {
   margin: 8px 0 0;
@@ -826,14 +983,23 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1280px) {
-  .right-content-area {
-    flex-direction: column;
-  }
-
   .properties-panel {
-    width: 100%;
-    min-width: 0;
-    height: 320px;
+    width: 280px;
+    min-width: 280px;
   }
+}
+
+@media (max-width: 1050px) {
+  .right-inner-layout { flex-direction: column; }
+  .sidebar.left-sidebar { width: 100%; height: 230px; }
+  .agent-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .canvas-toolbar { align-items: flex-start; }
+  .canvas-legend { display: none; }
+}
+
+@media (max-width: 760px) {
+  .right-content-area { flex-direction: column; }
+  .properties-panel { width: 100%; min-width: 0; height: 280px; }
+  .canvas-summary span { display: none; }
 }
 </style>

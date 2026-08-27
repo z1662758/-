@@ -2,17 +2,10 @@
   <div class="studio-host mid-stage-bg" :class="{ 'page-loaded': pageLoaded }">
     <div class="workflow-page">
       <MidStagePageHeader
-        title="实体图"
+        title="实验设计"
         :subtitle="pageSubtitle"
         :icon="Cpu"
       >
-        <template #center>
-          <el-segmented
-            v-model="graphSource"
-            :options="graphSourceOptions"
-            size="small"
-          />
-        </template>
         <template #right>
           <div class="graph-stat-row">
             <article v-for="item in activeGraphStats" :key="item.label" class="graph-stat-chip">
@@ -24,14 +17,6 @@
       </MidStagePageHeader>
       <div class="main-container">
         <div class="workflow-canvas-shell">
-          <div
-            v-if="graphSource === 'simulation' && showWorkflowPendingNotice"
-            class="workflow-pending-banner"
-            :class="{ loading: loadingData }"
-          >
-            <span class="workflow-pending-dot"></span>
-            <span>{{ workflowPendingMessage }}</span>
-          </div>
           <AgentDesignCanvas
             :nodes="nodes"
             :edges="edges"
@@ -69,25 +54,19 @@ import { Cpu } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import { useScnetSupplyChainStore as useSupplyChainStore } from '@/stores/scnet'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
-import { ElMessage } from 'element-plus'
 import AgentDesignCanvas from './components/simulation/AgentDesignCanvas_uranium.vue'
 import MidStagePageHeader from './components/shared/MidStagePageHeader.vue'
 import { useAgentGraph } from './composables/useAgentGraph_uranium'
 import { useAgentDesignPayload } from './composables/useAgentDesignPayload_uranium'
 import { getParameterCatalog } from '@/api/supplyChain'
 import { unwrapApiData } from '@/utils/session'
-import { SCNET_ROUTES } from '@/constants/scnetRoutes'
-import {
-  buildScnetReferenceSummary,
-  buildUraniumReferenceGraph
-} from '@/assets/data/scnetReferenceData'
 import {
   buildAgentListFromCatalog,
   buildAgentListFromBackendAgents,
   canonicalAgentId,
   pickLatestParameterCatalog
 } from './composables/scnetCatalogAdapter_uranium'
-import { AGENT_GRAPH_SNAPSHOTS } from './mock/agentGraphMock'
+import { AGENT_GRAPH_SNAPSHOTS, URANIUM_REFERENCE_GRAPH } from './mock/agentGraphMock'
 import './components/shared/midStage.css'
 
 const router = useRouter()
@@ -113,17 +92,12 @@ const scenarioApiResult = computed(() => {
 
 const fetchedParameterCatalog = ref(null)
 const simulationAgentList = ref([])
-const graphSource = ref('reference')
-const graphSourceOptions = Object.freeze([
-  { label: '参考关系图', value: 'reference' },
-  { label: '仿真实体图', value: 'simulation' }
-])
-const uraniumReferenceGraph = buildUraniumReferenceGraph()
-const referenceSummary = buildScnetReferenceSummary()
-const referenceAgentList = ref(buildAgentListFromBackendAgents(uraniumReferenceGraph.agents))
-const activeAgentList = computed(() => (
-  graphSource.value === 'reference' ? referenceAgentList.value : simulationAgentList.value
-))
+// 实验设计只展示当前会话生成的方案；参考骨架仅保留为内部数据兜底。
+const graphSource = ref('simulation')
+const referenceAgentList = ref(buildAgentListFromBackendAgents(URANIUM_REFERENCE_GRAPH.agents))
+// 目录、画布和详情必须共享同一份正在展示的实体，避免画布有节点但目录为空。
+const activeAgentList = ref([...referenceAgentList.value])
+const isShowingReference = ref(true)
 
 const effectiveParameterCatalog = computed(() => (
   pickLatestParameterCatalog(
@@ -148,21 +122,9 @@ const hasWorkflowPayload = computed(() => {
   return false
 })
 
-const showWorkflowPendingNotice = computed(() => (
-  !snapshotStore.activeSnapshotId && !hasWorkflowPayload.value
-))
-
-const workflowPendingMessage = computed(() => (
-  loadingData.value
-    ? '实体图生成中，当前展示参考骨架，完成后自动补齐。'
-    : '实体图结果暂未返回，可先浏览参考骨架，稍后自动更新。'
-))
-
-const pageSubtitle = computed(() => (
-  graphSource.value === 'reference'
-    ? `结构化参考骨架 · ${referenceSummary.uranium.networkNodes} 节点 / ${referenceSummary.uranium.networkEdges} 关系 / ${referenceSummary.transport.corridors} 条运输通道`
-    : '当前会话返回的实体骨架与参数配置'
-))
+const pageSubtitle = computed(() => isShowingReference.value
+  ? URANIUM_REFERENCE_GRAPH.title
+  : '当前会话返回的实体关系与参数配置')
 
 const activeGraphStats = computed(() => {
   const rows = activeAgentList.value || []
@@ -285,7 +247,14 @@ async function applyCatalogGraph({ render = true } = {}) {
   mergeSetAgentsIntoLocalList()    // 合并已保存的实体参数配置
   if (!render || graphSource.value !== 'simulation') return
   await nextTick()
+  // 空目录或空会话结果不得覆盖已经显示的参考图。
+  if (!snapshotStore.activeSnapshotId && simulationAgentList.value.length === 0) {
+    applyReferenceGraph()
+    return
+  }
   clearGraphSelection()
+  isShowingReference.value = false
+  activeAgentList.value = [...simulationAgentList.value]
   buildNodesFromAgents(simulationAgentList.value)
 }
 
@@ -298,6 +267,8 @@ function applySnapshotGraph({ render = true } = {}) {
   simulationAgentList.value = buildAgentListFromBackendAgents(graph.agents)
   if (render && graphSource.value === 'simulation') {
     clearGraphSelection()
+    isShowingReference.value = false
+    activeAgentList.value = [...simulationAgentList.value]
     buildNodesFromAgents(simulationAgentList.value, graph.relationship_net || [])
   }
   return true
@@ -305,14 +276,22 @@ function applySnapshotGraph({ render = true } = {}) {
 
 function applyReferenceGraph() {
   clearGraphSelection()
-  buildNodesFromAgents(referenceAgentList.value, uraniumReferenceGraph.relationship_net || [])
+  isShowingReference.value = true
+  activeAgentList.value = [...referenceAgentList.value]
+  buildNodesFromAgents(referenceAgentList.value, URANIUM_REFERENCE_GRAPH.relationship_net || [])
 }
 
 function onSnapshotCleared() {
   // 退出快照模式：回退到目录三级实体
   applyCatalogAgents()
   if (graphSource.value === 'simulation') {
+    if (!hasWorkflowPayload.value || simulationAgentList.value.length === 0) {
+      applyReferenceGraph()
+      return
+    }
     clearGraphSelection()
+    isShowingReference.value = false
+    activeAgentList.value = [...simulationAgentList.value]
     buildNodesFromAgents(simulationAgentList.value)
   }
 }
@@ -332,24 +311,18 @@ async function syncViewQuery() {
 onMounted(async () => {
   await syncViewQuery()
 
-  // 准入校验：必须先完成事中对话（store 已就绪）或加载快照，否则回到入口
-  const hasSnapshot = !!snapshotStore.activeSnapshotId
-  const hasScenarioReady = !!(store.currentSessionId && store.scenarioApiResult)
-  if (!hasSnapshot && !hasScenarioReady) {
-    ElMessage.warning('请先通过事中流程写入会话或加载历史快照')
-    router.replace(SCNET_ROUTES.duringEntry)
-    return
-  }
-
   const sid = currentSessionId.value
   if (sid && store.currentSessionId !== sid) {
     store.setCurrentSessionId(sid)
   }
   store.hydrateSetAgentsResultFromStorage()
 
-  // 快照模式优先：如果已经选了快照，直接渲染对应实体图
+  // 首屏先同步渲染：快照优先，否则立即展示轻量参考图。
+  // 不等待参数目录接口，确保直接访问本页时画布不会空白。
   if (snapshotStore.activeSnapshotId) {
     applySnapshotGraph({ render: graphSource.value === 'simulation' })
+  } else {
+    applyReferenceGraph()
   }
 
   // 仍加载 agent_design 以同步已存参数/会话，但不阻塞实体图首屏展示。
@@ -379,6 +352,8 @@ watch(simulationData, () => {
   // 画布以目录三级实体为准，这里只同步可能新增的实体参数配置
   mergeSetAgentsIntoLocalList()
   if (graphSource.value === 'simulation' && simulationAgentList.value.length) {
+    isShowingReference.value = false
+    activeAgentList.value = [...simulationAgentList.value]
     buildNodesFromAgents(simulationAgentList.value)
   }
 })
@@ -396,9 +371,13 @@ watch(() => store.currentSessionId, async (next, prev) => {
 watch(effectiveParameterCatalog, () => {
   if (snapshotStore.activeSnapshotId) return
   applyCatalogAgents()
-  if (graphSource.value === 'simulation') {
+  if (graphSource.value === 'simulation' && hasWorkflowPayload.value && simulationAgentList.value.length) {
     clearGraphSelection()
+    isShowingReference.value = false
+    activeAgentList.value = [...simulationAgentList.value]
     buildNodesFromAgents(simulationAgentList.value)
+  } else if (simulationAgentList.value.length === 0) {
+    applyReferenceGraph()
   }
 })
 
@@ -406,6 +385,8 @@ watch([setAgentsResult, setAgentsResultSessionId, currentSessionId], () => {
   if (snapshotStore.activeSnapshotId) return
   mergeSetAgentsIntoLocalList()
   if (graphSource.value === 'simulation' && simulationAgentList.value.length) {
+    isShowingReference.value = false
+    activeAgentList.value = [...simulationAgentList.value]
     buildNodesFromAgents(simulationAgentList.value)
   }
 })
@@ -420,6 +401,12 @@ watch(graphSource, (next) => {
     return
   }
   clearGraphSelection()
+  if (simulationAgentList.value.length === 0) {
+    applyReferenceGraph()
+    return
+  }
+  isShowingReference.value = false
+  activeAgentList.value = [...simulationAgentList.value]
   buildNodesFromAgents(simulationAgentList.value)
 }, { immediate: false })
 </script>
@@ -491,47 +478,6 @@ watch(graphSource, (next) => {
   height: 100%;
   border-radius: var(--mid-radius-md);
   overflow: hidden;
-}
-
-.workflow-pending-banner {
-  position: absolute;
-  top: 14px;
-  left: 14px;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  max-width: min(460px, calc(100% - 28px));
-  padding: 8px 12px;
-  border-radius: var(--mid-radius-sm);
-  background: rgba(255, 251, 235, 0.94);
-  border: 1px solid rgba(245, 158, 11, 0.28);
-  box-shadow: var(--mid-card-shadow);
-  color: #92400e;
-  font-size: var(--mid-fs-body);
-  line-height: var(--mid-lh-body);
-  backdrop-filter: blur(8px);
-}
-
-.workflow-pending-banner.loading {
-  background: rgba(239, 246, 255, 0.94);
-  border-color: rgba(59, 130, 246, 0.24);
-  color: #1d4ed8;
-}
-
-.workflow-pending-dot {
-  flex-shrink: 0;
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: currentColor;
-  animation: workflowPulse 1.8s ease-in-out infinite;
-}
-
-@keyframes workflowPulse {
-  0%   { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.28); }
-  70%  { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
 }
 
 ::-webkit-scrollbar {

@@ -46,6 +46,28 @@ const MANUFACTURING_METHODS = ['订单分配', '工厂协作', '产能优化']
 const FACTORY_METHODS = ['生产执行', '质量控制', '产能切换']
 const RETAILER_METHODS = ['需求预测', '库存管理', '渠道协同']
 
+// 实验设计页的轻量参考图：仅在当前会话方案尚未返回时展示。
+// 节点控制在 6 个，覆盖供应、运输、加工、需求四个关键环节，避免参考数据喧宾夺主。
+export const URANIUM_REFERENCE_GRAPH = {
+  title: '铀资源供应保障参考关系',
+  agents: [
+    agent('supplier_kazakhstan', '哈萨克斯坦铀矿', 'supply', '主要进口来源，承担基础供给。'),
+    agent('supplier_namibia', '纳米比亚铀矿', 'supply', '补充进口来源，用于分散供给风险。'),
+    agent('transport_ocean', '国际海运通道', 'transport', '连接海外矿区与国内接收节点。'),
+    agent('supplier_reserve', '国内铀资源储备', 'supply', '供应中断时释放库存并平抑缺口。'),
+    agent('factory_fuel', '核燃料加工企业', 'manufacturing', '将天然铀转化为核燃料产品。'),
+    agent('retailer_nuclear', '核电需求端', 'sales', '形成需求计划并反馈库存消耗。')
+  ],
+  relationship_net: [
+    edge('supplier_kazakhstan', 'transport_ocean', '进口供应'),
+    edge('supplier_namibia', 'transport_ocean', '补充供应'),
+    edge('transport_ocean', 'factory_fuel', '运输交付'),
+    edge('supplier_reserve', 'factory_fuel', '储备补位'),
+    edge('factory_fuel', 'retailer_nuclear', '核燃料供应'),
+    edge('retailer_nuclear', 'supplier_reserve', '库存反馈')
+  ]
+}
+
 const STEEL_SUPPLIER_PARAMS = [
   { key: 'delivery_lead_time', label: '交付周期(天)', type: 'number', default: 7, min: 1, max: 30 },
   { key: 'supply_capacity_range', label: '月供应能力(吨)', type: 'range', default: [800, 1500], min: 0, max: 3000 }
@@ -314,4 +336,3 @@ export const AGENT_GRAPH_SNAPSHOTS = {
     ]
   }
 }
-

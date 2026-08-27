@@ -429,7 +429,7 @@ export default {
       messages.value.push({
         id: 'a' + Date.now(),
         role: 'assistant',
-        content: isDuring ? '🚨 正在建立事中会话并进入想定生成分析...' : '🔍 正在建立会话并进入态势分析...',
+        content: isDuring ? '🚨 正在建立事中会话并进入想定生成...' : '🔍 正在建立会话并进入态势分析...',
         _streaming: true
       })
       isStreaming.value = true

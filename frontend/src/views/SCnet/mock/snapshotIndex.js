@@ -15,7 +15,7 @@ export const SNAPSHOT_COVERS = {
   decisionTree: { label: '决策树', icon: 'Share' },
   scenario: { label: '情景推演', icon: 'TrendCharts' },
   gameTheory: { label: '博弈论', icon: 'Grid' },
-  agentGraph: { label: '实体图', icon: 'Connection' },
+  agentGraph: { label: '实验设计', icon: 'Connection' },
   dialogue: { label: '对话记录', icon: 'ChatDotRound' }
 }
 

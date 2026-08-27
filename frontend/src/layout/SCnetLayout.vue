@@ -194,7 +194,7 @@ const PRE_ANALYSIS_MENU_ITEMS = Object.freeze([
 ])
 
 const DURING_MAIN_MENU_ITEMS = Object.freeze([
-  { path: 'scenario', key: 'scenario', label: '想定生成分析', icon: Edit },
+  { path: 'scenario', key: 'scenario', label: '想定生成', icon: Edit },
   { index: '/home/SCnet/experimentManager', label: '实验运行', icon: Monitor },
   { index: '/home/SCnet/interface', label: '推演界面', icon: Place }
 ])
