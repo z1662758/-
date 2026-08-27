@@ -179,8 +179,8 @@ export function createCanvasLayer(map) {
  */
 export function drawCollaborationLines(map, collaborations, options = {}) {
   const {
-    defaultColor = 'rgba(64, 158, 255, 0.4)',
-    defaultLineWidth = 2,
+    defaultColor = 'rgba(64, 158, 255, 0.14)',
+    defaultLineWidth = 0.35,
     colorByType = false,
     widthByStrength = false,
   } = options
@@ -218,9 +218,9 @@ export function drawCollaborationLines(map, collaborations, options = {}) {
 
   // 按企业类型配对的配色方案
   const TYPE_COLORS = {
-    'mfg-mfg':       'rgba(16, 124, 96, 0.45)',   // 青绿 teal：制造商↔制造商
-    'mfg-retail':    'rgba(64, 158, 255, 0.4)',    // 蓝色 blue：制造商↔销售商
-    'retail-retail': 'rgba(234, 128, 28, 0.4)',    // 琥珀 amber：销售商↔销售商
+    'mfg-mfg':       'rgba(16, 124, 96, 0.16)',   // 青绿 teal：制造商↔制造商
+    'mfg-retail':    'rgba(64, 158, 255, 0.14)',   // 蓝色 blue：制造商↔销售商
+    'retail-retail': 'rgba(234, 128, 28, 0.15)',   // 琥珀 amber：销售商↔销售商
   }
 
   function getPairingKey(collab) {
@@ -271,7 +271,7 @@ export function drawCollaborationLines(map, collaborations, options = {}) {
     if (widthByStrength) {
       const s = collab.transaction_count || collab.collaboration_probability || 1
       const t = (s - minStrength) / (maxStrength - minStrength)
-      ctx.lineWidth = 1 + t * 3  // 1px ~ 4px
+      ctx.lineWidth = 0.2 + t * 0.4  // 0.2px ~ 0.6px
     } else {
       ctx.lineWidth = defaultLineWidth
     }

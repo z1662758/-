@@ -57,11 +57,11 @@
         <span>欧美企业</span>
       </div>
       <div class="legend-item">
-        <div class="legend-icon" style="background-color: #F56C6C; width: 16px; height: 3px; border-radius: 3px;"></div>
+        <div class="legend-icon" style="background-color: #F56C6C; width: 16px; height: 2px; border-radius: 2px;"></div>
         <span>国内航线</span>
       </div>
       <div class="legend-item">
-        <div class="legend-icon" style="background: repeating-linear-gradient(90deg,#5f7cff 0 8px,transparent 8px 14px); width: 16px; height: 3px; border-radius: 3px;"></div>
+        <div class="legend-icon" style="background: repeating-linear-gradient(90deg,#5f7cff 0 8px,transparent 8px 14px); width: 16px; height: 2px; border-radius: 2px;"></div>
         <span>国际航线</span>
       </div>
       <div class="legend-item">
@@ -534,7 +534,7 @@ const drawPortConnections = () => {
       if (waypoints.length < 2) return
 
       const isDomesticRoute = route.type === 'domestic'
-      const routeWeight = isDomesticRoute ? 3.0 : 2.4
+      const routeWeight = isDomesticRoute ? 1.8 : 1.5
       const routeDash = isDomesticRoute ? null : '8 10'
 
       const routePoints = createRouteTrackPoints(
@@ -551,8 +551,8 @@ const drawPortConnections = () => {
 
       const routeHalo = L.polyline(routePoints, {
         color: '#ffffff',
-        weight: routeWeight + 2,
-        opacity: 0.13,
+        weight: routeWeight + 1.2,
+        opacity: 0.1,
         lineCap: 'round',
         lineJoin: 'round',
         interactive: false,
@@ -564,7 +564,7 @@ const drawPortConnections = () => {
       const routeLine = L.polyline(routePoints, {
         color: route.color,
         weight: routeWeight,
-        opacity: isDomesticRoute ? 0.68 : 0.56,
+        opacity: isDomesticRoute ? 0.72 : 0.6,
         dashArray: routeDash,
         lineCap: 'round',
         lineJoin: 'round',
@@ -596,9 +596,9 @@ const drawPortConnections = () => {
       routeLine.on('mouseout', function () {
         this.setStyle({
           weight: routeWeight,
-          opacity: isDomesticRoute ? 0.68 : 0.56
+          opacity: isDomesticRoute ? 0.72 : 0.6
         })
-        routeHalo.setStyle({ opacity: 0.13 })
+        routeHalo.setStyle({ opacity: 0.1 })
       })
 
       routeLine.on('click', () => {
