@@ -1536,7 +1536,7 @@ export function buildUraniumReportViewModel({ experiment = null, history = [], s
   const reportBriefBlocks = [
     {
       label: '实验结论',
-      title: `${selectedExperimentName} 已形成可汇报的 mock 汇总基线`,
+      title: `${selectedExperimentName} 已完成多年度供应链压力评估`,
       text: `${selectedPresetLabel} 覆盖 ${selectedYearRange} 年窗口，当前总体判断为 ${overallAssessment.label}。平均成本 ${formatUraniumMetricValue('avg_cost_usd_kgU', summaryData.avg_cost_usd_kgU)}，平均风险 ${formatUraniumMetricValue('avg_risk_exposure', summaryData.avg_risk_exposure)}，期末库存覆盖 ${formatUraniumMetricValue('final_inventory_coverage_years', summaryData.final_inventory_coverage_years)}。`,
       tone: overallAssessment.tone
     },
@@ -1558,7 +1558,7 @@ export function buildUraniumReportViewModel({ experiment = null, history = [], s
     },
     {
       label: '决策分析',
-      title: decisionVm.bestStrategy ? `${decisionVm.bestStrategy.name} 是当前 mock 推荐动作` : '决策分析结论待补充',
+      title: decisionVm.bestStrategy ? `综合评估推荐执行“${decisionVm.bestStrategy.name}”` : '尚未形成可执行的策略结论',
       text: decisionVm.reportHeadline,
       tone: decisionVm.bestStrategy ? 'success' : 'neutral'
     }
@@ -1567,7 +1567,7 @@ export function buildUraniumReportViewModel({ experiment = null, history = [], s
   const reportHero = {
     title: `${selectedExperimentName} · ${overallAssessment.label}`,
     headline: decisionVm.reportHeadline,
-    summary: `${selectedPresetLabel} 覆盖 ${selectedYearRange} 年窗口。报告页优先展示系统最需要的四类结果：实验对比、推荐动作、压力窗口和期末结构。`,
+    summary: `${selectedPresetLabel} 覆盖 ${selectedYearRange} 年窗口，重点评估供需缺口、通道暴露、库存安全与策略改善效果。`,
     tags: [
       { label: '模板', value: selectedPresetLabel },
       { label: '模式', value: selectedExecutionMode },
@@ -1637,7 +1637,7 @@ export function buildUraniumReportViewModel({ experiment = null, history = [], s
   return {
     header: {
       title: '铀场景实验报告',
-      subtitle: '把当前实验结果与固定对比实验结果分开呈现，便于查看、汇报和复核。',
+      subtitle: '汇总实验结果、年度压力、策略排序与供应结构，为调度决策提供可复核依据。',
       generatedAt
     },
     selectedPresetLabel,
