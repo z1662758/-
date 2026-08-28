@@ -7,7 +7,7 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useScenarioStore } from '@/stores/scenario'
-import UraniumView from './ExperimentManager_uranium.vue'
+import UraniumView from './UraniumExperimentWorkbench.vue'
 import AutoView from './ExperimentManager.vue'
 
 const route = useRoute()

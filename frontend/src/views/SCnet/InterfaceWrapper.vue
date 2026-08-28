@@ -7,7 +7,8 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useScenarioStore } from '@/stores/scenario'
-import UraniumView from './interface_uranium.vue'
+// 旧“推演界面”地址继续可用，但铀场景统一进入实验推演工作台。
+import UraniumView from './UraniumExperimentWorkbench.vue'
 import AutoView from './interface.vue'
 
 const route = useRoute()

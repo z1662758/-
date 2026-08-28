@@ -29,14 +29,12 @@
             <el-button :type="showHubs ? 'primary' : ''" @click="showHubs = !showHubs">途经枢纽</el-button>
           </el-button-group>
         </div>
-        <div class="layer-group">
+        <div class="layer-group reference-layer-group">
           <span class="layer-group-label">参考底图</span>
           <el-button-group size="small">
-            <el-button :type="showReferenceLand ? 'primary' : ''" @click="showReferenceLand = !showReferenceLand">陆运通道</el-button>
-            <el-button :type="showReferenceSea ? 'primary' : ''" @click="showReferenceSea = !showReferenceSea">海运通道</el-button>
-            <el-button :type="showReferenceMultimodal ? 'primary' : ''" @click="showReferenceMultimodal = !showReferenceMultimodal">多式联运</el-button>
-            <el-button :type="showReferenceHubs ? 'primary' : ''" @click="showReferenceHubs = !showReferenceHubs">通道枢纽</el-button>
-            <el-button :type="showEnterprisePorts ? 'primary' : ''" @click="showEnterprisePorts = !showEnterprisePorts">企业港口</el-button>
+            <el-button :type="showReferenceLand ? 'primary' : ''" @click="showReferenceLand = !showReferenceLand">陆运</el-button>
+            <el-button :type="showReferenceSea ? 'primary' : ''" @click="showReferenceSea = !showReferenceSea">海运</el-button>
+            <el-button :type="showReferenceMultimodal ? 'primary' : ''" @click="showReferenceMultimodal = !showReferenceMultimodal">联运</el-button>
           </el-button-group>
         </div>
       </div>
@@ -62,32 +60,15 @@
       <div class="legend-panel">
         <div class="panel-title">图例</div>
         <div class="legend-list">
-          <span class="legend-item">
-            <span class="legend-dot supplier"></span>
-            供给方节点
-          </span>
-          <span class="legend-item">
-            <span class="legend-dot manufacturer"></span>
-            制造方节点
-          </span>
-          <span class="legend-item">
-            <span class="legend-dot hub"></span>
-            通道枢纽 / 口岸
-          </span>
-          <span class="legend-item">
-            <span class="legend-line land"></span>
-            陆运通道（铁路 / 公路）
-          </span>
-          <span class="legend-item">
-            <span class="legend-line sea"></span>
-            海运通道
-          </span>
-          <span class="legend-item">
-            <span class="legend-line multimodal"></span>
-            多式联运通道
-          </span>
+          <span class="legend-item"><span class="legend-dot supplier"></span>供给方</span>
+          <span class="legend-item"><span class="legend-dot manufacturer"></span>制造方</span>
+          <span class="legend-item"><span class="legend-dot hub"></span>枢纽 / 口岸</span>
+          <span class="legend-item"><span class="legend-line land"></span>陆运</span>
+          <span class="legend-item"><span class="legend-line sea"></span>海运</span>
+          <span class="legend-item"><span class="legend-line multimodal"></span>多式联运</span>
         </div>
       </div>
+
     </div>
   </div>
 </template>
@@ -860,7 +841,8 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 14px;
+  padding: 10px 14px;
+  box-sizing: border-box;
   border-bottom: 1px solid rgba(219, 228, 240, 0.95);
   background: rgba(255, 255, 255, 0.9);
 }
@@ -903,7 +885,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin-top: 8px;
+  margin-top: 7px;
   font-size: 12px;
   color: #334155;
 }

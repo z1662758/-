@@ -164,7 +164,7 @@
 <script>
 import {
   Aim, Box, Coin, Collection, DataAnalysis, DataLine, Document, DocumentDelete, Edit,
-  FolderOpened, Grid, House, Memo, Monitor, Notification, Odometer, Operation, Orange,
+  FolderOpened, Grid, House, Memo, Monitor, Notification, Operation, Orange,
   PieChart, Place, Postcard, Promotion, ScaleToOriginal, Search as SearchIcon, Setting,
   SwitchButton, TrendCharts, User, WarningFilled, ChatDotSquare, CircleCheck
 } from "@element-plus/icons-vue";
@@ -195,12 +195,11 @@ const PRE_ANALYSIS_MENU_ITEMS = Object.freeze([
 
 const DURING_MAIN_MENU_ITEMS = Object.freeze([
   { path: 'scenario', key: 'scenario', label: '想定生成', icon: Edit },
-  { index: '/home/SCnet/experimentManager', label: '实验运行', icon: Monitor },
-  { index: '/home/SCnet/interface', label: '推演界面', icon: Place }
+  { index: '/home/SCnet/experimentManager', label: '实验推演', icon: Monitor },
+  { index: '/home/SCnet/expAnalysisOverview', label: '报告生成', icon: Document }
 ])
 
 const DURING_ANALYSIS_MENU_ITEMS = Object.freeze([
-  { index: '/home/SCnet/expAnalysisOverview', label: '结论总览', icon: Odometer },
   { index: '/home/SCnet/expAnalysisGameTheory', label: '博弈论分析', icon: Grid },
   { index: '/home/SCnet/expAnalysisDecisionTree', label: '决策树分析', icon: Promotion },
   { index: '/home/SCnet/expAnalysisScenario', label: '情景分析', icon: TrendCharts }
@@ -227,7 +226,7 @@ export default {
     EventPhaseStepper,
     Refresh, Files, DataAnalysis, DataLine, DocumentDelete, House, Aim, Box, Collection,
     Document, Notification, Operation, Postcard, Promotion, ScaleToOriginal, SearchIcon, Setting,
-    Coin, PieChart, FolderOpened, Grid, Odometer, SwitchButton, Orange, TrendCharts, User, AppHeader, WarningFilled, ChatDotSquare, CircleCheck
+    Coin, PieChart, FolderOpened, Grid, SwitchButton, Orange, TrendCharts, User, AppHeader, WarningFilled, ChatDotSquare, CircleCheck
   },
   setup() {
     const route = useRoute()

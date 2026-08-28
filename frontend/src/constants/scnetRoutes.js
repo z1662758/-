@@ -40,7 +40,6 @@ export const SCNET_ROUTES = Object.freeze({
 })
 
 export const SCNET_DECISION_ROUTE_BY_TAB = Object.freeze({
-  overview: SCNET_ROUTES.expAnalysisOverview,
   gameTheory: SCNET_ROUTES.expAnalysisGameTheory,
   decisionTree: SCNET_ROUTES.expAnalysisDecisionTree,
   scenario: SCNET_ROUTES.expAnalysisScenario,

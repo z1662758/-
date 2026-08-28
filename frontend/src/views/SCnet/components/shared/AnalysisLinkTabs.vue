@@ -41,14 +41,13 @@ const props = defineProps({
   active: {
     type: String,
     required: true,
-    validator: v => ['overview', 'gameTheory', 'decisionTree', 'scenario'].includes(v)
+    validator: v => ['gameTheory', 'decisionTree', 'scenario'].includes(v)
   }
 })
 
 const router = useRouter()
 
 const tabs = computed(() => [
-  { value: 'overview',    label: '总览',   icon: markRaw(DataAnalysis) },
   { value: 'gameTheory',   label: '博弈论', icon: markRaw(Grid) },
   { value: 'decisionTree', label: '决策树', icon: markRaw(Promotion) },
   { value: 'scenario',     label: '情景',   icon: markRaw(TrendCharts) }
