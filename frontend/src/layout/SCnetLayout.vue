@@ -90,6 +90,14 @@
               <template #title>{{ item.label }}</template>
             </el-menu-item>
           </el-sub-menu>
+          <el-menu-item
+            v-for="item in duringTailMenuItems"
+            :key="item.index"
+            :index="item.index"
+          >
+            <el-icon size="18"><component :is="item.icon" /></el-icon>
+            <template #title>{{ item.label }}</template>
+          </el-menu-item>
         </template>
 
         <!-- ========== 事后：复盘优化与重构 ========== -->
@@ -195,7 +203,10 @@ const PRE_ANALYSIS_MENU_ITEMS = Object.freeze([
 
 const DURING_MAIN_MENU_ITEMS = Object.freeze([
   { path: 'scenario', key: 'scenario', label: '想定生成', icon: Edit },
-  { index: '/home/SCnet/experimentManager', label: '实验推演', icon: Monitor },
+  { index: '/home/SCnet/experimentManager', label: '实验推演', icon: Monitor }
+])
+
+const DURING_TAIL_MENU_ITEMS = Object.freeze([
   { index: '/home/SCnet/expAnalysisOverview', label: '报告生成', icon: Document }
 ])
 
@@ -340,6 +351,10 @@ export default {
           : `${item.index}?scenario=${currentScenario.value}`
       }))),
       duringAnalysisMenuItems: computed(() => DURING_ANALYSIS_MENU_ITEMS.map((item) => ({
+        ...item,
+        index: `${item.index}?scenario=${currentScenario.value}`
+      }))),
+      duringTailMenuItems: computed(() => DURING_TAIL_MENU_ITEMS.map((item) => ({
         ...item,
         index: `${item.index}?scenario=${currentScenario.value}`
       }))),

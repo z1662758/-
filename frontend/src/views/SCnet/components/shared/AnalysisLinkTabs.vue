@@ -1,5 +1,5 @@
 <template>
-  <div class="analysis-link-tabs glass-panel">
+  <nav class="analysis-link-tabs glass-panel" aria-label="决策分析子页面">
     <div class="alt-left">
       <el-icon class="alt-icon"><DataAnalysis /></el-icon>
       <span class="alt-title">决策分析</span>
@@ -9,6 +9,7 @@
         size="small"
         class="alt-segmented"
         @change="handleChange"
+        aria-label="切换决策分析页面"
       >
         <template #default="{ item }">
           <span class="alt-segment-item">
@@ -22,7 +23,7 @@
     <div class="alt-right">
       <slot name="right" />
     </div>
-  </div>
+  </nav>
 </template>
 
 <script setup>
@@ -72,6 +73,10 @@ function handleChange(value) {
   padding: 6px 10px;
   margin: 6px 8px 0;
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  box-shadow: 0 6px 20px rgba(30, 64, 175, 0.08);
 }
 
 .alt-left {
@@ -134,5 +139,36 @@ function handleChange(value) {
   .alt-left { width: 100%; }
   .alt-segmented { width: 100%; min-width: 0; }
   .alt-right { flex-wrap: wrap; }
+}
+
+@media (max-width: 640px) {
+  .analysis-link-tabs {
+    margin-inline: 4px;
+    padding: 6px;
+  }
+  .alt-icon,
+  .alt-title {
+    display: none;
+  }
+  .alt-left,
+  .alt-segmented {
+    width: 100%;
+  }
+  .alt-segmented {
+    min-width: 0;
+    overflow-x: auto;
+  }
+  .alt-segment-item {
+    white-space: nowrap;
+    font-size: 11px;
+  }
+  .alt-right {
+    width: 100%;
+    justify-content: stretch;
+  }
+  .alt-right :deep(.el-select),
+  .alt-right :deep(.el-button) {
+    flex: 1 1 auto;
+  }
 }
 </style>

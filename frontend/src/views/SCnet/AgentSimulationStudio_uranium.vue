@@ -126,6 +126,14 @@ const pageSubtitle = computed(() => isShowingReference.value
   ? URANIUM_REFERENCE_GRAPH.title
   : '当前会话返回的实体关系与参数配置')
 
+// 参数目录有时只返回“供给方 / 制造方”两个聚合配置模板。它们用于参数编辑，
+// 并不是一张完整的实体关系图，不能覆盖首屏的供应链参考图。
+const hasCompleteCatalogGraph = computed(() => {
+  const rows = simulationAgentList.value || []
+  const tiers = new Set(rows.map(item => item.category).filter(Boolean))
+  return rows.length >= 3 && tiers.size >= 3
+})
+
 const activeGraphStats = computed(() => {
   const rows = activeAgentList.value || []
   const countBy = (category) => rows.filter((item) => item.category === category).length
@@ -247,8 +255,8 @@ async function applyCatalogGraph({ render = true } = {}) {
   mergeSetAgentsIntoLocalList()    // 合并已保存的实体参数配置
   if (!render || graphSource.value !== 'simulation') return
   await nextTick()
-  // 空目录或空会话结果不得覆盖已经显示的参考图。
-  if (!snapshotStore.activeSnapshotId && simulationAgentList.value.length === 0) {
+  // 空目录、聚合参数模板或空会话结果不得覆盖已经显示的参考图。
+  if (!snapshotStore.activeSnapshotId && (!hasWorkflowPayload.value || !hasCompleteCatalogGraph.value)) {
     applyReferenceGraph()
     return
   }
@@ -285,7 +293,7 @@ function onSnapshotCleared() {
   // 退出快照模式：回退到目录三级实体
   applyCatalogAgents()
   if (graphSource.value === 'simulation') {
-    if (!hasWorkflowPayload.value || simulationAgentList.value.length === 0) {
+    if (!hasWorkflowPayload.value || !hasCompleteCatalogGraph.value) {
       applyReferenceGraph()
       return
     }
@@ -351,7 +359,7 @@ watch(simulationData, () => {
   if (snapshotStore.activeSnapshotId) return // 快照模式不被实时数据覆盖
   // 画布以目录三级实体为准，这里只同步可能新增的实体参数配置
   mergeSetAgentsIntoLocalList()
-  if (graphSource.value === 'simulation' && simulationAgentList.value.length) {
+  if (graphSource.value === 'simulation' && hasWorkflowPayload.value && hasCompleteCatalogGraph.value) {
     isShowingReference.value = false
     activeAgentList.value = [...simulationAgentList.value]
     buildNodesFromAgents(simulationAgentList.value)
@@ -371,12 +379,12 @@ watch(() => store.currentSessionId, async (next, prev) => {
 watch(effectiveParameterCatalog, () => {
   if (snapshotStore.activeSnapshotId) return
   applyCatalogAgents()
-  if (graphSource.value === 'simulation' && hasWorkflowPayload.value && simulationAgentList.value.length) {
+  if (graphSource.value === 'simulation' && hasWorkflowPayload.value && hasCompleteCatalogGraph.value) {
     clearGraphSelection()
     isShowingReference.value = false
     activeAgentList.value = [...simulationAgentList.value]
     buildNodesFromAgents(simulationAgentList.value)
-  } else if (simulationAgentList.value.length === 0) {
+  } else if (!hasCompleteCatalogGraph.value) {
     applyReferenceGraph()
   }
 })
@@ -384,7 +392,7 @@ watch(effectiveParameterCatalog, () => {
 watch([setAgentsResult, setAgentsResultSessionId, currentSessionId], () => {
   if (snapshotStore.activeSnapshotId) return
   mergeSetAgentsIntoLocalList()
-  if (graphSource.value === 'simulation' && simulationAgentList.value.length) {
+  if (graphSource.value === 'simulation' && hasWorkflowPayload.value && hasCompleteCatalogGraph.value) {
     isShowingReference.value = false
     activeAgentList.value = [...simulationAgentList.value]
     buildNodesFromAgents(simulationAgentList.value)
@@ -401,7 +409,7 @@ watch(graphSource, (next) => {
     return
   }
   clearGraphSelection()
-  if (simulationAgentList.value.length === 0) {
+  if (!hasWorkflowPayload.value || !hasCompleteCatalogGraph.value) {
     applyReferenceGraph()
     return
   }
