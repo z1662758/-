@@ -334,7 +334,7 @@
                   进入博弈论
                 </el-button>
                 <el-button type="warning" plain size="small" @click="navigateTo(SCNET_ROUTES.expAnalysisDecisionTree)">
-                  查看决策树
+                  查看对策分析
                 </el-button>
               </div>
             </article>

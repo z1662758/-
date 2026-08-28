@@ -212,7 +212,7 @@ const DURING_TAIL_MENU_ITEMS = Object.freeze([
 
 const DURING_ANALYSIS_MENU_ITEMS = Object.freeze([
   { index: '/home/SCnet/expAnalysisGameTheory', label: '博弈论分析', icon: Grid },
-  { index: '/home/SCnet/expAnalysisDecisionTree', label: '决策树分析', icon: Promotion },
+  { index: '/home/SCnet/expAnalysisDecisionTree', label: '对策分析', icon: Promotion },
   { index: '/home/SCnet/expAnalysisScenario', label: '情景分析', icon: TrendCharts }
 ])
 

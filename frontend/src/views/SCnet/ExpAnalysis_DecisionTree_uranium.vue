@@ -18,7 +18,7 @@
 
     <template v-else>
       <AnalysisPageHero
-        eyebrow="决策树分析"
+        eyebrow="对策分析"
         :title="decisionVm.decisionHero.title"
         :headline="decisionVm.decisionHero.headline"
         :summary="decisionVm.decisionHero.summary"
@@ -60,6 +60,15 @@
           </article>
         </template>
       </AnalysisPageHero>
+
+      <section class="key-conclusion-strip glass-panel">
+        <div class="key-conclusion-label">关键性结论</div>
+        <article v-for="item in keyConclusions" :key="item.label" :class="['key-conclusion-item', item.tone]">
+          <span>{{ item.label }}</span>
+          <strong>{{ item.value }}</strong>
+          <p>{{ item.detail }}</p>
+        </article>
+      </section>
 
 
       <div class="dt-console">
@@ -148,7 +157,7 @@
           <div class="panel-header">
             <div class="panel-header-main">
               <el-icon><Share /></el-icon>
-              <span>决策证据树（基线 vs 调控对比）</span>
+              <span>对策证据树（基线 vs 调控对比）</span>
             </div>
             <div class="tree-panel-legend">
               <span class="legend-chip baseline">未干预基线</span>
@@ -182,7 +191,7 @@
                 </div>
               </section>
             </div>
-            <el-empty v-else description="该场景时点决策树待建设" :image-size="120" />
+            <el-empty v-else description="该场景时点对策路径待建设" :image-size="120" />
           </div>
         </main>
 
@@ -267,6 +276,21 @@
           </div>
         </aside>
       </div>
+
+      <section class="dependency-panel glass-panel">
+        <header class="dependency-head">
+          <div><span>03 · 依赖关系分析</span><h3>推荐对策落地所依赖的资源、主体与先后约束</h3></div>
+          <el-tag type="info" effect="plain">{{ dependencyCards.length }} 项关键依赖</el-tag>
+        </header>
+        <div class="dependency-flow">
+          <article v-for="(item, index) in dependencyCards" :key="item.label" class="dependency-card">
+            <span class="dependency-index">{{ String(index + 1).padStart(2, '0') }}</span>
+            <div><small>{{ item.type }}</small><strong>{{ item.label }}</strong><p>{{ item.detail }}</p></div>
+            <el-tag size="small" :type="item.tagType" effect="light">{{ item.level }}</el-tag>
+          </article>
+        </div>
+        <p class="dependency-conclusion">{{ dependencyConclusion }}</p>
+      </section>
 
       <el-drawer
         v-model="nodePanel.visible"
@@ -516,6 +540,39 @@ const bestStrategySuccessText = computed(() => (
 const bestStrategyOutcomeText = computed(() => (
   bestStrategy.value?.bestLeafSituation || '--'
 ))
+const keyConclusions = computed(() => {
+  const baseline = baselineMetrics.value
+  const best = bestStrategy.value
+  return [
+    {
+      label: '不采取对策', value: baseline ? `缺口率 ${baseline.stockoutRate}%` : '风险持续暴露',
+      detail: baseline ? `履约仅 ${baseline.fulfillmentRate}%，基线得分 ${baseline.score} 分。` : '等待基线结果。', tone: 'danger'
+    },
+    {
+      label: '优先对策', value: best?.name || '等待推荐',
+      detail: best ? `综合得分 ${best.score} 分，较基线提升 ${formatSigned(best.improvement)} 分。` : '等待候选动作评分。', tone: 'primary'
+    },
+    {
+      label: '最可能结果', value: best ? `${best.successProbability || 0}%` : '--',
+      detail: best?.bestLeafSituation || '等待结果分支。', tone: 'success'
+    }
+  ]
+})
+
+const dependencyCards = computed(() => {
+  const action = bestStrategy.value?.name || '推荐对策'
+  return [
+    { type: '前置资源', label: '库存与替代货源', detail: `${action}需预留安全库存，并确认替代供给可调用。`, level: '强依赖', tagType: 'danger' },
+    { type: '协同主体', label: '供给方—运输方—制造方', detail: '锁定交付窗口、运输槽位和加工能力，避免局部最优造成链路阻塞。', level: '强依赖', tagType: 'danger' },
+    { type: '信息条件', label: '风险预警与需求预测', detail: `围绕${currentTimeLabel.value}持续更新缺口、履约和库存覆盖。`, level: '中依赖', tagType: 'warning' },
+    { type: '执行约束', label: '预算、合同与审批', detail: '成本上限、长协条款和应急审批决定对策启动速度。', level: '中依赖', tagType: 'warning' }
+  ]
+})
+
+const dependencyConclusion = computed(() => {
+  const action = bestStrategy.value?.name || '当前推荐对策'
+  return `依赖链判断：${action}不能单点执行，应按“库存与货源确认 → 多主体协同 → 合同/预算放行 → 动态监测校准”的顺序推进。`
+})
 const selectedStrategyId = computed(() => {
   const node = nodePanel.node
   if (!node || !strategyNodeIds.value.size) return ''
@@ -906,7 +963,7 @@ function resetTreeView() {
   nodePanel.node = null
   drawerActivePanels.value = ['overview']
   nextTick(() => initBranchCharts(true))
-  ElMessage.success('决策树视图已复位')
+  ElMessage.success('对策视图已复位')
 }
 
 function onResize() {
@@ -969,9 +1026,53 @@ onBeforeUnmount(() => {
 }
 
 .dt-overview-strip,
-.dt-console {
+.dt-console,
+.key-conclusion-strip,
+.dependency-panel {
   margin: 0 8px;
 }
+
+.key-conclusion-strip {
+  display: grid;
+  grid-template-columns: 110px repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px 12px;
+  align-items: stretch;
+}
+
+.key-conclusion-label {
+  display: flex;
+  align-items: center;
+  color: #1e3a8a;
+  font-size: var(--mid-fs-strong);
+  font-weight: 900;
+}
+
+.key-conclusion-item {
+  padding: 8px 10px;
+  border-left: 3px solid #3b82f6;
+  border-radius: 7px;
+  background: #f8fafc;
+}
+.key-conclusion-item.danger { border-color: #ef4444; background: #fff7f7; }
+.key-conclusion-item.success { border-color: #10b981; background: #f0fdf4; }
+.key-conclusion-item span { color: #64748b; font-size: var(--mid-fs-micro); font-weight: 800; }
+.key-conclusion-item strong { display: block; margin-top: 3px; color: #0f172a; font-size: var(--mid-fs-strong); }
+.key-conclusion-item p { margin: 3px 0 0; color: #64748b; font-size: var(--mid-fs-label); line-height: 1.45; }
+
+.dependency-panel { padding: 12px 14px; }
+.dependency-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.dependency-head span { color: #2563eb; font-size: var(--mid-fs-micro); font-weight: 900; letter-spacing: .08em; }
+.dependency-head h3 { margin: 4px 0 0; color: #0f172a; font-size: var(--mid-fs-title); }
+.dependency-flow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+.dependency-card { position: relative; display: grid; grid-template-columns: 26px 1fr auto; gap: 8px; padding: 10px; border: 1px solid #dbe4f0; border-radius: 9px; background: linear-gradient(180deg, #fff, #f8fafc); }
+.dependency-card:not(:last-child)::after { content: '→'; position: absolute; right: -10px; top: 50%; z-index: 2; color: #3b82f6; font-weight: 900; transform: translate(50%, -50%); }
+.dependency-index { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: #dbeafe; color: #1d4ed8; font-size: var(--mid-fs-micro); font-weight: 900; }
+.dependency-card small { color: #64748b; font-size: var(--mid-fs-micro); }
+.dependency-card strong { display: block; margin-top: 3px; color: #0f172a; font-size: var(--mid-fs-strong); }
+.dependency-card p { margin: 4px 0 0; color: #64748b; font-size: var(--mid-fs-label); line-height: 1.5; }
+.dependency-card :deep(.el-tag) { align-self: start; }
+.dependency-conclusion { margin: 10px 0 0; padding: 8px 10px; border-radius: 7px; background: #eff6ff; color: #1e3a8a; font-size: var(--mid-fs-label); line-height: 1.55; }
 
 .hud-control-card {
   flex: 1;
@@ -1515,6 +1616,20 @@ onBeforeUnmount(() => {
 
 
 @media (max-width: 1200px) {
+  .key-conclusion-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .key-conclusion-label {
+    grid-column: 1 / -1;
+  }
+
+  .dependency-flow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dependency-card::after { display: none; }
+
   .dt-console {
     grid-template-columns: 1fr;
   }
@@ -1534,6 +1649,15 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 768px) {
+  .key-conclusion-strip,
+  .dependency-flow {
+    grid-template-columns: 1fr;
+  }
+
+  .dependency-head {
+    flex-direction: column;
+  }
+
   .dt-focus-grid {
     grid-template-columns: 1fr;
   }

@@ -1254,7 +1254,7 @@ const viewExperiment = async (task) => {
           }, [
             h(ElButton, { type: 'primary', onClick: () => goto('/home/SCnet/interface') }, () => '系统运行'),
             h(ElButton, { type: 'warning', onClick: () => goto('/home/SCnet/expAnalysisGameTheory') }, () => '博弈论分析'),
-            h(ElButton, { type: 'warning', onClick: () => goto('/home/SCnet/expAnalysisDecisionTree') }, () => '决策树分析'),
+            h(ElButton, { type: 'warning', onClick: () => goto('/home/SCnet/expAnalysisDecisionTree') }, () => '对策分析'),
             h(ElButton, { type: 'warning', onClick: () => goto('/home/SCnet/expAnalysisScenario') }, () => '情景分析'),
             h(ElButton, { type: 'success', onClick: () => goto('/home/SCnet/EXreport') }, () => '实验报告')
           ])

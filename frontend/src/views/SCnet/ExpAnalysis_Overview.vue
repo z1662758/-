@@ -247,7 +247,7 @@ const evidence = computed(() => reportVm.value?.analysisRecoveryCards?.slice(1).
   tone: evidenceTones[index]
 })) || [
   { title: '博弈论分析', detail: '识别参与方的利益冲突与稳定策略，明确协同边界。', icon: markRaw(Grid), tone: 'blue' },
-  { title: '决策树分析', detail: '对比不干预基线与调控路径，验证动作的结果差异。', icon: markRaw(Promotion), tone: 'orange' },
+  { title: '对策分析', detail: '对比不干预基线与调控路径，验证动作的结果差异。', icon: markRaw(Promotion), tone: 'orange' },
   { title: '情景分析', detail: '在不同扰动窗口下复核结论的稳健性与适用范围。', icon: markRaw(TrendCharts), tone: 'green' }
 ])
 

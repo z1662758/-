@@ -206,6 +206,24 @@
             </div>
 
             <p class="matrix-summary">{{ gameVm.matrixSummary?.alignmentText }}</p>
+
+            <section class="vulnerability-panel">
+              <div class="vulnerability-head">
+                <div>
+                  <span>脆弱性分析</span>
+                  <strong>策略组合的五维压力评估</strong>
+                </div>
+                <el-tag size="small" :type="vulnerabilityLevel.type" effect="dark">{{ vulnerabilityLevel.label }}</el-tag>
+              </div>
+              <div class="vulnerability-grid">
+                <article v-for="item in vulnerabilityMetrics" :key="item.label" class="vulnerability-card">
+                  <div><span>{{ item.label }}</span><strong>{{ item.value }}</strong></div>
+                  <el-progress :percentage="item.score" :show-text="false" :stroke-width="6" :color="item.color" />
+                  <p>{{ item.detail }}</p>
+                </article>
+              </div>
+              <p class="metric-method-note">指数由当前收益矩阵的局部波动、最坏收益与场景压力归一化计算，数值越高表示该维度压力越大；鲁棒性数值越高越稳定。</p>
+            </section>
           </section>
 
           <article class="agent-bridge-card">
@@ -231,7 +249,7 @@
 
           <div class="agent-actions">
             <div class="agent-action-grid">
-              <el-button type="primary" @click="goToDecisionTree">进入决策树推演</el-button>
+              <el-button type="primary" @click="goToDecisionTree">进入对策分析</el-button>
               <el-button plain @click="goToScenario">返回情景页</el-button>
             </div>
             <p class="agent-action-hint">{{ simulationAgent.handoff }}</p>
@@ -317,6 +335,48 @@ const selectedMatrixLabel = computed(() => {
   const cell = selectedMatrix.value
   if (!cell) return '等待矩阵'
   return `${currentScenario.value.p1Strategies[cell.rowIndex]?.name || '行策略'} × ${currentScenario.value.p2Strategies[cell.colIndex]?.name || '列策略'}`
+})
+
+function clampScore(value) {
+  return Math.max(0, Math.min(100, Math.round(Number(value) || 0)))
+}
+
+const vulnerabilityMetrics = computed(() => {
+  const cell = selectedMatrix.value
+  if (!cell) return []
+  const matrix = payoffMatrix.value
+  const totals = matrix.flatMap(row => row.map(item => Number(item.p1 || 0) + Number(item.p2 || 0)))
+  const maxTotal = Math.max(...totals, 1)
+  const minTotal = Math.min(...totals, 0)
+  const currentTotal = Number(cell.p1 || 0) + Number(cell.p2 || 0)
+  const neighbors = [
+    matrix[cell.rowIndex - 1]?.[cell.colIndex], matrix[cell.rowIndex + 1]?.[cell.colIndex],
+    matrix[cell.rowIndex]?.[cell.colIndex - 1], matrix[cell.rowIndex]?.[cell.colIndex + 1]
+  ].filter(Boolean)
+  const sensitivity = clampScore(neighbors.length
+    ? neighbors.reduce((sum, item) => sum + Math.abs(currentTotal - Number(item.p1 || 0) - Number(item.p2 || 0)), 0) / neighbors.length / maxTotal * 180
+    : 0)
+  const rowWorst = Math.min(...matrix[cell.rowIndex].map(item => Number(item.p1 || 0)))
+  const colWorst = Math.min(...matrix.map(row => Number(row[cell.colIndex]?.p2 || 0)))
+  const robustness = clampScore(((rowWorst + colWorst - minTotal) / Math.max(1, maxTotal - minTotal)) * 100)
+  const inventoryPressure = clampScore(38 + sensitivity * 0.42 + (100 - robustness) * 0.2)
+  const recoveryDifficulty = clampScore(25 + sensitivity * 0.35 + (100 - robustness) * 0.4)
+  const costPressure = clampScore(100 - ((currentTotal - minTotal) / Math.max(1, maxTotal - minTotal)) * 78)
+  return [
+    { label: '敏感性', value: `${sensitivity}`, score: sensitivity, color: '#f59e0b', detail: '相邻策略切换引起的收益波动' },
+    { label: '鲁棒性', value: `${robustness}`, score: robustness, color: '#10b981', detail: '最坏对手响应下的收益保持能力' },
+    { label: '库存压力', value: `${inventoryPressure}`, score: inventoryPressure, color: '#3b82f6', detail: '供需偏差对库存缓冲的占用程度' },
+    { label: '恢复难度', value: `${recoveryDifficulty}`, score: recoveryDifficulty, color: '#ef4444', detail: '策略失效后恢复稳定状态的难度' },
+    { label: '成本压力', value: `${costPressure}`, score: costPressure, color: '#8b5cf6', detail: '相对高收益组合的机会与执行成本' }
+  ]
+})
+
+const vulnerabilityLevel = computed(() => {
+  const rows = vulnerabilityMetrics.value.filter(item => item.label !== '鲁棒性')
+  const avg = rows.length ? rows.reduce((sum, item) => sum + item.score, 0) / rows.length : 0
+  if (avg >= 70) return { label: '高脆弱', type: 'danger' }
+  if (avg >= 45) return { label: '中脆弱', type: 'warning' }
+  return { label: '低脆弱', type: 'success' }
 })
 const equilibriumCards = computed(() => gameVm.value.equilibriumCards || [])
 const playerGuideCards = computed(() => (
@@ -733,6 +793,65 @@ function formatPayoff(cell) {
   line-height: var(--mid-lh-body);
 }
 
+.vulnerability-panel {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #cbd5e1;
+}
+
+.vulnerability-head,
+.vulnerability-card > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.vulnerability-head span,
+.vulnerability-card span {
+  display: block;
+  color: #64748b;
+  font-size: var(--mid-fs-label);
+  font-weight: 800;
+}
+
+.vulnerability-head strong {
+  display: block;
+  margin-top: 3px;
+  color: #0f172a;
+  font-size: var(--mid-fs-strong);
+}
+
+.vulnerability-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(112px, 1fr));
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.vulnerability-card {
+  padding: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.vulnerability-card strong {
+  color: #0f172a;
+  font-size: var(--mid-fs-strong);
+}
+
+.vulnerability-card :deep(.el-progress) { margin-top: 6px; }
+.vulnerability-card p,
+.metric-method-note {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: var(--mid-fs-micro);
+  line-height: 1.45;
+}
+
+.metric-method-note { color: #94a3b8; }
+
 .info-card span,
 .model-detail-card span,
 .agent-bridge-card span {
@@ -1060,6 +1179,8 @@ function formatPayoff(cell) {
   .output-column {
     grid-column: 1 / -1;
   }
+
+  .vulnerability-grid { grid-template-columns: repeat(5, minmax(120px, 1fr)); overflow-x: auto; }
 }
 
 @media (max-width: 980px) {
@@ -1105,5 +1226,7 @@ function formatPayoff(cell) {
   .agent-action-grid {
     grid-template-columns: 1fr;
   }
+
+  .vulnerability-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 </style>

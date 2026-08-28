@@ -94,7 +94,7 @@ const GAME_SCENARIO_METHOD_MAP = Object.freeze({
     constraint: '承诺不可完全验证，且当前补料窗口偏短。',
     worldState: '供给偏紧、库存偏低、单源依赖风险抬升。',
     fitReason: '当前最突出的不是长期协作，而是单次保供窗口里的背离激励。采购方若继续单源压价，供应商更可能转向限量；供应商若先稳定供货，又担心价格让步被锁死，因此囚徒困境最能解释当下关系。',
-    treeBridge: '进入决策树后，先展开双源并行、长协锁量、应急寻源三类动作，判断能否通过承诺装置把背离激励压下去。',
+    treeBridge: '进入对策分析后，先展开双源并行、长协锁量、应急寻源三类动作，判断能否通过承诺装置把背离激励压下去。',
     alternativeNotes: {
       hawk_dove: '当前不是单纯争抢一条通道，而是围绕价格、供货稳定性和承诺可信度博弈。',
       repeated_game: '长期关系仍然重要，但当前窗口更像一次性高压补料，短期背离问题更优先。'
@@ -107,7 +107,7 @@ const GAME_SCENARIO_METHOD_MAP = Object.freeze({
     constraint: '供货能力和物流通道有限，双方都不愿先让步。',
     worldState: '上游供给与通道容量受限，交付优先权需要重新分配。',
     fitReason: '当前最关键的是有限容量下的抢位与让步设计。若双方都采取强攻动作，交付拥堵和成本外溢会一起上升；一方错峰、一方保供或限量，反而能保住总收益，因此更适合用鹰鸽博弈解释。',
-    treeBridge: '进入决策树后，优先展开错峰排产、主通道切换、限量保价和让步换稳定交付等路径。',
+    treeBridge: '进入对策分析后，优先展开错峰排产、主通道切换、限量保价和让步换稳定交付等路径。',
     alternativeNotes: {
       prisoner_dilemma: '当前不是典型的“合作承诺崩溃”，而是“谁先硬碰、谁先让步”的资源争抢问题。',
       repeated_game: '重复协作会影响后续关系，但当前高峰窗口首先要解决的是容量冲突。'
@@ -120,7 +120,7 @@ const GAME_SCENARIO_METHOD_MAP = Object.freeze({
     constraint: '扩产存在滞后，且各方会根据历史履约记录调整后续动作。',
     worldState: '需求持续上行，价格、库存和产能都要在多期内滚动校准。',
     fitReason: '当前不是一次性对撞，而是多期价格与产能联动。只看单轮收益会低估信誉、惩罚和滚动协商的作用；重复博弈更适合解释为何双方要在多个窗口里维持合作、何时会触发惩罚或改约。',
-    treeBridge: '进入决策树后，先展开分阶段锁量、扩产校准、配额管理和履约惩罚等多期动作链。',
+    treeBridge: '进入对策分析后，先展开分阶段锁量、扩产校准、配额管理和履约惩罚等多期动作链。',
     alternativeNotes: {
       prisoner_dilemma: '单轮背离依然存在，但当前关系的核心是多期协调，不是一次性背离。',
       hawk_dove: '这里不只是抢占有限容量，更重要的是通过长期协作把价格和扩产节奏稳住。'
@@ -784,8 +784,8 @@ export function buildUraniumGameModelSelectionViewModel({
     currentInput: frame.constraint,
     thinkingStyle: `${selectedModel.thinkingStyle} 当前重点是：${frame.treeBridge}`,
     handoff: decisionVm.bestStrategy
-      ? `下游决策树默认先展开“${decisionVm.bestStrategy.name}”，并验证该动作能否改变双方背离激励。`
-      : '下游决策树将围绕推荐模型给出的主判断展开候选动作。'
+      ? `下游对策分析默认先展开“${decisionVm.bestStrategy.name}”，并验证该动作能否改变双方背离激励。`
+      : '下游对策分析将围绕推荐模型给出的主判断展开候选动作。'
   }
 
   return {
@@ -926,7 +926,7 @@ export function buildUraniumDecisionTreeViewModel({
         {
           label: '候选数量',
           value: `${l1Scores.length}`,
-          detail: l1Scores.length ? '当前 mock 决策树已生成第一层候选动作。' : '当前时点暂无可展示候选动作。'
+          detail: l1Scores.length ? '当前对策模型已生成第一层候选动作。' : '当前时点暂无可展示候选动作。'
         }
       ],
       briefs: [
@@ -1131,7 +1131,7 @@ export function buildUraniumGameTheoryViewModel({
       ? `当前矩阵默认均衡为“${dominantPairLabel}”`
       : '当前矩阵未识别到纯策略纳什均衡',
     summary: dominantEq
-      ? '先用收益矩阵确认双方最优响应，再判断默认均衡是否等于系统总收益最优，最后把结论交给决策树展开。'
+      ? '先用收益矩阵确认双方最优响应，再判断默认均衡是否等于系统总收益最优，最后把结论交给对策分析展开。'
       : '先用双方均值优势和收益矩阵定位冲突，再由仿真 Agent 生成可展开的候选动作。',
     tags: [
       { label: '场景', value: decisionVm.currentScenarioLabel },
@@ -1222,7 +1222,7 @@ export function buildUraniumGameTheoryViewModel({
     {
       id: 'bridge-guide',
       eyebrow: '下游衔接',
-      title: '进入决策树',
+      title: '进入对策分析',
       summary: modelSelection.simulationAgent.handoff,
       metricLabel: '默认聚焦',
       metricValue: modelSelection.selectedModel.label,
@@ -1604,7 +1604,7 @@ export function buildUraniumReportViewModel({ experiment = null, history = [], s
       output: `${gameVm.modelSelection.simulationAgent.name} · ${gameVm.dominantPairLabel}`
     },
     {
-      step: '决策树',
+      step: '对策分析',
       title: decisionVm.bestStrategy?.name || '推荐动作待补充',
       text: decisionVm.reportHeadline,
       output: `${decisionVm.strategyDeck.length} 个候选动作已排序`

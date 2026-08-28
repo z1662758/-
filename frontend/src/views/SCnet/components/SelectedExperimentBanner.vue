@@ -19,7 +19,7 @@
           <el-icon><Grid /></el-icon>博弈论
         </el-button>
         <el-button type="warning" size="small" plain @click="onNavigate(SCNET_ROUTES.expAnalysisDecisionTree)">
-          <el-icon><Promotion /></el-icon>决策树
+          <el-icon><Promotion /></el-icon>对策分析
         </el-button>
         <el-button type="warning" size="small" plain @click="onNavigate(SCNET_ROUTES.expAnalysisScenario)">
           <el-icon><TrendCharts /></el-icon>情景分析

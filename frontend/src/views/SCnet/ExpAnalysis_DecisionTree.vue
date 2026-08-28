@@ -3,7 +3,7 @@
     <!-- 顶部工具栏 -->
     <div class="toolbar">
       <div class="tl-left">
-        <span class="page-title">📊 供应链决策树分析</span>
+        <span class="page-title">📊 供应链对策分析</span>
         <span class="page-sub">{{ subtitleText }}</span>
       </div>
       <div class="tl-center">

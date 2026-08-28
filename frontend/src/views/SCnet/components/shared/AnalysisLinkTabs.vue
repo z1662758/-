@@ -50,7 +50,7 @@ const router = useRouter()
 
 const tabs = computed(() => [
   { value: 'gameTheory',   label: '博弈论', icon: markRaw(Grid) },
-  { value: 'decisionTree', label: '决策树', icon: markRaw(Promotion) },
+  { value: 'decisionTree', label: '对策', icon: markRaw(Promotion) },
   { value: 'scenario',     label: '情景',   icon: markRaw(TrendCharts) }
 ])
 
