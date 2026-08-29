@@ -192,13 +192,16 @@ import { PHASE_EVENT, PHASE_STORAGE_KEY, ROUTE_TO_PHASE } from "@/constants/scne
 const PRE_MAIN_MENU_ITEMS = Object.freeze([
   { index: '/home/SCnet/situationAnalysis', label: '需求分析', icon: DataLine },
   { index: '/home/SCnet/openSourceIntelligence', label: '开源情报', icon: WarningFilled },
-  { index: '/home/SCnet/knowledgeGraph', label: '本体网络', icon: Collection },
-  { index: '/home/SCnet/reportGeneration', label: '报告生成', icon: Document }
+  { index: '/home/SCnet/knowledgeGraph', label: '本体网络', icon: Collection }
 ])
 
 const PRE_ANALYSIS_MENU_ITEMS = Object.freeze([
   { index: '/home/SCnet/situationJudge', label: '态势研判', icon: DataLine },
   { index: '/home/SCnet/situationResearch-main', label: '态势预测', icon: Promotion }
+])
+
+const PRE_TAIL_MENU_ITEMS = Object.freeze([
+  { index: '/home/SCnet/reportGeneration', label: '报告生成', icon: Document }
 ])
 
 const DURING_MAIN_MENU_ITEMS = Object.freeze([
@@ -341,6 +344,10 @@ export default {
         index: `${item.index}?scenario=${currentScenario.value}`
       }))),
       preAnalysisMenuItems: computed(() => PRE_ANALYSIS_MENU_ITEMS.map((item) => ({
+        ...item,
+        index: `${item.index}?scenario=${currentScenario.value}`
+      }))),
+      preTailMenuItems: computed(() => PRE_TAIL_MENU_ITEMS.map((item) => ({
         ...item,
         index: `${item.index}?scenario=${currentScenario.value}`
       }))),

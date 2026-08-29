@@ -249,7 +249,7 @@ import ChatSidebar from './ChatSidebar.vue'
 import logoUrl from '@/assets/images/logo.png'
 import { useScenarioStore } from '@/stores/scenario'
 import { useScnetScenarioStore } from '@/stores/scnet/useScenarioStore'
-import { detectScenario } from '@/constants/scnetScenario'
+
 import { writeScnetPhase } from '@/constants/scnetPhase'
 import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 import { unwrapApiData } from '@/utils/session'
@@ -333,7 +333,7 @@ export default {
       const next = String(mode || '').trim()
       if (['pre', 'during', 'post'].includes(next)) selectMode(next)
     }
-    const selectMode = (mode) => { currentMode.value = mode }
+    
     const selectScenario = (value) => { scenarioStore.setScenario(value) }
     const openKnowledge = () => router.push('/chatKnowledge')
 
