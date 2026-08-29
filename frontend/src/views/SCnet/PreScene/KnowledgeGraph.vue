@@ -65,7 +65,7 @@
           @click="toggleOwlView"
           :loading="store.owlNetworkLoading"
           style="width:100%;margin:8px 0 4px">
-          {{ isOwlView ? '📐 返回动态网络' : '🔬 查看本体规则网络' }}
+          {{ isOwlView ? '📐 返回动态网络' : '🔬 查看业务规则网络' }}
         </el-button>
         <div class="owl-reasoner">
           <span class="reasoner-dot"></span> HermiT 推理器 &middot; NetworkX 5维中心性
@@ -157,18 +157,59 @@
         <span>供应链图谱加载中...</span>
       </div>
       <div ref="chartRef" class="ukg-chart"></div>
+
+      <div class="edge-legend" v-if="isBusinessView">
+        <span class="legend-item"><i class="legend-line impact"></i>扰动</span>
+        <span class="legend-item"><i class="legend-line policy"></i>政策</span>
+        <span class="legend-item"><i class="legend-line management"></i>管理</span>
+        <span class="legend-item"><i class="legend-line flow"></i>供应流</span>
+        <span class="legend-item"><i class="legend-line metric"></i>评估</span>
+        <span class="legend-item"><i class="legend-line rule"></i>规则</span>
+      </div>
+      <div class="edge-legend" v-else>
+        <span class="legend-item"><i class="legend-line coop"></i>合作</span>
+        <span class="legend-item"><i class="legend-line confront"></i>博弈/对抗</span>
+        <span class="legend-item"><i class="legend-line neutral"></i>结构</span>
+      </div>
     </div>
 
     <!-- 右侧详情面板 -->
     <div class="ukg-right-panel" v-if="store.selectedNode">
       <div class="panel-header">
-        {{ isOwlView ? '本体规则分析' : '节点详情' }}
+        {{ isBusinessView ? '业务规则分析' : (isOwlView ? '本体规则分析' : '节点详情') }}
         <el-button link size="small" @click="store.clearSelection()">✕</el-button>
       </div>
       <div class="detail-content">
 
+        <!-- ══════ 业务规则网络：业务逻辑说明 ══════ -->
+        <template v-if="isBusinessView">
+          <div class="owl-rule-header">业务规则节点</div>
+
+          <div class="owl-class-card">
+            <div class="owl-class-name">{{ store.selectedNode.name }}</div>
+            <div class="owl-class-label">{{ store.selectedNode.properties?.group || '业务规则类' }}</div>
+            <div class="owl-class-props" v-if="businessDetailFields.length">
+              <div class="owl-prop" v-for="p in businessDetailFields" :key="p.key">
+                <span class="owl-prop-key">{{ p.label }}</span>
+                <span class="owl-prop-val">{{ p.value }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="owl-section-title" v-if="businessRelations.length">业务关系</div>
+          <div class="owl-relations" v-if="businessRelations.length">
+            <div class="owl-rel-item" v-for="r in businessRelations" :key="r.key">
+              <span class="owl-rel-name">{{ r.from }}</span>
+              <span class="owl-rel-arrow">→</span>
+              <span class="owl-rel-target">{{ r.relation }}</span>
+              <span class="owl-rel-arrow">→</span>
+              <span class="owl-rel-target">{{ r.to }}</span>
+            </div>
+          </div>
+        </template>
+
         <!-- ══════ OWL 模式：本体类定义 + 规则 ══════ -->
-        <template v-if="isOwlView">
+        <template v-else-if="isOwlView">
           <div class="owl-rule-header">本体类定义</div>
 
           <!-- 当前选中节点的类 -->
@@ -236,6 +277,7 @@ import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { Search, Loading } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
+import { computeLayeredLayout, computeLayeredLayoutDetailed, edgeLineStyle, classifyRelation, EDGE_LABELS } from '@/utils/ontologyLayout'
 
 const MAX_VISIBLE_NODES = 300
 const OWL_MAX_VISIBLE = 80  // OWL 视图限制节点数，保证可读性
@@ -244,6 +286,20 @@ const METRIC_TYPES = new Set(['UraniumProduction', 'UraniumDemand', 'Exploration
 const CORE_TYPES = new Set(['Country', 'UraniumMine', 'UraniumCompany',
   'RiskEvent', 'TransportRoute', 'Policy', 'FuelCycleFacility',
   'TurningPoint', 'ScenarioNode'])
+
+// 分层布局：国家在最上方，矿山/企业次之，事件与指标逐层向下
+const URANIUM_BANDS = [
+  ['Country'],
+  ['UraniumMine', 'UraniumCompany'],
+  ['FuelCycleFacility', 'TransportRoute', 'Policy', 'NuclearUtility'],
+  ['RiskEvent', 'PolicyEvent', 'PriceEvent', 'GeopoliticalRisk', 'TurningPoint', 'ScenarioNode'],
+  ['UraniumProduction', 'UraniumDemand', 'ExplorationMetric', 'PriceMetric', 'InventoryMetric', 'CostMetric', 'ResourceMetric'],
+]
+const URANIUM_BAND_LABELS = ['国家/地区', '矿山/企业', '设施/路线/政策', '事件/情景/风险', '指标']
+const URANIUM_COOP = new Set(['has_mine', 'based_in', 'operates', 'consumes', 'explores',
+  'has_price', 'has_inventory', 'connects_to', 'located_in', 'operates_facility',
+  'has_resource', 'has_cost', 'produces', 'transports'])
+const URANIUM_CONFRONT = new Set(['affects', 'regulates', 'disrupts', 'sanctions', 'conflicts'])
 
 // 5维中心性计算
 const centralityMetrics = computed(() => {
@@ -293,6 +349,7 @@ const searchQuery = ref('')
 const windowIdx = ref(0)
 const maxWindowIdx = ref(0)
 const isOwlView = ref(false)
+const isBusinessView = ref(false) // 是否展示业务规则本体网络（默认中心图，onMounted 末尾切 true）
 
 const currentYear = computed(() => {
   const wins = store.dynamicWindows
@@ -464,6 +521,57 @@ const classInferenceLabels = computed(() => {
   return tags
 })
 
+// 业务规则网络右侧详情
+const BUSINESS_DETAIL_LABELS = {
+  labelCn: '节点含义',
+  group: '所属分类',
+  examples: '代表对象',
+  description: '业务说明',
+  policyLogic: '政策逻辑',
+  managementLogic: '管理关系',
+  impactLogic: '影响机制',
+  metricLogic: '评估指标',
+  rule: '规则判定',
+}
+
+const businessDetailFields = computed(() => {
+  const props = store.selectedNode?.properties || {}
+  const order = [
+    'labelCn',
+    'group',
+    'examples',
+    'description',
+    'policyLogic',
+    'managementLogic',
+    'impactLogic',
+    'metricLogic',
+    'rule',
+  ]
+  return order
+    .filter(k => props[k])
+    .map(k => ({
+      key: k,
+      label: BUSINESS_DETAIL_LABELS[k] || k,
+      value: formatVal(props[k]),
+    }))
+})
+
+const businessRelations = computed(() => {
+  if (!store.selectedNode || !isBusinessView.value) return []
+  const graph = store.currentView
+  const nodeId = store.selectedNode.id
+  const nameMap = new Map((graph.nodes || []).map(n => [n.id, n.name || n.id]))
+
+  return (graph.edges || [])
+    .filter(e => e.source === nodeId || e.target === nodeId)
+    .map((e, idx) => ({
+      key: `${e.source}-${e.target}-${idx}`,
+      from: nameMap.get(e.source) || e.source,
+      to: nameMap.get(e.target) || e.target,
+      relation: e.relation || e.properties?.relationCn || '关联',
+    }))
+})
+
 // 选中节点的决策建议
 const selectedActions = computed(() => {
   return store.selectedNode?.suggested_actions || []
@@ -526,6 +634,373 @@ const TYPE_COLORS = {
   'MultiRiskCountry': '#FF6600', 'TransportChokepoint': '#E63946',
 }
 
+// ── 业务规则本体网络（类级别，用于展示业务逻辑；非实例数据） ──
+const BUSINESS_GROUP_COLORS = {
+  '风险扰动': '#E8807A',
+  '国家分类': '#7FA8D9',
+  '政策机制': '#B39DD8',
+  '企业资源': '#C49A6C',
+  '评估指标': '#7FBF7F',
+  '规则判定': '#E6A23C',
+}
+const BUSINESS_GROUP_ORDER = ['风险扰动', '国家分类', '政策机制', '企业资源', '评估指标', '规则判定']
+const BUSINESS_TYPE_GROUP = {
+  RiskSource: '风险扰动',
+
+  CountryClass: '国家分类',
+  MajorExporterCountry: '国家分类',
+  MinorSupplierCountry: '国家分类',
+  ImportDependentCountry: '国家分类',
+
+  ExportPolicy: '政策机制',
+  SupplierPolicy: '政策机制',
+  ImportSecurityPolicy: '政策机制',
+  StateEnterpriseManagement: '政策机制',
+
+  UraniumCompany: '企业资源',
+  UraniumMine: '企业资源',
+  TransportRoute: '企业资源',
+  NuclearFacility: '企业资源',
+
+  ConcentrationMetric: '评估指标',
+  ImportInventoryMetric: '评估指标',
+  PolicyTightnessMetric: '评估指标',
+  StabilityMetric: '评估指标',
+
+  ExportTighteningRule: '规则判定',
+  SupplierSubstitutionRule: '规则判定',
+  ImportSecurityRule: '规则判定',
+}
+const BUSINESS_ONTOLOGY_NODES = [
+  {
+    id: 'risk_event',
+    name: '风险扰动',
+    nodeType: 'RiskSource',
+    group: '风险扰动',
+    x: -540,
+    y: 20,
+    symbolSize: 74,
+    properties: {
+      labelCn: '风险扰动源',
+      description: '政策变化、制裁、冲突、矿山事故、运输中断、价格冲击等外部扰动。',
+      impactLogic: '风险事件不直接等同于风险结论，而是先触发国家类别、政策机制、企业资源和指标变化。',
+    },
+  },
+  {
+    id: 'country_class',
+    name: '国家类',
+    nodeType: 'CountryClass',
+    group: '国家分类',
+    x: -390,
+    y: 20,
+    symbolSize: 68,
+    properties: {
+      labelCn: '国家作为政策与监管主体',
+      description: '国家不再作为零散节点展示，而是按供应链角色分类。',
+      policyLogic: '不同国家类别对应不同政策集合、企业监管方式和评估指标。',
+    },
+  },
+  {
+    id: 'major_exporter_country',
+    name: '铀大出口国',
+    nodeType: 'MajorExporterCountry',
+    group: '国家分类',
+    x: -235,
+    y: -155,
+    symbolSize: 64,
+    properties: {
+      labelCn: '主要供给国',
+      examples: '代表性国家：哈萨克斯坦、加拿大、澳大利亚、纳米比亚',
+      description: '承担主要外部供给功能，对全球供应可得性影响较大。',
+      policyLogic: '重点关注出口许可、出口配额、制裁合规、本土加工要求、资源民族主义倾向。',
+      metricLogic: '重点评估供应集中度、政策收紧度、出口可得性。',
+    },
+  },
+  {
+    id: 'minor_supplier_country',
+    name: '补给小国',
+    nodeType: 'MinorSupplierCountry',
+    group: '国家分类',
+    x: -235,
+    y: -35,
+    symbolSize: 60,
+    properties: {
+      labelCn: '补充型供应国',
+      examples: '代表性国家：乌兹别克斯坦、尼日尔、马拉维',
+      description: '供给规模相对有限，更多承担替代补给或边际补给功能。',
+      policyLogic: '重点关注政策稳定性、临时出口能力、财政依赖、合同履约稳定性。',
+      metricLogic: '重点评估替代可靠性、补给弹性、履约稳定性。',
+    },
+  },
+  {
+    id: 'import_dependent_country',
+    name: '进口消费国',
+    nodeType: 'ImportDependentCountry',
+    group: '国家分类',
+    x: -235,
+    y: 90,
+    symbolSize: 60,
+    properties: {
+      labelCn: '需求驱动型国家',
+      examples: '代表性国家：中国、法国、日本、韩国',
+      description: '核电需求或核燃料需求较强，对外部进口、长期合同和战略库存依赖较高。',
+      policyLogic: '重点关注进口审批、长期采购合同、战略库存、多元化寻源、路线切换能力。',
+      metricLogic: '重点评估进口依赖度、库存保障月数、供应替代周期。',
+    },
+  },
+  {
+    id: 'export_policy',
+    name: '出口国政策',
+    nodeType: 'ExportPolicy',
+    group: '政策机制',
+    x: -45,
+    y: -155,
+    symbolSize: 60,
+    properties: {
+      labelCn: '大出口国政策集合',
+      description: '对铀资源出口、矿山产能、企业销售和跨境运输形成约束。',
+      policyLogic: '出口许可、配额控制、制裁合规、运输许可、战略资源保护。',
+      impactLogic: '政策收紧会降低出口可得性，提高供应集中风险和采购成本。',
+    },
+  },
+  {
+    id: 'supplier_policy',
+    name: '补给国政策',
+    nodeType: 'SupplierPolicy',
+    group: '政策机制',
+    x: -45,
+    y: -35,
+    symbolSize: 58,
+    properties: {
+      labelCn: '补给小国政策集合',
+      description: '小规模供给国通常政策弹性更强，但稳定性和履约能力差异更大。',
+      policyLogic: '临时出口、财政收入依赖、政局稳定性、合同履约约束。',
+      impactLogic: '补给国政策波动会影响替代供应可靠性。',
+    },
+  },
+  {
+    id: 'import_policy',
+    name: '进口保障政策',
+    nodeType: 'ImportSecurityPolicy',
+    group: '政策机制',
+    x: -45,
+    y: 90,
+    symbolSize: 58,
+    properties: {
+      labelCn: '消费国进口政策集合',
+      description: '保障核燃料供应安全，降低单一来源依赖。',
+      policyLogic: '长期合同、战略库存、多源进口、采购审批、运输路线切换。',
+      impactLogic: '库存不足且进口依赖高时，会放大外部冲击。',
+    },
+  },
+  {
+    id: 'state_enterprise_management',
+    name: '国家—企业管理',
+    nodeType: 'StateEnterpriseManagement',
+    group: '政策机制',
+    x: -45,
+    y: 210,
+    symbolSize: 62,
+    properties: {
+      labelCn: '国家对企业的管理关系',
+      description: '用于表达国家和企业之间的监管、许可、税费、股权、合规约束。',
+      managementLogic: '国家通过采矿许可、出口许可、税费制度、安全监管、国有股权或战略审查影响企业行为。',
+      impactLogic: '企业是否能扩产、出口、履约和投资，取决于该管理关系。',
+    },
+  },
+  {
+    id: 'uranium_company',
+    name: '铀矿企业',
+    nodeType: 'UraniumCompany',
+    group: '企业资源',
+    x: 155,
+    y: 210,
+    symbolSize: 58,
+    properties: {
+      labelCn: '矿山运营与合同履约主体',
+      description: '企业负责矿山投资、产能维护、销售合同和运输安排。',
+      managementLogic: '受国家监管，也反过来影响矿山产能、合同履约和供应稳定性。',
+    },
+  },
+  {
+    id: 'uranium_mine',
+    name: '铀矿山',
+    nodeType: 'UraniumMine',
+    group: '企业资源',
+    x: 155,
+    y: -85,
+    symbolSize: 60,
+    properties: {
+      labelCn: '资源产出节点',
+      description: '矿山决定实物供给基础。',
+      impactLogic: '停产、降品位、扩产延迟会影响下游供应可得性。',
+    },
+  },
+  {
+    id: 'transport_route',
+    name: '跨境运输路线',
+    nodeType: 'TransportRoute',
+    group: '企业资源',
+    x: 155,
+    y: 35,
+    symbolSize: 58,
+    properties: {
+      labelCn: '物流通道节点',
+      description: '连接矿山、港口、转运国和消费国设施。',
+      impactLogic: '路线受制裁、港口、边境、海运和替代路线能力影响。',
+    },
+  },
+  {
+    id: 'nuclear_facility',
+    name: '核燃料设施/需求',
+    nodeType: 'NuclearFacility',
+    group: '企业资源',
+    x: 155,
+    y: 120,
+    symbolSize: 58,
+    properties: {
+      labelCn: '下游消费需求',
+      description: '代表核燃料加工、核电需求和终端消费压力。',
+      impactLogic: '需求刚性越强，供应扰动越容易转化为库存和价格压力。',
+    },
+  },
+  {
+    id: 'concentration_metric',
+    name: '供应集中度',
+    nodeType: 'ConcentrationMetric',
+    group: '评估指标',
+    x: 365,
+    y: -155,
+    symbolSize: 54,
+    properties: {
+      labelCn: '供给集中风险指标',
+      metricLogic: '出口国份额、企业份额、矿山份额、可替代供应数量。',
+      rule: '集中度越高，单一国家或企业政策变化的影响越大。',
+    },
+  },
+  {
+    id: 'policy_tightness_metric',
+    name: '政策收紧度',
+    nodeType: 'PolicyTightnessMetric',
+    group: '评估指标',
+    x: 365,
+    y: -35,
+    symbolSize: 54,
+    properties: {
+      labelCn: '政策影响指标',
+      metricLogic: '出口许可强度、配额限制、制裁合规成本、审批周期、政策不确定性。',
+      rule: '政策收紧度上升会降低供应可得性。',
+    },
+  },
+  {
+    id: 'import_inventory_metric',
+    name: '进口依赖/库存保障',
+    nodeType: 'ImportInventoryMetric',
+    group: '评估指标',
+    x: 365,
+    y: 90,
+    symbolSize: 54,
+    properties: {
+      labelCn: '消费国安全指标',
+      metricLogic: '进口依赖度、库存保障月数、长期合同覆盖率、供应替代周期。',
+      rule: '高进口依赖叠加低库存，会触发进口安全风险。',
+    },
+  },
+  {
+    id: 'stability_metric',
+    name: '运输与履约稳定性',
+    nodeType: 'StabilityMetric',
+    group: '评估指标',
+    x: 365,
+    y: 210,
+    symbolSize: 54,
+    properties: {
+      labelCn: '运行稳定性指标',
+      metricLogic: '路线中断概率、替代路线数量、企业履约率、矿山停产概率。',
+      rule: '路线或企业稳定性下降，会削弱补给小国和替代供应的可靠性。',
+    },
+  },
+  {
+    id: 'export_tightening_rule',
+    name: '规则：出口收紧',
+    nodeType: 'ExportTighteningRule',
+    group: '规则判定',
+    x: 585,
+    y: -120,
+    symbolSize: 60,
+    properties: {
+      labelCn: '出口国风险判定规则',
+      rule: '若大出口国政策收紧度上升，且供应集中度高，则判定为出口可得性下降。',
+      description: '用于识别主要出口国政策变化对全球供应的影响。',
+    },
+  },
+  {
+    id: 'supplier_substitution_rule',
+    name: '规则：替代可靠性',
+    nodeType: 'SupplierSubstitutionRule',
+    group: '规则判定',
+    x: 585,
+    y: 35,
+    symbolSize: 60,
+    properties: {
+      labelCn: '补给小国替代规则',
+      rule: '若补给小国履约稳定性低，且运输路线替代性差，则判定为替代供应不可靠。',
+      description: '用于判断小供应国能否承担替代供给功能。',
+    },
+  },
+  {
+    id: 'import_security_rule',
+    name: '规则：进口安全',
+    nodeType: 'ImportSecurityRule',
+    group: '规则判定',
+    x: 585,
+    y: 170,
+    symbolSize: 60,
+    properties: {
+      labelCn: '消费国进口安全规则',
+      rule: '若进口依赖度高、库存保障不足，且供应替代周期长，则判定为进口安全风险升高。',
+      description: '用于判断消费国在外部供应扰动下的脆弱性。',
+    },
+  },
+]
+const BUSINESS_ONTOLOGY_EDGES = [
+  { source: 'risk_event', target: 'country_class', relation: '触发分类判断', edgeType: 'impact' },
+
+  { source: 'country_class', target: 'major_exporter_country', relation: '划分为', edgeType: 'structure' },
+  { source: 'country_class', target: 'minor_supplier_country', relation: '划分为', edgeType: 'structure' },
+  { source: 'country_class', target: 'import_dependent_country', relation: '划分为', edgeType: 'structure' },
+
+  { source: 'major_exporter_country', target: 'export_policy', relation: '适用政策', edgeType: 'policy' },
+  { source: 'minor_supplier_country', target: 'supplier_policy', relation: '适用政策', edgeType: 'policy' },
+  { source: 'import_dependent_country', target: 'import_policy', relation: '适用政策', edgeType: 'policy' },
+
+  { source: 'major_exporter_country', target: 'state_enterprise_management', relation: '监管企业', edgeType: 'management' },
+  { source: 'minor_supplier_country', target: 'state_enterprise_management', relation: '监管企业', edgeType: 'management' },
+  { source: 'state_enterprise_management', target: 'uranium_company', relation: '许可/股权/合规', edgeType: 'management' },
+
+  { source: 'export_policy', target: 'uranium_company', relation: '约束出口行为', edgeType: 'policy' },
+  { source: 'supplier_policy', target: 'uranium_company', relation: '约束履约弹性', edgeType: 'policy' },
+  { source: 'import_policy', target: 'nuclear_facility', relation: '保障采购库存', edgeType: 'policy' },
+
+  { source: 'uranium_company', target: 'uranium_mine', relation: '投资运营', edgeType: 'flow' },
+  { source: 'uranium_mine', target: 'transport_route', relation: '产出运输', edgeType: 'flow' },
+  { source: 'transport_route', target: 'nuclear_facility', relation: '跨境供给', edgeType: 'flow' },
+  { source: 'nuclear_facility', target: 'import_dependent_country', relation: '形成需求压力', edgeType: 'flow' },
+
+  { source: 'major_exporter_country', target: 'concentration_metric', relation: '评估', edgeType: 'metric' },
+  { source: 'export_policy', target: 'policy_tightness_metric', relation: '评估', edgeType: 'metric' },
+  { source: 'import_dependent_country', target: 'import_inventory_metric', relation: '评估', edgeType: 'metric' },
+  { source: 'import_policy', target: 'import_inventory_metric', relation: '评估', edgeType: 'metric' },
+  { source: 'transport_route', target: 'stability_metric', relation: '评估', edgeType: 'metric' },
+  { source: 'uranium_company', target: 'stability_metric', relation: '评估', edgeType: 'metric' },
+
+  { source: 'concentration_metric', target: 'export_tightening_rule', relation: '输入规则', edgeType: 'rule' },
+  { source: 'policy_tightness_metric', target: 'export_tightening_rule', relation: '输入规则', edgeType: 'rule' },
+  { source: 'stability_metric', target: 'supplier_substitution_rule', relation: '输入规则', edgeType: 'rule' },
+  { source: 'import_inventory_metric', target: 'import_security_rule', relation: '输入规则', edgeType: 'rule' },
+  { source: 'policy_tightness_metric', target: 'import_security_rule', relation: '输入规则', edgeType: 'rule' },
+]
+
 // OWL 推理标签定义
 const INFERENCE_TAG_DEFS = [
   { key: 'HighRiskCountry', label: '高风险国', cssClass: 'inf-danger' },
@@ -548,6 +1023,8 @@ const OWL_CORE_TYPES = new Set(['Country', 'UraniumMine', 'UraniumCompany',
   'TransportChokepoint', 'ResourceConcentrationRisk', 'MultiRiskCountry', 'MineCascadeImpact'])
 
 function getNodeTypeColor(nodeType) {
+  const group = BUSINESS_TYPE_GROUP[nodeType]
+  if (group) return BUSINESS_GROUP_COLORS[group] || '#999'
   return TYPE_COLORS[nodeType] || '#999'
 }
 
@@ -618,7 +1095,194 @@ function getVisibleGraph() {
   return { nodes: selected, edges: edges.filter(e => selectedIds.has(e.source) && selectedIds.has(e.target)) }
 }
 
+function buildBusinessOntologyGraph() {
+  const categories = BUSINESS_GROUP_ORDER.map(g => ({
+    name: g,
+    itemStyle: { color: BUSINESS_GROUP_COLORS[g] },
+  }))
+
+  const nodes = BUSINESS_ONTOLOGY_NODES.map(n => ({
+    id: n.id,
+    name: n.name,
+    nodeType: n.nodeType,
+    category: BUSINESS_GROUP_ORDER.indexOf(n.group),
+    symbolSize: n.symbolSize || 54,
+    x: n.x,
+    y: n.y,
+    properties: {
+      ...(n.properties || {}),
+      group: n.group,
+      labelCn: n.properties?.labelCn || n.name,
+    },
+  }))
+
+  const edges = BUSINESS_ONTOLOGY_EDGES.map(e => ({
+    source: e.source,
+    target: e.target,
+    relation: e.relation,
+    edgeType: e.edgeType || 'structure',
+    properties: {
+      relationCn: e.relation,
+    },
+  }))
+
+  return { nodes, edges, categories }
+}
+
+function buildBusinessChartOption() {
+  const graph = store.currentView
+  const nodes = graph.nodes || []
+  const edges = graph.edges || []
+  const categories = graph.categories || []
+  const selectedId = store.selectedNode?.id
+
+  const idToName = {}
+  for (const n of nodes) idToName[n.id] = n.name || n.id
+
+  const edgeStyleMap = {
+    impact: { color: '#E8807A', width: 2.2, type: 'solid', opacity: 0.82 },
+    structure: { color: '#CBD5E1', width: 1.4, type: 'solid', opacity: 0.65 },
+    policy: { color: '#8B5CF6', width: 2.0, type: 'solid', opacity: 0.78 },
+    management: { color: '#2563EB', width: 2.0, type: 'solid', opacity: 0.78 },
+    flow: { color: '#16A34A', width: 2.2, type: 'solid', opacity: 0.8 },
+    metric: { color: '#65A30D', width: 1.8, type: 'dashed', opacity: 0.72 },
+    rule: { color: '#F59E0B', width: 2.0, type: 'dashed', opacity: 0.82 },
+  }
+
+  return {
+    tooltip: {
+      trigger: 'item',
+      confine: true,
+      formatter: (p) => {
+        if (p.dataType === 'node') {
+          const props = p.data.properties || {}
+          const rows = [
+            props.labelCn ? `含义：${props.labelCn}` : '',
+            props.group ? `分类：${props.group}` : '',
+            props.examples ? `代表对象：${props.examples}` : '',
+            props.description ? `说明：${props.description}` : '',
+            props.policyLogic ? `政策逻辑：${props.policyLogic}` : '',
+            props.managementLogic ? `管理关系：${props.managementLogic}` : '',
+            props.impactLogic ? `影响机制：${props.impactLogic}` : '',
+            props.metricLogic ? `评估指标：${props.metricLogic}` : '',
+            props.rule ? `规则：${props.rule}` : '',
+          ].filter(Boolean)
+
+          return `<b>${p.name}</b><br/>${rows.join('<br/>')}`
+        }
+
+        const s = idToName[p.data.source] || p.data.source
+        const t = idToName[p.data.target] || p.data.target
+        return `${s} → <b>${p.data.relation}</b> → ${t}`
+      },
+    },
+
+    legend: {
+      data: categories.map(c => c.name),
+      bottom: 10,
+      type: 'scroll',
+      textStyle: { fontSize: 11 },
+    },
+
+    animationDuration: 500,
+    animationEasingUpdate: 'cubicOut',
+
+    series: [{
+      type: 'graph',
+      layout: 'none',
+      symbol: 'roundRect',
+      edgeSymbol: ['none', 'arrow'],
+      edgeSymbolSize: 8,
+      roam: true,
+      draggable: false,
+      top: 40,
+      bottom: 60,
+      left: 40,
+      right: 40,
+
+      data: nodes.map(n => {
+        const group = n.properties?.group
+        const baseColor = BUSINESS_GROUP_COLORS[group] || '#94A3B8'
+
+        return {
+          id: n.id,
+          name: n.name,
+          category: n.category,
+          symbolSize: n.symbolSize || 54,
+          nodeType: n.nodeType,
+          properties: n.properties,
+          x: n.x,
+          y: n.y,
+          itemStyle: n.id === selectedId
+            ? {
+                color: baseColor,
+                borderColor: '#FFB020',
+                borderWidth: 4,
+                shadowBlur: 14,
+                shadowColor: 'rgba(255,176,32,0.45)',
+              }
+            : {
+                color: baseColor,
+                borderColor: '#ffffff',
+                borderWidth: 2,
+                shadowBlur: 6,
+                shadowColor: 'rgba(15,23,42,0.12)',
+              },
+          label: {
+            show: true,
+            formatter: '{b}',
+            fontSize: 12,
+            fontWeight: 600,
+            color: '#1f2937',
+            position: 'inside',
+            overflow: 'break',
+            width: 78,
+            lineHeight: 15,
+          },
+        }
+      }),
+
+      edges: edges.map(e => {
+        const style = edgeStyleMap[e.edgeType] || edgeStyleMap.structure
+
+        return {
+          source: e.source,
+          target: e.target,
+          relation: e.relation,
+          edgeType: e.edgeType,
+          properties: e.properties,
+          label: {
+            show: true,
+            formatter: e.relation,
+            fontSize: 10,
+            color: '#64748b',
+          },
+          lineStyle: {
+            ...style,
+            curveness: 0.08,
+          },
+        }
+      }),
+
+      categories,
+      labelLayout: {
+        hideOverlap: true,
+      },
+      emphasis: {
+        focus: 'adjacency',
+        lineStyle: { width: 3.2 },
+        label: { fontSize: 13 },
+      },
+      scaleLimit: {
+        min: 0.35,
+        max: 3,
+      },
+    }],
+  }
+}
+
 function buildChartOption() {
+  if (isBusinessView.value) return buildBusinessChartOption()
   const { nodes, edges } = getVisibleGraph()
   const graph = store.currentView
   const categories = graph.categories || []
@@ -630,6 +1294,35 @@ function buildChartOption() {
     itemStyle: { color: TYPE_COLORS[c.name] || c.itemStyle?.color || '#999' }
   }))
 
+  // 分层布局：国家在最上方，事件/指标逐层向下
+  const W = chartRef.value?.clientWidth || 900
+  const H = chartRef.value?.clientHeight || 600
+  const { positions, bands } = computeLayeredLayoutDetailed(nodes, URANIUM_BANDS, W, H)
+  const idToName = {}
+  for (const n of nodes) idToName[n.id] = n.name || n.id
+
+  // 分层带背景 + 层标题（graphic 坐标：top = H/2 + bandY，因 graph 原点在容器中心）
+  const bandPalette = ['rgba(37,99,235,0.05)', 'rgba(16,185,129,0.05)', 'rgba(245,158,11,0.05)', 'rgba(239,68,68,0.05)', 'rgba(99,102,241,0.05)']
+  const graphics = []
+  bands.forEach((band, i) => {
+    const top = H / 2 + band.y0
+    const height = band.y1 - band.y0
+    graphics.push({
+      type: 'rect',
+      left: 0, top, right: 0, height,
+      style: { fill: bandPalette[i % bandPalette.length] },
+      silent: true, z: -1,
+    })
+    if (URANIUM_BAND_LABELS[i]) {
+      graphics.push({
+        type: 'text',
+        left: 12, top: top + 6,
+        style: { text: `${URANIUM_BAND_LABELS[i]} (${band.count})`, fill: '#64748b', fontSize: 11, fontWeight: 700 },
+        silent: true,
+      })
+    }
+  })
+
   return {
     tooltip: {
       trigger: 'item', confine: true,
@@ -640,35 +1333,42 @@ function buildChartOption() {
             .map(([k, v]) => `${k}: ${formatVal(v)}`).join('<br/>')
           return `<b>${p.name}</b><br/>类型: ${p.data.nodeType}<br/>${propStr}`
         }
-        return `${p.data.source} → ${p.data.relation || ''} → ${p.data.target}`
+        const kind = classifyRelation(p.data.relation, URANIUM_COOP, URANIUM_CONFRONT)
+        const s = idToName[p.data.source] || p.data.source
+        const t = idToName[p.data.target] || p.data.target
+        return `${s} → <b>${p.data.relation || '关联'}</b>（${EDGE_LABELS[kind]}） → ${t}`
       }
     },
     legend: { data: enrichedCategories.map(c => c.name), bottom: 10, type: 'scroll' },
     animationDuration: 500,
     animationEasingUpdate: 'cubicOut',
+    graphic: graphics,
     series: [{
-      type: 'graph', layout: 'force',
-      data: nodes.map(n => ({
-        id: n.id, name: n.name, category: n.category,
-        symbolSize: isOwlView.value ? Math.max(18, n.symbolSize || 18) : (n.symbolSize || 20),
-        nodeType: n.nodeType, properties: n.properties,
-        itemStyle: n.id === selectedId
-          ? { borderColor: '#ff0', borderWidth: 3, shadowBlur: 12, shadowColor: '#ff0' }
-          : (n.properties?.role === 'key_node' && isOwlView.value)
-            ? { borderColor: '#ef4444', borderWidth: 3, shadowBlur: 8, shadowColor: '#ef444488' }
-            : (n.properties?.role === 'bridge_node' && isOwlView.value)
-              ? { borderColor: '#f59e0b', borderWidth: 2.5, shadowBlur: 6, shadowColor: '#f59e0b66' }
-              : undefined,
-        label: { show: isOwlView.value || (n.symbolSize || 20) > 30, fontSize: isOwlView.value ? 11 : 10, position: 'right' }
-      })),
+      type: 'graph', layout: 'none',
+      data: nodes.map(n => {
+        const pos = positions[n.id] || { x: 0, y: 0 }
+        return {
+          id: n.id, name: n.name, category: n.category,
+          symbolSize: isOwlView.value ? Math.max(18, n.symbolSize || 18) : (n.symbolSize || 20),
+          nodeType: n.nodeType, properties: n.properties,
+          x: pos.x, y: pos.y,
+          itemStyle: n.id === selectedId
+            ? { borderColor: '#ff0', borderWidth: 3, shadowBlur: 12, shadowColor: '#ff0' }
+            : (n.properties?.role === 'key_node' && isOwlView.value)
+              ? { borderColor: '#ef4444', borderWidth: 3, shadowBlur: 8, shadowColor: '#ef444488' }
+              : (n.properties?.role === 'bridge_node' && isOwlView.value)
+                ? { borderColor: '#f59e0b', borderWidth: 2.5, shadowBlur: 6, shadowColor: '#f59e0b66' }
+                : undefined,
+          label: { show: isOwlView.value || (n.symbolSize || 20) > 30, fontSize: isOwlView.value ? 11 : 10, position: 'right' }
+        }
+      }),
       edges: edges.map(e => ({
         source: e.source, target: e.target, relation: e.relation,
         label: { show: false, formatter: e.relation },
-        lineStyle: { curveness: 0.15, opacity: 0.3, width: 1 }
+        lineStyle: edgeLineStyle(e.relation, URANIUM_COOP, URANIUM_CONFRONT)
       })),
       categories: enrichedCategories,
       roam: true, draggable: true,
-      force: { repulsion: 350, gravity: 0.05, edgeLength: [80, 250], layoutAnimation: true, friction: 0.6 },
       emphasis: { focus: 'adjacency', lineStyle: { width: 3 } },
       scaleLimit: { min: 0.15, max: 5 }
     }]
@@ -712,6 +1412,7 @@ async function loadWindow() {
   const winKey = store.dynamicWindows[windowIdx.value]
   if (winKey) {
     isOwlView.value = false
+    isBusinessView.value = false
     await store.loadDynamicWindow(winKey)
     nextTick(renderChart)
   }
@@ -769,11 +1470,13 @@ function buildUraniumClassGraph() {
 async function toggleOwlView() {
   if (isOwlView.value) {
     isOwlView.value = false
+    isBusinessView.value = false
     await loadWindow()
     return
   }
-  store.currentView = buildUraniumClassGraph()
+  store.currentView = buildBusinessOntologyGraph()
   isOwlView.value = true
+  isBusinessView.value = true
   nextTick(renderChart)
 }
 async function switchToOwlNetwork() {
@@ -790,7 +1493,7 @@ watch(() => store.selectedNode, () => {
 })
 
 onMounted(async () => {
-  // 加载动态网络数据
+  // 加载动态网络数据（供左右侧面板使用）
   await store.fetchDynamicGraph()
   maxWindowIdx.value = store.dynamicWindows.length - 1
   windowIdx.value = store.dynamicWindows.length - 1
@@ -803,6 +1506,10 @@ onMounted(async () => {
   store.fetchOwlStats()
   store.fetchOwlInferred()
   store.fetchOwlNetwork()
+
+  // 默认中心图：业务规则本体网络
+  isBusinessView.value = true
+  store.currentView = buildBusinessOntologyGraph()
 
   await nextTick()
   setTimeout(renderChart, 200)
@@ -846,6 +1553,18 @@ onBeforeUnmount(() => {
 .ukg-center { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
 .ukg-loading-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #909399; gap: 8px; z-index: 10; background: rgba(245, 247, 250, 0.85); pointer-events: none; }
 .ukg-chart { flex: 1; min-height: 0; min-width: 0; width: 100%; }
+.edge-legend { position: absolute; top: 10px; right: 12px; background: rgba(255,255,255,0.92); border: 1px solid #e4e7ed; border-radius: 6px; padding: 6px 10px; font-size: 11px; color: #606266; display: flex; gap: 12px; z-index: 5; }
+.legend-item { display: flex; align-items: center; gap: 4px; }
+.legend-line { display: inline-block; width: 18px; height: 0; border-top: 2px solid #c8cdd0; }
+.legend-line.coop { border-top-color: #67C23A; }
+.legend-line.confront { border-top-color: #F56C6C; border-top-style: dashed; }
+.legend-line.neutral { border-top-color: #c8cdd0; }
+.legend-line.impact { border-top-color: #E8807A; }
+.legend-line.policy { border-top-color: #8B5CF6; }
+.legend-line.management { border-top-color: #2563EB; }
+.legend-line.flow { border-top-color: #16A34A; }
+.legend-line.metric { border-top-color: #65A30D; border-top-style: dashed; }
+.legend-line.rule { border-top-color: #F59E0B; border-top-style: dashed; }
 
 /* 右侧详情 */
 .ukg-right-panel { width: 260px; min-width: 260px; background: #fff; border-left: 1px solid #e4e7ed; padding: 12px; overflow-y: auto; }

@@ -92,6 +92,11 @@
         <span>{{ isOwlView ? '本体网络推理中...' : '图谱加载中...' }}</span>
       </div>
       <div ref="chartRef" class="ukg-chart"></div>
+      <div class="edge-legend">
+        <span class="legend-item"><i class="legend-line coop"></i>合作</span>
+        <span class="legend-item"><i class="legend-line confront"></i>博弈/对抗</span>
+        <span class="legend-item"><i class="legend-line neutral"></i>结构</span>
+      </div>
     </div>
 
     <!-- 右侧详情面板 -->
@@ -160,6 +165,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Search, Loading } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
+import { computeLayeredLayoutDetailed, edgeLineStyle, classifyRelation, EDGE_LABELS } from '@/utils/ontologyLayout'
 
 // ── 颜色 ──
 const TYPE_COLORS = {
@@ -182,6 +188,18 @@ const CORE_TYPES = new Set(['Supplier', 'Manufacturer', 'Dealer', 'LogisticsProv
   'MarketEvent', 'GeopoliticalRisk', 'PolicyRisk', 'LogisticsRisk', 'MaterialRisk',
   'RiskProfile', 'ScenarioNode', 'Recommendation', 'TurningPoint'])
 const METRIC_TYPES = new Set(['SalesMetric', 'CostMetric', 'DemandSupplyMetric', 'InventoryMetric'])
+
+// 分层布局：区域/多风险区域在最上方，企业次之，风险事件与指标逐层向下
+const AUTO_BANDS = [
+  ['Region', 'MultiRiskRegion'],
+  ['Supplier', 'Manufacturer', 'Dealer', 'LogisticsProvider'],
+  ['VehicleModel', 'Material', 'Route'],
+  ['RiskEvent', 'RiskProfile', 'LogisticsRisk', 'PolicyRisk', 'MaterialRisk', 'PolicyEvent'],
+  ['SalesMetric', 'CostMetric', 'DemandSupplyMetric', 'InventoryMetric', 'Analysis'],
+]
+const AUTO_BAND_LABELS = ['区域/市场', '供应商/制造商', '车型/材料/路线', '风险事件', '指标']
+const AUTO_COOP = new Set(['suppliedBy', 'locatedIn', 'instanceOf', 'produces', 'distributedBy', 'shipsVia', 'hasMetric'])
+const AUTO_CONFRONT = new Set(['impacts', 'influences'])
 
 const INFERENCE_TAG_DEFS = [
   { key: 'HighRiskEntity', label: '高风险实体', cssClass: 'inf-danger' },
@@ -385,30 +403,79 @@ function buildChartOption() {
   const catMap = {}; categories.forEach((c, i) => { catMap[c.name] = i })
   const selId = selectedNode.value?.id
 
+  // 分层布局：核心实体在上方，事件/指标逐层向下
+  const W = chartRef.value?.clientWidth || 900
+  const H = chartRef.value?.clientHeight || 600
+  const { positions, bands } = computeLayeredLayoutDetailed(nodes, AUTO_BANDS, W, H)
+  const idToName = {}
+  for (const n of nodes) idToName[n.id] = n.name || n.label || n.id
+
+  // 分层带背景 + 层标题
+  const bandPalette = ['rgba(37,99,235,0.05)', 'rgba(16,185,129,0.05)', 'rgba(245,158,11,0.05)', 'rgba(239,68,68,0.05)', 'rgba(99,102,241,0.05)']
+  const graphics = []
+  bands.forEach((band, i) => {
+    const top = H / 2 + band.y0
+    const height = band.y1 - band.y0
+    graphics.push({
+      type: 'rect',
+      left: 0, top, right: 0, height,
+      style: { fill: bandPalette[i % bandPalette.length] },
+      silent: true, z: -1,
+    })
+    if (AUTO_BAND_LABELS[i]) {
+      graphics.push({
+        type: 'text',
+        left: 12, top: top + 6,
+        style: { text: `${AUTO_BAND_LABELS[i]} (${band.count})`, fill: '#64748b', fontSize: 11, fontWeight: 700 },
+        silent: true,
+      })
+    }
+  })
+
   const enodes = nodes.map(n => {
     const t = n.nodeType || n.type
     const isCore = CORE_TYPES.has(t); const isMetric = METRIC_TYPES.has(t)
-    const size = isCore ? 28 : (isMetric ? 12 : 18)
+    const size = isCore ? 26 : (isMetric ? 11 : 16)
     const isSel = n.id === selId
     let itemStyle = {}
     if (isSel) itemStyle = { borderColor: '#FF6B6B', borderWidth: 3, shadowBlur: 10, shadowColor: 'rgba(255,107,107,0.4)' }
     // OWL模式：高风险节点标红
     if (isOwlView.value && n.properties?.HighRiskEntity) itemStyle = { ...itemStyle, borderColor: '#FF0000', borderWidth: 2 }
+    const pos = positions[n.id] || { x: 0, y: 0 }
     return {
       id: n.id, name: n.name || n.label || n.id, category: catMap[t] ?? 0,
       symbolSize: isSel ? size * 1.6 : size, itemStyle,
-      label: { show: isCore, fontSize: 11, color: '#303133', position: 'right' },
+      x: pos.x, y: pos.y,
+      label: { show: isCore, fontSize: 10, color: '#303133', position: 'right' },
       properties: n.properties, nodeType: t,
     }
   })
   const eedges = edges.map(e => ({
     source: e.source, target: e.target,
-    lineStyle: { color: '#c8cdd0', width: 1, opacity: 0.4, curveness: 0.2 },
+    relation: e.relation || '',
+    lineStyle: edgeLineStyle(e.relation, AUTO_COOP, AUTO_CONFRONT),
   }))
   return {
-    tooltip: { trigger: 'item', formatter: p => p.dataType === 'node' ? `<b>${p.name}</b><br/>${p.data.nodeType}${p.data.properties?.role ? '<br/>角色: '+p.data.properties.role : ''}` : '' },
+    tooltip: {
+      trigger: 'item',
+      formatter: p => {
+        if (p.dataType === 'node') {
+          return `<b>${p.name}</b><br/>${p.data.nodeType}${p.data.properties?.role ? '<br/>角色: ' + p.data.properties.role : ''}`
+        }
+        const kind = classifyRelation(p.data.relation, AUTO_COOP, AUTO_CONFRONT)
+        const s = idToName[p.data.source] || p.data.source
+        const t = idToName[p.data.target] || p.data.target
+        return `${s} → <b>${p.data.relation || '关联'}</b>（${EDGE_LABELS[kind]}） → ${t}`
+      }
+    },
     legend: { show: categories.length < 15, bottom: 10, textStyle: { fontSize: 9 } },
-    series: [{ type: 'graph', layout: 'force', force: { repulsion: 400, edgeLength: [60, 200], gravity: 0.06, friction: 0.6 }, roam: true, draggable: true, categories, data: enodes, edges: eedges, emphasis: { focus: 'adjacency', lineStyle: { width: 4, color: '#409EFF' } } }],
+    graphic: graphics,
+    series: [{
+      type: 'graph', layout: 'none', roam: true, draggable: true,
+      categories, data: enodes, edges: eedges,
+      scaleLimit: { min: 0.2, max: 4 },
+      emphasis: { focus: 'adjacency', lineStyle: { width: 4 } },
+    }],
   }
 }
 
@@ -496,6 +563,12 @@ onBeforeUnmount(() => { clearTimeout(renderTimer); if (resizeObserver) resizeObs
 .stats-section .stat-line strong { color: #303133; }
 .ukg-center { flex: 1; position: relative; min-width: 0; }
 .ukg-chart { width: 100%; height: 100%; }
+.edge-legend { position: absolute; top: 10px; right: 12px; background: rgba(255,255,255,0.92); border: 1px solid #e4e7ed; border-radius: 6px; padding: 6px 10px; font-size: 11px; color: #606266; display: flex; gap: 12px; z-index: 5; }
+.legend-item { display: flex; align-items: center; gap: 4px; }
+.legend-line { display: inline-block; width: 18px; height: 0; border-top: 2px solid #c8cdd0; }
+.legend-line.coop { border-top-color: #67C23A; }
+.legend-line.confront { border-top-color: #F56C6C; border-top-style: dashed; }
+.legend-line.neutral { border-top-color: #c8cdd0; }
 .ukg-loading-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(255,255,255,0.9); z-index: 10; gap: 12px; font-size: 14px; color: #909399; }
 .ukg-right-panel { width: 280px; padding: 16px; background: #fff; border-left: 1px solid #e4e7ed; overflow-y: auto; flex-shrink: 0; }
 .detail-field { margin-bottom: 10px; font-size: 13px; }

@@ -26,10 +26,26 @@
             </div>
             <p class="chat-welcome-hint">本系统支持 <b>铀供应链</b> 与 <b>汽车供应链</b> 两大场景，系统将<b>自动识别</b>您的场景。选择下方的分析阶段后直接提问，即可进入对应的推演分析。</p>
 
-            <!-- 场景指示器（自动识别，不可手动切换） -->
-            <div class="chat-scenario-badge" :class="scenarioStore.isSupplyChain ? 'is-auto' : 'is-uranium'">
-              <span class="chat-scenario-dot"></span>
-              <span>当前场景：{{ scenarioStore.label }}</span>
+            <!-- 场景指示器（自动识别 + 可手动切换） -->
+            <div class="chat-scenario-row">
+              <div class="chat-scenario-badge" :class="scenarioStore.isSupplyChain ? 'is-auto' : 'is-uranium'">
+                <span class="chat-scenario-dot"></span>
+                <span>当前场景：{{ scenarioStore.label }}</span>
+              </div>
+              <el-popover trigger="click" placement="bottom" :width="160" popper-class="chat-popover">
+                <template #reference>
+                  <button class="chat-scenario-switch-btn" title="切换场景">
+                    <el-icon :size="12"><Switch /></el-icon>
+                    <span>切换</span>
+                  </button>
+                </template>
+                <div class="chat-scenario-menu">
+                  <button v-for="s in scenarioOptions" :key="s.value" class="chat-scenario-item"
+                    :class="{ active: scenarioStore.currentScenario === s.value }" @click="selectScenario(s.value)">
+                    {{ s.label }}
+                  </button>
+                </div>
+              </el-popover>
             </div>
 
             <!-- Mode selector -->
@@ -238,6 +254,7 @@ import { writeScnetPhase } from '@/constants/scnetPhase'
 import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 import { unwrapApiData } from '@/utils/session'
 import { getSessions, getSessionDetail, createSession, addChatMessage } from '@/api/scenarioSession'
+import { detectScenario, SCENARIO_VALUES, SCENARIO_LABELS } from '@/constants/scnetScenario'
 
 const SPINNER_GLYPHS = ['✽', '✢', '✦', '✧']
 
@@ -262,6 +279,10 @@ const CHAT_MODELS = [
   { label: 'Qwen-Turbo', value: 'qwen-turbo' },
   { label: 'Qwen-Plus', value: 'qwen-plus' },
   { label: 'Qwen-Max', value: 'qwen-max' },
+]
+const SCENARIO_OPTIONS = [
+  { value: SCENARIO_VALUES.URANIUM, label: SCENARIO_LABELS.uranium },
+  { value: SCENARIO_VALUES.SUPPLY_CHAIN, label: SCENARIO_LABELS.supply_chain },
 ]
 
 export default {
@@ -312,6 +333,8 @@ export default {
       const next = String(mode || '').trim()
       if (['pre', 'during', 'post'].includes(next)) selectMode(next)
     }
+    const selectMode = (mode) => { currentMode.value = mode }
+    const selectScenario = (value) => { scenarioStore.setScenario(value) }
     const openKnowledge = () => router.push('/chatKnowledge')
 
     const handleModeGlassPointer = (event) => {
@@ -479,7 +502,8 @@ export default {
       debugThinking, debugThinkingVisible, spinnerGlyph,
       currentModelLabel, currentExecMode, inputPlaceholder,
       modeOptions: MODE_OPTIONS, chatModels: CHAT_MODELS, EXEC_MODES,
-      goToMainPage, selectMode, openKnowledge,
+      scenarioOptions: SCENARIO_OPTIONS,
+      goToMainPage, selectMode, selectScenario, openKnowledge,
       handleModeGlassPointer, resetModeGlassPointer,
       triggerFileInput, handleFileChange, removeAttachment,
       handleSend, abortStream, autoResizeWelcome, autoResizeChat,
@@ -521,9 +545,13 @@ export default {
 .chat-welcome-hint b { color: #4f46e5; }
 
 /* 场景指示器 */
+.chat-scenario-row {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: 10px;
+}
 .chat-scenario-badge {
   display: inline-flex; align-items: center; gap: 6px;
-  margin-top: 10px; padding: 4px 14px;
+  padding: 4px 14px;
   border-radius: 20px; font-size: 13px; font-weight: 500;
   cursor: default; user-select: none;
 }
@@ -532,6 +560,19 @@ export default {
 .chat-scenario-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .is-uranium .chat-scenario-dot { background: #6366f1; }
 .is-auto .chat-scenario-dot { background: #10b981; }
+
+.chat-scenario-switch-btn {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 3px 10px; border: 1px solid #e5e7eb; border-radius: 20px;
+  background: #fff; color: #6b7280; font-size: 12px; cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+.chat-scenario-switch-btn:hover { border-color: #93c5fd; color: #2563eb; }
+.chat-scenario-menu { display: flex; flex-direction: column; gap: 2px; }
+.chat-scenario-item { width: 100%; padding: 8px 10px; border: none; border-radius: 6px; background: none; cursor: pointer; text-align: left; font-size: 13px; color: #4b5563; }
+.chat-scenario-item:hover { background: #f3f4f6; }
+.chat-scenario-item.active { background: #eef2ff; color: #4f46e5; font-weight: 600; }
+
 .chat-welcome-input { width: 100%; }
 
 /* ── Mode Selector ─────────────────────────── */

@@ -38,6 +38,13 @@
               <ul class="pred-list">
                 <li v-for="(note, idx) in conclusions.notes" :key="idx">{{ note }}</li>
               </ul>
+              <div class="pred-verify-badge" @click="verifyDrawer = true">
+                <span class="pred-verify-icon">🛡️</span>
+                <span class="pred-verify-label">可信评分</span>
+                <span class="pred-verify-score">{{ verificationSummary.score }}%</span>
+                <span class="pred-verify-level">{{ verificationSummary.level }}</span>
+                <span class="pred-verify-arrow">▸</span>
+              </div>
             </div>
           </div>
         </div>
@@ -85,6 +92,11 @@
         </div>
       </div>
     </template>
+
+    <!-- 详细验证报告抽屉 -->
+    <el-drawer v-model="verifyDrawer" size="85%" title="详细验证报告" destroy-on-close>
+      <VerificationReport page="research" :scenario="scenario" />
+    </el-drawer>
   </div>
 </template>
 
@@ -92,6 +104,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import { getResearchData } from '@/api/situation'
+import VerificationReport from './VerificationReport.vue'
 
 const props = defineProps({
   scenario: { type: String, default: 'uranium' }
@@ -104,6 +117,7 @@ const scenarioEvoChart = ref(null)
 const chartData = ref(null)
 const loading = ref(true)
 const error = ref(null)
+const verifyDrawer = ref(false)
 let charts = []
 
 const isAuto = computed(() => props.scenario === 'auto')
@@ -113,6 +127,7 @@ const dashboardSummary = computed(() => chartData.value?.dashboardSummary || [])
 const conclusions = computed(() => chartData.value?.predictionConclusions || { horizon6m: '', horizon12m: '', horizon24m: '', notes: [] })
 const modelComparison = computed(() => chartData.value?.modelComparison || { xAxis: [], models: [] })
 const scenarioEvolution = computed(() => chartData.value?.scenarioEvolution || { xAxis: [], scenarios: [], interpretations: [] })
+const verificationSummary = computed(() => chartData.value?.verificationSummary || { score: 0, level: '' })
 
 const gprTitle = computed(() => {
   const gpr = chartData.value?.gprPrediction
@@ -414,6 +429,22 @@ onUnmounted(() => {
 .pred-tag-val.up { color: #ef4444; }
 .pred-list { padding-left: 1rem; margin: 0.5rem 0 0; }
 .pred-list li { margin-bottom: 0.4rem; }
+
+/* 可信评分条 */
+.pred-verify-badge {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 0.7rem; padding: 8px 12px;
+  background: rgba(99,102,241,0.16);
+  border: 1px solid rgba(99,102,241,0.35);
+  border-radius: 8px; cursor: pointer;
+  transition: all 0.2s ease;
+}
+.pred-verify-badge:hover { background: rgba(99,102,241,0.28); }
+.pred-verify-icon { font-size: 0.9rem; }
+.pred-verify-label { font-size: 0.78rem; color: #c7d2fe; }
+.pred-verify-score { font-size: 1rem; font-weight: 800; color: #e2e8f0; }
+.pred-verify-level { font-size: 0.78rem; color: #c7d2fe; }
+.pred-verify-arrow { margin-left: auto; color: #818cf8; font-size: 0.9rem; }
 .pred-model-notes { margin-top: 0.5rem; font-size: 0.78rem; color: #64748b; display: flex; flex-wrap: wrap; gap: 0.3rem 0.8rem; }
 .pred-model-tag { font-weight: 600; font-size: 0.75rem; padding: 1px 6px; border-radius: 4px; }
 .pred-model-tag.gpr { color: #ef4444; background: #fef2f2; }

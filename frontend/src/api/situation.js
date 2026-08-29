@@ -27,3 +27,16 @@ export function getResearchData(scenario = 'uranium') {
     method: 'get'
   })
 }
+
+/**
+ * 获取态势研判/预测的详细验证报告
+ * @param {string} page - 'judgment' | 'research'
+ * @param {string} scenario - 'uranium' | 'auto'
+ * @returns {Promise} { success, data: { credibility, dataSources, analysisProcess, statisticalVerification, reasonablenessChecks } }
+ */
+export function getVerificationReport(page = 'judgment', scenario = 'uranium') {
+  return request({
+    url: `/scenario/verification/${page}/${scenario}`,
+    method: 'get'
+  })
+}

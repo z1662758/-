@@ -7,39 +7,21 @@
     </div>
 
     <template v-if="!error && chartData">
-      <!-- ====== 上半部分：关键事件 + 趋势分析 + 结论（三卡片平齐） ====== -->
-      <div class="sj-top-row">
-        <!-- 左侧：关键事件时间线 -->
-        <div class="sj-top-left">
-          <el-card shadow="hover" class="sj-card-full">
-            <template #header><div class="sj-card-title"><span>📰 关键事件</span></div></template>
-            <div class="sj-timeline-scroll">
-              <el-timeline>
-                <el-timeline-item v-for="e in events" :key="e.id" :timestamp="e.time" :color="e.color" placement="top">
-                  <h4 style="margin:0 0 2px;font-size:0.9rem">{{ e.title }}</h4>
-                  <p style="margin:0;color:#64748b;font-size:0.8rem;line-height:1.4">{{ e.desc }}</p>
-                </el-timeline-item>
-              </el-timeline>
-            </div>
-          </el-card>
-        </div>
-        <!-- 右侧：趋势分析图 + 研判结论 -->
-        <div class="sj-top-right">
-          <el-card shadow="hover">
-            <template #header><div class="sj-card-title"><span>📈 趋势分析 — 全球价格 & 供需走势</span></div></template>
-            <div ref="trendChart" class="sj-chart-trend"></div>
-          </el-card>
-          <el-card shadow="hover" class="sj-conclusion-dark">
-            <template #header><div class="sj-card-title sj-card-title-light"><span>🔍 趋势研判结论</span></div></template>
-            <div class="sj-conclusion-body-light">
-              <div class="sj-tag-row"><el-tag type="warning" size="large">{{ conclusion.tag }}</el-tag></div>
-              <ul>
-                <li v-for="(point, idx) in conclusion.points" :key="idx" v-html="point"></li>
-              </ul>
-            </div>
-          </el-card>
-        </div>
-      </div>
+      <!-- ====== 世界地图态势图（含趋势分析 + 解释 + 结论 + 验证 + 关键事件演化） ====== -->
+      <SituationMap
+        :scenario="scenario"
+        :situation-map="chartData.situationMap"
+        :map-evolution="chartData.mapEvolution"
+        :conclusion="conclusion"
+        :verification-summary="verificationSummary"
+        @open-verify="verifyDrawer = true"
+      />
+
+      <!-- 供应网络关键节点分析（仅铀场景） -->
+      <SupplyNetworkPanel
+        v-if="scenario === 'uranium'"
+        :supply-network="supplyNetwork"
+      />
 
       <!-- ====== 下半部分：详情分析 ====== -->
       <div class="sj-detail-section">
@@ -60,24 +42,17 @@
             <div ref="scenarioChart" class="sj-chart"></div>
           </el-card>
           <el-card shadow="hover">
-            <template #header><div class="sj-card-title"><span>⚠️ 综合风险研判</span></div></template>
-            <div class="sj-conclusion-body">
-              <el-table :data="riskTable" size="small" stripe>
-                <el-table-column prop="risk" label="风险类型" width="140" />
-                <el-table-column prop="level" label="等级" width="90">
-                  <template #default="{ row }"><el-tag :type="row.levelType" size="small">{{ row.level }}</el-tag></template>
-                </el-table-column>
-                <el-table-column prop="prob" label="概率" width="70" />
-                <el-table-column prop="impact" label="影响" />
-              </el-table>
-              <div class="sj-final">
-                <el-tag type="danger" size="large">{{ conclusion.finalTag || '综合研判：短期(6-12月)供给偏紧难改，价格高位震荡；中长期缺口驱动结构性牛市' }}</el-tag>
-              </div>
-            </div>
+            <template #header><div class="sj-card-title"><span>📈 趋势分析 — 全球价格 & 供需走势</span></div></template>
+            <div ref="trendChart" class="sj-chart"></div>
           </el-card>
         </div>
       </div>
     </template>
+
+    <!-- 详细验证报告抽屉 -->
+    <el-drawer v-model="verifyDrawer" size="85%" title="详细验证报告" destroy-on-close>
+      <VerificationReport page="judgment" :scenario="scenario" />
+    </el-drawer>
   </div>
 </template>
 
@@ -85,6 +60,9 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import { getJudgmentData } from '@/api/situation'
+import VerificationReport from './PreScene/VerificationReport.vue'
+import SituationMap from './PreScene/SituationMap.vue'
+import SupplyNetworkPanel from './PreScene/SupplyNetworkPanel.vue'
 
 const props = defineProps({
   scenario: { type: String, default: 'uranium' }
@@ -97,12 +75,15 @@ const scenarioChart = ref(null)
 const chartData = ref(null)
 const loading = ref(true)
 const error = ref(null)
+const verifyDrawer = ref(false)
 let charts = []
 
 // ── 从 API 数据派生 ─────────────────────
 const riskTable = computed(() => chartData.value?.riskTable || [])
 const events = computed(() => chartData.value?.events || [])
 const conclusion = computed(() => chartData.value?.conclusion || { tag: '', points: [] })
+const verificationSummary = computed(() => chartData.value?.verificationSummary || { score: 0, level: '' })
+const supplyNetwork = computed(() => chartData.value?.supplyNetwork || null)
 
 // ── API 数据获取 ─────────────────────────
 async function fetchData() {
@@ -127,16 +108,13 @@ async function fetchData() {
 // ── 趋势分析图 ────────────────────────────
 function initTrendChart() {
   if (!trendChart.value || !chartData.value) return
-  // 先销毁旧实例，避免容器高度变化导致图表残留
   const existingInstance = echarts.getInstanceByDom(trendChart.value)
   if (existingInstance) existingInstance.dispose()
   const c = echarts.init(trendChart.value); charts.push(c)
   const d = chartData.value.trendChart
-  const auto = props.scenario === 'auto'
 
   const series = d.series.map((s, idx) => {
     const base = { name: s.name, type: s.type, yAxisIndex: s.yAxisIndex, smooth: true, data: s.data }
-    // 现货价 / 年订单量 线
     if (idx === 0) {
       return {
         ...base,
@@ -147,30 +125,14 @@ function initTrendChart() {
         itemStyle: { color: '#2563eb' }
       }
     }
-    // 长协价 / 供需指数 线
     if (idx === 1) {
-      return {
-        ...base,
-        lineStyle: { color: '#8b5cf6', width: 2, type: 'dashed' },
-        itemStyle: { color: '#8b5cf6' },
-        symbol: 'diamond', symbolSize: 6
-      }
+      return { ...base, lineStyle: { color: '#8b5cf6', width: 2, type: 'dashed' }, itemStyle: { color: '#8b5cf6' }, symbol: 'diamond', symbolSize: 6 }
     }
-    // 全球产量 / 价格变化 bar
     if (idx === 2) {
-      return {
-        ...base,
-        itemStyle: { color: '#f59e0b', borderRadius: [4, 4, 0, 0] },
-        barWidth: '30%', barGap: '30%'
-      }
+      return { ...base, itemStyle: { color: '#f59e0b', borderRadius: [4, 4, 0, 0] }, barWidth: '30%', barGap: '30%' }
     }
-    // 核电需求 / 增长率 bar
     if (idx === 3) {
-      return {
-        ...base,
-        itemStyle: { color: '#10b981', borderRadius: [4, 4, 0, 0] },
-        barWidth: '30%'
-      }
+      return { ...base, itemStyle: { color: '#10b981', borderRadius: [4, 4, 0, 0] }, barWidth: '30%' }
     }
     return base
   })
@@ -344,15 +306,10 @@ onUnmounted(() => {
 .sj-error { text-align: center; padding: 3rem; color: #ef4444; }
 .sj-error p { margin-bottom: 1rem; }
 
-/* ====== 上半部分 ====== */
-.sj-top-row { display: flex; gap: 1rem; margin-bottom: 1.5rem; align-items: stretch; }
-.sj-top-left { flex: 1; min-width: 0; }
-.sj-top-right { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.8rem; }
+/* ====== 趋势分析卡片 ====== */
+.sj-trend-card { margin-bottom: 1.5rem; }
 
-.sj-card-full { height: 100%; }
-.sj-timeline-scroll { padding-right: 4px; }
-
-.sj-chart-trend { flex: 1 1 auto; min-height: 240px; }
+.sj-chart-trend { height: 260px; }
 
 /* ====== 深色结论卡片 ====== */
 .sj-conclusion-dark {
@@ -374,6 +331,22 @@ onUnmounted(() => {
 .sj-conclusion-body-light b { color: #e2e8f0; }
 .sj-tag-row { margin-bottom: 0.45rem; }
 
+/* 可信评分条 */
+.sj-verify-badge {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 0.7rem; padding: 8px 12px;
+  background: rgba(99,102,241,0.16);
+  border: 1px solid rgba(99,102,241,0.35);
+  border-radius: 8px; cursor: pointer;
+  transition: all 0.2s ease;
+}
+.sj-verify-badge:hover { background: rgba(99,102,241,0.28); }
+.sj-verify-icon { font-size: 0.9rem; }
+.sj-verify-label { font-size: 0.78rem; color: #c7d2fe; }
+.sj-verify-score { font-size: 1rem; font-weight: 800; color: #e2e8f0; }
+.sj-verify-level { font-size: 0.78rem; color: #c7d2fe; }
+.sj-verify-arrow { margin-left: auto; color: #818cf8; font-size: 0.9rem; }
+
 /* ====== 下半部分：详情分析 ====== */
 .sj-detail-section {
   background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px;
@@ -386,7 +359,7 @@ onUnmounted(() => {
 
 /* ====== 通用 ====== */
 .sj-chart { width: 100%; height: 300px; min-height: 260px; }
-.sj-chart-trend { flex: 1 1 auto; min-height: 240px; }
+.sj-chart-trend { height: 260px; }
 :deep(.el-card__body) { overflow: visible; }
 .sj-card-title { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 0.95rem; }
 
@@ -398,8 +371,6 @@ onUnmounted(() => {
 
 /* ── 响应式：侧边栏折叠/展开 → 布局自适应 ── */
 @media (max-width: 1350px) {
-  .sj-top-row { flex-direction: column; }
-  .sj-timeline-scroll { max-height: 260px; }
   .sj-detail-grid { grid-template-columns: 1fr; }
 }
 
