@@ -424,9 +424,20 @@ export default {
       return router.push({ path: SCNET_ROUTES.scenarioModeling, query: { scenario, q: text } })
     }
 
-    // 事前 / 事后 / 智能识别：沿用原有入口，带着问题跳到态势分析。
+    // 事后：不落入事前的态势分析页，直接进入「事后」入口（反事实实验），
+    // 与 total.vue 的事后入口保持一致。
+    const enterPostFlow = (scenario) => {
+      writeScnetPhase('post')
+      return router.push({
+        path: SCNET_ROUTES.counterfactualExperiment,
+        query: { scenario }
+      })
+    }
+
+    // 事前 / 智能识别：带着问题跳到态势分析。
     const enterSituationAnalysis = (sid, text, scenario) => {
-      writeScnetPhase(currentMode.value === 'post' ? 'post' : 'pre')
+      if (currentMode.value === 'post') return enterPostFlow(scenario)
+      writeScnetPhase('pre')
       return router.push({
         path: SCNET_ROUTES.situationAnalysis,
         query: { session_id: sid, scenario, message: text }
@@ -452,7 +463,11 @@ export default {
       messages.value.push({
         id: 'a' + Date.now(),
         role: 'assistant',
-        content: isDuring ? '🚨 正在建立事中会话并进入想定生成...' : '🔍 正在建立会话并进入态势分析...',
+        content: isDuring
+          ? '🚨 正在建立事中会话并进入想定生成...'
+          : currentMode.value === 'post'
+            ? '📈 正在进入事后复盘（反事实实验）...'
+            : '🔍 正在建立会话并进入态势分析...',
         _streaming: true
       })
       isStreaming.value = true

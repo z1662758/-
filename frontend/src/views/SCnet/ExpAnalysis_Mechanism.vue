@@ -2,7 +2,7 @@
   <div class="post-causal-mechanism-page">
     <section class="page-head">
       <div>
-        <h1>机制分析与因果推断</h1>
+        <h1>因果分析</h1>
         <p class="subtitle">从异常现象回推机制假设，结合因果图与反事实推理，判断主导驱动力。</p>
       </div>
       <div class="head-actions">
@@ -128,22 +128,14 @@
         <el-icon><Connection /></el-icon>
         <span>铀供应链因果推断</span>
         <span class="causal-legend">
-          <span class="legend-dot" style="background:#3b82f6"></span>干预变量
-          <span class="legend-dot" style="background:#eab308"></span>中间变量
-          <span class="legend-dot" style="background:#22c55e"></span>结果变量
+          <span class="legend-dot" style="background:#3b82f6"></span>微观
+          <span class="legend-dot" style="background:#eab308"></span>中观
+          <span class="legend-dot" style="background:#22c55e"></span>宏观
         </span>
       </header>
       <div class="causal-grid">
         <div class="causal-graph-panel">
-          <div class="edges-list">
-            <div v-for="(edge, idx) in causalEdges" :key="idx" class="edge-item">
-              <span class="edge-src">{{ edge.source }}</span>
-              <span class="edge-arrow">→</span>
-              <span class="edge-tgt">{{ edge.target }}</span>
-              <el-tag size="small" :type="edge.strength>0.6?'success':edge.strength>0.4?'warning':'info'" effect="light" round>{{ (edge.strength*100).toFixed(0) }}%</el-tag>
-              <span class="edge-desc">{{ edge.description }}</span>
-            </div>
-          </div>
+          <VerticalCausalGraph :edges="causalEdges" />
         </div>
         <div class="causal-cf-panel">
           <div class="cf-control">
@@ -184,6 +176,7 @@ import {
 } from '@element-plus/icons-vue'
 import { getMechanismAnalysis, getExperimentDetail, getExperiments } from '@/api/supplyChain'
 import { unwrapApiData } from '@/utils/apiEnvelope'
+import VerticalCausalGraph from './components/VerticalCausalGraph.vue'
 
 const selectedWorkflowStepId = ref('phenomenon')
 const eventRecordCount = ref(0)
@@ -254,7 +247,7 @@ const activeStepDetail = computed(() =>
   analysisWorkflow.value.find(s => s.id === selectedWorkflowStepId.value) || null
 )
 
-// 步骤详情面板的额外数据
+// 步骤详情面板的额外数据（优先取当前步骤专属数据，缺失时回退到全局 detail）
 const stepDetailData = computed(() => {
   const detail = analysisData.value?.detail || {}
   const pipeline = analysisData.value?.pipeline || {}
@@ -264,16 +257,17 @@ const stepDetailData = computed(() => {
   const stepPipelineDetail = stepPipeline.detail || {}
 
   return {
-    settings: detail.settings || null,
-    runResult: detail.run_result || null,
-    agentConfig: detail.agent_config || null,
+    settings: stepPipelineDetail.settings || detail.settings || null,
+    runResult: stepPipelineDetail.run_result || detail.run_result || null,
+    agentConfig: stepPipelineDetail.agent_config || detail.agent_config || null,
     pipelineDetail: stepPipelineDetail
   }
 })
 
-// 根据选中步骤获得对应的参数设置
+// 根据选中步骤获得对应的参数设置（优先使用步骤级参数列表 [{ label, value }]）
 const analysisParams = computed(() => {
   const s = stepDetailData.value
+  if (Array.isArray(s.settings?.params)) return s.settings.params
   const pv = s.settings?.params_values || {}
   const pl = s.settings?.params || {}
   return [
@@ -407,10 +401,66 @@ const buildLocalCFResult = (baseComp=0.7, baseProfit=50000, factor=0.2) => ({
 const buildUraniumFallbackData = () => ({
   overview: { anomaly_type: '铀矿产能瓶颈', completion_rate: '68.4%', backtrack_confidence: '72%', counterfactual_rounds: 7 },
   pipeline: {
-    phenomenon: { title:'铀供应链现象归纳', badge:'异常检测', tagType:'info', description:'从7轮铀供应链迭代中检测到3个异常现象：供应完成率骤降、哈萨克斯坦产能波动、铀价冲击传导', input:'铀供应链实验结果 7轮', preview:'关键异常：供应完成率降至58.2%（Cigar Lake淹水影响）、ISL矿山利用率下降至72%、铀价从$30飙升至$136/lb' },
-    strategy: { title:'铀供应链策略回推', badge:'策略推断', tagType:'warning', description:'回溯铀供应链异常现象，反推可能实施的干预策略', input:'异常现象簇 + 迭代上下文', preview:'候选策略：扩大ISL低成本产能、新矿投产阈值前置、多源采购分散风险、启动战略储备释放' },
-    mechanism: { title:'铀供应链机制定位', badge:'因果链路', tagType:'primary', description:'定位铀供应链演化的核心因果机制链', input:'现象簇 + 策略候选', preview:'主导机制：铀需求-产能耦合机制（全球核电需求增长→铀矿产能承压→供应完成率波动→铀价上涨→新矿投资增加）' },
-    driver: { title:'铀供应链驱动力判断', badge:'系统动力学', tagType:'success', description:'主导驱动力：全球核电需求增长（中国/印度在建反应堆）+ 地缘政治扰动', input:'机制分析 + 指标时序', preview:'系统在"核电需求增长"主导下运行，存在需求-产能正反馈环和地缘政治风险负反馈环，中长期趋于新均衡（参考NEA Red Book）' }
+    phenomenon: {
+      title:'铀供应链现象归纳', badge:'异常检测', tagType:'info',
+      description:'从7轮铀供应链迭代中检测到3个异常现象：供应完成率骤降、哈萨克斯坦产能波动、铀价冲击传导',
+      input:'铀供应链实验结果 7轮',
+      preview:'关键异常：供应完成率降至58.2%（Cigar Lake淹水影响）、ISL矿山利用率下降至72%、铀价从$30飙升至$136/lb',
+      detail: {
+        settings: { params: [
+          { label: '异常检测阈值', value: '完成率 < 50%' },
+          { label: '观察窗口', value: '近 7 轮迭代' },
+          { label: '指标集合', value: '完成率 / 利用率 / 铀价' },
+          { label: '异常粒度', value: '实验级' }
+        ], task: { name: '铀供应链 · 现象归纳', status: 'completed' } },
+        run_result: { summary:'完成现象归纳：从 7 轮迭代中共检测到 3 个异常现象。① 供应完成率骤降至 58.2%（Cigar Lake 淹水影响）；② 哈萨克斯坦 ISL 矿山利用率下降至 72%；③ 铀价从 $30 飙升至 $136/lb。异常集中于第 3、5、7 轮，呈供应侧压力累积特征。', iterations_analyzed:7, confidence:0.85 }
+      }
+    },
+    strategy: {
+      title:'铀供应链策略回推', badge:'策略推断', tagType:'warning',
+      description:'回溯铀供应链异常现象，反推可能实施的干预策略',
+      input:'异常现象簇 + 迭代上下文',
+      preview:'候选策略：扩大ISL低成本产能、新矿投产阈值前置、多源采购分散风险、启动战略储备释放',
+      detail: {
+        settings: { params: [
+          { label: '候选策略数', value: '6 组' },
+          { label: '回推深度', value: '3 轮迭代' },
+          { label: '约束条件', value: '产能 / 成本 / 地缘' },
+          { label: '评估权重', value: '成本 0.4 · 时效 0.35 · 风险 0.25' }
+        ], task: { name: '铀供应链 · 策略回推', status: 'completed' } },
+        run_result: { summary:'完成策略回推：针对 3 个异常现象，回溯得到 6 组候选策略，按综合得分排序：① 扩大 ISL 低成本产能（+20%）；② 新矿投产阈值前置（-50%）；③ 多源采购分散哈萨克斯坦供应风险；④ 启动战略储备释放；⑤ 提高 Cigar Lake 复产优先级；⑥ 签订长协锁定铀价。', iterations_analyzed:7, confidence:0.78 }
+      }
+    },
+    mechanism: {
+      title:'铀供应链机制定位', badge:'因果链路', tagType:'primary',
+      description:'定位铀供应链演化的核心因果机制链',
+      input:'现象簇 + 策略候选',
+      preview:'主导机制：铀需求-产能耦合机制（全球核电需求增长→铀矿产能承压→供应完成率波动→铀价上涨→新矿投资增加）',
+      detail: {
+        settings: { params: [
+          { label: '因果强度阈值', value: '> 0.6' },
+          { label: '链路最大长度', value: '5 跳' },
+          { label: '变量集合', value: '产能 / 需求 / 铀价 / 完成率' },
+          { label: '置信度权重', value: '0.72' }
+        ], task: { name: '铀供应链 · 机制定位', status: 'completed' } },
+        run_result: { summary:'完成机制定位：识别出 4 组核心因果链路，主导机制为"铀需求-产能耦合"：全球核电需求增长 → 铀矿产能承压 → 供应完成率波动 → 铀价上涨 → 新矿投资增加（正反馈）。其次为"地缘扰动-供应中断"链路与"协作密度-网络韧性"链路。', iterations_analyzed:7, confidence:0.72 }
+      }
+    },
+    driver: {
+      title:'铀供应链驱动力判断', badge:'系统动力学', tagType:'success',
+      description:'主导驱动力：全球核电需求增长（中国/印度在建反应堆）+ 地缘政治扰动',
+      input:'机制分析 + 指标时序',
+      preview:'系统在"核电需求增长"主导下运行，存在需求-产能正反馈环和地缘政治风险负反馈环，中长期趋于新均衡（参考NEA Red Book）',
+      detail: {
+        settings: { params: [
+          { label: '驱动因子库', value: '需求 / 地缘 / 成本 / 产能' },
+          { label: '反馈环识别', value: '2 条正反馈 · 1 条负反馈' },
+          { label: '时序窗口', value: '2020–2040' },
+          { label: '均衡判断', value: '参考 NEA Red Book' }
+        ], task: { name: '铀供应链 · 驱动力判断', status: 'completed' } },
+        run_result: { summary:'完成驱动力判断：主导驱动力为"全球核电需求增长"（中国/印度在建反应堆超 60 座）。系统存在需求-产能正反馈环（需求↑→投资↑→产能↑）与地缘政治风险负反馈环，中长期将趋向新均衡，产能预计较当前提升约 40%。', iterations_analyzed:7, confidence:0.70 }
+      }
+    }
   },
   detail: {
     settings: { params:{param_a:'铀供应链迭代数据',param_b:'异常检测阈值',param_c:'置信度权重',param_d:'驱动因子库'}, params_values:{param_a:'7轮有效迭代',param_b:'completion<50%, ISL利用率<80%',param_c:'0.72',param_d:'需求/地缘/成本/产能四因子'}, task:{name:'铀供应链机制推断',status:'completed'} },
@@ -927,11 +977,7 @@ onMounted(() => {
 .causal-legend { margin-left:auto; display:flex; gap:12px; font-size:11px; font-weight:600; color:#64748b; }
 .legend-dot { width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:3px; }
 .causal-grid { display:grid; grid-template-columns:1fr 360px; gap:0; }
-.causal-graph-panel { padding:10px; }
-.edges-list { display:flex; flex-direction:column; gap:6px; max-height:300px; overflow-y:auto; }
-.edge-item { display:flex; align-items:center; gap:6px; padding:6px 10px; border:1px solid #eef2f7; border-radius:8px; font-size:12px; }
-.edge-src { color:#3b82f6; font-weight:700; } .edge-tgt { color:#22c55e; font-weight:700; }
-.edge-arrow { color:#94a3b8; } .edge-desc { color:#64748b; font-size:11px; }
+.causal-graph-panel { height:480px; padding:10px; min-width:0; display:flex; }
 .causal-cf-panel { padding:10px; border-left:1px solid #eef2f7; }
 .cf-control { display:flex; flex-direction:column; gap:8px; }
 .cf-field { display:flex; flex-direction:column; gap:3px; }
@@ -1065,6 +1111,15 @@ onMounted(() => {
     grid-template-columns: repeat(2, minmax(260px, 1fr));
     min-width: 0;
     overflow: auto;
+  }
+
+  .causal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .causal-cf-panel {
+    border-left: none;
+    border-top: 1px solid #eef2f7;
   }
 }
 </style>

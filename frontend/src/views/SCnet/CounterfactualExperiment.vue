@@ -29,7 +29,7 @@
             <p class="eyebrow">Uranium Supply Chain</p>
             <h3>反事实实验控制区</h3>
           </div>
-          <span class="state-badge" :data-state="currentRunState.running ? 'running' : simState">{{ currentRunState.running ? 'RUNNING' : stateLabel }}</span>
+          <span v-if="stateLabel" class="state-badge" :data-state="stateLabel.toLowerCase()">{{ stateLabel }}</span>
         </header>
 
         <div class="panel-body stack">
@@ -454,13 +454,26 @@ const formatRange = (range) => Array.isArray(range) && range.length >= 2
   ? `${formatNumber(range[0])}-${formatNumber(range[1])}`
   : '--'
 
+/**
+ * 判断报告是否为铀供应链场景：
+ * 优先使用报告自带的 scenario 字段（后端 run.py 已写入），
+ * 其次按文件名/标题关键词兜底（兼容旧报告）。
+ */
+const detectUraniumReport = (report = {}) => {
+  const scenario = report?.scenario
+  if (scenario === 'uranium') return true
+  if (scenario === 'supply_chain' || scenario === 'automotive') return false
+  const source = String(report?.source || '').toLowerCase()
+  const title = String(report?.title || '').toLowerCase()
+  return source.includes('uranium') || title.includes('uranium')
+}
+
 const buildCounterfactualParameterControls = (report) => {
   const capacityRange = Array.isArray(report.parameters.factoryCapacityRange)
     ? report.parameters.factoryCapacityRange
     : [0, 0]
   // 检测场景 → 使用专用单位与描述
-  const reportSource = (report.source || '').toLowerCase()
-  const isUranium = reportSource.includes('uranium') || reportSource.includes('')
+  const isUranium = detectUraniumReport(report)
 
   return [
     {
@@ -518,8 +531,7 @@ const buildImportedReport = (report) => {
   const backlogRate = Math.max(0, 1 - completionRate)
   const capacityRange = formatRange(report.parameters.factoryCapacityRange)
   const adjustmentRatio = formatPercent(report.parameters.adjustmentRatio)
-  const reportSource = (report.source || '').toLowerCase()
-  const isUranium = reportSource.includes('uranium') || reportSource.includes('')
+  const isUranium = detectUraniumReport(report)
 
   const baseMetrics = isUranium ? [
     { label: '最佳轮次', value: `第 ${report.bestIteration} 轮` },
@@ -613,6 +625,7 @@ const normalizeUploadedReport = (payload, fileName) => {
 
   return {
     source: fileName,
+    scenario: payload?.scenario || null,
     title: `导入实验报告：${fileName}`,
     timestamp: payload?.timestamp ? String(payload.timestamp).replace('T', ' ').slice(0, 19) : '未知时间',
     totalIterations: toFiniteNumber(payload?.total_iterations ?? iterations.length, 1),
@@ -621,7 +634,7 @@ const normalizeUploadedReport = (payload, fileName) => {
     avgCompletionRate: normalizeRate(summary.avg_completion_rate ?? orderCompletionRate, orderCompletionRate),
     avgRobustness: normalizeRate(summary.avg_robustness ?? bestIteration?.feedback?.robustness, 0),
     goal: bestIteration?.goal || payload?.goal ||
-      ((payload?.system || fileName || '').toLowerCase().includes('uranium')
+      (payload?.scenario === 'uranium' || (payload?.system || fileName || '').toLowerCase().includes('uranium')
         ? '分析全球供应链网络演化规律，评估矿山产能、新矿投产策略对供应安全的影响'
         : '市场需求强度上升时，制造总产能需要如何调整，才能减少订单积压并保持完成率稳定'),
     parameters: {
@@ -684,8 +697,7 @@ const buildStoredParameterFallback = (experiment) => {
   const capacityValues = String(capacity?.current || '').match(/-?\d+(?:\.\d+)?/g) || []
   const adjustmentText = capacity?.reason || ''
   const adjustmentMatch = adjustmentText.match(/-?\d+(?:\.\d+)?%/)
-  const reportSource = (experiment?.report?.source || '').toLowerCase()
-  const isUranium = reportSource.includes('uranium') || reportSource.includes('')
+  const isUranium = detectUraniumReport(experiment?.report)
 
   return [
     {
@@ -943,10 +955,11 @@ const eventConfigs = [
 ]
 
 const stateLabel = computed(() => {
+  if (currentRunState.value.running) return 'RUNNING'
   if (simState.value === 'running') return 'RUNNING'
   if (simState.value === 'paused') return 'PAUSED'
   if (simState.value === 'preparing') return 'PREPARING'
-  return 'READY'
+  return ''
 })
 
 const simProgress = computed(() => Math.min(100, (simStep.value / Math.max(simTotalSteps.value, 1)) * 100))
@@ -1008,10 +1021,9 @@ const buildCounterfactualParamOverrides = () => {
 
 const buildCounterfactualRunPayload = () => {
   const paramOverrides = buildCounterfactualParamOverrides()
-  // 检测是否为数据 → 自动切换 scenario
+  // 检测是否为铀场景 → 自动切换 scenario
   const reportSource = (activeCounterfactualExperiment.value?.report?.source || '').toLowerCase()
-  const reportTitle = (activeCounterfactualExperiment.value?.report?.title || '').toLowerCase()
-  const isUranium = reportSource.includes('uranium') || reportTitle.includes('uranium') || reportTitle.includes('')
+  const isUranium = detectUraniumReport(activeCounterfactualExperiment.value?.report)
   // 检测基线类型：network(28轮网络演化) vs resource(7轮资源评估)
   const isNetworkBaseline = reportSource.includes('uranium_network')
   const scenario = isUranium ? 'uranium' : 'supply_chain'
@@ -1140,8 +1152,7 @@ const runSyntheticCounterfactual = () => {
   const paramControls = report.counterfactualParameters || []
 
   // 检测场景 → 使用专用弹性系数
-  const reportSource = (report.source || '').toLowerCase()
-  const isUranium = reportSource.includes('uranium') || reportSource.includes('')
+  const isUranium = detectUraniumReport(report)
 
   // 计算参数变化比例
   const capacityParam = paramControls.find(p => p.key === 'factory_capacity_max')
@@ -1178,6 +1189,7 @@ const runSyntheticCounterfactual = () => {
   const syntheticScore = syntheticCompletion * 40 + Math.min(syntheticProfit / (isUranium ? 1000 : 100), 100) * 0.35 + 25
 
   const primaryResult = {
+    bestIteration: report.bestIteration,
     completionRate: roundNumber(syntheticCompletion, 4),
     backlogRate: roundNumber(syntheticBacklog, 4),
     overallScore: roundNumber(syntheticScore, 3),
@@ -1199,6 +1211,18 @@ const runSyntheticCounterfactual = () => {
 
   return { primary: primaryResult, secondary: secondaryResult }
 }
+
+/**
+ * 把合成反事实结果整理成与真实后端结果一致的展示结构：
+ * 主策略指标铺到顶层（供顶部指标卡直接读取），同时保留 primary/secondary 供策略对比。
+ */
+const buildSyntheticRunResult = (rs, synthetic) => ({
+  ...synthetic.primary,
+  primary: synthetic.primary,
+  secondary: synthetic.secondary,
+  taskId: rs.taskId,
+  completedAt: rs.completedAt
+})
 
 const startSim = async () => {
   if (!activeCounterfactualExperiment.value) {
@@ -1272,12 +1296,12 @@ const startSim = async () => {
 
       const synthetic = runSyntheticCounterfactual()
       if (synthetic) {
-        rs.results = synthetic
         rs.status = 'completed'
         rs.completedAt = new Date().toLocaleString()
         rs.message = '合成反事实分析完成（基于导入数据的参数敏感性推算）'
         rs.experimentId = `synthetic_${Date.now()}`
         rs.resultPath = '(合成分析 - 无后端仿真)'
+        rs.result = buildSyntheticRunResult(rs, synthetic)
         simState.value = 'idle'
         if (timer) clearInterval(timer)
         timer = null
@@ -1416,12 +1440,12 @@ const pollRunTask = async () => {
 
       const synthetic = runSyntheticCounterfactual()
       if (synthetic) {
-        rs.results = synthetic
         rs.status = 'completed'
         rs.completedAt = new Date().toLocaleString()
         rs.message = '合成反事实分析完成（后端仿真不可用，基于导入数据推算）'
         rs.experimentId = `synthetic_${Date.now()}`
         rs.resultPath = '(合成分析)'
+        rs.result = buildSyntheticRunResult(rs, synthetic)
         simState.value = 'idle'
         simStep.value = simTotalSteps.value
         stopLocalProgressTicker()
@@ -1487,7 +1511,8 @@ const summarizeCounterfactualResult = (detail = {}) => {
   const completedOrders = toFiniteNumber(metrics.completed_orders)
   const backlog = Math.max(totalOrders - completedOrders, 0)
   // 检测场景
-  const isUranium = (detail.system || '').toLowerCase().includes('uranium') ||
+  const isUranium = detail.scenario === 'uranium' ||
+    (detail.system || '').toLowerCase().includes('uranium') ||
     (detail.timestamp || '').includes('uranium')
 
   return {

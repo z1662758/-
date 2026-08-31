@@ -172,7 +172,7 @@
 <script>
 import {
   Aim, Box, Coin, Collection, DataAnalysis, DataLine, Document, DocumentDelete, Edit,
-  FolderOpened, Grid, House, Memo, Monitor, Notification, Operation, Orange,
+  FolderOpened, Grid, House, MapLocation, Memo, Monitor, Notification, Operation, Orange,
   PieChart, Place, Postcard, Promotion, ScaleToOriginal, Search as SearchIcon, Setting,
   SwitchButton, TrendCharts, User, WarningFilled, ChatDotSquare, CircleCheck
 } from "@element-plus/icons-vue";
@@ -221,6 +221,7 @@ const DURING_ANALYSIS_MENU_ITEMS = Object.freeze([
 
 const POST_MAIN_MENU_ITEMS = Object.freeze([
   { index: '/home/SCnet/counterfactualExperiment', label: '反事实实验', icon: PieChart },
+  { index: '/home/SCnet/expAnalysisMap', label: '供应链态势地图', icon: MapLocation },
   { index: '/home/SCnet/EXreport', label: '供应链实验报告', icon: Postcard }
 ])
 
