@@ -37,6 +37,25 @@
         </template>
       </AnalysisPageHero>
 
+      <section class="scenario-plan-pool glass-panel">
+        <div class="scenario-plan-head">
+          <div>
+            <span>SCENARIO PORTFOLIO</span>
+            <strong>情景方案池与概率分布（实验估计）</strong>
+            <p>将当前实验拆分为基准、扰动和极端情景，作为脆弱性与对策评估的统一输入。</p>
+          </div>
+          <el-tag type="primary" effect="plain">{{ scenarioPlanCards.length }} 类情景</el-tag>
+        </div>
+        <div class="scenario-plan-grid">
+          <article v-for="item in scenarioPlanCards" :key="item.label" :class="item.tone">
+            <div><span>{{ item.label }}</span><strong>{{ item.probability }}%</strong></div>
+            <el-progress :percentage="item.probability" :show-text="false" :stroke-width="7" :color="item.color" />
+            <p>{{ item.description }}</p>
+            <small>{{ item.basis }}</small>
+          </article>
+        </div>
+      </section>
+
 
       <div class="scenario-workbench">
         <div class="scenario-stage-grid">
@@ -46,7 +65,7 @@
                 <span class="analysis-column-index">01</span>
                 <div>
                   <h3>年度窗口列表</h3>
-                  <p>先选窗口，再读证据，再送入下游模型。</p>
+                  <p>选择年度窗口，对比风险、库存与主要通道。</p>
                 </div>
               </div>
               <div>
@@ -309,7 +328,7 @@
                 <span class="analysis-column-index">03</span>
                 <div>
                   <h3>窗口结论</h3>
-                  <p>把年度指标收敛成状态判断、主通道和下一步模型输入。</p>
+                  <p>将年度指标收敛为状态判断、主要通道与执行提示。</p>
                 </div>
               </div>
             </div>
@@ -325,23 +344,9 @@
               </article>
             </div>
 
-            <article class="bridge-card">
-              <span>下游衔接</span>
-              <strong>{{ downstreamModelCard?.value || '等待模型' }}</strong>
-              <p>{{ downstreamModelCard?.detail || '当前窗口识别完成后，将继续进入模型选择和动作展开。' }}</p>
-              <div class="bridge-actions">
-                <el-button type="primary" plain size="small" @click="navigateTo(SCNET_ROUTES.expAnalysisGameTheory)">
-                  进入博弈论
-                </el-button>
-                <el-button type="warning" plain size="small" @click="navigateTo(SCNET_ROUTES.expAnalysisDecisionTree)">
-                  查看对策分析
-                </el-button>
-              </div>
-            </article>
-
             <div class="insight-subsection">
               <div class="insight-subtitle">执行提示</div>
-              <p class="rail-summary">情景页只负责识别窗口，下一步把这个窗口送入模型选择和动作展开。</p>
+              <p class="rail-summary">结合当前窗口的风险、库存和主通道给出执行建议。</p>
               <div class="rail-card-list">
                 <article
                   v-for="item in activeWindow.actionRows"
@@ -411,9 +416,22 @@ const scenarioVm = computed(() => buildUraniumScenarioViewModel({
   history: history.value,
   snapshot: activeSnapshot.value
 }))
+const scenarioPlanCards = computed(() => {
+  const windows = scenarioVm.value?.yearWindows || []
+  const severeCount = windows.filter(item => ['danger', 'critical'].includes(item.tone)).length
+  const warningCount = windows.filter(item => item.tone === 'warning').length
+  const total = Math.max(1, windows.length)
+  const extreme = Math.max(12, Math.min(35, Math.round((severeCount / total) * 100)))
+  const rawDisruption = Math.max(25, Math.min(48, Math.round(((warningCount + severeCount * .5) / total) * 100)))
+  const disruption = Math.min(rawDisruption, 80 - extreme)
+  const baseline = 100 - extreme - disruption
+  return [
+    { label: '基准情景', probability: baseline, tone: 'baseline', color: '#2563eb', description: '主要供应国与现有航线按计划运行。', basis: '依据：历史年度窗口与当前库存基线' },
+    { label: '扰动情景', probability: disruption, tone: 'warning', color: '#f59e0b', description: '单一供应国或主通道发生局部中断。', basis: '依据：事前风险事件、节点暴露与运输延迟' },
+    { label: '极端情景', probability: extreme, tone: 'danger', color: '#ef4444', description: '多节点叠加失效，并伴随库存与替代航线承压。', basis: '依据：高风险窗口占比与缺口放大程度' }
+  ]
+})
 const activeWindow = computed(() => scenarioVm.value?.yearWindows?.[activeWindowIndex.value] || null)
-const scenarioDigestCards = computed(() => scenarioVm.value?.scenarioDigestCards || [])
-const downstreamModelCard = computed(() => scenarioDigestCards.value.find((item) => item.label === '下一步模型') || null)
 
 function navigateTo(path) {
   router.push(path)
@@ -460,6 +478,21 @@ watch(activeWindowIndex, () => {
 </script>
 
 <style scoped>
+.scenario-plan-pool { margin: 0 8px 10px; padding: 12px; }
+.scenario-plan-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.scenario-plan-head span { color: #2563eb; font-size: var(--mid-fs-micro); font-weight: 800; letter-spacing: .08em; }
+.scenario-plan-head strong { display: block; margin-top: 2px; color: #0f172a; font-size: var(--mid-fs-strong); }
+.scenario-plan-head p { margin: 4px 0 0; color: #64748b; font-size: var(--mid-fs-label); line-height: var(--mid-lh-body); }
+.scenario-plan-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 10px; }
+.scenario-plan-grid article { padding: 10px; border: 1px solid #dbe4ef; border-radius: 9px; background: #f8fafc; }
+.scenario-plan-grid article > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
+.scenario-plan-grid span { color: #475569; font-size: var(--mid-fs-label); font-weight: 700; }
+.scenario-plan-grid strong { color: #0f172a; font-size: var(--mid-fs-title); }
+.scenario-plan-grid p { margin: 7px 0 3px; color: #334155; font-size: var(--mid-fs-label); line-height: var(--mid-lh-body); }
+.scenario-plan-grid small { color: #94a3b8; font-size: var(--mid-fs-micro); line-height: 1.4; }
+.scenario-plan-grid article.warning { border-color: #fde68a; background: #fffbeb; }
+.scenario-plan-grid article.danger { border-color: #fecaca; background: #fef2f2; }
+
 .scenario-console {
   display: flex;
   flex-direction: column;
@@ -1099,6 +1132,7 @@ watch(activeWindowIndex, () => {
 }
 
 @media (max-width: 1080px) {
+  .scenario-plan-grid { grid-template-columns: 1fr; }
   .scenario-stage-grid {
     grid-template-columns: 1fr;
   }

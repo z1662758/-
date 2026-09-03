@@ -28,7 +28,8 @@
 
     <main class="workbench-content">
       <ExperimentManager v-if="activeView === 'run'" />
-      <SimulationInterface v-else />
+      <SimulationInterface v-else-if="activeView === 'simulation'" />
+      <DecisionGeneration v-else />
     </main>
   </div>
 </template>
@@ -36,9 +37,10 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { DataAnalysis, Monitor } from '@element-plus/icons-vue'
+import { DataAnalysis, Monitor, Promotion } from '@element-plus/icons-vue'
 import ExperimentManager from './ExperimentManager_uranium.vue'
 import SimulationInterface from './interface_uranium.vue'
+import DecisionGeneration from './DecisionGeneration_uranium.vue'
 
 defineOptions({ name: 'UraniumExperimentWorkbench' })
 
@@ -47,12 +49,13 @@ const router = useRouter()
 
 const views = Object.freeze([
   { value: 'run', label: '运行管理', description: '任务、迭代与实验台账', icon: Monitor },
-  { value: 'simulation', label: '态势推演', description: '年度链路与调运结果', icon: DataAnalysis }
+  { value: 'simulation', label: '态势推演', description: '年度链路与调运结果', icon: DataAnalysis },
+  { value: 'decision', label: '决策生成', description: '结论、依据与执行方法', icon: Promotion }
 ])
 
 const routeDefault = computed(() => route.path.endsWith('/interface') ? 'simulation' : 'run')
 const activeView = computed(() => (
-  ['run', 'simulation'].includes(route.query.view) ? route.query.view : routeDefault.value
+  ['run', 'simulation', 'decision'].includes(route.query.view) ? route.query.view : routeDefault.value
 ))
 
 function switchView(view) {
@@ -104,7 +107,7 @@ function switchView(view) {
 
 .switcher-tabs {
   display: grid;
-  grid-template-columns: repeat(2, minmax(190px, 1fr));
+  grid-template-columns: repeat(3, minmax(170px, 1fr));
   gap: 8px;
   padding: 4px;
   border: 1px solid #dce4ee;

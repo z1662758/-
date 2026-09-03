@@ -16,7 +16,7 @@
           <el-icon><Place /></el-icon>运行界面
         </el-button>
         <el-button type="warning" size="small" plain @click="onNavigate(SCNET_ROUTES.expAnalysisGameTheory)">
-          <el-icon><Grid /></el-icon>博弈论
+          <el-icon><Grid /></el-icon>脆弱性分析
         </el-button>
         <el-button type="warning" size="small" plain @click="onNavigate(SCNET_ROUTES.expAnalysisDecisionTree)">
           <el-icon><Promotion /></el-icon>对策分析

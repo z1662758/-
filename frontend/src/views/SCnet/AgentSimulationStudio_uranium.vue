@@ -2,7 +2,7 @@
   <div class="studio-host mid-stage-bg" :class="{ 'page-loaded': pageLoaded }">
     <div class="workflow-page">
       <MidStagePageHeader
-        title="实验设计"
+        title="实体图"
         :subtitle="pageSubtitle"
         :icon="Cpu"
       >
@@ -15,6 +15,23 @@
           </div>
         </template>
       </MidStagePageHeader>
+      <section class="plan-summary" aria-label="实验方案汇总">
+        <div class="plan-summary-title">
+          <span>EXPERIMENT PLAN</span>
+          <strong>实验方案汇总</strong>
+          <small>从国家、航线与调度策略三个层面组合形成可执行方案</small>
+        </div>
+        <div class="plan-dimension-grid">
+          <article v-for="dimension in planDimensions" :key="dimension.label" class="plan-dimension-card">
+            <div class="plan-dimension-head">
+              <span>{{ dimension.label }}</span>
+              <el-tag size="small" effect="plain" :type="dimension.type">{{ dimension.scope }}</el-tag>
+            </div>
+            <strong>{{ dimension.selection }}</strong>
+            <p>{{ dimension.detail }}</p>
+          </article>
+        </div>
+      </section>
       <div class="main-container">
         <div class="workflow-canvas-shell">
           <AgentDesignCanvas
@@ -72,6 +89,12 @@ import './components/shared/midStage.css'
 const router = useRouter()
 const route = useRoute()
 const pageLoaded = ref(false)
+
+const planDimensions = Object.freeze([
+  { label: '国家层面', scope: '供应组合', selection: '哈萨克斯坦 + 加拿大 + 纳米比亚', detail: '核心供应国与备选供应国分层配置，控制单一国家依赖。', type: 'primary' },
+  { label: '航线层面', scope: '通道选择', selection: '陆运主通道 + 海运备份通道', detail: '在中欧班列、跨里海运输与大西洋海运之间进行方式选择。', type: 'success' },
+  { label: '策略层面', scope: '策略选择', selection: '成本优先 / 风险均衡 / 保供优先', detail: '每轮实验从三类策略中选择，并记录航线切换与份额调整。', type: 'warning' }
+])
 
 const { simulationData, loadingData, loadAgentDesignPayload } = useAgentDesignPayload('AgentStudioHost')
 
@@ -470,6 +493,47 @@ watch(graphSource, (next) => {
   font-weight: 700;
 }
 
+.plan-summary {
+  display: grid;
+  grid-template-columns: minmax(210px, .72fr) minmax(0, 2.28fr);
+  gap: 12px;
+  margin: 0 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--mid-border-soft);
+  border-radius: var(--mid-radius-md);
+  background: rgba(255, 255, 255, .92);
+}
+
+.plan-summary-title {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+}
+
+.plan-summary-title > span { color: #2563eb; font-size: 10px; font-weight: 800; letter-spacing: .08em; }
+.plan-summary-title > strong { color: #0f172a; font-size: 16px; }
+.plan-summary-title > small { color: #64748b; line-height: 1.5; }
+
+.plan-dimension-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.plan-dimension-card {
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  background: #f8fafc;
+}
+
+.plan-dimension-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.plan-dimension-head > span { color: #64748b; font-size: 11px; font-weight: 700; }
+.plan-dimension-card > strong { display: block; margin-top: 6px; color: #1e293b; font-size: 12px; }
+.plan-dimension-card > p { margin: 4px 0 0; color: #64748b; font-size: 10px; line-height: 1.45; }
+
 .main-container {
   display: flex;
   flex: 1;
@@ -508,5 +572,11 @@ watch(graphSource, (next) => {
   .graph-stat-row {
     flex-wrap: wrap;
   }
+  .plan-summary { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 760px) {
+  .plan-dimension-grid { grid-template-columns: 1fr; }
+  .plan-summary { max-height: 260px; overflow-y: auto; }
 }
 </style>

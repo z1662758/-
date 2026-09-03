@@ -77,22 +77,22 @@
             <span class="analysis-column-index">01</span>
             <div>
               <h3>决策输入台</h3>
-              <p>固定上游输入、基线参照与当前推荐。</p>
+              <p>汇总当前情景、基线参照与推荐对策。</p>
             </div>
           </div>
 
           <div class="dt-source-card">
-            <span>当前树输入</span>
-            <strong>{{ decisionVm.inputBridge.gameModelLabel }}</strong>
+            <span>当前对策任务</span>
+            <strong>{{ decisionVm.inputBridge.eventName }}</strong>
             <p>{{ decisionVm.inputBridge.sourceSummary }}</p>
             <div class="dt-source-grid">
               <div>
-                <small>上游窗口</small>
+                <small>情景窗口</small>
                 <p>{{ decisionVm.inputBridge.scenarioLabel }} / {{ decisionVm.inputBridge.timeLabel }}</p>
               </div>
               <div>
-                <small>稳定组合</small>
-                <p>{{ decisionVm.inputBridge.dominantPairLabel }}</p>
+                <small>当前风险等级</small>
+                <p>{{ decisionVm.decisionHero.stageLabel }}</p>
               </div>
               <div>
                 <small>决策事件</small>
@@ -138,26 +138,16 @@
             </ol>
           </article>
 
-          <article class="dt-bridge-card">
-            <span>分析链衔接</span>
-            <strong>{{ decisionVm.inputBridge.gameModelLabel }}</strong>
-            <p>当前树由博弈页的模型判断继续展开，若需回看窗口或模型依据，可直接切回上游页面。</p>
-            <div class="dt-bridge-actions">
-              <el-button type="primary" plain size="small" @click="navigateTo(SCNET_ROUTES.expAnalysisGameTheory)">
-                返回博弈论
-              </el-button>
-              <el-button size="small" plain @click="navigateTo(SCNET_ROUTES.expAnalysisScenario)">
-                查看情景页
-              </el-button>
-            </div>
-          </article>
         </aside>
 
         <main class="tree-panel glass-panel" :style="treePanelStyle">
           <div class="panel-header">
             <div class="panel-header-main">
-              <el-icon><Share /></el-icon>
-              <span>对策证据树（基线 vs 调控对比）</span>
+              <span class="analysis-column-index">02</span>
+              <div class="tree-panel-title">
+                <strong>对策证据树</strong>
+                <small>未干预基线 vs 调控路径对比</small>
+              </div>
             </div>
             <div class="tree-panel-legend">
               <span class="legend-chip baseline">未干预基线</span>
@@ -198,7 +188,7 @@
         <aside class="dt-rail glass-panel">
           <div class="dt-rail-inner">
             <div class="analysis-column-head">
-              <span class="analysis-column-index">02</span>
+              <span class="analysis-column-index">03</span>
               <div>
                 <h3>候选动作排序</h3>
                 <p>动作赛道、结果差异与推荐顺序，可直接定位到策略节点。</p>
@@ -279,7 +269,7 @@
 
       <section class="dependency-panel glass-panel">
         <header class="dependency-head">
-          <div><span>03 · 依赖关系分析</span><h3>推荐对策落地所依赖的资源、主体与先后约束</h3></div>
+          <div><span>04 · 落地依赖</span><h3>推荐对策所需的资源、协同主体与执行顺序</h3></div>
           <el-tag type="info" effect="plain">{{ dependencyCards.length }} 项关键依赖</el-tag>
         </header>
         <div class="dependency-flow">
@@ -454,10 +444,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import * as echarts from 'echarts'
 import { storeToRefs } from 'pinia'
-import { useRouter } from 'vue-router'
 import { Refresh, Share } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 import AnalysisLinkTabs from './components/shared/AnalysisLinkTabs.vue'
@@ -475,7 +463,6 @@ import {
   buildUraniumDecisionTreeViewModel
 } from '@/views/SCnet/adapters/uraniumMockAnalysisAdapter'
 
-const router = useRouter()
 const snapshotStore = useAnalysisSnapshotStore()
 const uraniumStore = useUraniumDemoStore()
 const { selectedExperiment } = storeToRefs(uraniumStore)
@@ -555,6 +542,10 @@ const keyConclusions = computed(() => {
     {
       label: '最可能结果', value: best ? `${best.successProbability || 0}%` : '--',
       detail: best?.bestLeafSituation || '等待结果分支。', tone: 'success'
+    },
+    {
+      label: '执行时间 / 成本', value: best ? `${Math.max(3, Math.round(18 - best.score * .12))} 天` : '--',
+      detail: best ? `预计执行成本指数 ${Math.max(10, Math.round(82 - best.score * .55))}，需联动库存、合同与运输资源。` : '等待对策评估。', tone: 'warning'
     }
   ]
 })
@@ -600,10 +591,6 @@ function formatSigned(num, digits = 0) {
   if (Number.isNaN(value)) return '--'
   const fixed = value.toFixed(digits)
   return value > 0 ? `+${fixed}` : fixed
-}
-
-function navigateTo(path) {
-  router.push(path)
 }
 
 const controlledLeafComparison = computed(() => {
@@ -1034,7 +1021,7 @@ onBeforeUnmount(() => {
 
 .key-conclusion-strip {
   display: grid;
-  grid-template-columns: 110px repeat(3, minmax(0, 1fr));
+  grid-template-columns: 110px repeat(4, minmax(0, 1fr));
   gap: 8px;
   padding: 10px 12px;
   align-items: stretch;
@@ -1323,6 +1310,9 @@ onBeforeUnmount(() => {
 .panel-header-main span {
   overflow-wrap: anywhere;
 }
+.tree-panel-title { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.tree-panel-title strong { color: #0f172a; font-size: var(--mid-fs-strong); }
+.tree-panel-title small { color: #64748b; font-size: var(--mid-fs-micro); font-weight: 600; }
 .tree-panel-legend {
   display: flex;
   align-items: center;
@@ -1617,7 +1607,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1200px) {
   .key-conclusion-strip {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .key-conclusion-label {

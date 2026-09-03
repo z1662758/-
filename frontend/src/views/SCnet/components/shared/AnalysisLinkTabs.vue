@@ -49,9 +49,9 @@ const props = defineProps({
 const router = useRouter()
 
 const tabs = computed(() => [
-  { value: 'gameTheory',   label: '博弈论', icon: markRaw(Grid) },
-  { value: 'decisionTree', label: '对策', icon: markRaw(Promotion) },
-  { value: 'scenario',     label: '情景',   icon: markRaw(TrendCharts) }
+  { value: 'scenario',     label: '情景分析', icon: markRaw(TrendCharts) },
+  { value: 'gameTheory',   label: '脆弱性分析', icon: markRaw(Grid) },
+  { value: 'decisionTree', label: '对策分析', icon: markRaw(Promotion) }
 ])
 
 const activeRef = ref(props.active)
@@ -60,7 +60,11 @@ watch(() => props.active, v => { activeRef.value = v })
 function handleChange(value) {
   if (value === props.active) return
   const target = SCNET_DECISION_ROUTE_BY_TAB[value]
-  if (target) router.push({ path: target, query: router.currentRoute.value.query })
+  if (target) {
+    const query = { ...router.currentRoute.value.query }
+    delete query.section
+    router.push({ path: target, query })
+  }
 }
 </script>
 

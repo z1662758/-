@@ -78,7 +78,7 @@
                   <div v-if="msg.analysisData" class="analysis-result-card">
                     <div class="analysis-card-header">
                       <div>
-                        <strong>实验设计已生成</strong>
+                        <strong>实验方案已生成</strong>
                         <span>已完成需求拆解与变量识别</span>
                       </div>
                       <span class="analysis-total">{{ msg.analysisData.subtasks?.length || 0 }} 项任务</span>
@@ -143,7 +143,7 @@
                         <span class="completion-task-text">{{ task.title || task.description || '' }}</span>
                       </div>
                     </div>
-                    <div class="completion-hint">可继续在下方输入框迭代调整，或前往「实验设计」查看方案。</div>
+                    <div class="completion-hint">可继续在下方输入框迭代调整，或前往「实体图」查看方案。</div>
                   </div>
                 </div>
               </div>
@@ -212,7 +212,7 @@
           <div class="execution-state">
             <div class="panel-header">
               <div class="header-title">
-                <span>实验设计</span>
+                <span>实验方案汇总</span>
               </div>
               <div class="status-badge completed" v-if="tasks.length > 0">已生成</div>
             </div>
@@ -222,6 +222,15 @@
                 v-if="tasks.length > 0"
                 class="experiment-design-summary"
               >
+                <div class="eds-section eds-overview">
+                  <div class="eds-overview-copy">
+                    <span class="eds-kicker">方案说明</span>
+                    <strong>{{ experimentDesign.userGoal || '围绕当前供应链目标生成可执行实验组合' }}</strong>
+                    <p>{{ experimentDesign.goalExplain || '系统将实体、影响因素和响应变量组合为候选实验，并通过模型评分与反馈更新筛选出优先方案。' }}</p>
+                  </div>
+                  <div class="eds-overview-stat"><b>{{ experimentDesign.paramRows.length || tasks.length }}</b><span>候选实验</span></div>
+                </div>
+
                 <div class="eds-section eds-vars">
                   <div class="eds-vars-col" v-if="experimentDesign.entities.length">
                     <div class="eds-col-title"><span>实体</span><b>{{ experimentDesign.entities.length }}</b></div>
@@ -254,6 +263,28 @@
                 <div class="eds-section eds-method" v-if="experimentDesign.expMethod">
                   <span class="eds-label">实验方法</span>
                   <span class="eds-method-value">{{ experimentDesign.expMethod }}</span>
+                </div>
+
+                <div class="eds-section eds-selection">
+                  <div class="eds-section-title">算法如何筛选方案</div>
+                  <div class="selection-flow">
+                    <article v-for="(step, index) in selectionSteps" :key="step.title" class="selection-step">
+                      <span class="selection-index">{{ index + 1 }}</span>
+                      <div><strong>{{ step.title }}</strong><p>{{ step.detail }}</p></div>
+                    </article>
+                  </div>
+                  <div class="bayesian-feedback">
+                    <span class="bayes-badge">Bayesian Feedback</span>
+                    <div>
+                      <strong>贝叶斯反馈怎样影响下一轮</strong>
+                      <p>把本轮推演观测到的成本、缺口、风险暴露和库存覆盖作为新证据，更新各候选方案的后验可信度；高收益且稳定的参数组合提高采样概率，表现不佳的组合降权，再生成下一轮候选。</p>
+                    </div>
+                  </div>
+                  <div class="score-formula">
+                    <span>综合效用</span>
+                    <code>保供收益 + 韧性增益 − 成本惩罚 − 风险惩罚</code>
+                    <el-tag size="small" type="success" effect="dark">选择后验效用最高方案</el-tag>
+                  </div>
                 </div>
 
                 <div class="eds-section eds-params" v-if="experimentDesign.paramRows.length">
@@ -295,7 +326,7 @@
 
                 <div class="eds-next">
                   <el-button type="primary" round :disabled="isProcessing" @click="goToNextPage">
-                    下一步：查看实验设计
+                    下一步：查看实体图
                   </el-button>
                 </div>
               </div>
@@ -307,8 +338,8 @@
                     <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                   </svg>
                 </div>
-                <h3>等待实验设计结果</h3>
-                <p>完成左侧对话后，这里展示实验设计方案</p>
+                <h3>等待实验方案</h3>
+                <p>完成左侧对话后，这里展示实验方案汇总</p>
               </div>
             </div>
           </div>
@@ -357,6 +388,14 @@ export default {
         return '输入调整诉求继续迭代, 例如: 把库存上限改成 [200, 800]…'
       }
       return '输入您的问题或反馈...'
+    },
+    selectionSteps() {
+      return [
+        { title: '生成候选', detail: `按 ${this.experimentDesign.factors.length || 0} 个影响因素的参数范围组合实验点，覆盖成本、风险与保供取向。` },
+        { title: '模型推演', detail: '多智能体模型逐一运行候选方案，输出成本、供需缺口、风险暴露与库存覆盖。' },
+        { title: '多目标评分', detail: '先剔除违反供给与安全约束的方案，再按保供、韧性、成本和风险加权排序。' },
+        { title: '反馈收敛', detail: '将推演结果写回贝叶斯后验，重点探索高潜力参数区域，直到收益趋稳。' }
+      ]
     },
     experimentDesign() {
       const r = (this.apiResult && typeof this.apiResult === 'object') ? this.apiResult : {}
@@ -523,8 +562,8 @@ export default {
       this.selectedResult = null
       this.currentResult = {
         agent_type: 'SUMMARY',
-        title: '实验设计生成完成',
-        description: '已加载实验设计方案。点击「下一步」查看完整实验设计，或在下方输入框继续迭代。',
+        title: '实验方案生成完成',
+        description: '已加载实验方案汇总。点击「下一步」查看完整实体图，或在下方输入框继续迭代。',
         emoji: '🎉'
       }
       this.editingContent = this.currentResult
@@ -657,8 +696,8 @@ export default {
 .task-panel {
   min-height: 0;
 }
-.conversation-panel { width: 47%; }
-.task-panel { width: 53%; }
+.conversation-panel { width: 31%; min-width: 300px; }
+.task-panel { width: 69%; }
 .conversation-panel :deep(.panel-header),
 .task-panel :deep(.panel-header) { padding: 14px 18px; }
 .conversation-panel :deep(.conversation-messages) { padding: 16px; gap: 14px; }
@@ -729,6 +768,26 @@ export default {
   color: #9d3807;
   margin-right: 8px;
 }
+.eds-overview { display: flex; align-items: center; gap: 18px; background: linear-gradient(135deg, #eff6ff, #f8fafc) !important; }
+.eds-overview-copy { flex: 1; min-width: 0; }
+.eds-kicker { display: block; color: #2563eb; font-size: 10px; font-weight: 800; letter-spacing: .08em; margin-bottom: 4px; }
+.eds-overview-copy strong { display: block; color: #0f172a; font-size: 14px; line-height: 1.5; }
+.eds-overview-copy p { margin: 4px 0 0; color: #64748b; font-size: 12px; line-height: 1.6; }
+.eds-overview-stat { flex: 0 0 82px; min-height: 66px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-left: 1px solid #bfdbfe; }
+.eds-overview-stat b { color: #1d4ed8; font-size: 24px; line-height: 1; }
+.eds-overview-stat span { margin-top: 6px; color: #64748b; font-size: 11px; }
+.selection-flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.selection-step { position: relative; min-width: 0; padding: 10px 9px 9px 34px; border: 1px solid #dbeafe; border-radius: 8px; background: #f8fafc; }
+.selection-step:not(:last-child)::after { content: '›'; position: absolute; right: -8px; top: 25px; z-index: 1; color: #2563eb; font-size: 18px; font-weight: 800; }
+.selection-index { position: absolute; left: 9px; top: 10px; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: #2563eb; color: white; font-size: 10px; font-weight: 800; }
+.selection-step strong { color: #1e3a8a; font-size: 12px; }
+.selection-step p { margin: 4px 0 0; color: #64748b; font-size: 11px; line-height: 1.45; }
+.bayesian-feedback { display: flex; gap: 12px; align-items: flex-start; margin-top: 9px; padding: 10px; border-radius: 8px; background: #fff7ed; border: 1px solid #fed7aa; }
+.bayes-badge { flex: 0 0 auto; padding: 4px 7px; border-radius: 5px; background: #f97316; color: #fff; font-size: 9px; font-weight: 800; letter-spacing: .04em; }
+.bayesian-feedback strong { display: block; color: #9a3412; font-size: 12px; }
+.bayesian-feedback p { margin: 3px 0 0; color: #7c2d12; font-size: 11px; line-height: 1.55; }
+.score-formula { display: flex; align-items: center; gap: 9px; margin-top: 8px; font-size: 11px; color: #475569; }
+.score-formula code { flex: 1; padding: 5px 8px; border-radius: 5px; background: #eef2ff; color: #4338ca; white-space: normal; }
 
 .eds-goal {
   display: flex;
@@ -919,6 +978,8 @@ export default {
 }
 
 @media (max-width: 1180px) {
+  .selection-flow { grid-template-columns: 1fr 1fr; }
+  .selection-step::after { display: none; }
   .eds-vars {
     display: grid;
     grid-template-columns: 1fr;

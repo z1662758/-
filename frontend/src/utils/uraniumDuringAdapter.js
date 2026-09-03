@@ -177,6 +177,8 @@ export function buildIterationRows(experiment) {
         final_dominant_supplier_share: safeNumber(summary.final_dominant_supplier_share),
         feedback_signals: uniqueStrings(item?.feedback_signals),
         selected_profile_labels: selectedLabels,
+        selected_countries: uniqueStrings(item?.selected_countries || item?.countries || []),
+        selected_routes: uniqueStrings(item?.selected_routes || item?.routes || []),
         profiles: Array.isArray(item?.profiles) ? item.profiles : [],
         manufacturer_alerts: Array.isArray(summary.manufacturer_alerts) ? summary.manufacturer_alerts : [],
         metrics: summary
@@ -207,6 +209,8 @@ export function buildIterationRows(experiment) {
     final_dominant_supplier_share: safeNumber(report.final_dominant_supplier_share),
     feedback_signals: [],
     selected_profile_labels: uniqueStrings((experiment?.plan?.policy_profiles || []).map((item) => item?.label || item?.manufacturer_id)),
+    selected_countries: uniqueStrings(experiment?.plan?.selected_countries || experiment?.selected_countries || []),
+    selected_routes: uniqueStrings(experiment?.plan?.selected_routes || experiment?.selected_routes || []),
     profiles: Array.isArray(experiment?.plan?.policy_profiles) ? experiment.plan.policy_profiles : [],
     manufacturer_alerts: [],
     active_events: latest?.active_events || [],

@@ -6,7 +6,7 @@ import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 
 export const DURING_FLOW_STEPS = [
   { key: 'analysis', label: '智能对话', route: SCNET_ROUTES.scenarioAnalysis, query: {} },
-  { key: 'workflow', label: '实验设计', route: SCNET_ROUTES.agentSimulationStudio, query: { view: 'workflow' } },
+  { key: 'workflow', label: '实体图', route: SCNET_ROUTES.agentSimulationStudio, query: { view: 'workflow' } },
 ]
 
 export function routeToStepKey(routePath) {

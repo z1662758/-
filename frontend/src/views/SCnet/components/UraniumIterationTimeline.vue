@@ -48,6 +48,16 @@
             </div>
           </div>
 
+          <section class="round-plan-selection">
+            <span class="round-plan-title">本轮方案选择</span>
+            <div class="round-plan-grid">
+              <div v-for="item in buildPlanSelections(row)" :key="item.label" class="round-plan-item">
+                <small>{{ item.label }}</small>
+                <strong>{{ item.value }}</strong>
+              </div>
+            </div>
+          </section>
+
           <div class="iter-metric-grid">
             <article v-for="item in buildMetricCards(row)" :key="item.label" class="metric-card">
               <span>{{ item.label }}</span>
@@ -162,6 +172,35 @@ function buildMetricCards(row) {
       label: '需求缺口',
       value: formatUraniumMetricValue('max_unmet_demand_tU', row.max_unmet_demand_tU)
     }
+  ]
+}
+
+function uniqueValues(values) {
+  return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))]
+}
+
+function formatStrategy(value) {
+  const key = String(value || '').toLowerCase()
+  if (key === 'initial') return '初始基准策略'
+  if (key === 'candidate') return '风险均衡候选策略'
+  if (key === 'current') return '当前执行策略'
+  return value || '未配置'
+}
+
+function buildPlanSelections(row) {
+  const profiles = Array.isArray(row.profiles) ? row.profiles : []
+  const countries = uniqueValues([
+    ...(row.selected_countries || []),
+    ...profiles.flatMap(item => [item.country, item.supplier_country, item.country_name])
+  ])
+  const routes = uniqueValues([
+    ...(row.selected_routes || []),
+    ...profiles.flatMap(item => [item.route_label, item.route_type, item.transport_mode])
+  ])
+  return [
+    { label: '国家组合', value: countries.join('、') || '当前记录未返回国家明细' },
+    { label: '航线方式', value: routes.join('、') || '当前记录未返回航线明细' },
+    { label: '策略选择', value: formatStrategy(row.strategy_label) }
   ]
 }
 
@@ -401,6 +440,20 @@ onUnmounted(() => {
   background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
 }
 
+.round-plan-selection {
+  margin-top: 10px;
+  padding: 9px 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 9px;
+  background: #eff6ff;
+}
+
+.round-plan-title { color: #1d4ed8; font-size: 11px; font-weight: 800; }
+.round-plan-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 7px; }
+.round-plan-item { min-width: 0; padding-left: 8px; border-left: 2px solid #93c5fd; }
+.round-plan-item small { display: block; color: #64748b; font-size: 10px; }
+.round-plan-item strong { display: block; margin-top: 2px; overflow: hidden; color: #1e293b; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+
 .iter-head,
 .iter-head-left,
 .iter-head-right,
@@ -470,5 +523,6 @@ onUnmounted(() => {
     align-items: flex-start;
     flex-direction: column;
   }
+  .round-plan-grid { grid-template-columns: 1fr; }
 }
 </style>
