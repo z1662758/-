@@ -46,5 +46,6 @@ export const ROUTE_TO_PHASE = Object.freeze({
   '/home/SCnet/expAnalysisIntervention': 'post',
   '/home/SCnet/expAnalysisMechanism': 'post',
   '/home/SCnet/counterfactualExperiment': 'post',
+  '/home/SCnet/expAnalysisMap': 'post',
   '/home/SCnet/EXreport': 'post'
 })

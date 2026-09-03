@@ -211,6 +211,11 @@ const routes = [
         path: 'counterfactualExperiment',
         name: 'SCnet_CounterfactualExperiment',
         component: () => import("../views/SCnet/CounterfactualExperiment.vue")
+      },
+      {
+        path: 'expAnalysisMap',
+        name: 'SCnet_ExpAnalysisMap',
+        component: () => import("../views/SCnet/ExpAnalysisMap.vue")
       }
 
     ]
