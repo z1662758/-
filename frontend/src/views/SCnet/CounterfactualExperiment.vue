@@ -436,6 +436,8 @@ const EMPTY_TEXT = '无内容，需导入实验报告'
 const simTotalSteps = ref(15)  // 动态：根据实际实验轮数设定
 const STORAGE_KEY = 'scnet_counterfactual_imported_reports'
 const POLLING_INTERVAL_MS = 5000
+// 提交到后端队列后，若轮询接口持续失败超过该时长，判定后端仿真不可用，自动回退到合成分析
+const POLL_FALLBACK_AFTER_MS = 60000
 
 const toFiniteNumber = (value, fallback = 0) => {
   const numberValue = Number(value)
@@ -997,6 +999,10 @@ const eventContext = computed(() => ({
 
 let timer = null
 let runPollingTimer = null
+// 轮询连续失败的起始时间戳；0 表示当前处于健康状态
+let pollFailStreakStartedAt = 0
+// 合成回退进行中标记，防止重叠轮询触发重复回退
+let syntheticFallbackInProgress = false
 
 const getActiveParameterValue = (key, fallback = 0) => {
   const parameter = activeCounterfactualParams.value.find((item) => item.key === key)
@@ -1399,6 +1405,7 @@ const generateReport = () => {
 
 const startRunPolling = () => {
   stopRunPolling()
+  pollFailStreakStartedAt = 0  // 新一轮轮询从健康状态开始
   runPollingTimer = window.setInterval(pollRunTask, POLLING_INTERVAL_MS)
   pollRunTask()
 }
@@ -1410,11 +1417,60 @@ const stopRunPolling = () => {
   }
 }
 
+/**
+ * 后端仿真不可用 → 自动回退到“数据驱动的合成分析”模式：
+ * 停止轮询与进度模拟，基于导入报告参数推算一个合成结果，并铺到展示结构。
+ * @param {string} failReason 触发回退的原因描述，用于日志与报错展示
+ */
+const executeSyntheticFallback = async (failReason = '后端仿真不可用') => {
+  if (syntheticFallbackInProgress) return  // 防止重叠回退
+  syntheticFallbackInProgress = true
+  try {
+    const rs = getOrCreateRunState()
+    console.warn(`后端仿真不可用，自动切换到合成分析模式: ${failReason}`)
+    ElMessage.warning('后端仿真不可用，自动使用数据驱动的合成分析')
+    stopRunPolling()
+    stopLocalProgressTicker()
+
+    // 模拟运行进度
+    simState.value = 'running'
+    rs.status = 'running'
+    rs.message = '正在执行合成反事实分析...'
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    simStep.value = Math.floor(simTotalSteps.value * 0.7)
+
+    const synthetic = runSyntheticCounterfactual()
+    if (synthetic) {
+      rs.status = 'completed'
+      rs.completedAt = new Date().toLocaleString()
+      rs.message = '合成反事实分析完成（后端仿真不可用，基于导入数据推算）'
+      rs.experimentId = `synthetic_${Date.now()}`
+      rs.resultPath = '(合成分析)'
+      rs.result = buildSyntheticRunResult(rs, synthetic)
+      simState.value = 'idle'
+      simStep.value = simTotalSteps.value
+      rs.running = false
+      ElMessage.success('合成反事实分析完成！可查看对比结果')
+    } else {
+      rs.running = false
+      rs.status = 'failed'
+      rs.error = failReason || '后端仿真不可用'
+      rs.message = '后端仿真不可用，且合成反事实分析无法生成。'
+      simState.value = 'idle'
+      ElMessage.error(rs.message)
+    }
+  } finally {
+    syntheticFallbackInProgress = false
+  }
+}
+
 const pollRunTask = async () => {
   const rs = getOrCreateRunState()
   if (!rs.taskId) return
 
   try {
+    // 一次成功的轮询请求即视为健康，重置连续失败计时
+    pollFailStreakStartedAt = 0
     const history = unwrapApiData(await getQueueHistory(80)) || []
     const task = history.find((item) => item.task_id === rs.taskId)
     if (!task) {
@@ -1427,38 +1483,8 @@ const pollRunTask = async () => {
     rs.resultPath = task.result_path || rs.resultPath
 
     if (task.status === 'failed') {
-      // 后端仿真失败 → 自动回退到合成分析模式
-      console.warn('后端仿真任务失败，自动切换到合成分析模式:', task.error_message)
-      ElMessage.warning('后端仿真不可用，自动使用数据驱动的合成分析')
-      stopRunPolling()
-
-      // 模拟运行进度
-      rs.status = 'running'
-      rs.message = '正在执行合成反事实分析...'
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      simStep.value = Math.floor(simTotalSteps.value * 0.7)
-
-      const synthetic = runSyntheticCounterfactual()
-      if (synthetic) {
-        rs.status = 'completed'
-        rs.completedAt = new Date().toLocaleString()
-        rs.message = '合成反事实分析完成（后端仿真不可用，基于导入数据推算）'
-        rs.experimentId = `synthetic_${Date.now()}`
-        rs.resultPath = '(合成分析)'
-        rs.result = buildSyntheticRunResult(rs, synthetic)
-        simState.value = 'idle'
-        simStep.value = simTotalSteps.value
-        stopLocalProgressTicker()
-        rs.running = false
-        ElMessage.success('合成反事实分析完成！可查看对比结果')
-      } else {
-        rs.running = false
-        rs.error = task.error_message || '后端实验运行失败'
-        rs.message = '后端反事实实验异常中止，合成分析也无法生成。'
-        simState.value = 'idle'
-        stopLocalProgressTicker()
-        ElMessage.error(rs.message)
-      }
+      // 后端仿真任务失败 → 自动回退到合成分析模式
+      await executeSyntheticFallback(task.error_message || '后端反事实实验运行失败')
       return
     }
 
@@ -1482,7 +1508,20 @@ const pollRunTask = async () => {
 
     rs.message = `后端实验运行中：${taskStatusText(rs.status)}`
   } catch (error) {
-    rs.message = `轮询后端队列失败，稍后自动重试：${error?.message || '未知错误'}`
+    const now = Date.now()
+    if (!pollFailStreakStartedAt) pollFailStreakStartedAt = now
+    const failSeconds = Math.round((now - pollFailStreakStartedAt) / 1000)
+
+    // 连续轮询失败超过阈值 → 判定后端仿真不可用，自动切换合成分析
+    if (failSeconds * 1000 >= POLL_FALLBACK_AFTER_MS) {
+      pollFailStreakStartedAt = 0
+      const reason = `后端队列持续无响应 ${failSeconds} 秒：${error?.message || '未知错误'}`
+      rs.message = `后端轮询持续失败，判定后端仿真不可用，正在自动切换到合成分析...`
+      await executeSyntheticFallback(reason)
+      return
+    }
+
+    rs.message = `轮询后端队列失败（已持续 ${failSeconds} 秒），稍后自动重试：${error?.message || '未知错误'}`
   }
 }
 

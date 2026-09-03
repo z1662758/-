@@ -124,6 +124,14 @@
               <template #title>{{ item.label }}</template>
             </el-menu-item>
           </el-sub-menu>
+          <el-menu-item
+            v-for="item in postTailMenuItems"
+            :key="item.index"
+            :index="item.index"
+          >
+            <el-icon size="18"><component :is="item.icon" /></el-icon>
+            <template #title>{{ item.label }}</template>
+          </el-menu-item>
         </template>
 
         <!-- index 不可为 "0"：router 模式下会执行 router.push("0") 导致无法访问 -->
@@ -219,16 +227,21 @@ const DURING_ANALYSIS_MENU_ITEMS = Object.freeze([
   { index: '/home/SCnet/expAnalysisScenario', label: '情景分析', icon: TrendCharts }
 ])
 
+// 实验分析子菜单之前展示的主菜单项
 const POST_MAIN_MENU_ITEMS = Object.freeze([
-  { index: '/home/SCnet/counterfactualExperiment', label: '反事实实验', icon: PieChart },
-  { index: '/home/SCnet/expAnalysisMap', label: '供应链态势地图', icon: MapLocation },
-  { index: '/home/SCnet/EXreport', label: '供应链实验报告', icon: Postcard }
+  { index: '/home/SCnet/counterfactualExperiment', label: '反事实实验', icon: PieChart }
 ])
 
 const POST_ANALYSIS_MENU_ITEMS = Object.freeze([
   { index: '/home/SCnet/expAnalysisObserve', label: '观察分析', icon: SearchIcon },
   { index: '/home/SCnet/expAnalysisIntervention', label: '干预分析', icon: Operation },
   { index: '/home/SCnet/expAnalysisMechanism', label: '机制与因果', icon: ScaleToOriginal }
+])
+
+// 实验分析子菜单之后展示的主菜单项
+const POST_TAIL_MENU_ITEMS = Object.freeze([
+  { index: '/home/SCnet/expAnalysisMap', label: '供应链态势地图', icon: MapLocation },
+  { index: '/home/SCnet/EXreport', label: '供应链实验报告', icon: Postcard }
 ])
 
 export default {
@@ -368,6 +381,7 @@ export default {
       }))),
       postMainMenuItems: POST_MAIN_MENU_ITEMS,
       postAnalysisMenuItems: POST_ANALYSIS_MENU_ITEMS,
+      postTailMenuItems: POST_TAIL_MENU_ITEMS,
       duringSteps,
       duringCurrentKey,
       showDuringFlowStepper,
@@ -465,7 +479,9 @@ export default {
 }
 
 .scnet-router-host > * {
-  display: block;
+  /* 注意：这里不能强制 display: block，否则会覆盖各页面根元素自己的
+     display: flex / grid（如反事实实验、EXreport 等用 flex 根布局让内部面板
+     约束到视口高度并各自滚动），导致内容溢出被 overflow:hidden 裁掉而无法滚动。 */
   width: 100%;
   min-height: 100%;
   box-sizing: border-box;
