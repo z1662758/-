@@ -83,6 +83,12 @@
                       </div>
                       <span class="analysis-total">{{ msg.analysisData.subtasks?.length || 0 }} 项任务</span>
                     </div>
+                    <div class="analysis-section understanding-section" v-if="msg.analysisData.understanding || experimentDesign.goalExplain">
+                      <div class="section-title">
+                        <span>目标理解</span>
+                      </div>
+                      <p>{{ msg.analysisData.understanding || experimentDesign.goalExplain }}</p>
+                    </div>
                     <div class="analysis-section tasks-section">
                       <div class="section-title">
                         <span>任务拆解</span>
@@ -129,6 +135,7 @@
                         </div>
                       </div>
                     </div>
+
                   </div>
 
                   <!-- 完成结果结构化展示 -->
@@ -148,6 +155,19 @@
                 </div>
               </div>
             </div>
+
+            <section v-if="tasks.length > 0" class="dialogue-followup">
+              <div class="brief-title">
+                <span>会话推进</span>
+                <b>事中决策</b>
+              </div>
+              <div class="followup-list">
+                <div v-for="item in dialogueFollowups" :key="item.title">
+                  <strong>{{ item.title }}</strong>
+                  <span>{{ item.text }}</span>
+                </div>
+              </div>
+            </section>
 
             <!-- AI思考中提示 -->
             <div v-if="isProcessing" class="message-wrapper system thinking">
@@ -231,6 +251,39 @@
                   <div class="eds-overview-stat"><b>{{ experimentDesign.paramRows.length || tasks.length }}</b><span>候选实验</span></div>
                 </div>
 
+                <div class="eds-section eds-design-logic">
+                  <div class="eds-section-title">方案生成框架</div>
+                  <div class="design-logic-grid">
+                    <div v-for="item in designLogicCards" :key="item.title">
+                      <span>{{ item.title }}</span>
+                      <strong>{{ item.value }}</strong>
+                      <p>{{ item.text }}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="eds-section eds-entity-preview">
+                  <div class="eds-section-title">实体图预览</div>
+                  <button type="button" class="entity-thumbnail entity-thumbnail-wide" @click="openEntityGraph" title="展开查看实体图">
+                    <div class="entity-thumb-canvas">
+                      <span
+                        v-for="(entity, i) in getGraphPreviewEntities()"
+                        :key="entity + i"
+                        class="entity-thumb-node"
+                        :class="'node-' + i"
+                      >{{ getEntityInitial(entity) }}</span>
+                      <span class="entity-thumb-line line-a"></span>
+                      <span class="entity-thumb-line line-b"></span>
+                      <span class="entity-thumb-line line-c"></span>
+                    </div>
+                    <div class="entity-thumb-copy">
+                      <strong>当前实验实体网络</strong>
+                      <span>{{ experimentDesign.entities.length || getGraphPreviewEntities().length }} 个核心实体，已按供应、制造、需求与调度关系组织。点击进入完整实体图页面。</span>
+                    </div>
+                    <span class="entity-thumb-action">展开查看</span>
+                  </button>
+                </div>
+
                 <div class="eds-section eds-vars">
                   <div class="eds-vars-col" v-if="experimentDesign.entities.length">
                     <div class="eds-col-title"><span>实体</span><b>{{ experimentDesign.entities.length }}</b></div>
@@ -285,6 +338,26 @@
                     <code>保供收益 + 韧性增益 − 成本惩罚 − 风险惩罚</code>
                     <el-tag size="small" type="success" effect="dark">选择后验效用最高方案</el-tag>
                   </div>
+                </div>
+
+                <div class="eds-section eds-priority" v-if="planPriorityRows.length">
+                  <div class="eds-section-title">方案优先级排序</div>
+                  <el-table
+                    :data="planPriorityRows"
+                    size="small"
+                    border
+                    stripe
+                    class="eds-priority-table"
+                  >
+                    <el-table-column prop="rank" label="排序" width="66" align="center" />
+                    <el-table-column prop="name" label="候选方案" min-width="130" />
+                    <el-table-column prop="basis" label="筛选依据" min-width="210" />
+                    <el-table-column prop="status" label="状态" width="104" align="center">
+                      <template #default="{ row }">
+                        <el-tag :type="row.type" size="small" effect="plain">{{ row.status }}</el-tag>
+                      </template>
+                    </el-table-column>
+                  </el-table>
                 </div>
 
                 <div class="eds-section eds-params" v-if="experimentDesign.paramRows.length">
@@ -358,6 +431,7 @@ import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 import { readScnetPhase } from '@/constants/scnetPhase'
 import { SCNET_PHASE_SHORT_LABELS } from '@/constants/scnetStageMeta'
 import { getSnapshotById } from '@/views/SCnet/mock/snapshotIndex'
+import { URANIUM_REFERENCE_GRAPH } from '@/views/SCnet/mock/agentGraphMock'
 import { ElMessage } from 'element-plus'
 import { Right } from '@element-plus/icons-vue'
 
@@ -396,6 +470,59 @@ export default {
         { title: '多目标评分', detail: '先剔除违反供给与安全约束的方案，再按保供、韧性、成本和风险加权排序。' },
         { title: '反馈收敛', detail: '将推演结果写回贝叶斯后验，重点探索高潜力参数区域，直到收益趋稳。' }
       ]
+    },
+    designLogicCards() {
+      return [
+        {
+          title: '输入',
+          value: `${this.entityCount} 类实体`,
+          text: '结合供应、制造、需求和调度对象形成实验边界。'
+        },
+        {
+          title: '变量',
+          value: `${this.experimentDesign.factors.length || 0} 个因素`,
+          text: '把可调因素映射为候选实验参数范围。'
+        },
+        {
+          title: '输出',
+          value: `${this.experimentDesign.responses.length || 0} 个指标`,
+          text: '用响应变量评价方案成本、缺口、风险和韧性。'
+        }
+      ]
+    },
+    entityCount() {
+      const fallbackCount = URANIUM_REFERENCE_GRAPH.agents?.length || 0
+      return this.experimentDesign.entities.length || fallbackCount
+    },
+    dialogueFollowups() {
+      return [
+        { title: '实体图前置', text: '右侧展示缩略图，完整图在独立页面查看与编辑。' },
+        { title: '方案说明补齐', text: '方案目的、实施意图和变量关系已在右侧展开。' },
+        { title: '决策闭环', text: '完成推演后进入决策生成，输出建议、依据和执行顺序。' }
+      ]
+    },
+    planPriorityRows() {
+      const rows = this.experimentDesign.paramRows.length
+        ? this.experimentDesign.paramRows
+        : this.tasks.map((task, index) => ({ index: `方案 ${index + 1}`, task: task.title || task.description || '' }))
+      return rows.slice(0, 5).map((row, index) => {
+        const name = row.index || `方案 ${index + 1}`
+        const factor = this.experimentDesign.factors[index % Math.max(this.experimentDesign.factors.length, 1)] || '关键变量'
+        const response = this.experimentDesign.responses[index % Math.max(this.experimentDesign.responses.length, 1)] || '目标指标'
+        const statusMeta = index === 0
+          ? { status: '优选执行', type: 'success' }
+          : index === 1
+            ? { status: '备选保留', type: 'warning' }
+            : index < 4
+              ? { status: '继续观测', type: 'primary' }
+              : { status: '降权剔除', type: 'info' }
+        return {
+          rank: index + 1,
+          name,
+          basis: `${factor} 对 ${response} 的改善幅度更高，同时未触发供给和风险约束。`,
+          ...statusMeta
+        }
+      })
     },
     experimentDesign() {
       const r = (this.apiResult && typeof this.apiResult === 'object') ? this.apiResult : {}
@@ -514,6 +641,26 @@ export default {
     },
     getVisibleSelectedEntities(msg = {}) {
       return this.getSelectedEntities(msg).slice(0, 6)
+    },
+    getGraphPreviewEntities(msg = {}) {
+      const selectedEntities = this.getSelectedEntities(msg)
+      const source = selectedEntities.length ? selectedEntities : this.experimentDesign.entities
+      const fallback = (URANIUM_REFERENCE_GRAPH.agents || []).map(agent => agent.name).filter(Boolean)
+      return (source?.length ? source : fallback).slice(0, 5)
+    },
+    getEntityInitial(entity = '') {
+      const clean = this.sanitizeDisplayText(entity).replace(/\s+/g, '')
+      return clean ? clean.slice(0, 2) : '实体'
+    },
+    openEntityGraph() {
+      this.$router.push({
+        path: SCNET_ROUTES.agentSimulationStudio,
+        query: {
+          scenario: 'uranium',
+          view: 'workflow',
+          expand: 'entityGraph'
+        }
+      })
     },
     getParameterDisplayName(key, index) {
       const raw = this.sanitizeDisplayText(key || '')
@@ -696,8 +843,8 @@ export default {
 .task-panel {
   min-height: 0;
 }
-.conversation-panel { width: 31%; min-width: 300px; }
-.task-panel { width: 69%; }
+.conversation-panel { width: 38%; min-width: 340px; }
+.task-panel { width: 62%; }
 .conversation-panel :deep(.panel-header),
 .task-panel :deep(.panel-header) { padding: 14px 18px; }
 .conversation-panel :deep(.conversation-messages) { padding: 16px; gap: 14px; }
@@ -708,17 +855,215 @@ export default {
 .conversation-panel :deep(.conversation-input) { padding: 11px 14px; font-size: 14px; }
 .conversation-panel :deep(.send-button),
 .conversation-panel :deep(.upload-icon-button) { width: 42px; height: 42px; }
-.conversation-panel :deep(.analysis-result-card) { margin-top: 6px; }
+.conversation-panel :deep(.analysis-result-card) { margin-top: 6px; border-radius: 10px; overflow: hidden; }
 .conversation-panel :deep(.analysis-card-header) { padding: 10px 12px; }
 .conversation-panel :deep(.analysis-section) { padding: 10px 12px; }
+.conversation-panel :deep(.understanding-section p) { margin: 0; color: #475569; font-size: 12px; line-height: 1.55; }
+.conversation-panel :deep(.tasks-section) { max-height: 236px; overflow-y: auto; }
 .conversation-panel :deep(.task-chips) { gap: 6px; }
 .conversation-panel :deep(.task-chip) { padding: 7px 8px; gap: 7px; }
 .conversation-panel :deep(.chip-number) { width: 18px; height: 18px; }
 .conversation-panel :deep(.task-chip-main) { gap: 3px; }
-.conversation-panel :deep(.variable-groups) { gap: 7px; }
+.conversation-panel :deep(.variables-section) { padding-top: 8px; }
+.conversation-panel :deep(.variable-groups) { gap: 7px; grid-template-columns: 1fr; }
 .conversation-panel :deep(.variable-groups .var-group) { padding: 8px; }
 .conversation-panel :deep(.var-tags) { gap: 4px; }
 .conversation-panel :deep(.var-tag) { padding: 2px 8px; font-size: 11px; }
+.dialogue-followup {
+  padding: 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #ffffff, #eff6ff);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, .08);
+}
+.brief-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+.brief-title span {
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 800;
+}
+.brief-title b {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 11px;
+}
+.followup-list {
+  display: grid;
+  gap: 7px;
+}
+.followup-list div {
+  padding: 8px 9px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: rgba(255,255,255,.88);
+}
+.followup-list strong {
+  display: block;
+  color: #1e3a8a;
+  font-size: 12px;
+}
+.followup-list span {
+  display: block;
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.entity-thumbnail {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 9px;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #f8fafc, #eef2ff);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+.entity-thumbnail:hover {
+  border-color: #2563eb;
+  box-shadow: 0 6px 16px rgba(37, 99, 235, .13);
+  transform: translateY(-1px);
+}
+.entity-thumb-canvas {
+  position: relative;
+  height: 62px;
+  border-radius: 7px;
+  background: #ffffff;
+  overflow: hidden;
+}
+.entity-thumb-node {
+  position: absolute;
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
+  color: #1d4ed8;
+  font-size: 10px;
+  font-weight: 800;
+}
+.entity-thumb-node.node-0 { left: 8px; top: 17px; background: #dcfce7; border-color: #86efac; color: #166534; }
+.entity-thumb-node.node-1 { left: 34px; top: 6px; }
+.entity-thumb-node.node-2 { right: 10px; top: 17px; background: #fee2e2; border-color: #fecaca; color: #991b1b; }
+.entity-thumb-node.node-3 { left: 35px; bottom: 5px; background: #fef3c7; border-color: #fde68a; color: #92400e; }
+.entity-thumb-node.node-4 { right: 31px; bottom: 5px; background: #ede9fe; border-color: #c4b5fd; color: #5b21b6; }
+.entity-thumb-line {
+  position: absolute;
+  height: 2px;
+  border-radius: 999px;
+  background: #bfdbfe;
+  transform-origin: left center;
+}
+.entity-thumb-line.line-a { left: 31px; top: 29px; width: 36px; transform: rotate(-18deg); }
+.entity-thumb-line.line-b { left: 57px; top: 26px; width: 28px; transform: rotate(18deg); }
+.entity-thumb-line.line-c { left: 48px; bottom: 19px; width: 34px; transform: rotate(-8deg); background: #fed7aa; }
+.entity-thumb-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.entity-thumb-copy strong {
+  color: #1e3a8a;
+  font-size: 12px;
+}
+.entity-thumb-copy span {
+  color: #64748b;
+  font-size: 11px;
+}
+.eds-entity-preview {
+  background: linear-gradient(135deg, #ffffff, #f8fafc) !important;
+}
+.entity-thumbnail-wide {
+  grid-template-columns: 142px minmax(0, 1fr) auto;
+  min-height: 116px;
+  padding: 12px;
+  border-color: #bfdbfe;
+  background: linear-gradient(135deg, #eff6ff, #ffffff);
+}
+.entity-thumbnail-wide .entity-thumb-canvas {
+  height: 88px;
+  border: 1px solid #dbeafe;
+}
+.entity-thumbnail-wide .entity-thumb-node {
+  width: 36px;
+  height: 36px;
+  font-size: 11px;
+}
+.entity-thumbnail-wide .entity-thumb-node.node-0 { left: 12px; top: 27px; }
+.entity-thumbnail-wide .entity-thumb-node.node-1 { left: 55px; top: 10px; }
+.entity-thumbnail-wide .entity-thumb-node.node-2 { right: 12px; top: 27px; }
+.entity-thumbnail-wide .entity-thumb-node.node-3 { left: 56px; bottom: 10px; }
+.entity-thumbnail-wide .entity-thumb-node.node-4 { right: 48px; bottom: 10px; }
+.entity-thumbnail-wide .entity-thumb-line.line-a { left: 43px; top: 44px; width: 54px; }
+.entity-thumbnail-wide .entity-thumb-line.line-b { left: 88px; top: 38px; width: 46px; }
+.entity-thumbnail-wide .entity-thumb-line.line-c { left: 75px; bottom: 29px; width: 52px; }
+.entity-thumbnail-wide .entity-thumb-copy strong {
+  font-size: 15px;
+  color: #0f172a;
+}
+.entity-thumbnail-wide .entity-thumb-copy span {
+  max-width: 540px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.entity-thumb-action {
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 6px 11px;
+  border-radius: 7px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+.eds-design-logic {
+  background: #ffffff !important;
+}
+.design-logic-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.design-logic-grid div {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+.design-logic-grid span {
+  display: block;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+}
+.design-logic-grid strong {
+  display: block;
+  margin: 4px 0;
+  color: #1e3a8a;
+  font-size: 14px;
+}
+.design-logic-grid p {
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
 .execution-state {
   min-height: 0;
 }
@@ -777,7 +1122,7 @@ export default {
 .eds-overview-stat b { color: #1d4ed8; font-size: 24px; line-height: 1; }
 .eds-overview-stat span { margin-top: 6px; color: #64748b; font-size: 11px; }
 .selection-flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.selection-step { position: relative; min-width: 0; padding: 10px 9px 9px 34px; border: 1px solid #dbeafe; border-radius: 8px; background: #f8fafc; }
+.selection-step { position: relative; min-width: 0; padding: 11px 10px 10px 34px; border: 1px solid #dbeafe; border-radius: 8px; background: #f8fafc; }
 .selection-step:not(:last-child)::after { content: '›'; position: absolute; right: -8px; top: 25px; z-index: 1; color: #2563eb; font-size: 18px; font-weight: 800; }
 .selection-index { position: absolute; left: 9px; top: 10px; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: #2563eb; color: white; font-size: 10px; font-weight: 800; }
 .selection-step strong { color: #1e3a8a; font-size: 12px; }
@@ -788,6 +1133,12 @@ export default {
 .bayesian-feedback p { margin: 3px 0 0; color: #7c2d12; font-size: 11px; line-height: 1.55; }
 .score-formula { display: flex; align-items: center; gap: 9px; margin-top: 8px; font-size: 11px; color: #475569; }
 .score-formula code { flex: 1; padding: 5px 8px; border-radius: 5px; background: #eef2ff; color: #4338ca; white-space: normal; }
+.eds-priority-table {
+  width: 100%;
+}
+.eds-priority-table :deep(.el-table__cell) {
+  font-size: 12px;
+}
 
 .eds-goal {
   display: flex;
@@ -980,6 +1331,9 @@ export default {
 @media (max-width: 1180px) {
   .selection-flow { grid-template-columns: 1fr 1fr; }
   .selection-step::after { display: none; }
+  .entity-thumbnail-wide { grid-template-columns: 120px minmax(0, 1fr); }
+  .entity-thumb-action { grid-column: 2; justify-self: start; }
+  .design-logic-grid { grid-template-columns: 1fr; }
   .eds-vars {
     display: grid;
     grid-template-columns: 1fr;
@@ -993,5 +1347,8 @@ export default {
 @media (max-width: 960px) {
   .conversation-panel,
   .task-panel { width: 100%; }
+  .entity-thumbnail,
+  .entity-thumbnail-wide { grid-template-columns: 1fr; }
+  .entity-thumb-action { grid-column: auto; }
 }
 </style>

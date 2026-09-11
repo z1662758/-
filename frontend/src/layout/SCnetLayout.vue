@@ -216,7 +216,8 @@ const PRE_TAIL_MENU_ITEMS = Object.freeze([
 
 const DURING_MAIN_MENU_ITEMS = Object.freeze([
   { path: 'scenario', key: 'scenario', label: '想定生成', icon: Edit },
-  { index: '/home/SCnet/experimentManager', label: '实验推演', icon: Monitor }
+  { index: '/home/SCnet/experimentManager', label: '实验推演', icon: Monitor },
+  { path: 'decision', key: 'decision', label: '决策生成', icon: Promotion }
 ])
 
 const DURING_TAIL_MENU_ITEMS = Object.freeze([
@@ -371,7 +372,9 @@ export default {
         ...item,
         index: item.path === 'scenario'
           ? `/home/SCnet/${isUraniumScenario.value ? 'scenarioAnalysis' : 'scenarioModeling'}?scenario=${currentScenario.value}`
-          : `${item.index}?scenario=${currentScenario.value}`
+          : item.path === 'decision'
+            ? `/home/SCnet/experimentManager?scenario=${currentScenario.value}&view=decision`
+            : `${item.index}?scenario=${currentScenario.value}`
       }))),
       duringAnalysisMenuItems: computed(() => DURING_ANALYSIS_MENU_ITEMS.map((item) => ({
         ...item,
