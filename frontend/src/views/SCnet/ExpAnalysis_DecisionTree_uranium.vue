@@ -70,6 +70,13 @@
         </article>
       </section>
 
+      <section class="decision-handoff-strip glass-panel">
+        <article v-for="item in decisionHandoffCards" :key="item.label">
+          <span>{{ item.label }}</span>
+          <strong>{{ item.value }}</strong>
+          <p>{{ item.detail }}</p>
+        </article>
+      </section>
 
       <div class="dt-console">
         <aside class="dt-side glass-panel">
@@ -444,7 +451,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import * as echarts from 'echarts'
 import { storeToRefs } from 'pinia'
-import { Refresh, Share } from '@element-plus/icons-vue'
+import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
@@ -564,6 +571,23 @@ const dependencyConclusion = computed(() => {
   const action = bestStrategy.value?.name || '当前推荐对策'
   return `依赖链判断：${action}不能单点执行，应按“库存与货源确认 → 多主体协同 → 合同/预算放行 → 动态监测校准”的顺序推进。`
 })
+const decisionHandoffCards = computed(() => [
+  {
+    label: '报告结论',
+    value: bestStrategy.value?.name || '等待推荐动作',
+    detail: bestStrategy.value ? `将作为报告中的优先行动方案，得分 ${bestStrategy.value.score} 分。` : '策略评分完成后自动写入报告。'
+  },
+  {
+    label: '证据范围',
+    value: `${dependencyCards.value.length} 项依赖`,
+    detail: '报告会保留资源、主体、信息和审批约束，便于复核执行边界。'
+  },
+  {
+    label: '对比基线',
+    value: baselineMetrics.value ? `${baselineMetrics.value.score} 分` : '--',
+    detail: baselineMetrics.value ? `未干预缺口率 ${baselineMetrics.value.stockoutRate}%，用于衡量干预收益。` : '等待基线指标。'
+  }
+])
 const selectedStrategyId = computed(() => {
   const node = nodePanel.node
   if (!node || !strategyNodeIds.value.size) return ''
@@ -1015,6 +1039,7 @@ onBeforeUnmount(() => {
 .dt-overview-strip,
 .dt-console,
 .key-conclusion-strip,
+.decision-handoff-strip,
 .dependency-panel {
   margin: 0 8px;
 }
@@ -1046,6 +1071,45 @@ onBeforeUnmount(() => {
 .key-conclusion-item span { color: #64748b; font-size: var(--mid-fs-micro); font-weight: 800; }
 .key-conclusion-item strong { display: block; margin-top: 3px; color: #0f172a; font-size: var(--mid-fs-strong); }
 .key-conclusion-item p { margin: 3px 0 0; color: #64748b; font-size: var(--mid-fs-label); line-height: 1.45; }
+
+.decision-handoff-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.decision-handoff-strip article {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fff, #f8fafc);
+}
+
+.decision-handoff-strip span {
+  display: block;
+  color: #64748b;
+  font-size: var(--mid-fs-micro);
+  font-weight: 800;
+}
+
+.decision-handoff-strip strong {
+  display: block;
+  margin-top: 4px;
+  color: #0f172a;
+  font-size: var(--mid-fs-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.decision-handoff-strip p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: var(--mid-fs-label);
+  line-height: 1.45;
+}
 
 .dependency-panel { padding: 12px 14px; }
 .dependency-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
@@ -1610,6 +1674,10 @@ onBeforeUnmount(() => {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .decision-handoff-strip {
+    grid-template-columns: 1fr;
+  }
+
   .key-conclusion-label {
     grid-column: 1 / -1;
   }
@@ -1640,6 +1708,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 768px) {
   .key-conclusion-strip,
+  .decision-handoff-strip,
   .dependency-flow {
     grid-template-columns: 1fr;
   }

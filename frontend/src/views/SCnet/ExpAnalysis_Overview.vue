@@ -1,9 +1,21 @@
 <template>
   <div class="overview-page mid-stage-bg analysis-workspace">
+    <AnalysisLinkTabs active="report">
+      <template #right>
+        <span class="report-updated">更新于 {{ generatedAt }}</span>
+        <el-button :disabled="exportingPdf" @click="refreshReport">
+          <el-icon><Refresh /></el-icon>刷新结论
+        </el-button>
+        <el-button type="primary" :loading="exportingPdf" @click="exportPdf">
+          <el-icon><Download /></el-icon>生成 PDF
+        </el-button>
+      </template>
+    </AnalysisLinkTabs>
+
     <header class="report-toolbar glass-panel">
       <div class="report-heading">
-        <span>DECISION REPORT</span>
-        <div><h1>供应链决策报告</h1><p>汇总情景概率、节点脆弱性、对策效果与执行边界</p></div>
+        <span>REPORT</span>
+        <div><h1>供应链决策报告</h1><p>汇总情景概率、节点脆弱性、对策效果与执行边界。</p></div>
       </div>
       <div class="report-actions">
         <el-select
@@ -16,15 +28,12 @@
         >
           <el-option v-for="item in history" :key="item.experiment_id" :label="experimentOptionLabel(item)" :value="item.experiment_id" />
         </el-select>
-        <span class="report-updated">更新于 {{ generatedAt }}</span>
-        <el-button :disabled="exportingPdf" @click="refreshReport">
-          <el-icon><Refresh /></el-icon>刷新结论
-        </el-button>
-        <el-button type="primary" :loading="exportingPdf" @click="exportPdf">
-          <el-icon><Download /></el-icon>生成 PDF
-        </el-button>
       </div>
     </header>
+
+    <nav class="report-anchor-nav glass-panel" aria-label="报告章节">
+      <a v-for="item in reportAnchors" :key="item.href" :href="item.href">{{ item.label }}</a>
+    </nav>
 
     <div ref="reportRef" class="pdf-report">
     <AnalysisPageHero
@@ -61,7 +70,7 @@
         </div>
       </section>
 
-      <section class="analysis-digest-grid">
+      <section id="report-digest" class="analysis-digest-grid">
         <article v-for="item in analysisDigestCards" :key="item.step" :class="['analysis-digest-card', item.tone, 'glass-panel']">
           <div class="analysis-digest-head">
             <span>{{ item.step }}</span>
@@ -187,6 +196,7 @@ import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
 import { buildUraniumReportViewModel } from '@/views/SCnet/adapters/uraniumMockAnalysisAdapter'
 import AnalysisPageHero from './components/shared/AnalysisPageHero.vue'
+import AnalysisLinkTabs from './components/shared/AnalysisLinkTabs.vue'
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
 import './components/shared/midStage.css'
@@ -197,6 +207,14 @@ const exportingPdf = ref(false)
 const generatedAt = ref(new Date().toLocaleString('zh-CN', { hour12: false }))
 const selectedReportId = ref('')
 const isAuto = computed(() => route.query.scenario === 'supply_chain')
+const reportAnchors = Object.freeze([
+  { label: '总体结论', href: '#report-summary' },
+  { label: '分析摘要', href: '#report-digest' },
+  { label: '执行计划', href: '#report-actions' },
+  { label: '压力窗口', href: '#report-windows' },
+  { label: '策略评估', href: '#report-strategies' },
+  { label: '综合决策', href: '#report-conclusion' }
+])
 const uraniumStore = useUraniumDemoStore()
 const snapshotStore = useAnalysisSnapshotStore()
 const { history, selectedExperiment, selectedExperimentId } = storeToRefs(uraniumStore)
@@ -396,7 +414,7 @@ async function exportPdf() {
 
 <style scoped>
 .overview-page { min-height: 100%; padding: 8px 8px 32px; overflow: visible; }
-.report-toolbar { position: sticky; z-index: 10; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 11px 14px; margin-bottom: 10px; border-color: #dbe4ee; background: rgba(255,255,255,.96); backdrop-filter: blur(12px); }
+.report-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 11px 14px; margin: 8px 8px 8px; border-color: #dbe4ee; background: rgba(255,255,255,.96); backdrop-filter: blur(12px); }
 .report-heading { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .report-heading > span { padding: 6px 8px; border-radius: 7px; background: #eff6ff; color: #2563eb; font-size: 9px; font-weight: 800; letter-spacing: .08em; white-space: nowrap; }
 .report-heading h1 { margin: 0; color: #0f172a; font-size: 18px; }
@@ -404,6 +422,32 @@ async function exportPdf() {
 .report-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .experiment-select { width: 190px; }
 .report-updated { margin-right: 4px; color: #94a3b8; font-size: 10px; white-space: nowrap; }
+.report-anchor-nav {
+  position: sticky;
+  top: 46px;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 8px 8px;
+  padding: 6px;
+  overflow-x: auto;
+  border-color: #dbe4ee;
+  background: rgba(255,255,255,.9);
+}
+.report-anchor-nav a {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 7px;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.report-anchor-nav a:hover {
+  background: #eff6ff;
+  color: #2563eb;
+}
 .pdf-report { width: 100%; padding: 0; background: transparent; box-sizing: border-box; }
 .overview-content { padding: 0 8px; }
 .overview-verdict { padding: 18px 20px; margin-top: 12px; }
@@ -491,6 +535,10 @@ h3 { margin: 5px 0 0; color: #0f172a; font-size: 17px; }
 @media (max-width: 760px) {
   .overview-page { padding-inline: 4px; }
   .overview-content { padding-inline: 2px; }
+  .report-anchor-nav {
+    top: 42px;
+    margin-inline: 4px;
+  }
   .report-toolbar,
   .report-heading { align-items: stretch; flex-direction: column; }
   .report-actions { justify-content: flex-start; }
@@ -504,7 +552,9 @@ h3 { margin: 5px 0 0; color: #0f172a; font-size: 17px; }
   .strategy-row > .el-tag { grid-column: 2; justify-self: start; }
 }
 @media print {
-  .report-toolbar { display: none; }
+  .report-toolbar,
+  .analysis-link-tabs,
+  .report-anchor-nav { display: none; }
   .overview-page { padding: 0; background: #fff; }
   .glass-panel { box-shadow: none !important; break-inside: avoid; }
   .analysis-digest-card,

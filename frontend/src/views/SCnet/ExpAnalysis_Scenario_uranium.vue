@@ -56,6 +56,13 @@
         </div>
       </section>
 
+      <section class="scenario-conclusion-strip glass-panel">
+        <article v-for="item in scenarioConclusionCards" :key="item.label" :class="item.tone">
+          <span>{{ item.label }}</span>
+          <strong>{{ item.value }}</strong>
+          <p>{{ item.detail }}</p>
+        </article>
+      </section>
 
       <div class="scenario-workbench">
         <div class="scenario-stage-grid">
@@ -431,6 +438,34 @@ const scenarioPlanCards = computed(() => {
     { label: '极端情景', probability: extreme, tone: 'danger', color: '#ef4444', description: '多节点叠加失效，并伴随库存与替代航线承压。', basis: '依据：高风险窗口占比与缺口放大程度' }
   ]
 })
+const scenarioConclusionCards = computed(() => {
+  const windows = scenarioVm.value?.yearWindows || []
+  const active = activeWindow.value
+  const dangerCount = windows.filter(item => ['danger', 'critical'].includes(item.tone)).length
+  const warningCount = windows.filter(item => item.tone === 'warning').length
+  return [
+    {
+      label: '主压力窗口',
+      value: active?.title || '等待窗口',
+      detail: active?.headline || '选择年度窗口后查看关键扰动。',
+      tone: active?.tone || 'info'
+    },
+    {
+      label: '高压年度',
+      value: `${dangerCount}`,
+      detail: `${warningCount} 个年度处于预警状态。`,
+      tone: dangerCount ? 'danger' : warningCount ? 'warning' : 'success'
+    },
+    {
+      label: '主通道',
+      value: active?.routeRows?.[0]?.route_label || '未选中',
+      detail: active?.routeRows?.[0]
+        ? `${active.routeRows[0].supplier_name} → ${active.routeRows[0].manufacturer_name}`
+        : '点击航线与节点页签查看。',
+      tone: 'primary'
+    }
+  ]
+})
 const activeWindow = computed(() => scenarioVm.value?.yearWindows?.[activeWindowIndex.value] || null)
 
 function navigateTo(path) {
@@ -492,6 +527,49 @@ watch(activeWindowIndex, () => {
 .scenario-plan-grid small { color: #94a3b8; font-size: var(--mid-fs-micro); line-height: 1.4; }
 .scenario-plan-grid article.warning { border-color: #fde68a; background: #fffbeb; }
 .scenario-plan-grid article.danger { border-color: #fecaca; background: #fef2f2; }
+
+.scenario-conclusion-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin: 0 8px 10px;
+  padding: 10px;
+}
+.scenario-conclusion-strip article {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #dbe4ef;
+  border-radius: 9px;
+  background: #fff;
+}
+.scenario-conclusion-strip span {
+  display: block;
+  color: #64748b;
+  font-size: var(--mid-fs-label);
+  font-weight: 700;
+}
+.scenario-conclusion-strip strong {
+  display: block;
+  margin-top: 4px;
+  color: #0f172a;
+  font-size: var(--mid-fs-title);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scenario-conclusion-strip p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: var(--mid-fs-label);
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scenario-conclusion-strip article.danger { border-color: #fecaca; background: #fef2f2; }
+.scenario-conclusion-strip article.warning { border-color: #fde68a; background: #fffbeb; }
+.scenario-conclusion-strip article.success { border-color: #bbf7d0; background: #f0fdf4; }
+.scenario-conclusion-strip article.primary { border-color: #bfdbfe; background: #eff6ff; }
 
 .scenario-console {
   display: flex;
@@ -1132,7 +1210,8 @@ watch(activeWindowIndex, () => {
 }
 
 @media (max-width: 1080px) {
-  .scenario-plan-grid { grid-template-columns: 1fr; }
+  .scenario-plan-grid,
+  .scenario-conclusion-strip { grid-template-columns: 1fr; }
   .scenario-stage-grid {
     grid-template-columns: 1fr;
   }

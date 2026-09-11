@@ -2,7 +2,7 @@
   <nav class="analysis-link-tabs glass-panel" aria-label="决策分析子页面">
     <div class="alt-left">
       <el-icon class="alt-icon"><DataAnalysis /></el-icon>
-      <span class="alt-title">决策分析</span>
+      <span class="alt-title">分析工作区</span>
       <el-segmented
         v-model="activeRef"
         :options="tabs"
@@ -31,6 +31,7 @@ import { computed, markRaw, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   DataAnalysis,
+  Document,
   Grid,
   Promotion,
   TrendCharts
@@ -42,7 +43,7 @@ const props = defineProps({
   active: {
     type: String,
     required: true,
-    validator: v => ['gameTheory', 'decisionTree', 'scenario'].includes(v)
+    validator: v => ['gameTheory', 'decisionTree', 'scenario', 'report'].includes(v)
   }
 })
 
@@ -51,7 +52,8 @@ const router = useRouter()
 const tabs = computed(() => [
   { value: 'scenario',     label: '情景分析', icon: markRaw(TrendCharts) },
   { value: 'gameTheory',   label: '脆弱性分析', icon: markRaw(Grid) },
-  { value: 'decisionTree', label: '对策分析', icon: markRaw(Promotion) }
+  { value: 'decisionTree', label: '对策分析', icon: markRaw(Promotion) },
+  { value: 'report',       label: '报告生成', icon: markRaw(Document) }
 ])
 
 const activeRef = ref(props.active)
@@ -100,12 +102,12 @@ function handleChange(value) {
   font-size: 12px;
   font-weight: 700;
   color: #1f2937;
-  margin-right: 4px;
+  margin-right: 2px;
 }
 
 .alt-segmented {
   --el-segmented-bg-color: rgba(255, 255, 255, 0.6);
-  min-width: 248px;
+  min-width: 334px;
   max-width: 100%;
 }
 

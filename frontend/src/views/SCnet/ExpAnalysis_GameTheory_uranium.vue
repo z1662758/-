@@ -39,6 +39,26 @@
           </div>
         </section>
 
+        <section class="vulnerability-priority glass-panel">
+          <div class="analysis-column-head">
+            <span class="analysis-column-index">00</span>
+            <div>
+              <h3>治理优先级</h3>
+              <p>把脆弱性评分转译为保供、绕行、补库和监测的执行顺序。</p>
+            </div>
+          </div>
+          <div class="priority-grid">
+            <article v-for="(item, index) in vulnerabilityPriorityCards" :key="item.title" :class="item.tone">
+              <span>{{ String(index + 1).padStart(2, '0') }}</span>
+              <div>
+                <strong>{{ item.title }}</strong>
+                <p>{{ item.detail }}</p>
+              </div>
+              <el-tag size="small" :type="item.tagType" effect="light">{{ item.level }}</el-tag>
+            </article>
+          </div>
+        </section>
+
         <section class="gm-column output-column glass-panel">
           <header class="analysis-column-head">
             <span class="analysis-column-index">01</span>
@@ -321,6 +341,40 @@ const logisticsIndicators = computed(() => {
   ]
 })
 
+const vulnerabilityPriorityCards = computed(() => {
+  const sensitivity = metricScore('敏感性')
+  const recovery = metricScore('恢复难度')
+  const inventory = metricScore('库存压力')
+  const robustness = metricScore('鲁棒性')
+  const rows = [
+    {
+      title: '锁定跨境主通道',
+      score: Math.max(sensitivity, recovery),
+      detail: '优先确认陆运与海运备份通道的可用性，降低通道依赖造成的链式中断。',
+      tone: 'route'
+    },
+    {
+      title: '提高替代供给承接',
+      score: 100 - robustness,
+      detail: '将备选供应国、港口与制造节点纳入同一调度池，提升结构替代能力。',
+      tone: 'structure'
+    },
+    {
+      title: '修正库存缓冲阈值',
+      score: inventory,
+      detail: '围绕缺口年份提前补库，避免库存覆盖跌破保供下限。',
+      tone: 'inventory'
+    }
+  ]
+  return rows
+    .sort((a, b) => b.score - a.score)
+    .map((item) => ({
+      ...item,
+      level: item.score >= 70 ? '优先' : item.score >= 45 ? '跟进' : '监测',
+      tagType: item.score >= 70 ? 'danger' : item.score >= 45 ? 'warning' : 'success'
+    }))
+})
+
 function focusAnalysisSection(section) {
   const targetMap = {
     matrix: matrixSectionRef,
@@ -493,6 +547,57 @@ function formatPayoff(cell) {
 .vulnerability-overview-grid span,
 .vulnerability-overview-grid small { display: block; color: #64748b; font-size: var(--mid-fs-micro); }
 .vulnerability-overview-grid strong { display: block; margin: 4px 0; color: #0f172a; font-size: var(--mid-fs-strong); }
+
+.vulnerability-priority {
+  padding: 12px 14px;
+}
+
+.priority-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.priority-grid article {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 9px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #dbe4ef;
+  border-radius: 9px;
+  background: #fff;
+}
+
+.priority-grid article > span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: var(--mid-fs-label);
+  font-weight: 800;
+}
+
+.priority-grid strong {
+  display: block;
+  color: #0f172a;
+  font-size: var(--mid-fs-strong);
+}
+
+.priority-grid p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: var(--mid-fs-label);
+  line-height: 1.5;
+}
+
+.priority-grid article.route { border-color: #bfdbfe; background: #eff6ff; }
+.priority-grid article.structure { border-color: #bbf7d0; background: #f0fdf4; }
+.priority-grid article.inventory { border-color: #fde68a; background: #fffbeb; }
 
 .dependency-matrix-cell {
   min-width: 62px;
@@ -1223,6 +1328,7 @@ function formatPayoff(cell) {
 @media (max-width: 980px) {
   .vulnerability-overview { grid-template-columns: 1fr; }
   .vulnerability-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .priority-grid { grid-template-columns: 1fr; }
   .gm-insight-strip,
   .gm-flow-grid,
   .info-grid,
