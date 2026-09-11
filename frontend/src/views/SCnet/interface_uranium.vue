@@ -44,6 +44,14 @@
 
       <div class="view-wrapper">
         <div class="simulation-view">
+          <section v-if="isUraniumMode" class="simulation-overview">
+            <article v-for="item in simulationOverviewCards" :key="item.label" class="simulation-overview-card">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+              <p>{{ item.hint }}</p>
+            </article>
+          </section>
+
           <div v-if="isUraniumMode" class="top-section">
             <div class="left-panel">
               <div class="uranium-route-panel uranium-panel-scroll">
@@ -348,6 +356,28 @@ const uraniumYearMetricCards = computed(() => [
     value: formatUraniumMetricValue('supply_concentration_hhi', uraniumActiveYear.value?.supply_concentration_hhi)
   }
 ])
+const simulationOverviewCards = computed(() => {
+  const activeRouteCount = uraniumRouteRows.value.length
+  const selectedRoute = uraniumFocusedRoute.value
+  return [
+    { label: '年度窗口', value: uraniumActiveYearLabel.value, hint: `${uraniumYearRows.value.length || 0} 个年度序列` },
+    {
+      label: '年度采购',
+      value: formatUraniumMetricValue('total_procured_tU', uraniumActiveYear.value?.total_procured_tU),
+      hint: '当前年度制造端吸收量'
+    },
+    {
+      label: '需求缺口',
+      value: formatUraniumMetricValue('unmet_demand_tU', uraniumActiveYear.value?.unmet_demand_tU),
+      hint: '用于识别保供压力'
+    },
+    {
+      label: '调运关系',
+      value: selectedRoute?.route_label || `${activeRouteCount} 条`,
+      hint: selectedRoute ? `${selectedRoute.supplier_name} → ${selectedRoute.manufacturer_name}` : '点击地图或通道卡片聚焦'
+    }
+  ]
+})
 const uraniumActiveEventRows = computed(() => (
   uraniumActiveEvents.value.map((item, index) => {
     const label = typeof item === 'string'
@@ -577,6 +607,51 @@ watch(uraniumStaticCorridorId, (next) => {
   height: 100%;
   width: 100%;
   gap: 6px;
+}
+
+.simulation-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.simulation-overview-card {
+  min-height: 74px;
+  padding: 10px 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .9);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, .05);
+  box-sizing: border-box;
+}
+
+.simulation-overview-card span {
+  display: block;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.simulation-overview-card strong {
+  display: block;
+  margin-top: 4px;
+  color: #0f172a;
+  font-size: 17px;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.simulation-overview-card p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .top-section {
@@ -956,18 +1031,6 @@ watch(uraniumStaticCorridorId, (next) => {
   padding-top: 2px;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
 .uranium-empty-note {
   color: #94a3b8;
   font-size: 12px;
@@ -976,10 +1039,12 @@ watch(uraniumStaticCorridorId, (next) => {
 
 /* ========== 响应式：窄屏收窄侧栏，避免中间地图被挤裁切 ========== */
 @media (max-width: 1280px) {
+  .simulation-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .top-section { grid-template-columns: 246px minmax(0, 1fr) 268px; gap: 6px; }
 }
 
 @media (max-width: 992px) {
+  .simulation-overview { grid-template-columns: 1fr; }
   .top-section { grid-template-columns: 214px minmax(0, 1fr) 234px; gap: 5px; }
   .uranium-summary-grid,
   .uranium-summary-grid.compact,
