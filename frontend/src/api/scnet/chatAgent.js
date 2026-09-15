@@ -4,7 +4,7 @@ import request from '@/utils/request'
 
 /** 启动 Agent 任务。立即返回 202 {task_id, conversation_id, status}。 */
 export function startAgentChat({ message, conversationId = null, providerId = null, modelId = null, mode = 'agent', phase = 'pre' }) {
-  return request.post('/api/agent/chat', {
+  return request.post('/agent/chat', {
     message,
     conversation_id: conversationId,
     provider_id: providerId,
@@ -16,33 +16,33 @@ export function startAgentChat({ message, conversationId = null, providerId = nu
 
 /** 任务状态 + 事件(轮询兜底,afterSeq 增量)。 */
 export function getAgentTask(taskId, afterSeq = 0) {
-  return request.get(`/api/agent/tasks/${taskId}`, { params: { after_seq: afterSeq } })
+  return request.get(`/agent/tasks/${taskId}`, { params: { after_seq: afterSeq } })
 }
 
 /** 取消任务。 */
 export function cancelAgentTask(taskId) {
-  return request.post(`/api/agent/tasks/${taskId}/cancel`)
+  return request.post(`/agent/tasks/${taskId}/cancel`)
 }
 
 /** provider/model 选项(不含 key)。 */
 export function getAgentModels() {
-  return request.get('/api/agent/models')
+  return request.get('/agent/models')
 }
 
 // ── K2-PERSIST:历史会话 ────────────────
 /** 历史会话列表 */
 export function getAgentConversations(limit = 100) {
-  return request.get('/api/agent/conversations', { params: { limit } })
+  return request.get('/agent/conversations', { params: { limit } })
 }
 
 /** 完整历史会话(含消息与结构化元数据) */
 export function getAgentConversation(conversationId) {
-  return request.get(`/api/agent/conversations/${conversationId}`)
+  return request.get(`/agent/conversations/${conversationId}`)
 }
 
 /** 标记某会话最近研判已生成 PDF */
 export function markConversationPdf(conversationId, analysisId = null) {
-  return request.post(`/api/agent/conversations/${conversationId}/pdf`, { analysis_id: analysisId })
+  return request.post(`/agent/conversations/${conversationId}/pdf`, { analysis_id: analysisId })
 }
 
 /**

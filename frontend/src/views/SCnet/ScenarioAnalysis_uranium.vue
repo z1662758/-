@@ -98,7 +98,7 @@
                           <span class="chip-number">{{ i + 1 }}</span>
                           <div class="task-chip-main">
                             <span class="chip-text">{{ task.title || task.description || '' }}</span>
-                            <span class="chip-agent">{{ getAgentDisplayName(task.agent_type || task.assigned_agent) }}</span>
+                            <span v-if="getSubtaskDescription(task)" class="chip-desc">{{ getSubtaskDescription(task) }}</span>
                           </div>
                         </div>
                       </div>
@@ -155,19 +155,6 @@
                 </div>
               </div>
             </div>
-
-            <section v-if="tasks.length > 0" class="dialogue-followup">
-              <div class="brief-title">
-                <span>会话推进</span>
-                <b>事中决策</b>
-              </div>
-              <div class="followup-list">
-                <div v-for="item in dialogueFollowups" :key="item.title">
-                  <strong>{{ item.title }}</strong>
-                  <span>{{ item.text }}</span>
-                </div>
-              </div>
-            </section>
 
             <!-- AI思考中提示 -->
             <div v-if="isProcessing" class="message-wrapper system thinking">
@@ -493,13 +480,6 @@ export default {
     entityCount() {
       const fallbackCount = URANIUM_REFERENCE_GRAPH.agents?.length || 0
       return this.experimentDesign.entities.length || fallbackCount
-    },
-    dialogueFollowups() {
-      return [
-        { title: '实体图前置', text: '右侧展示缩略图，完整图在独立页面查看与编辑。' },
-        { title: '方案说明补齐', text: '方案目的、实施意图和变量关系已在右侧展开。' },
-        { title: '决策闭环', text: '完成推演后进入决策生成，输出建议、依据和执行顺序。' }
-      ]
     },
     planPriorityRows() {
       const rows = this.experimentDesign.paramRows.length
@@ -859,9 +839,8 @@ export default {
 .conversation-panel :deep(.analysis-card-header) { padding: 10px 12px; }
 .conversation-panel :deep(.analysis-section) { padding: 10px 12px; }
 .conversation-panel :deep(.understanding-section p) { margin: 0; color: #475569; font-size: 12px; line-height: 1.55; }
-.conversation-panel :deep(.tasks-section) { max-height: 236px; overflow-y: auto; }
 .conversation-panel :deep(.task-chips) { gap: 6px; }
-.conversation-panel :deep(.task-chip) { padding: 7px 8px; gap: 7px; }
+.conversation-panel :deep(.task-chip) { padding: 8px 9px; gap: 7px; min-height: auto; }
 .conversation-panel :deep(.chip-number) { width: 18px; height: 18px; }
 .conversation-panel :deep(.task-chip-main) { gap: 3px; }
 .conversation-panel :deep(.variables-section) { padding-top: 8px; }
@@ -869,54 +848,6 @@ export default {
 .conversation-panel :deep(.variable-groups .var-group) { padding: 8px; }
 .conversation-panel :deep(.var-tags) { gap: 4px; }
 .conversation-panel :deep(.var-tag) { padding: 2px 8px; font-size: 11px; }
-.dialogue-followup {
-  padding: 12px;
-  border: 1px solid #bfdbfe;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #ffffff, #eff6ff);
-  box-shadow: 0 4px 12px rgba(37, 99, 235, .08);
-}
-.brief-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 7px;
-}
-.brief-title span {
-  color: #2563eb;
-  font-size: 11px;
-  font-weight: 800;
-}
-.brief-title b {
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: #dbeafe;
-  color: #1d4ed8;
-  font-size: 11px;
-}
-.followup-list {
-  display: grid;
-  gap: 7px;
-}
-.followup-list div {
-  padding: 8px 9px;
-  border: 1px solid #dbeafe;
-  border-radius: 8px;
-  background: rgba(255,255,255,.88);
-}
-.followup-list strong {
-  display: block;
-  color: #1e3a8a;
-  font-size: 12px;
-}
-.followup-list span {
-  display: block;
-  margin-top: 3px;
-  color: #64748b;
-  font-size: 11px;
-  line-height: 1.45;
-}
 .entity-thumbnail {
   width: 100%;
   display: grid;

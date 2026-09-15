@@ -1,15 +1,5 @@
 <template>
   <div class="decision-page">
-    <header class="decision-header">
-      <div>
-        <h2>决策生成</h2>
-        <p>推演结论 → 决策建议 → 执行依据</p>
-      </div>
-      <div class="header-actions">
-        <el-tag type="success" effect="dark">已关联推演结果</el-tag>
-      </div>
-    </header>
-
     <div v-if="reportVm" class="decision-scroll">
       <section class="decision-hero">
         <div class="hero-main">
@@ -94,20 +84,6 @@
           </article>
         </div>
       </section>
-
-      <section class="generation-flow">
-        <div class="panel-title">
-          <span>04</span>
-          <div><strong>生成逻辑</strong><small>从推演结果到决策建议的转换过程</small></div>
-        </div>
-        <div class="flow-steps">
-          <div v-for="(item, index) in generationSteps" :key="item.title" class="flow-step">
-            <b>{{ index + 1 }}</b>
-            <strong>{{ item.title }}</strong>
-            <p>{{ item.text }}</p>
-          </div>
-        </div>
-      </section>
     </div>
 
     <el-empty v-else description="请先完成一次实验推演，再生成决策" />
@@ -168,13 +144,6 @@ const actionRows = computed(() => reportVm.value?.recommendations?.length ? repo
   '根据库存覆盖与价格变化滚动修正补库节奏和长协比例。',
   '当风险、缺口或库存越过阈值时自动重跑推演并更新方案。'
 ])
-const generationSteps = [
-  { title: '提取推演结果', text: '读取成本、缺口、风险暴露、库存覆盖和关键压力年份。' },
-  { title: '过滤不可行方案', text: '剔除触发供给安全、库存底线或风险上限的策略组合。' },
-  { title: '计算综合效用', text: '把保供收益、韧性提升、成本惩罚和风险惩罚转为统一评分。' },
-  { title: '生成执行建议', text: '输出推荐动作、执行顺序、决策依据和后续触发阈值。' }
-]
-
 function actionTagText(index) {
   return index === 0 ? '立即执行' : index === 1 ? '并行推进' : index === 2 ? '滚动校准' : '持续监控'
 }
@@ -188,10 +157,6 @@ onMounted(() => uraniumStore.ensureInitialized())
 
 <style scoped>
 .decision-page { height: 100%; display: flex; flex-direction: column; background: #f4f7fb; color: #172033; }
-.decision-header { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 50px; padding: 8px 18px; border-bottom: 1px solid #dce4ee; background: #fff; box-sizing: border-box; }
-.decision-header h2 { margin: 0; font-size: 18px; line-height: 1.2; }
-.decision-header p { margin: 2px 0 0; color: #64748b; font-size: 11px; line-height: 1.35; }
-.header-actions { flex: 0 0 auto; }
 .decision-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 14px 18px; }
 .decision-hero { display: grid; grid-template-columns: minmax(260px, 1.1fr) minmax(280px, 1.4fr) 132px; grid-template-areas: "main reason score"; gap: 10px; padding: 10px; border: 1px solid #bfdbfe; border-radius: 10px; background: #fff; box-shadow: 0 4px 12px rgba(37, 99, 235, .07); }
 .hero-main { grid-area: main; min-width: 0; }
@@ -232,7 +197,7 @@ onMounted(() => uraniumStore.ensureInitialized())
 .kpi-card strong { display: block; margin: 4px 0; color: #1d4ed8; font-size: 18px; }
 .kpi-card p { margin: 0; color: #64748b; font-size: 11px; line-height: 1.45; }
 .decision-main-grid { display: grid; grid-template-columns: 1.18fr .82fr; gap: 14px; margin-top: 14px; }
-.decision-panel,.generation-flow { padding: 15px; border: 1px solid #dce4ee; border-radius: 12px; background: #fff; box-shadow: 0 4px 14px rgba(15,23,42,.04); }
+.decision-panel { padding: 15px; border: 1px solid #dce4ee; border-radius: 12px; background: #fff; box-shadow: 0 4px 14px rgba(15,23,42,.04); }
 .panel-title { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
 .panel-title > span { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 7px; background: #e0e7ff; color: #3730a3; font-size: 11px; font-weight: 800; }
 .panel-title div { display: flex; flex-direction: column; }
@@ -257,22 +222,14 @@ onMounted(() => uraniumStore.ensureInitialized())
 .candidate footer { display: flex; justify-content: space-between; align-items: end; gap: 8px; border-top: 1px solid #e2e8f0; padding-top: 8px; }
 .candidate footer b { color: #1d4ed8; }
 .candidate footer span { color: #64748b; font-size: 11px; text-align: right; }
-.generation-flow { margin-top: 14px; }
-.flow-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }
-.flow-step { position: relative; padding: 11px 10px 10px 38px; border-radius: 9px; background: #f8fafc; border: 1px solid #e2e8f0; }
-.flow-step > b { position: absolute; left: 10px; top: 11px; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: #2563eb; color: #fff; font-size: 11px; }
-.flow-step strong { color: #1e3a8a; font-size: 12px; }
-.flow-step p { margin: 5px 0 0; color: #64748b; font-size: 11px; line-height: 1.45; }
 @media (max-width: 1180px) {
   .decision-hero { grid-template-columns: 1fr; grid-template-areas: "main" "reason" "score"; }
   .decision-main-grid { grid-template-columns: 1fr; }
   .decision-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .flow-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hero-score { min-height: 68px; }
 }
 @media (max-width: 720px) {
-  .decision-header { align-items: flex-start; flex-direction: column; }
-  .decision-kpi-grid,.candidate-grid,.flow-steps { grid-template-columns: 1fr; }
+  .decision-kpi-grid,.candidate-grid { grid-template-columns: 1fr; }
   .action-row { grid-template-columns: 28px minmax(0, 1fr); }
   .action-row .el-tag { grid-column: 2; justify-self: start; }
   .decision-line { align-items: flex-start; flex-direction: column; gap: 5px; }

@@ -7,19 +7,6 @@
         <span>{{ activeViewMeta.summary }}</span>
       </div>
 
-      <div class="flow-strip" aria-label="事中流程进度">
-        <button
-          v-for="(step, index) in flowSteps"
-          :key="step.key"
-          type="button"
-          :class="['flow-step', { active: step.key === activeFlowKey, done: index < activeFlowIndex }]"
-          @click="goToFlowStep(step)"
-        >
-          <span>{{ index + 1 }}</span>
-          <strong>{{ step.label }}</strong>
-        </button>
-      </div>
-
       <div class="switcher-tabs" role="tablist">
         <button
           v-for="item in views"
@@ -54,7 +41,6 @@ import { DataAnalysis, Monitor, Promotion } from '@element-plus/icons-vue'
 import ExperimentManager from './ExperimentManager_uranium.vue'
 import SimulationInterface from './interface_uranium.vue'
 import DecisionGeneration from './DecisionGeneration_uranium.vue'
-import { DURING_FLOW_STEPS, routeToStepKey } from './composables/useDuringFlowSteps_uranium'
 
 defineOptions({ name: 'UraniumExperimentWorkbench' })
 
@@ -87,30 +73,16 @@ const views = Object.freeze([
     summary: '把推演结果转成可执行建议、证据依据和执行顺序。'
   }
 ])
-const flowSteps = DURING_FLOW_STEPS
 
 const routeDefault = computed(() => route.path.endsWith('/interface') ? 'simulation' : 'run')
 const activeView = computed(() => (
   ['run', 'simulation', 'decision'].includes(route.query.view) ? route.query.view : routeDefault.value
 ))
 const activeViewMeta = computed(() => views.find(item => item.value === activeView.value) || views[0])
-const activeFlowKey = computed(() => routeToStepKey(route.path, route.query))
-const activeFlowIndex = computed(() => flowSteps.findIndex(step => step.key === activeFlowKey.value))
 
 function switchView(view) {
   if (view === activeView.value) return
   router.replace({ query: { ...route.query, view } })
-}
-
-function goToFlowStep(step) {
-  if (!step?.route) return
-  router.push({
-    path: step.route,
-    query: {
-      scenario: route.query.scenario || 'uranium',
-      ...(step.query || {})
-    }
-  })
 }
 </script>
 
@@ -127,7 +99,7 @@ function goToFlowStep(step) {
 .workbench-switcher {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: minmax(210px, .85fr) minmax(320px, 1.1fr) minmax(390px, 1.25fr);
+  grid-template-columns: minmax(220px, .8fr) minmax(390px, 1.2fr);
   align-items: center;
   gap: 14px;
   padding: 10px 18px;
@@ -153,71 +125,6 @@ function goToFlowStep(step) {
   font-size: 12px;
 }
 .switcher-kicker { color: #2563eb; font-size: 11px; font-weight: 800; }
-
-.flow-strip {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.flow-step {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
-  align-items: center;
-  gap: 6px;
-  height: 42px;
-  padding: 0 8px;
-  border: 1px solid #dbeafe;
-  border-radius: 8px;
-  background: #f8fafc;
-  color: #64748b;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color .18s ease, background .18s ease, color .18s ease;
-}
-
-.flow-step:hover {
-  border-color: #93c5fd;
-  color: #2563eb;
-}
-
-.flow-step span {
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: #e2e8f0;
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.flow-step strong {
-  min-width: 0;
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.flow-step.done span {
-  background: #dcfce7;
-  color: #15803d;
-}
-
-.flow-step.active {
-  border-color: #2563eb;
-  background: #eff6ff;
-  color: #1d4ed8;
-}
-
-.flow-step.active span {
-  background: #2563eb;
-  color: #fff;
-}
 
 .switcher-tabs {
   display: grid;
@@ -267,7 +174,6 @@ function goToFlowStep(step) {
 }
 
 @media (max-width: 560px) {
-  .flow-strip,
   .switcher-tabs { grid-template-columns: 1fr 1fr; }
   .switcher-tabs small { display: none; }
 }

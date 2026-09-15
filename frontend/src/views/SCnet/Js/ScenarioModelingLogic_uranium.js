@@ -238,6 +238,18 @@ export default {
       return cleaned.replace(/[。；;,.，!?！？]$/g, '').trim()
     },
 
+    buildRequirementForAnalysis(text) {
+      const raw = String(text || '').trim()
+      if (!raw) return ''
+      if (/研究目标|核心变量|作用对象|响应指标/.test(raw)) return raw
+
+      const phaseName = { pre: '事前研判', during: '事中决策', post: '事后复盘' }[this.selectedPhase] || '场景建模'
+      return [
+        raw,
+        `补充语境：这是铀供应链${phaseName}需求。作用对象为铀供应网络、铀供应节点或铀矿山供应节点；核心变量可从铀需求强度参数、供给能力区间、供应保障能力、库存容量上限、协同半径、协同次数、报价溢价、节点恢复速度中识别；响应指标可从履约完成率、供给缺口、局部供给缺口、综合收益、系统成本、上游平均利用率、恢复时间中识别。请基于原问题提取研究目标、核心变量和作用对象。`
+      ].join('\n')
+    },
+
     compactDisplayText(text, maxLength = 68) {
       const cleaned = this.sanitizeDisplayText(text || '')
       if (!cleaned || cleaned.length <= maxLength) return cleaned
@@ -604,6 +616,12 @@ export default {
       return unique.map((name) => ({ name, description: '' }))
     },
 
+    getSubtaskDescription(task = {}) {
+      const title = this.normalizeCompareText(task.title || '')
+      const description = this.sanitizeDisplayText(task.description || '')
+      return description && this.normalizeCompareText(description) !== title ? description : ''
+    },
+
     normalizeSubtaskPayload(subtask, index = 0) {
       const agentOrder = ['ENVIRONMENT', 'OBSERVER', 'SOCIAL', 'PLANNER']
       const fallbackAgent = agentOrder[index % agentOrder.length]
@@ -681,8 +699,8 @@ export default {
       return [
         {
           task_id: 'task_environment',
-          title: '识别环境变量并建立扰动场景',
-          description: '提取关键影响因素，建立铀场景的仿真输入与扰动参数。',
+          title: '刻画需求冲击与供给约束',
+          description: '明确需求上升幅度、节点供给能力和库存约束，形成本轮铀供应扰动输入。',
           assigned_agent: 'ENVIRONMENT',
           agent_type: 'ENVIRONMENT',
           priority: 5,
@@ -693,8 +711,8 @@ export default {
         },
         {
           task_id: 'task_observer',
-          title: '定义观测指标与判定口径',
-          description: '围绕响应变量建立观测与评估标准。',
+          title: '设定缺口与履约观测口径',
+          description: '定义局部供给缺口、履约完成率和成本收益等指标，作为方案比较标准。',
           assigned_agent: 'OBSERVER',
           agent_type: 'OBSERVER',
           priority: 4,
@@ -705,8 +723,8 @@ export default {
         },
         {
           task_id: 'task_social',
-          title: '生成协同干预方案',
-          description: '根据变量耦合关系设计跨主体协同动作。',
+          title: '推演跨节点供给调配方案',
+          description: '比较不同供应节点、矿山和库存之间的调配策略，判断缺口是否被放大或缓解。',
           assigned_agent: 'SOCIAL',
           agent_type: 'SOCIAL',
           priority: 3,
@@ -717,8 +735,8 @@ export default {
         },
         {
           task_id: 'task_planner',
-          title: '形成执行计划与迭代策略',
-          description: '汇总各子任务输出，形成可执行推演方案。',
+          title: '输出优先级与迭代策略',
+          description: '汇总各方案在履约、缺口和成本上的表现，给出优先执行顺序和后续迭代方向。',
           assigned_agent: 'PLANNER',
           agent_type: 'PLANNER',
           priority: 4,
@@ -893,8 +911,10 @@ export default {
         timestamp: new Date()
       })
 
+      const analysisRequirement = this.buildRequirementForAnalysis(this.inputMessage)
+
       judgeRequirement(
-        this.inputMessage,
+        analysisRequirement,
         this.sessionId || null,
         this.selectedPhase,
         this.getScenarioContextPayload(),
@@ -1377,7 +1397,7 @@ export default {
 
     callReqAnalysis() {
       return analyzeRequirement(
-        this.inputMessage,
+        this.buildRequirementForAnalysis(this.inputMessage),
         this.sessionId,
         this.selectedPhase,
         this.getScenarioContextPayload(),
