@@ -2,7 +2,7 @@
   <div class="ukg-container">
     <!-- 左侧筛选面板 -->
     <div class="ukg-left-panel">
-      <div class="panel-header">{{ isAuto ? '🚗' : '☢️' }} {{ isAuto ? '汽车' : '铀' }}供应链动态本体网络</div>
+      <div class="panel-header">{{ isAuto ? '🚗' : '☢️' }} {{ isAuto ? '汽车' : '铀' }}供应链知识图谱</div>
 
       <!-- 时间窗口 (年度: 1997~2024) -->
       <div class="panel-section">
@@ -278,6 +278,14 @@ import { storeToRefs } from 'pinia'
 import { Search, Loading } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import { computeLayeredLayout, computeLayeredLayoutDetailed, edgeLineStyle, classifyRelation, EDGE_LABELS } from '@/utils/ontologyLayout'
+
+// ===== 嵌入参数：专家观点内嵌本图谱时，initialView='dynamic' 默认展示真实动态网络；
+//      原“本体网络”独立页不传参，initialView 保持 'business'，行为不变。=====
+const props = defineProps({
+  embedded: { type: Boolean, default: false },
+  initialView: { type: String, default: 'business' }, // 'business' | 'dynamic'
+  initialWindow: { type: String, default: 't_2024' },
+})
 
 const MAX_VISIBLE_NODES = 300
 const OWL_MAX_VISIBLE = 80  // OWL 视图限制节点数，保证可读性
@@ -1497,7 +1505,14 @@ onMounted(async () => {
   await store.fetchDynamicGraph()
   maxWindowIdx.value = store.dynamicWindows.length - 1
   windowIdx.value = store.dynamicWindows.length - 1
+
+  // 嵌入专家观点(initialView='dynamic')：定位到指定年度窗口（默认 t_2024），
+  // 否则沿用原逻辑加载最后一个窗口作为后续时间滑动的底图
+  const targetWindow = props.initialView === 'dynamic' ? (props.initialWindow || '') : ''
   if (store.dynamicWindows.length) {
+    if (targetWindow && store.dynamicWindows.indexOf(targetWindow) >= 0) {
+      windowIdx.value = store.dynamicWindows.indexOf(targetWindow)
+    }
     await store.loadDynamicWindow(store.dynamicWindows[windowIdx.value])
   }
   await store.fetchDynamicTimeline()
@@ -1507,9 +1522,15 @@ onMounted(async () => {
   store.fetchOwlInferred()
   store.fetchOwlNetwork()
 
-  // 默认中心图：业务规则本体网络
-  isBusinessView.value = true
-  store.currentView = buildBusinessOntologyGraph()
+  if (props.initialView === 'dynamic') {
+    // 专家观点嵌入：默认中心图 = 真实动态知识图谱（如 t_2024：212节点/314边），不覆盖成业务规则图
+    isBusinessView.value = false
+    isOwlView.value = false
+  } else {
+    // 默认中心图：业务规则本体网络（原“本体网络”独立页保持现状）
+    isBusinessView.value = true
+    store.currentView = buildBusinessOntologyGraph()
+  }
 
   await nextTick()
   setTimeout(renderChart, 200)

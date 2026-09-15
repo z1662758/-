@@ -4,6 +4,9 @@
       :conversations="conversations"
       :activeId="currentConversationId"
       :collapsed="sidebarCollapsed"
+      :history-loaded="historyLoaded"
+      :history-error="historyError"
+      :history-loading="historyLoading"
       @toggle="sidebarCollapsed = !sidebarCollapsed"
       @new-conversation="startNewConversation"
       @select-conversation="loadConversation"
@@ -12,9 +15,10 @@
       @rename-conversation="handleRenameConversation"
       @open-knowledge="openKnowledge"
       @exit="goToMainPage"
+      @retry-history="retryHistory"
     />
 
-    <div class="chat-main" :class="sidebarCollapsed ? 'chat-main-shrink' : 'chat-main-expand'">
+    <div class="chat-main" :class="[sidebarCollapsed ? 'chat-main-shrink' : 'chat-main-expand', execPanelVisible ? 'has-exec' : '']">
 
       <!-- ====== Welcome ====== -->
       <template v-if="messages.length === 0 && !isStreaming">
@@ -24,7 +28,7 @@
               <img :src="logoUrl" alt="SCnet" class="chat-welcome-logo" />
               <span class="chat-welcome-text">使用供应链助手开始对话</span>
             </div>
-            <p class="chat-welcome-hint">本系统支持 <b>铀供应链</b> 与 <b>汽车供应链</b> 两大场景，系统将<b>自动识别</b>您的场景。选择下方的分析阶段后直接提问，即可进入对应的推演分析。</p>
+            <p class="chat-welcome-hint">本系统支持 <b>铀供应链</b> 与 <b>汽车供应链</b> 两大场景。</p>
 
             <!-- 场景指示器（自动识别 + 可手动切换） -->
             <div class="chat-scenario-row">
@@ -114,6 +118,14 @@
                 </div>
               </div>
             </div>
+
+            <!-- 建议问题 -->
+            <div class="chat-welcome-suggests">
+              <button v-for="s in SUGGEST_QUESTIONS" :key="s" class="chat-suggest-btn" @click="useSuggestion(s)">
+                <el-icon :size="13"><TrendCharts /></el-icon>
+                <span>{{ s }}</span>
+              </button>
+            </div>
           </div>
         </div>
       </template>
@@ -128,14 +140,36 @@
                 <span v-else>U</span>
               </div>
               <div class="chat-msg-body">
+                <!-- K3-CHAT-2:三部分结果卡 -->
+                <div v-if="msg.role === 'assistant' && execPanelVisible" class="chat-result-cards">
+                  <div v-for="card in RESULT_CARDS" :key="card.key" class="chat-result-card"
+                    :class="{ active: isSectionDone(card.key) }">
+                    <span class="chat-result-card-num">{{ card.key }}</span>
+                    <span class="chat-result-card-label">{{ card.label }}</span>
+                    <span class="chat-result-card-check">{{ isSectionDone(card.key) ? '✓' : '…' }}</span>
+                  </div>
+                </div>
                 <div v-if="msg.content" class="chat-msg-bubble" v-html="renderMarkdown(msg.content)"></div>
                 <div v-if="msg.role === 'assistant'" class="chat-disclaimer">本回答由 AI 生成，内容仅供参考</div>
+                <!-- K2-FLOW:本次研判结果操作区 -->
+                <div v-if="analysisSuccess && msg.id === lastAnalysisMsgId" class="chat-analysis-actions">
+                  <button class="chat-pdf-btn" :disabled="pdfGenerating" @click="exportPdf">
+                    {{ pdfStateText }}
+                  </button>
+                </div>
               </div>
             </div>
             <div v-if="isStreaming" class="chat-spinner">
               <span class="chat-spinner-glyph">{{ spinnerGlyph }}</span>
               <span class="chat-spinner-verb">推演中&hellip;</span>
             </div>
+          </div>
+          <!-- K2-FLOW:分析成功后进入可视化 -->
+          <div v-if="analysisSuccess" class="chat-visualize-zone">
+            <button class="chat-visualize-btn" @click="goVisualization">
+              <span>进入可视化界面</span>
+              <b class="chat-visualize-arrow">&rarr;</b>
+            </button>
           </div>
         </div>
         <div class="chat-input-area">
@@ -206,6 +240,40 @@
       </template>
     </div>
 
+    <!-- 右侧：Agent 研判执行面板 -->
+    <aside v-if="execPanelVisible" class="chat-exec-panel">
+      <div class="chat-exec-header">
+        <span class="chat-exec-title">事前态势研判 · Agent 执行</span>
+        <button class="chat-exec-close" @click="execPanelVisible = false" title="收起">&times;</button>
+      </div>
+      <div class="chat-exec-body">
+        <div class="chat-exec-model" v-if="activeRun && activeRun.model">
+          <span class="chat-exec-model-provider">{{ activeRun.provider }}</span>
+          <span class="chat-exec-model-name">{{ activeRun.model }}</span>
+        </div>
+        <div class="chat-exec-status">
+          <span class="chat-exec-status-dot" :class="execState"></span>
+          <span>{{ execStatus }}</span>
+        </div>
+        <div class="chat-exec-sections">
+          <span v-for="s in SECTION_ORDER" :key="s" class="chat-exec-section-chip"
+            :class="{ active: execSections.includes(s) }">
+            {{ SECTION_LABELS[s] }}
+          </span>
+        </div>
+        <div class="chat-exec-tools">
+          <div v-for="t in execTools" :key="t.call_id" class="chat-exec-tool" :class="t.status">
+            <span class="chat-exec-tool-dot"></span>
+            <span class="chat-exec-tool-name">{{ toolDisplayName(t.tool) }}</span>
+            <span class="chat-exec-tool-state">{{ t.status === 'running' ? '执行中…' : (t.status === 'done' ? '完成' : '失败') }}</span>
+          </div>
+        </div>
+        <div v-if="!activeRun && execTools.length === 0" class="chat-exec-empty">
+          提交问题后，Agent 将在此展示执行状态、工具调用与研判进度。
+        </div>
+      </div>
+    </aside>
+
     <input ref="fileInput" type="file" multiple accept="image/*,.pdf,.doc,.docx,.txt,.json,.csv,.xlsx"
       style="display:none" @change="handleFileChange" />
 
@@ -254,9 +322,50 @@ import { writeScnetPhase } from '@/constants/scnetPhase'
 import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 import { unwrapApiData } from '@/utils/session'
 import { getSessions, getSessionDetail, createSession, addChatMessage } from '@/api/scenarioSession'
+import { startAgentChat, streamAgentTask, cancelAgentTask, getAgentModels, getAgentConversations, getAgentConversation, markConversationPdf } from '@/api/scnet/chatAgent'
 import { detectScenario, SCENARIO_VALUES, SCENARIO_LABELS } from '@/constants/scnetScenario'
 
 const SPINNER_GLYPHS = ['✽', '✢', '✦', '✧']
+
+// K3-CHAT-1:事前研判建议问题(§72)
+const SUGGEST_QUESTIONS = [
+  '分析未来90天中国铀供应链风险',
+  '当前最值得关注的供应路线是什么？',
+  '结合最新OSINT进行研判',
+  '如果哈萨克斯坦路线中断会怎样？',
+  '生成当前事前态势研判方案',
+]
+
+// 三部分 section(§74)
+const SECTION_ORDER = ['一', '二', '三']
+const SECTION_LABELS = { 一: '① 事实梳理', 二: '② 风险评估', 三: '③ 应对策略' }
+
+// 工具 → 展示名 / 执行状态文案(§67-68)
+const TOOL_DISPLAY_NAMES = {
+  skill: '加载研判技能',
+  uranium_supply_overview: '供应概览',
+  uranium_route_network: '路线网络',
+  uranium_current_risk: '当前风险',
+  uranium_osint_events: 'OSINT 事件',
+  uranium_knowledge_search: '知识检索',
+  uranium_scenario_analysis: '情景分析',
+}
+const TOOL_STATUS_TEXT = {
+  skill: '正在制定分析计划',
+  uranium_supply_overview: '正在筛选供应链数据',
+  uranium_route_network: '正在读取供应路线',
+  uranium_current_risk: '正在分析路线风险',
+  uranium_osint_events: '正在读取最新 OSINT',
+  uranium_knowledge_search: '正在检索知识库',
+  uranium_scenario_analysis: '正在运行情景分析',
+}
+
+// K3-CHAT-2:三部分结果卡
+const RESULT_CARDS = [
+  { key: '一', label: '事实梳理' },
+  { key: '二', label: '风险研判' },
+  { key: '三', label: '策略方案' },
+]
 
 const MODE_OPTIONS = [
   { label: '智能识别', value: 'auto', icon: MagicStick },
@@ -315,6 +424,25 @@ export default {
     const spinnerGlyphIdx = ref(0)
     let abortController = null
     let glyphTimer = null
+    // K3-CHAT-1:Agent 执行面板状态
+    const execPanelVisible = ref(false)
+    const activeRun = ref(null) // {task_id, conversation_id, provider, model}
+    const execTools = ref([]) // [{call_id, tool, status}]
+    const execStatus = ref('')
+    const execState = ref('idle') // idle | running | done | error
+    const execSections = ref([])
+    // K2-FLOW:分析完成状态(用于导出PDF/进入可视化)
+    const analysisSuccess = ref(false)
+    const lastAnalysisMsgId = ref('')
+    const pdfGenerating = ref(false)
+    const pdfReady = ref(false)
+    let agentStream = null
+
+    const pdfStateText = computed(() => {
+      if (pdfGenerating.value) return '正在生成报告…'
+      if (pdfReady.value) return 'PDF 已生成(再次点击下载)'
+      return '导出 PDF'
+    })
 
     const currentModelLabel = computed(() => { const m = CHAT_MODELS.find(o => o.value === selectedModel.value); return m ? m.label : 'Qwen-Turbo' })
     const spinnerGlyph = computed(() => SPINNER_GLYPHS[spinnerGlyphIdx.value] || '✽')
@@ -360,37 +488,207 @@ export default {
     const autoResizeChat = () => { const el = chatTextarea.value; if (el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 200) + 'px' } }
     const scrollToBottom = () => { nextTick(() => { const el = msgContainer.value; if (el) el.scrollTop = el.scrollHeight }) }
 
-    // 后端没有 /api/chat/conversations，改用已有的场景会话接口 /api/scenario/sessions
+    // ── 历史会话列表加载(稳定化:失败不清空 + stale 请求防覆盖) ──
+    // 语义: 成功(HTTP200,即使空[])才写 conversations;timeout/500/网络错误一律保留旧列表。
+    const historyLoading = ref(false)
+    const historyLoaded = ref(false)
+    const historyError = ref(false)
+    let historyRequestSeq = 0
+
     const fetchConversations = async () => {
+      const requestId = ++historyRequestSeq
+      const oldCount = conversations.value.length
+      console.log(`[History Fetch Start] rid=${requestId} currentCount=${oldCount} t=${Date.now()}`)
+      historyLoading.value = true
       try {
-        const d = await getSessions()
-        conversations.value = (d?.data?.sessions || []).map(s => ({
-          id: s.session_id,
-          title: s.requirement_text || '新对话',
-          created_at: s.timestamp
-        }))
-      } catch {}
+        // agent 会话是权威列表;失败即本次加载失败(不吞成 [])
+        const agResp = await getAgentConversations().catch((err) => {
+          console.warn(`[History] rid=${requestId} agent request FAIL`, err && err.message)
+          throw err
+        })
+        if (requestId !== historyRequestSeq) {
+          console.log(`[History Fetch Ignored Stale] rid=${requestId}`)
+          return conversations.value
+        }
+        const agList = agResp?.data?.conversations || []
+        // scenario sessions 仅兜底补充;失败不影响本次成功(仍以 agent 列表为准)
+        let sessList = []
+        try {
+          const s = await getSessions()
+          sessList = s?.data?.sessions || []
+        } catch (err) {
+          console.warn(`[History] rid=${requestId} sessions refresh FAIL(忽略,保留 agent 列表)`, err && err.message)
+        }
+        if (requestId !== historyRequestSeq) {
+          console.log(`[History Fetch Ignored Stale] rid=${requestId}`)
+          return conversations.value
+        }
+        const byId = {}
+        ;(sessList || []).forEach(x => { byId[x.session_id] = { id: x.session_id, source: 'scenario', title: x.requirement_text || '新对话', created_at: x.timestamp, updated_at: x.timestamp } })
+        ;(agList || []).forEach(x => { byId[x.conversation_id] = { id: x.conversation_id, source: 'agent', title: x.title || x.last_user_message || '新对话', created_at: x.created_at, updated_at: x.updated_at, message_count: x.message_count, latest_analysis_id: x.latest_analysis_id } })
+        const next = Object.values(byId).sort((a,b) => (b.created_at||'').localeCompare(a.created_at||''))
+        console.log(`[History Fetch Success] rid=${requestId} serverCount=${next.length}`)
+        console.log(`[History Mutation] fetch.assign ${oldCount} -> ${next.length} (rid=${requestId})`)
+        conversations.value = next
+        historyLoaded.value = true
+        historyError.value = false
+        return next
+      } catch (err) {
+        if (requestId !== historyRequestSeq) {
+          console.log(`[History Fetch Ignored Stale] rid=${requestId}`)
+          return conversations.value
+        }
+        // 失败:不清空。已加载过 → 保留旧列表;从未成功 → 置 error(侧栏显示加载失败,而非"暂无对话")
+        console.log(`[History Fetch Failed] rid=${requestId} error=${(err && err.message) || String(err)}`)
+        historyError.value = true
+        console.log(`[History Mutation] fetch.keep-old ${oldCount} -> ${oldCount} (错误不覆盖 rid=${requestId})`)
+        throw err
+      } finally {
+        if (requestId === historyRequestSeq) historyLoading.value = false
+      }
     }
+    // 保留既有追踪 watcher
+    watch(conversations, (v, o) => {
+      console.log(`[History watcher] count ${o && o.length} -> ${v && v.length} at=${Date.now()}`)
+    }, { flush: 'sync' })
+    // 本地 upsert 当前会话(发送后立即置顶/更新,不依赖网络;以 conversation_id 去重)
+    const upsertLocalConversation = (convId, title) => {
+      if (!convId) return
+      const now = new Date().toISOString()
+      const list = conversations.value.slice()
+      const idx = list.findIndex(c => c.id === convId)
+      const oldCount = list.length
+      if (idx >= 0) {
+        // 只合并更新,不覆盖服务器已有对象(source/服务端 id/created_at 保留)
+        list[idx] = { ...list[idx], title: title || list[idx].title || '新对话', updated_at: now }
+      } else {
+        // 新会话刚 createSession → scenario 会话;agent doc 持久化后刷新会以真实对象替换
+        list.unshift({ id: convId, source: 'scenario', title: title || '新对话', created_at: now, updated_at: now })
+      }
+      console.log(`[History Mutation] local-upsert ${oldCount} -> ${list.length} id=${convId}`)
+      conversations.value = list
+    }
+    // 静默后台刷新(Agent 完成/阶段切换后调用):失败仅 warn,绝不把已有列表清空
+    const refreshHistorySilently = () => {
+      fetchConversations().catch(() => {
+        // fetchConversations 内部已保留旧列表
+      })
+    }
+    const retryHistory = () => refreshHistorySilently()
     const startNewConversation = () => {
       messages.value = []; currentConversationId.value = ''; inputText.value = ''; isStreaming.value = false
       attachments.value = []; debugThinking.value = ''
+      execPanelVisible.value = false; activeRun.value = null
+      execTools.value = []; execSections.value = []; execStatus.value = ''; execState.value = 'idle'
+      analysisSuccess.value = false; lastAnalysisMsgId.value = ''; pdfReady.value = false
+      persistActiveConv('')
       nextTick(() => welcomeTextarea.value?.focus())
     }
-    const loadConversation = async (convId) => {
-      try {
-        const d = await getSessionDetail(convId)
-        const detail = d?.data
-        if (!detail) return
-        currentConversationId.value = convId
-        // 后端会话里 chat_history 的角色字段是 type: 'user' | 'system'
-        messages.value = (detail.chat_history || []).map((m, i) => ({
-          id: m.id || `h${i}`,
-          role: m.type === 'user' ? 'user' : 'assistant',
-          content: m.content || ''
+    const httpStatus = (e) => (e && (e.status || (e.response && e.response.status))) || 0
+    const pushDetailMessage = (text) => { messages.value = []; messages.value.push({ id: 'err' + Date.now(), role: 'assistant', content: text }) }
+    const renderScenarioMessages = (detail) => {
+      const hist = detail?.chat_history || []
+      const req = detail?.requirement
+      const qRaw = typeof req === 'string' ? req : (req && (req.raw_input || req.goal))
+      const qText = typeof qRaw === 'string' && qRaw.trim() ? qRaw.trim() : ''
+      const ar = detail?.analysis_result
+      const bodyText = (typeof ar === 'string' && ar.trim()) ? ar.trim() : ''
+      if (hist.length) {
+        messages.value = hist.map((m, i) => ({
+          id: m.id || `h${i}`, role: m.type === 'user' ? 'user' : 'assistant', content: m.content || ''
         }))
-        scrollToBottom()
-      } catch {}
+      } else if (qText || bodyText) {
+        const ms = []
+        if (qText) ms.push({ id: 's-q-' + Date.now(), role: 'user', content: qText })
+        ms.push({ id: 's-a-' + Date.now(), role: 'assistant',
+                  content: bodyText || '（该历史会话为早期需求记录：仅保存了原始问题，恢复审计未发现当时保存的分析正文，未重新生成。）' })
+        messages.value = ms
+      } else {
+        // 记录存在但无正文:诚实说明,绝不显示"已失效"
+        messages.value = []
+        messages.value.push({ id: 's-empty-' + Date.now(), role: 'assistant',
+          content: '该历史会话记录为空：经审计未发现当时保存的分析正文（当时未生成或未落盘），未重新生成。' })
+      }
+      execState.value = 'done'; execStatus.value = '历史对话加载成功(scenario 会话)'
+      scrollToBottom()
     }
+
+    const loadConversation = async (convId) => {
+      // K2-PERSIST:优先读 agent conversation doc(完整消息+结构化元数据),不重新执行 Agent;
+      // 按列表条目 source 路由:agent→agent detail;scenario→scenario detail。仅后端 404/410 才提示"已失效"。
+      currentConversationId.value = convId
+      persistActiveConv(convId)
+      execPanelVisible.value = true
+      execState.value = 'done'; execStatus.value = '正在加载历史对话…'
+      const entry = conversations.value.find(c => c.id === convId)
+      const source = entry && entry.source
+      const tryScenario = async () => {
+        try {
+          const sess = await getSessionDetail(convId)
+          const detail = sess?.data
+          if (detail && (detail.session_id || Array.isArray(detail.chat_history))) {
+            renderScenarioMessages(detail)
+            return true
+          }
+        } catch (e2) { /* 由调用方统一分类 */ }
+        return false
+      }
+      // scenario 记录(仅存在 scenario session,无 agent doc)只走 scenario detail
+      if (source === 'scenario') {
+        const ok = await tryScenario()
+        if (!ok) pushDetailMessage('该历史对话不存在或已失效。')
+        return
+      }
+      // agent / 未知:agent detail 优先;404/410 时降级 scenario
+      try {
+        const d = await getAgentConversation(convId)
+        const doc = d?.data
+        if (doc && Array.isArray(doc.messages) && doc.messages.length) {
+          const msgs = doc.messages.map(m => {
+            const isUser = m.role === 'user'
+            const isJudgment = !isUser && m.message_type === 'judgment'
+            return {
+              id: m.message_id || 'h' + Math.random(),
+              role: isUser ? 'user' : 'assistant',
+              content: m.content || '',
+              _streaming: false,
+              _meta: { message_type: m.message_type, analysis_id: m.analysis_id,
+                       snapshot_id: m.snapshot_id, sections: m.sections || [],
+                       tools: m.tools || [], pdf_status: m.pdf_status || 'none' },
+            }
+          })
+          messages.value = msgs
+          // 恢复最近研判状态(分析完成/PDF/可视化入口)
+          const lastJ = [...msgs].reverse().find(m => m.role === 'assistant' && m._meta && m._meta.message_type === 'judgment')
+          if (lastJ && lastJ.content) {
+            analysisSuccess.value = true
+            lastAnalysisMsgId.value = lastJ.id
+            execState.value = 'done'; execStatus.value = '研判完成(历史)'
+            execSections.value = (lastJ._meta.sections || [])
+            pdfReady.value = (lastJ._meta.pdf_status === 'ready')
+            execPanelVisible.value = true
+          }
+          scrollToBottom()
+          return
+        }
+        // agent doc 存在但空(异常)或旧 scenario session
+        const ok = await tryScenario()
+        if (!ok) pushDetailMessage('该历史对话不存在或已失效。')
+      } catch (e) {
+        const code = httpStatus(e)
+        if (code === 404 || code === 410) {
+          const ok = await tryScenario()
+          if (!ok) pushDetailMessage('该历史对话不存在或已失效。')
+        } else {
+          // timeout/5xx/网络错误 = 加载失败,不清空旧状态、不判失效,允许再次点击重试
+          console.warn('[History] 详情加载失败(非404),可重试 code=' + code, e && e.message)
+          pushDetailMessage('历史对话加载失败,请稍后重试。')
+        }
+      }
+    }
+    // K2-PERSIST:持久化当前会话 id(localStorage),供跨页/刷新恢复
+    const ACTIVE_CONV_KEY = 'scnet_active_conversation_id'
+    const persistActiveConv = (id) => { try { localStorage.setItem(ACTIVE_CONV_KEY, id || '') } catch (_) {} }
     // 后端没有删除/重命名会话的接口，这里只动本地列表（刷新后回到后端的真实列表）
     const handleDeleteConversation = async (convId) => {
       conversations.value = conversations.value.filter(c => c.id !== convId)
@@ -433,6 +731,9 @@ export default {
       })
     }
 
+    // 建议问题点击:填入输入框并发送
+    const useSuggestion = (s) => { inputText.value = s; nextTick(() => handleSend()) }
+
     const handleSend = async () => {
       const text = inputText.value.trim()
       // 自动识别场景（铀 / 汽车），仅当检测到明确关键词时切换
@@ -442,9 +743,8 @@ export default {
       if (text) scenarioStore.setLastUserMessage(text)
       if ((!text && attachments.value.length === 0) || isStreaming.value) return
 
-      // 首页只做「入口」：建会话（或复用当前会话）后带着问题跳到对应阶段的分析页。
-      // 后端没有 /api/chatHome/analyze 和 /api/chat/stream，场景判定在前端用关键词做，
-      // 会话走已有的 /api/scenario/session。
+      // K3-CHAT-1:事前/智能识别/事后不再跳需求分析页,在对话首页内 Agent 研判。
+      // 事中(during)流程保持兼容,仍走原想定生成页。
       const isDuring = currentMode.value === 'during'
       const fileInfo = attachments.value.length > 0 ? '\n[附件: ' + attachments.value.map(a => a.name).join(', ') + ']' : ''
       inputText.value = ''; attachments.value = []
@@ -452,7 +752,7 @@ export default {
       messages.value.push({
         id: 'a' + Date.now(),
         role: 'assistant',
-        content: isDuring ? '🚨 正在建立事中会话并进入想定生成...' : '🔍 正在建立会话并进入态势分析...',
+        content: '',
         _streaming: true
       })
       isStreaming.value = true
@@ -468,41 +768,221 @@ export default {
           sid = unwrapApiData(d)?.session_id || ''
           if (!sid) throw new Error('后端未返回 session_id')
           currentConversationId.value = sid
+          persistActiveConv(sid)
         }
         const sc = scenarioStore.currentScenario || 'uranium'
-        if (isDuring) await enterDuringFlow(sid, text, sc)
-        else await enterSituationAnalysis(sid, text, sc)
-        fetchConversations()
+        // 本地 upsert:发送后当前会话立即置顶(不阻塞、不依赖历史 API),避免启动瞬间全量拉取挂起
+        upsertLocalConversation(sid, text.slice(0, 40))
+        if (isDuring) {
+          await enterDuringFlow(sid, text, sc)
+        } else {
+          // 不跳页:在本对话页内运行 Agent 事前研判
+          await runAgentChat(text, sid)
+        }
       } catch (e) {
         messages.value.pop()
         messages.value.push({ id: 'a' + Date.now(), role: 'assistant', content: `会话创建失败：${e.message}` })
+        execState.value = 'error'; execStatus.value = '会话创建失败'
       }
       clearInterval(glyphTimer)
       isStreaming.value = false
       scrollToBottom()
     }
-    const abortStream = () => { if (abortController) { abortController.abort(); abortController = null } clearInterval(glyphTimer); isStreaming.value = false }
+
+    // ── K3-CHAT-1:对话首页 Agent 事前研判 ──────
+    const runAgentChat = async (text, sid) => {
+      execPanelVisible.value = true
+      execTools.value = []; execSections.value = []
+      execState.value = 'running'; execStatus.value = '正在启动 Agent 任务…'
+      analysisSuccess.value = false; lastAnalysisMsgId.value = ''; pdfReady.value = false
+      const lastMsg = messages.value[messages.value.length - 1]
+      try {
+        const res = await startAgentChat({
+          message: text,
+          conversationId: sid,
+          modelId: selectedModel.value,
+          mode: 'agent',
+          phase: 'pre',
+        })
+        const data = unwrapApiData(res) || res?.data || res || {}
+        const taskId = data?.task_id
+        if (!taskId) throw new Error(data?.message || 'Agent 任务启动失败')
+        activeRun.value = {
+          task_id: taskId,
+          conversation_id: data.conversation_id || sid,
+          provider: data.provider,
+          model: data.model,
+        }
+        execStatus.value = 'Agent 任务已启动,正在理解研判目标…'
+        const stream = streamAgentTask({
+          taskId,
+          afterSeq: 0,
+          onEvent: (ev) => handleAgentEvent(ev, lastMsg),
+          onError: (err) => { handleAgentEvent({ type: 'error', message: (err && err.message) || String(err) }, lastMsg) },
+        })
+        agentStream = stream
+      } catch (e) {
+        execState.value = 'error'; execStatus.value = 'Agent 启动失败'
+        if (lastMsg) lastMsg.content = `❌ Agent 任务启动失败：${e.message}`
+      }
+    }
+
+    const handleAgentEvent = (ev, lastMsg) => {
+      const type = ev.type
+      if (type === 'status') {
+        execStatus.value = ev.status || execStatus.value
+      } else if (type === 'tool_call') {
+        execTools.value.push({ call_id: ev.call_id, tool: ev.tool, status: 'running' })
+        execStatus.value = ev.tool === 'skill'
+          ? '正在制定分析计划…'
+          : (TOOL_STATUS_TEXT[ev.tool] || `正在调用 ${toolDisplayName(ev.tool)}`)
+      } else if (type === 'tool_result') {
+        const t = execTools.value.find(x => x.call_id === ev.call_id)
+        if (t) t.status = 'done'
+      } else if (type === 'text_delta') {
+        if (lastMsg) { lastMsg.content += ev.content; scrollToBottom() }
+      } else if (type === 'section') {
+        if (!execSections.value.includes(ev.section)) {
+          execSections.value.push(ev.section)
+          if (execSections.value.length >= 3) execStatus.value = '研判方案已生成'
+        }
+      } else if (type === 'phase') {
+        if (ev.phase === 'output') execStatus.value = '正在生成研判方案…'
+      } else if (type === 'done') {
+        execState.value = 'done'; execStatus.value = '研判完成'
+      } else if (type === 'complete') {
+        execState.value = 'done'; execStatus.value = '研判完成'
+        if (agentStream) { try { agentStream.close() } catch {} ; agentStream = null }
+        isStreaming.value = false
+        if (lastMsg) lastMsg._streaming = false
+        // K2-FLOW:分析成功 → 展示导出PDF + 进入可视化
+        if (lastMsg && lastMsg.content) {
+          analysisSuccess.value = true
+          lastAnalysisMsgId.value = lastMsg.id
+        }
+        // Agent 完成:后台同步真实列表(title/updated_at/新会话);失败不影响当前列表
+        setTimeout(() => { refreshHistorySilently() }, 600)
+      } else if (type === 'cancelled') {
+        execState.value = 'done'; execStatus.value = '已取消'
+        analysisSuccess.value = false
+        if (lastMsg) lastMsg._streaming = false
+      } else if (type === 'error') {
+        execState.value = 'error'; execStatus.value = ev.message || '执行出错'
+        analysisSuccess.value = false
+        if (lastMsg && !lastMsg.content) lastMsg.content = `❌ ${ev.message || 'Agent 执行出错'}`
+      }
+    }
+
+    // ── K2-FLOW:导出PDF(复用 html2pdf,从当前研判内容生成,不跳旧报告页) ──
+    const exportPdf = async () => {
+      if (pdfGenerating.value) return
+      const msg = messages.value.find(m => m.id === lastAnalysisMsgId.value)
+      if (!msg || !msg.content) return
+      const userMsg = messages.value.filter(m => m.role === 'user')
+      const question = userMsg.length ? userMsg[userMsg.length - 1].content.replace(/^\[附件.*$/, '') : ''
+      pdfGenerating.value = true
+      try {
+        const { default: html2pdf } = await import('html2pdf.js')
+        // 纯 DOM 构建,外部文本一律 textContent(不解析 HTML,防注入)
+        const now = new Date().toLocaleString('zh-CN', { hour12: false })
+        const safeQ = String(question || '').slice(0, 200)
+        const wrap = document.createElement('div')
+        wrap.style.cssText = "font-family:'PingFang SC','Microsoft YaHei',sans-serif;padding:28px;color:#111;position:absolute;left:-9999px;top:0;width:760px;"
+        const h = document.createElement('h2'); h.textContent = '中国铀供应链 · 智能态势研判报告'
+        h.style.cssText = 'text-align:center;margin:0 0 8px;'
+        const meta = document.createElement('p'); meta.textContent = '用户问题：' + safeQ
+        meta.style.cssText = 'text-align:center;color:#555;font-size:12px;margin:2px 0;'
+        const meta2 = document.createElement('p'); meta2.textContent = '生成时间：' + now
+        meta2.style.cssText = 'text-align:center;color:#555;font-size:12px;margin:2px 0;'
+        const hr = document.createElement('hr')
+        const body = document.createElement('div')
+        body.textContent = msg.content
+        body.style.cssText = 'white-space:pre-wrap;font-size:13px;line-height:1.7;margin:12px 0;'
+        const foot = document.createElement('p')
+        foot.textContent = '数据与模型来源：供应链快照 / OSINT / 知识库 / 风险模型。本报告由 AI 生成，仅供研究参考，不构成决策建议。'
+        foot.style.cssText = 'color:#777;font-size:11px;margin-top:16px;'
+        wrap.appendChild(h); wrap.appendChild(meta); wrap.appendChild(meta2)
+        wrap.appendChild(hr); wrap.appendChild(body); wrap.appendChild(foot)
+        document.body.appendChild(wrap)
+        await html2pdf().set({
+          margin: 12, filename: '铀供应链研判_' + Date.now() + '.pdf',
+          image: { type: 'jpeg', quality: 0.95 }, html2canvas: { scale: 2, useCORS: true },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        }).from(wrap).save()
+        wrap.remove()
+        pdfReady.value = true
+        if (currentConversationId.value) { try { await markConversationPdf(currentConversationId.value) } catch (_) {} }
+      } catch (e) {
+        console.warn('导出PDF失败:', e)
+        try { ElMessage({ type: 'error', message: '报告生成失败，请重试' }) } catch (_) {}
+      } finally {
+        pdfGenerating.value = false
+      }
+    }
+
+    // ── K2-FLOW:进入可视化 → 态势研判(真实路由 /home/SCnet/situationJudge) ──
+    const goVisualization = () => {
+      const query = { from_chat: '1' }
+      if (activeRun.value && activeRun.value.conversation_id) {
+        query.session_id = activeRun.value.conversation_id
+      }
+      router.push({ path: '/home/SCnet/situationJudge', query })
+    }
+
+    const toolDisplayName = (t) => TOOL_DISPLAY_NAMES[t] || t
+    const isSectionDone = (k) => execSections.value.includes(k)
+
+    const abortStream = () => {
+      if (agentStream) { try { agentStream.close() } catch {} ; agentStream = null }
+      if (activeRun.value?.task_id) { cancelAgentTask(activeRun.value.task_id).catch(() => {}) }
+      clearInterval(glyphTimer); isStreaming.value = false
+      execState.value = 'done'; execStatus.value = '已中止'
+    }
 
     const renderMarkdown = (c) => { if (!c) return ''; try { return marked.parse(c, { breaks: true }) } catch { return c } }
 
-    onMounted(() => {
+    const restoreConversation = async () => {
+      // K2-PERSIST:URL query(conversation_id/session_id)优先,其次 localStorage active
+      const q = route.query?.conversation_id || route.query?.session_id
+      let key = q ? String(q) : ''
+      if (!key) { try { key = localStorage.getItem('scnet_active_conversation_id') || '' } catch (_) {} }
+      if (key) { await loadConversation(key); return true }
+      return false
+    }
+    onMounted(async () => {
       fetchConversations()
-      // 从 /chatHome?mode=during 之类的入口进来时，直接落到对应阶段
       applyModeFromRoute(route.query?.mode)
-      nextTick(() => welcomeTextarea.value?.focus())
+      // 模式入口(事中)不自动恢复历史,避免覆盖 ?mode=during 流程
+      if (!route.query?.mode) { await restoreConversation() }
+      nextTick(() => { if (messages.value.length === 0) welcomeTextarea.value?.focus() })
     })
+    watch(() => route.query?.conversation_id, (v) => { if (v) loadConversation(String(v)) })
     watch(() => route.query?.mode, (mode) => applyModeFromRoute(mode))
-    onUnmounted(() => { if (abortController) abortController.abort(); clearInterval(glyphTimer) })
+    onUnmounted(() => { if (abortController) abortController.abort(); if (agentStream) { try { agentStream.close() } catch {} } clearInterval(glyphTimer) })
+    // DEV-only 调试句柄:供回归验证(竞态/迟到失败)驱动 refresh 并读取 count
+    if (import.meta.env.DEV) {
+      window.__chatHistoryDebug = {
+        count: () => conversations.value.length,
+        refresh: () => fetchConversations().catch(() => {}),
+        upsert: (id, title) => upsertLocalConversation(id, title),
+      }
+    }
 
     return {
       scenarioStore,
       logoUrl, msgContainer, welcomeTextarea, chatTextarea, fileInput, debugPanelBody,
       messages, inputText, selectedModel, isStreaming, currentConversationId, conversations,
+      historyLoading, historyError, historyLoaded, retryHistory,
       sidebarCollapsed, currentMode, modeIndex, execMode, attachments,
       debugThinking, debugThinkingVisible, spinnerGlyph,
       currentModelLabel, currentExecMode, inputPlaceholder,
       modeOptions: MODE_OPTIONS, chatModels: CHAT_MODELS, EXEC_MODES,
-      scenarioOptions: SCENARIO_OPTIONS,
+      scenarioOptions: SCENARIO_OPTIONS, SUGGEST_QUESTIONS,
+      execPanelVisible, activeRun, execTools, execStatus, execState, execSections,
+      analysisSuccess, lastAnalysisMsgId, pdfGenerating, pdfReady, pdfStateText,
+      SECTION_ORDER, SECTION_LABELS, RESULT_CARDS,
+      toolDisplayName, isSectionDone, useSuggestion,
+      exportPdf, goVisualization,
       goToMainPage, selectMode, selectScenario, openKnowledge,
       handleModeGlassPointer, resetModeGlassPointer,
       triggerFileInput, handleFileChange, removeAttachment,
@@ -518,9 +998,11 @@ export default {
 <style scoped>
 /* ── Shell ─────────────────────────────────── */
 .chat-shell { position: relative; display: flex; width: 100%; height: 100vh; background: #ffffff; overflow: hidden; }
-.chat-main { display: flex; flex-direction: column; height: 100vh; min-width: 0; transition: margin-left 0.3s ease; }
+.chat-main { display: flex; flex-direction: column; height: 100vh; min-width: 0; transition: margin-left 0.3s ease, margin-right 0.3s ease; }
 .chat-main-expand { margin-left: 260px; width: calc(100vw - 260px); }
 .chat-main-shrink { margin-left: 64px; width: calc(100vw - 64px); }
+.chat-main-expand.has-exec { margin-right: 320px; width: calc(100vw - 260px - 320px); }
+.chat-main-shrink.has-exec { margin-right: 320px; width: calc(100vw - 64px - 320px); }
 
 /* ── Welcome ───────────────────────────────── */
 .chat-welcome-wrap {
@@ -574,6 +1056,16 @@ export default {
 .chat-scenario-item.active { background: #eef2ff; color: #4f46e5; font-weight: 600; }
 
 .chat-welcome-input { width: 100%; }
+
+/* ── 建议问题 ─────────────────────────────── */
+.chat-welcome-suggests { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 16px; }
+.chat-suggest-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 12px; border: 1px solid #e5e7eb; border-radius: 999px;
+  background: #f9fafb; color: #4b5563; font-size: 12.5px; cursor: pointer;
+  transition: all 0.15s;
+}
+.chat-suggest-btn:hover { border-color: #93c5fd; color: #2563eb; background: #eff6ff; }
 
 /* ── Mode Selector ─────────────────────────── */
 .chat-mode-wrap { display: flex; align-items: center; justify-content: center; margin: 6px 0 38px; }
@@ -647,6 +1139,38 @@ export default {
 .chat-msg-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .chat-msg-avatar.user { background: #dbeafe; color: #2563eb; }
 .chat-msg-body { max-width: 72%; min-width: 0; }
+/* K2-FLOW:导出PDF */
+.chat-analysis-actions { margin-top: 8px; display: flex; }
+.chat-pdf-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 14px; border: 1px solid #c7d2fe; border-radius: 8px;
+  background: #eef2ff; color: #4f46e5; font-size: 12.5px; font-weight: 600;
+  cursor: pointer; transition: all 0.18s;
+}
+.chat-pdf-btn:hover:not(:disabled) { border-color: #4f46e5; background: #e0e7ff; }
+.chat-pdf-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+/* K2-FLOW:进入可视化(消息区右下,不覆盖内容) */
+.chat-visualize-zone { display: flex; justify-content: flex-end; padding: 10px 32px 0; }
+.chat-visualize-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 18px; border: none; border-radius: 999px;
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  color: #fff; font-size: 13.5px; font-weight: 600; cursor: pointer;
+  box-shadow: 0 4px 14px rgba(79,70,229,0.28); transition: all 0.2s;
+}
+.chat-visualize-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(79,70,229,0.36); }
+.chat-visualize-arrow { font-size: 15px; }
+.chat-result-cards { display: flex; gap: 6px; margin-bottom: 8px; }
+.chat-result-card {
+  flex: 1; display: flex; align-items: center; gap: 5px;
+  padding: 5px 8px; border: 1px solid #e5e7eb; border-radius: 8px;
+  background: #f9fafb; color: #9ca3af; font-size: 12px; font-weight: 500;
+  transition: all 0.25s;
+}
+.chat-result-card-num { font-weight: 700; }
+.chat-result-card-label { flex: 1; white-space: nowrap; }
+.chat-result-card-check { font-size: 13px; }
+.chat-result-card.active { border-color: #c7d2fe; background: #eef2ff; color: #4f46e5; }
 .chat-msg-bubble { padding: 0.65rem 1rem; border-radius: 12px; font-size: 0.9rem; line-height: 1.6; word-break: break-word; }
 .chat-msg.user .chat-msg-bubble { background: #2563eb; color: #fff; border-bottom-right-radius: 4px; }
 .chat-msg.assistant .chat-msg-bubble { background: #f9fafb; color: #111827; border: 1px solid #e5e7eb; border-bottom-left-radius: 4px; }
@@ -699,6 +1223,56 @@ export default {
 .chat-send-btn:disabled { background: #d1d5db; cursor: not-allowed; }
 .chat-stop-btn { width: 34px; height: 34px; border: 2px solid #ef4444; border-radius: 10px; background: #fff; cursor: pointer; position: relative; }
 .chat-stop-btn::after { content: ''; position: absolute; inset: 6px; background: #ef4444; border-radius: 3px; }
+
+/* ── Agent 执行面板 ───────────────────────── */
+.chat-exec-panel {
+  position: fixed; right: 0; top: 0; bottom: 0; width: 320px; z-index: 4000;
+  background: #fafbfc; border-left: 1px solid #e5e7eb;
+  display: flex; flex-direction: column;
+  box-shadow: -4px 0 24px rgba(0,0,0,0.06);
+}
+.chat-exec-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; border-bottom: 1px solid #e5e7eb; background: #fff;
+}
+.chat-exec-title { font-weight: 600; font-size: 14px; color: #111827; }
+.chat-exec-close { background: none; border: none; font-size: 20px; color: #9ca3af; cursor: pointer; line-height: 1; }
+.chat-exec-close:hover { color: #374151; }
+.chat-exec-body { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; }
+.chat-exec-model { display: flex; align-items: center; gap: 8px; }
+.chat-exec-model-provider {
+  padding: 2px 8px; border-radius: 6px; background: #eef2ff; color: #4f46e5;
+  font-size: 12px; font-weight: 600;
+}
+.chat-exec-model-name { font-size: 13px; color: #4b5563; }
+.chat-exec-status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #374151; }
+.chat-exec-status-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.chat-exec-status-dot.running { background: #f59e0b; animation: execPulse 1s ease-in-out infinite; }
+.chat-exec-status-dot.done { background: #10b981; }
+.chat-exec-status-dot.error { background: #ef4444; }
+.chat-exec-status-dot.idle { background: #d1d5db; }
+@keyframes execPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+.chat-exec-sections { display: flex; gap: 6px; }
+.chat-exec-section-chip {
+  flex: 1; text-align: center; padding: 5px 4px; border-radius: 8px;
+  background: #f3f4f6; color: #9ca3af; font-size: 12px; font-weight: 500;
+  transition: all 0.25s;
+}
+.chat-exec-section-chip.active { background: #eef2ff; color: #4f46e5; font-weight: 600; }
+.chat-exec-tools { display: flex; flex-direction: column; gap: 6px; }
+.chat-exec-tool {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 8px;
+  background: #fff; font-size: 12.5px; color: #374151;
+}
+.chat-exec-tool-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: #d1d5db; }
+.chat-exec-tool.running .chat-exec-tool-dot { background: #f59e0b; animation: execPulse 1s ease-in-out infinite; }
+.chat-exec-tool.done .chat-exec-tool-dot { background: #10b981; }
+.chat-exec-tool-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-exec-tool-state { font-size: 11.5px; color: #9ca3af; flex-shrink: 0; }
+.chat-exec-tool.running .chat-exec-tool-state { color: #d97706; }
+.chat-exec-tool.done .chat-exec-tool-state { color: #059669; }
+.chat-exec-empty { font-size: 12.5px; color: #9ca3af; line-height: 1.6; padding: 8px 2px; }
 
 /* ── Debug Panel ───────────────────────────── */
 .chat-debug-panel {

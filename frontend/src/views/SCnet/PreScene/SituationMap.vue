@@ -1,3958 +1,1937 @@
 <template>
-  <div class="uranium-page">
-
-    <!-- =====================================================
-         顶部标题
-    ====================================================== -->
+  <div class="supply-page">
     <header class="page-header">
-      <div class="header-left">
-        <div class="title-row">
-          <h1>全球铀供应链态势图</h1>
-          <span class="china-badge">中国</span>
-        </div>
-
-        <div class="subtitle">
-          Uranium Supply Chain Situation Awareness
+      <div>
+        
+        <div class="snapshot-status" :class="{ error: !!snapshotError, loading: loadingSnapshot || recomputing }">
+          <template v-if="loadingSnapshot || recomputing">{{ recomputing ? '正在重新计算态势图…' : '正在加载后端态势快照…' }}</template>
+          <template v-else-if="snapshotError">{{ snapshotError }}</template>
+          <template v-else-if="recomputeMessage">{{ recomputeMessage }}</template>
         </div>
       </div>
 
       <div class="header-right">
-        <div class="update-label">数据更新时间</div>
-        <div class="update-time">{{ updateTime }}</div>
+        <!-- K2-UI-RISK-2:正式态势固定 REAL,移除模式切换(§8) -->
       </div>
     </header>
 
+    <ChinaCurrentSituationBar v-if="mode === 'real'" />
 
-    <!-- =====================================================
-         顶部总览
-    ====================================================== -->
-    <section class="top-dashboard">
+    
 
-      <!-- 中国铀燃料需求 -->
-      <div class="card demand-card">
-        <div class="card-title">
-          中国铀燃料需求概况
-        </div>
-
-        <div class="metric-list">
-          <div class="metric-item">
-            <span>天然铀需求量</span>
-            <b class="metric-main">
-              {{ formatNumber(demandVolume) }} tU
-            </b>
-          </div>
-
-          <div class="metric-item">
-            <span>国内供应量</span>
-            <b class="metric-green">
-              {{ formatNumber(domesticVolume) }} tU
-            </b>
-          </div>
-
-          <div class="metric-item">
-            <span>海外供应量</span>
-            <b class="metric-orange">
-              {{ formatNumber(overseasVolume) }} tU
-            </b>
-          </div>
-
-          <div class="metric-item">
-            <span>海外供应国家</span>
-            <b>{{ supplierShares.length }} 个</b>
-          </div>
-        </div>
-      </div>
-
-
-      <!-- 自主 / 海外依存 -->
-      <div class="card structure-card">
-        <div class="card-title">
-          中国铀供应结构
-        </div>
-
-        <div class="structure-main">
-          <div
-            ref="donutRef"
-            class="donut-chart"
-          ></div>
-
-          <div class="structure-info">
-            <div class="structure-line">
-              <span class="structure-dot domestic"></span>
-
-              <div>
-                <span>独立自主</span>
-                <strong class="metric-green">
-                  {{ selfPct.toFixed(1) }}%
-                </strong>
-              </div>
-            </div>
-
-            <div class="structure-line">
-              <span class="structure-dot overseas"></span>
-
-              <div>
-                <span>海外依存</span>
-                <strong class="metric-orange">
-                  {{ overseasPct.toFixed(1) }}%
-                </strong>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-
-      <!-- 海外供应商占比 -->
-      <div class="card supplier-share-card">
-        <div class="card-title">
-          海外供应商占比
-        </div>
-
-        <div class="mini-share-list">
-          <div
-            v-for="item in topSupplierShares"
-            :key="item.country"
-            class="mini-share-item"
-          >
-            <div class="mini-share-country">
-              <i
-                class="mini-dot"
-                :style="{
-                  background: riskColor(supplierRisk(item))
-                }"
-              ></i>
-
-              <span>{{ item.country }}</span>
-            </div>
-
-            <div class="mini-share-track">
-              <div
-                class="mini-share-fill"
-                :style="{
-                  width: Math.min(Number(item.sharePct || 0), 100) + '%'
-                }"
-              ></div>
-            </div>
-
-            <b>
-              {{ Number(item.sharePct || 0).toFixed(1) }}%
-            </b>
-          </div>
-
-          <div
-            v-if="!topSupplierShares.length"
-            class="empty-small"
-          >
-            暂无供应商数据
-          </div>
-        </div>
-      </div>
-
-
-      <!-- 综合风险 -->
-      <div class="card total-risk-card">
-        <div class="card-title danger-title">
-          供应链综合风险
-        </div>
-
-        <div class="total-risk-body">
-          <div
-            class="total-risk-score"
-            :style="{
-              color: riskColor(overallRisk / 100)
-            }"
-          >
-            {{ overallRisk }}
-          </div>
-
-          <div class="total-risk-unit">
-            /100
-          </div>
-
-          <div
-            class="total-risk-label"
-            :style="{
-              color: riskColor(overallRisk / 100)
-            }"
-          >
-            {{ overallRiskText }}
-          </div>
-        </div>
-
-        <div class="risk-scale">
-          <div class="scale-green"></div>
-          <div class="scale-yellow"></div>
-          <div class="scale-orange"></div>
-          <div class="scale-red"></div>
-        </div>
-
-        <div class="risk-scale-labels">
-          <span>低</span>
-          <span>中</span>
-          <span>高</span>
-          <span>极高</span>
-        </div>
-      </div>
-
-
-      <!-- 雷达 -->
-      <div class="card radar-card">
-        <div class="card-title">
-          风险类型分布
-        </div>
-
-        <div
-          ref="radarRef"
-          class="radar-chart"
-        ></div>
-      </div>
-    </section>
-
-
-    <!-- =====================================================
-         中部：大地图 + 风险排行
-    ====================================================== -->
-    <section class="main-dashboard">
-
-      <!-- ================= 世界地图 ================= -->
-      <main class="map-card">
-
-        <!-- 风险等级图例 -->
-        <div class="map-risk-legend">
-          <div class="map-risk-title">
-            风险等级
-          </div>
-
-          <div>
-            <i class="risk-dot risk-critical"></i>
-            <span>极高风险</span>
-            <b>80-100</b>
-          </div>
-
-          <div>
-            <i class="risk-dot risk-high"></i>
-            <span>高风险</span>
-            <b>60-79</b>
-          </div>
-
-          <div>
-            <i class="risk-dot risk-medium"></i>
-            <span>中风险</span>
-            <b>40-59</b>
-          </div>
-
-          <div>
-            <i class="risk-dot risk-low"></i>
-            <span>低风险</span>
-            <b>0-39</b>
-          </div>
-        </div>
-
-
-        <!-- 线路图例 -->
-        <div class="route-legend">
-          <div class="route-legend-item">
-            <i class="route-line route-red"></i>
-            高风险线路
-          </div>
-
-          <div class="route-legend-item">
-            <i class="route-line route-orange"></i>
-            中风险线路
-          </div>
-
-          <div class="route-legend-item">
-            <i class="route-line route-green"></i>
-            低风险线路
-          </div>
-        </div>
-
-
-        <!-- 地图 -->
-        <div
-          ref="mapRef"
-          class="world-map"
-        ></div>
-
-
-        <!-- 节点图例 -->
-        <div class="map-node-legend">
-          <span>
-            <i class="legend-symbol supplier-symbol"></i>
-            供应国
-          </span>
-
-          <span>
-            <i class="legend-symbol chokepoint-symbol"></i>
-            关键通道
-          </span>
-
-          <span>
-            <i class="legend-symbol storage-symbol"></i>
-            港口 / 仓储
-          </span>
-
-          <span>
-            <i class="legend-symbol china-symbol"></i>
-            中国接收中心
-          </span>
-        </div>
-      </main>
-
-
-      <!-- ================= 右侧高风险排行 ================= -->
-      <aside class="risk-ranking-panel">
-
-        <div class="panel-title">
-          当前高风险节点 TOP 8
-        </div>
-
-        <div class="risk-summary">
-          <div class="risk-summary-item">
-            <span>高风险节点</span>
-            <b class="red-text">
-              {{ highRiskCount }}
-            </b>
-          </div>
-
-          <div class="risk-summary-item">
-            <span>极高风险节点</span>
-            <b class="red-text">
-              {{ criticalRiskCount }}
-            </b>
-          </div>
-        </div>
-
-
-        <div class="risk-ranking-scroll">
-          <div
-            v-for="(node, index) in topRiskNodes"
-            :key="`${node.type}-${node.name}`"
-            class="ranking-item"
-          >
-            <div
-              class="ranking-index"
-              :class="{
-                rankingTop: index < 3
-              }"
+    <main class="main-layout">
+      <section class="map-panel">
+        <div class="map-topbar">
+          <div class="filter-buttons">
+            <button
+              class="label-toggle"
+              :class="{ active: showNodeLabels }"
+              @click="toggleNodeLabels"
             >
-              {{ index + 1 }}
-            </div>
-
-            <div class="ranking-content">
-              <div class="ranking-head">
-                <strong>{{ node.name }}</strong>
-
-                <span>{{ node.type }}</span>
-              </div>
-
-              <div class="ranking-risk-row">
-                <div class="ranking-track">
-                  <div
-                    class="ranking-fill"
-                    :style="{
-                      width: node.riskScore + '%',
-                      background: riskColor(node.risk)
-                    }"
-                  ></div>
-                </div>
-
-                <b
-                  :style="{
-                    color: riskColor(node.risk)
-                  }"
-                >
-                  {{ node.riskScore }}
-                </b>
-              </div>
-
-              <div class="ranking-meta">
-                <span
-                  :style="{
-                    color: riskColor(node.risk)
-                  }"
-                >
-                  {{ riskLabel(node.risk) }}
-                </span>
-              </div>
-
-              <div class="ranking-reason">
-                {{ node.reason }}
-              </div>
-            </div>
+              {{ showNodeLabels ? '隐藏节点名称' : '显示节点名称' }}
+            </button>
           </div>
 
-          <div
-            v-if="!topRiskNodes.length"
-            class="empty-message"
-          >
-            暂无风险节点
-          </div>
-        </div>
-      </aside>
-    </section>
-
-
-    <!-- =====================================================
-         典型供应链路径
-    ====================================================== -->
-    <section class="chain-card">
-
-      <div class="chain-header">
-        <div>
-          <div class="chain-title">
-            典型供应链路径
-          </div>
-
-          <div class="chain-subtitle">
-            矿山 → 内陆运输 → 出口港 →
-            国际运输通道 → 中国接收节点 →
-            仓储 / 加工 → 需求中心
-          </div>
-        </div>
-
-        <select
-          v-model.number="selectedRouteIndex"
-          class="route-select"
-        >
-          <option
-            v-for="(route, index) in routes"
-            :key="index"
-            :value="index"
-          >
-            {{
-              route.name ||
-              `${route.from || ''} → ${route.to || '中国'}`
-            }}
-          </option>
-        </select>
-      </div>
-
-
-      <div
-        v-if="selectedChainNodes.length"
-        class="chain-track"
-      >
-        <template
-          v-for="(node, index) in selectedChainNodes"
-          :key="`${node.name}-${index}`"
-        >
-
-          <div class="chain-node">
-            <div
-              class="chain-node-icon"
-              :style="{
-                borderColor: riskColor(node.riskScore),
-                color: riskColor(node.riskScore),
-                boxShadow:
-                  normalizeRisk(node.riskScore) >= 0.6
-                    ? `0 0 12px ${riskColor(node.riskScore)}55`
-                    : 'none'
-              }"
-            >
-              {{ routeNodeIcon(node) }}
-            </div>
-
-            <div class="chain-node-name">
-              {{ node.name }}
-            </div>
-
-            <div
-              class="chain-node-score"
-              :style="{
-                color: riskColor(node.riskScore)
-              }"
-            >
-              风险 {{ risk100(node.riskScore) }}
-            </div>
-
-            <div
-              class="chain-node-level"
-              :style="{
-                color: riskColor(node.riskScore)
-              }"
-            >
-              {{ riskLevelShort(node.riskScore) }}
-            </div>
-
-            <div
-              v-if="node.reason || node.riskReason"
-              class="chain-node-reason"
-            >
-              {{ node.riskReason || node.reason }}
-            </div>
-          </div>
-
-
-          <div
-            v-if="index < selectedChainNodes.length - 1"
-            class="chain-arrow"
-          >
-            <div
-              class="chain-arrow-line"
-              :style="{
-                background:
-                  riskColor(
-                    Math.max(
-                      normalizeRisk(node.riskScore),
-                      normalizeRisk(
-                        selectedChainNodes[index + 1]?.riskScore
-                      )
-                    )
-                  )
-              }"
-            ></div>
-
-            <span
-              :style="{
-                color:
-                  riskColor(
-                    Math.max(
-                      normalizeRisk(node.riskScore),
-                      normalizeRisk(
-                        selectedChainNodes[index + 1]?.riskScore
-                      )
-                    )
-                  )
-              }"
-            >
-              ›
+          <div class="snapshot-controls">
+            <button
+              class="snapshot-btn"
+              :disabled="loadingSnapshot || recomputing"
+              @click="loadLatestSnapshot"
+            >{{ loadingSnapshot ? '加载中…' : '加载最新态势图' }}</button>
+            <button
+              class="snapshot-btn primary"
+              :disabled="recomputing"
+              @click="handleRecompute"
+            >{{ recomputing ? '计算中…' : '重新计算态势图' }}</button>
+            <span v-if="snapshotMeta && snapshotMeta.generated_at" class="snapshot-time"
+                  :title="'snapshot_id: ' + (snapshotMeta.snapshot_id || '')">
+              快照 {{ snapshotMeta.osint_mode || 'REAL' }} · {{ snapshotMeta.generated_at }}
+              <span v-if="snapshotMeta.is_official_runtime_view" class="snapshot-ok">✓ 正式视图</span>
             </span>
           </div>
 
-        </template>
-      </div>
-
-      <div
-        v-else
-        class="empty-chain"
-      >
-        暂无供应链路径数据
-      </div>
-    </section>
-
-
-    <!-- =====================================================
-         底部重新布局
-         风险事件 + 风险构成 + 态势研判
-    ====================================================== -->
-    <section class="bottom-dashboard">
-
-      <!-- ================= 风险事件监测 ================= -->
-      <div class="bottom-card event-card">
-        <div class="panel-title">
-          风险事件监测
-          <span>开源情报 / OSINT</span>
+          
         </div>
 
-        <div class="event-scroll">
-          <div
-            v-for="event in visibleEvents"
-            :key="event.id"
-            class="event-item"
-          >
-            <div class="event-left">
-              <div class="event-time">
-                {{ formatEventDate(event.time) }}
+        <div ref="chartRef" class="chart"></div>
+
+        <div class="legend">
+          <span><i class="node low"></i>低风险</span>
+          <span><i class="node medium"></i>中风险</span>
+          <span><i class="node high"></i>高风险</span>
+          <span><i class="line"></i>供应链路径</span>
+        </div>
+      </section>
+
+      <aside class="side-panel">
+        <!-- K2-UI-RISK-1:非 REAL 快照警告(§58-59) -->
+        <div v-if="snapshotData && !snapshotIsReal" class="mode-warning">
+          ⚠ 非正式模拟数据(osint_mode={{ snapshotMode }});不作为当前态势
+        </div>
+
+        <!-- 当前研判:全局 / 当前路线(§17-19/§51) -->
+        <section class="panel k2-head-panel">
+          <div class="k2-head-row">
+            <h2>当前研判</h2>
+            <span class="k2-sub">{{ activeRouteId === 'all' ? '全局态势' : currentRouteName + ' → 中国' }}</span>
+            <button v-if="activeRouteId !== 'all'" class="k2-back-btn" @click="changeRoute('all')">← 全局</button>
+          </div>
+
+          <!-- 全局态势(§20-21) -->
+          <div v-if="activeRouteId === 'all'" class="k2-global-overview">
+            <div class="k2-route-stats">
+              <span>路线 <b>{{ routes.length }}</b></span>
+              <span>高风险 <b class="high">{{ routeStats.high }}</b></span>
+              <span>中风险 <b class="medium">{{ routeStats.medium }}</b></span>
+              <span>低风险 <b class="low">{{ routeStats.low }}</b></span>
+            </div>
+            <div v-if="routeRanking.length" class="k2-top-route">
+              最高风险路线:<b>{{ routeRanking[0].country }}</b>
+              <span :class="['risk-tag', routeRanking[0].level]">{{ riskText(routeRanking[0].level) }}</span>
+              <b class="k2-top-risk">{{ num(routeRanking[0].displayRisk) }}</b>
+            </div>
+            <div class="k2-osint-sum">
+              REAL OSINT:<b>{{ osintSummary.effective }}</b> Effective /
+              <b>{{ osintSummary.registered }}</b> Registered
+            </div>
+          </div>
+
+          <!-- 当前路线(§26/§29/§34) -->
+          <div v-else-if="currentRoute" class="k2-route-overview">
+            <div class="k2-route-tags">
+              <span :class="['risk-tag', currentRoute.riskLevel]">{{ riskText(currentRoute.riskLevel) }}</span>
+              <span class="k2-transport">运输:{{ currentRoute.transport }}</span>
+            </div>
+            <div class="k2-scores">
+              <span>展示风险<b>{{ num(currentRoute.display_risk_score ?? currentRoute.risk_score ?? 0) }}</b></span>
+              <span>原始风险<b>{{ num(currentRoute.raw_risk_score ?? currentRoute.risk_score ?? 0) }}</b></span>
+              <span>校准<b>{{ routeCalibrationMethod(currentRoute) }}</b></span>
+            </div>
+            <div class="k2-route-meta">
+              <span>OSINT:{{ routeOsintEventCount(currentRoute) }}</span>
+              <span>关键节点:{{ routeKeyRiskPoints(currentRoute).length }}</span>
+              <span v-if="routeEvidenceMap[currentRoute.id]">证据:{{ routeEvidenceMap[currentRoute.id].evidence_level }}</span>
+            </div>
+            <!-- K2-RISK-REAL-1:经验校准概率(§45-49) -->
+            <div class="k2-empirical" v-if="currentRoute.empirical_probability_90d != null">
+              <span>经验 90 天扰动概率</span>
+              <b>{{ (currentRoute.empirical_probability_90d * 100).toFixed(0) }}%</b>
+              <span class="k2-emp-method">校准:经验分箱 · n={{ empiricalSampleNote }}</span>
+            </div>
+            <div v-else class="k2-empirical k2-emp-accum">
+              <span>经验 90 天扰动概率</span>
+              <b>数据积累中</b>
+              <span class="k2-emp-method">历史实证校准未就绪(样本不足),不显示假 0%(§49)</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- 路线筛选(全局 + 国家):仅筛选,不重复供应占比(顶部已有) -->
+        <section class="panel k2-route-select-panel">
+          <div class="k2-route-panel-title">路线筛选</div>
+          <div class="k2-route-chips">
+            <button :class="['k2-chip', { active: activeRouteId === 'all' }]" @click="changeRoute('all')">全局</button>
+            <button
+              v-for="r in routes"
+              :key="r.id"
+              :class="['k2-chip', { active: activeRouteId === r.id }]"
+              @click="changeRoute(r.id)"
+            >{{ r.country }}</button>
+          </div>
+        </section>
+
+        <!-- 风险解释:Tab(§30/§46:tab 内容区内部滚动) -->
+        <section class="panel k2-tabs-panel">
+          <div class="panel-title">
+            <h2>风险解释</h2>
+          </div>
+          <div class="tabs">
+            <button :class="{ active: activeTab === 'risk' }" @click="activeTab = 'risk'">风险解释</button>
+            <button :class="{ active: activeTab === 'osint' }" @click="activeTab = 'osint'">
+              OSINT 事件 <span v-if="routeOsintEvents.length" class="tab-count">{{ routeOsintEvents.length }}</span>
+            </button>
+            <button :class="{ active: activeTab === 'chain' }" @click="activeTab = 'chain'">模型链</button>
+          </div>
+          <div class="k2-tab-scroll">
+
+          <!-- Tab1 风险解释 -->
+          <div v-if="activeTab === 'risk'" class="tab-body">
+            <!-- 全局态势:路线风险排行榜(§21-23/§48) -->
+            <div v-if="activeRouteId === 'all'" class="k2-risk-global">
+              <div class="k2-sec-title">路线风险排行榜</div>
+              <div class="k2-ranking">
+                <div
+                  v-for="(r, i) in showAllRanking ? routeRanking : routeRankingTop"
+                  :key="r.id"
+                  class="k2-rank-row"
+                  :class="r.level"
+                  @click="changeRoute(r.id)"
+                >
+                  <span class="k2-rank-no">{{ i + 1 }}</span>
+                  <span class="k2-rank-country">{{ r.country }}</span>
+                  <span :class="['risk-tag', r.level]">{{ riskText(r.level) }}</span>
+                  <span class="k2-rank-risk">{{ num(r.displayRisk) }}</span>
+                  <span class="k2-rank-ev">{{ r.evidenceLevel }}</span>
+                </div>
+                <div v-if="routeRanking.length > 5" class="k2-rank-more" @click="showAllRanking = !showAllRanking">
+                  {{ showAllRanking ? '收起' : '查看全部 ' + routeRanking.length + ' 条' }}
+                </div>
+              </div>
+              <div class="k2-sec-title">高风险节点(节点风险,非网络关键性 §10-12)</div>
+              <div class="k2-critical-nodes">
+                <div v-for="n in highRiskNodesTop" :key="n.name" class="k2-cnode" @click="focusNode(n.routeId, n.name)">
+                  <span :class="['dot', n.level]"></span>
+                  <span class="k2-cnode-name">{{ n.name }}</span>
+                  <span class="k2-cnode-route">{{ n.route }}</span>
+                  <span v-if="n.osintCount" class="k2-cnode-osint">OSINT {{ n.osintCount }}</span>
+                  <b>{{ num(n.score) }}</b>
+                </div>
               </div>
 
-              <div
-                class="event-risk-level"
-                :style="{
-                  color:
-                    event.color ||
-                    riskColor(eventRisk(event))
-                }"
-              >
-                {{
-                  event.level ||
-                  riskLevelShort(eventRisk(event))
-                }}
+              <div class="k2-sec-title">网络关键节点</div>
+              <div class="k2-crit-toggle">
+                <button :class="{ active: criticalityView === 'network' }" @click="criticalityView = 'network'">全网关键</button>
+                <button :class="{ active: criticalityView === 'external' }" @click="criticalityView = 'external'">外部供应关键</button>
               </div>
+              <div class="k2-critical-nodes">
+                <div
+                  v-for="n in criticalityView === 'external' ? externalSupplyCriticalNodes : networkCriticalNodes"
+                  :key="n.name" class="k2-cnode"
+                >
+                  <span :class="['dot', n.type.includes('接收') ? 'medium' : 'low']"></span>
+                  <span class="k2-cnode-name">{{ n.name }}</span>
+                  <span class="k2-cnode-route">{{ n.type }}</span>
+                  <b>{{ num(n.score) }}</b>
+                </div>
+              </div>
+              <p class="k2-risk-note">高风险节点 = 当前 node risk 高;网络关键节点 = 网络结构重要。两者不同(§12)。展示风险分为 snapshot 内相对校准值(§34)。</p>
             </div>
 
-
-            <div
-              class="event-risk-bar"
-              :style="{
-                background: riskColor(eventRisk(event))
-              }"
-            ></div>
-
-
-            <div class="event-info">
-              <div class="event-title-row">
-                <strong>
-                  {{ event.title }}
-                </strong>
-
-                <span
-                  v-if="event.source"
-                  class="event-source"
-                >
-                  {{ event.source }}
-                </span>
+            <div v-if="selectedNodeDetail" class="node-detail">
+              <div class="nd-head">
+                <strong>{{ selectedNodeDetail.name }}</strong>
+                <span :class="['risk-tag', selectedNodeDetail.risk]">{{ riskText(selectedNodeDetail.risk) }}</span>
               </div>
+              <div class="nd-grid">
+                <div><span>综合风险</span><b>{{ num(selectedNodeDetail.combined) }}</b></div>
+                <div><span>当前脆弱性</span><b>{{ num(selectedNodeDetail.vul) }}</b></div>
+                <div><span>供应后果</span><b>{{ num(selectedNodeDetail.cons) }}</b></div>
+                <div><span>旧模型风险</span><b>{{ num(selectedNodeDetail.legacy) }}</b></div>
+                <div><span>OSINT 增量</span><b :class="{ pos: selectedNodeDetail.delta > 0 }">{{ selectedNodeDetail.delta }}</b></div>
+                <div><span>网络关键性</span><b>{{ num(selectedNodeDetail.criticality) }}</b></div>
+                <div><span>供应覆盖</span><b>{{ selectedNodeDetail.supplyShare }}%</b></div>
+                <div><span>涉及路线</span><b>{{ selectedNodeDetail.routeCount }}</b></div>
+              </div>
+              <p class="nd-reason">{{ reasonText(selectedNodeDetail.reason) }}</p>
+              <p v-if="selectedNodeDetail.delta <= 0" class="nd-none">当前无直接 OSINT 风险事件</p>
+              <p v-else class="nd-desc">{{ selectedNodeDetail.description }}</p>
+            </div>
+            <div v-else class="tab-hint">点击地图节点查看节点风险详情</div>
 
-              <span class="event-desc">
-                {{ event.desc }}
-              </span>
-
-              <div class="event-score-row">
-                <span>影响风险</span>
-
-                <div class="event-score-track">
+            <div class="route-expl-list">
+              <div
+                v-for="route in visibleRoutes"
+                :key="route.id"
+                class="route-expl"
+                :class="{ active: activeRouteId === route.id }"
+                @click="changeRoute(route.id)"
+              >
+                <div class="re-head">
+                  <strong>{{ route.country }}</strong>
+                  <span :class="['risk-tag', route.riskLevel]">{{ riskText(route.riskLevel) }}</span>
+                </div>
+                <div class="re-scores">
+                  <span>展示 <b>{{ num(route.display_risk_score ?? route.risk_score ?? 0) }}</b></span>
+                  <span>原始 <b>{{ num(route.raw_risk_score ?? route.risk_score ?? 0) }}</b></span>
+                </div>
+                <div class="re-bd">
                   <div
-                    class="event-score-fill"
-                    :style="{
-                      width: risk100(eventRisk(event)) + '%',
-                      background: riskColor(eventRisk(event))
-                    }"
-                  ></div>
+                    v-for="item in breakdownItems(route.risk_breakdown)"
+                    :key="item.key"
+                    class="re-bd-item"
+                  >
+                    <span class="re-label">{{ item.label }}</span>
+                    <div class="re-bar"><i :style="{ width: Math.min(100, item.value) + '%' }"></i></div>
+                    <b>{{ item.value }}</b>
+                  </div>
                 </div>
-
-                <b
-                  :style="{
-                    color: riskColor(eventRisk(event))
-                  }"
-                >
-                  {{ risk100(eventRisk(event)) }}
-                </b>
+                <div class="re-krp">
+                  <span class="krp-label">关键风险点</span>
+                  <div
+                    v-for="p in routeKeyRiskPoints(route)"
+                    :key="p.name + p.type"
+                    class="krp-item"
+                  >
+                    <span :class="['dot', p.risk_level]"></span>
+                    <span class="krp-name">{{ p.name }}</span>
+                    <span class="krp-type">{{ p.type }}</span>
+                    <b>{{ num(p.risk_score) }}</b>
+                  </div>
+                </div>
+                <p class="re-note">展示风险分用于当前态势图颜色比较，经过 snapshot 内校准，不代表绝对概率。</p>
               </div>
             </div>
           </div>
 
-          <div
-            v-if="!visibleEvents.length"
-            class="empty-message"
-          >
-            当前暂无风险事件
-          </div>
-        </div>
-      </div>
-
-
-      <!-- ================= 风险构成 ================= -->
-      <div class="bottom-card risk-composition-card">
-        <div class="panel-title">
-          供应链风险构成
-        </div>
-
-        <div class="risk-composition">
-
-          <div
-            v-for="item in riskComposition"
-            :key="item.name"
-            class="risk-composition-item"
-          >
-            <div class="composition-head">
-              <div class="composition-name">
-                <i
-                  :style="{
-                    background: riskColor(item.value / 100)
-                  }"
-                ></i>
-
-                {{ item.name }}
-              </div>
-
-              <div>
-                <b
-                  :style="{
-                    color: riskColor(item.value / 100)
-                  }"
-                >
-                  {{ item.value }}
-                </b>
-
-                <span>
-                  {{ riskLevelShort(item.value / 100) }}
+          <!-- Tab2 OSINT 事件(K2-UI-RISK-2:全部 REAL 注册事件可浏览 §25-31) -->
+          <div v-if="activeTab === 'osint'" class="tab-body">
+            <div class="k2-osint-stats">
+              <span>Registered <b>{{ osintFilterCounts.all }}</b></span>
+              <span>Effective <b class="ok">{{ osintFilterCounts.effective }}</b></span>
+              <span>已恢复 {{ osintFilterCounts.recovered }}</span>
+              <span>已解决 {{ osintFilterCounts.resolved }}</span>
+              <span>正向 {{ osintFilterCounts.positive }}</span>
+              <span v-if="activeRouteId !== 'all'">· 当前路线 {{ currentRouteName }}</span>
+            </div>
+            <div class="k2-osint-filters">
+              <button :class="['k2-of', { active: osintFilter === 'all' }]" @click="osintFilter = 'all'">全部 {{ osintFilterCounts.all }}</button>
+              <button :class="['k2-of', { active: osintFilter === 'effective' }]" @click="osintFilter = 'effective'">当前有效 {{ osintFilterCounts.effective }}</button>
+              <button :class="['k2-of', { active: osintFilter === 'recovered' }]" @click="osintFilter = 'recovered'">已恢复</button>
+              <button :class="['k2-of', { active: osintFilter === 'resolved' }]" @click="osintFilter = 'resolved'">已解决</button>
+              <button :class="['k2-of', { active: osintFilter === 'positive' }]" @click="osintFilter = 'positive'">正向</button>
+              <button :class="['k2-of', { active: osintFilter === 'excluded' }]" @click="osintFilter = 'excluded'">候选/排除</button>
+              <button :class="['k2-of', { active: osintFilter === 'breaking' }]" @click="osintFilter = 'breaking'">最新 7 天</button>
+              <button :class="['k2-of', { active: osintFilter === 'recent' }]" @click="osintFilter = 'recent'">最新 30 天</button>
+              <button :class="['k2-of', { active: osintFilter === 'y2026' }]" @click="osintFilter = 'y2026'">2026</button>
+            </div>
+            <div v-if="!osintFilteredEvents.length" class="tab-hint">无匹配事件</div>
+            <div
+              v-for="ev in osintFilteredEvents"
+              :key="ev.event_id"
+              class="ev-card"
+              :class="{ active: selectedEventId === ev.event_id }"
+              @click="selectRegisteredEvent(ev)"
+            >
+              <div class="ev-head">
+                <strong>{{ ev.title }}</strong>
+                <span v-if="ev.risk_effective" class="ev-reeff">[当前计入风险]</span>
+                <span v-else-if="ev.event_year === 2026" class="ev-knowledge">[知识情报]</span>
+                <span class="ev-sev" :class="runtimeStatusClass(ev.runtime_status)">
+                  {{ runtimeStatusLabel(ev.runtime_status) }}
                 </span>
               </div>
-            </div>
-
-            <div class="composition-track">
-              <div
-                class="composition-fill"
-                :style="{
-                  width: item.value + '%',
-                  background: riskColor(item.value / 100)
-                }"
-              ></div>
-            </div>
-
-            <div class="composition-desc">
-              {{ item.desc }}
-            </div>
-          </div>
-        </div>
-      </div>
-
-
-      <!-- ================= 态势研判 ================= -->
-      <div class="bottom-card analysis-card">
-        <div class="panel-title">
-          态势研判结论
-        </div>
-
-        <div class="analysis-content">
-
-          <div
-            class="analysis-level"
-            :style="{
-              color: riskColor(overallRisk / 100),
-              background: riskBackground(overallRisk / 100)
-            }"
-          >
-            {{ conclusion.tag || overallRiskText }}
-          </div>
-
-
-          <div class="analysis-kpi-row">
-            <div class="analysis-kpi">
-              <span>综合风险</span>
-
-              <b
-                :style="{
-                  color: riskColor(overallRisk / 100)
-                }"
-              >
-                {{ overallRisk }}
-              </b>
-            </div>
-
-            <div class="analysis-kpi">
-              <span>高风险节点</span>
-              <b class="red-text">
-                {{ highRiskCount }}
-              </b>
-            </div>
-
-            <div class="analysis-kpi">
-              <span>风险事件</span>
-              <b>
-                {{ visibleEvents.length }}
-              </b>
-            </div>
-          </div>
-
-
-          <div class="analysis-points">
-            <div
-              v-for="(point, index) in conclusion.points"
-              :key="index"
-              class="analysis-point"
-            >
-              <i></i>
-              <div v-html="point"></div>
-            </div>
-
-            <template
-              v-if="!conclusion.points?.length"
-            >
-              <div class="analysis-point">
-                <i></i>
-
-                <div>
-                  当前供应链综合风险指数为
-                  <b>{{ overallRisk }}</b>，
-                  总体处于
-                  <b>{{ overallRiskText }}</b>。
-                </div>
+              <div class="ev-tags">
+                <span class="ev-type">{{ eventTypeLabel(ev.event_type) }}</span>
+                <span class="ev-ss">{{ eventStateLabel(ev.event_state) }}</span>
+                <span class="ev-dir">{{ directionLabel(ev.direction) }}</span>
+                <span v-if="ev.runtime_status !== 'EFFECTIVE'" class="ev-note">{{ ev.runtime_status_reason }}</span>
               </div>
-
-              <div
-                v-if="topRiskNodes[0]"
-                class="analysis-point"
-              >
-                <i></i>
-
-                <div>
-                  当前最高风险节点为
-                  <b>{{ topRiskNodes[0].name }}</b>，
-                  风险指数
-                  <b>{{ topRiskNodes[0].riskScore }}</b>。
-                </div>
+              <div class="ev-stats">
+                <span>{{ ev.published_at }}</span>
+                <span>国家 {{ ev.country_id || '—' }}</span>
+                <span>影响路线 {{ (ev.affected_route_ids || []).join('、') || '—' }}</span>
               </div>
-
-              <div
-                v-if="highestRiskCategory"
-                class="analysis-point"
-              >
-                <i></i>
-
-                <div>
-                  当前风险贡献较高的维度为
-                  <b>{{ highestRiskCategory.name }}</b>，
-                  指数
-                  <b>{{ highestRiskCategory.value }}</b>。
-                </div>
+              <div v-if="selectedEventId === ev.event_id" class="ev-detail">
+                <div class="ev-row"><span>severity</span><b>{{ ev.severity_class || ev.severity || '—' }}</b></div>
+                <div class="ev-row"><span>状态</span><b>{{ eventStateLabel(ev.event_state) }}</b></div>
+                <div class="ev-row"><span>方向</span><b>{{ directionLabel(ev.direction) }}</b></div>
+                <div class="ev-row"><span>Runtime</span><b>{{ runtimeStatusLabel(ev.runtime_status) }}</b></div>
+                <div class="ev-row"><span>核验</span><b>{{ ev.verification_status }}</b></div>
+                <div class="ev-row"><span>命中节点</span><b>{{ (ev.affected_node_ids || []).join('、') || '—' }}</b></div>
+                <div class="ev-row"><span>影响路线</span><b>{{ (ev.affected_route_ids || []).join('、') || '—' }}</b></div>
+                <p class="ev-reason">{{ ev.runtime_status_reason }}</p>
               </div>
-            </template>
+            </div>
           </div>
 
+          <!-- Tab3 模型链 -->
+          <div v-if="activeTab === 'chain'" class="tab-body">
+            <div v-if="modelChainSummary" class="chain-summary">
+              <span>模型 <b>{{ modelChainSummary.total_models }}</b></span>
+              <span>成功 <b class="ok">{{ modelChainSummary.successful_models }}</b></span>
+              <span>失败 <b :class="modelChainSummary.failed_models ? 'bad' : 'ok'">{{ modelChainSummary.failed_models }}</b></span>
+              <span>总耗时 <b>{{ modelChainSummary.total_duration_ms }}ms</b></span>
+            </div>
+            <p class="chain-hint">
+              注册中心共 {{ modelCards.length || 11 }} 张模型卡；本次实际执行 {{ modelRuns.length }} 个模型（stage 0 组合模型不在本次执行中）。
+            </p>
+            <div class="chain-flow">
+              <template v-for="(run, i) in modelRuns" :key="run.model_id">
+                <div
+                  class="chain-node"
+                  :class="modelStatusClass(run.status, run.registry_status)"
+                  @click="toggleModelDetail(run.model_id)"
+                >
+                  <div class="cn-head">
+                    <strong>{{ modelName(run.model_id) }}</strong>
+                    <span class="cn-dur">{{ run.duration_ms }}ms</span>
+                  </div>
+                  <div class="cn-meta">
+                    <span v-if="run.registry_status === 'missing'" class="cn-warn">未注册</span>
+                    <span>{{ run.status }}</span>
+                    <span>v{{ run.model_version }}</span>
+                  </div>
+                </div>
+                <div v-if="i < modelRuns.length - 1" class="chain-arrow">↓</div>
 
-          <div class="analysis-confidence">
-            <span>研判置信度</span>
+                <div v-if="expandedModelRun === run.model_id" class="model-detail">
+                  <div class="md-row"><span>model_id</span><b>{{ run.model_id }}</b></div>
+                  <div class="md-row"><span>model_card_id</span><b>{{ run.model_card_id }}</b></div>
+                  <div class="md-row"><span>version</span><b>{{ run.model_version }}</b></div>
+                  <div class="md-row"><span>model_type</span><b>{{ run.model_type }}</b></div>
+                  <div class="md-row"><span>pipeline_stage</span><b>{{ run.pipeline_stage }}</b></div>
+                  <div class="md-row"><span>started_at</span><b>{{ run.started_at }}</b></div>
+                  <div class="md-row"><span>finished_at</span><b>{{ run.finished_at }}</b></div>
+                  <div class="md-row"><span>duration_ms</span><b>{{ run.duration_ms }}</b></div>
+                  <div class="md-row"><span>upstream</span><b>{{ (run.upstream_models || []).join(', ') || '—' }}</b></div>
+                  <div class="md-row"><span>input</span><b>{{ run.input_summary || '—' }}</b></div>
+                  <div class="md-row"><span>output</span><b>{{ run.output_summary || '—' }}</b></div>
+                  <div v-if="run.error" class="md-error">error: {{ run.error }}</div>
+                  <button class="md-card-btn" @click="viewModelCard(run.model_id)">查看模型卡</button>
+                </div>
+              </template>
+            </div>
 
-            <b :style="{ color: scoreColor }">
-              {{ verificationSummary.score || 0 }}%
-            </b>
-
-            <el-tag
-              size="small"
-              :type="levelTag"
-            >
-              {{ verificationSummary.level || '待验证' }}
-            </el-tag>
+            <div v-if="showModelCard && selectedModelCard" class="model-card">
+              <div class="mc-head">
+                <strong>{{ selectedModelCard.model_name || selectedModelCard.model_id }}</strong>
+                <button class="mc-close" @click="showModelCard = false">✕</button>
+              </div>
+              <div class="mc-row"><span>model_type</span><b>{{ selectedModelCard.model_type }}</b></div>
+              <div class="mc-row"><span>version</span><b>{{ selectedModelCard.version }}</b></div>
+              <div class="mc-row"><span>pipeline_stage</span><b>{{ selectedModelCard.pipeline_stage }}</b></div>
+              <div class="mc-row"><span>score_type</span><b>{{ scoreTypeText(selectedModelCard) }}</b></div>
+              <div v-if="selectedModelCard.model_id === 'uranium_route_risk_model_v1'" class="mc-cali">
+                <b>score_type: Absolute + Snapshot Relative</b><br/>
+                raw_risk_score = absolute model score<br/>
+                display_risk_score = snapshot-relative visualization score
+              </div>
+              <div v-if="selectedModelCard.calibration" class="mc-row"><span>calibration</span><b>{{ JSON.stringify(selectedModelCard.calibration) }}</b></div>
+              <p class="mc-desc">{{ selectedModelCard.description }}</p>
+              <p class="mc-algo"><b>算法:</b> {{ selectedModelCard.algorithm_summary }}</p>
+              <div class="mc-io">
+                <span><b>input_entities</b><br/>{{ (selectedModelCard.input_entities || []).join(', ') || '—' }}</span>
+                <span><b>output_entities</b><br/>{{ (selectedModelCard.output_entities || []).join(', ') || '—' }}</span>
+              </div>
+              <div class="mc-io">
+                <span><b>upstream</b><br/>{{ (selectedModelCard.upstream_models || []).join(', ') || '—' }}</span>
+                <span><b>downstream</b><br/>{{ (selectedModelCard.downstream_models || []).join(', ') || '—' }}</span>
+              </div>
+            </div>
           </div>
+                  </div>
+</section>
+        <!-- K2-UI-RISK-2:数据说明(默认折叠,§7) 
+        <section class="panel k2-data-status">
+          <button class="k2-ds-toggle" @click="showDataStatus = !showDataStatus">
+            {{ showDataStatus ? '▼ 数据说明' : '▶ 数据说明' }}
+          </button>
+          <div v-if="showDataStatus && dataProvenance">
+            <div class="k2-ds-row"><span>OSINT</span><b>{{ dataProvenance.osint_mode }} · {{ dataProvenance.osint_effective_count }} Effective / {{ dataProvenance.osint_registered_total }} Registered</b></div>
+            <div class="k2-ds-row"><span>路线</span><b>{{ dataProvenance.route_network_basis }} / PARTIAL</b></div>
+            <div class="k2-ds-row"><span>贸易</span><b>OBSERVED {{ dataProvenance.trade_data_year }}</b></div>
+            <div class="k2-ds-row"><span>供应贡献</span><b>{{ dataProvenance.supply_metric_basis }}</b></div>
+            <div class="k2-ds-row"><span>物理运力</span><b>{{ dataProvenance.physical_edge_capacity }}</b></div>
+            <div class="k2-ds-row"><span>校准</span><b>{{ dataProvenance.calibration_method }}</b></div>
+            <p class="k2-ds-note">风险为 MODEL-DERIVED / PARTIAL REAL INPUT,非实测现实风险</p>
+          </div>
+        </section>-->
 
-
-          <el-button
-            type="primary"
-            size="small"
-            class="verify-btn"
-            @click="$emit('open-verify')"
-          >
-            验证研判
-          </el-button>
-        </div>
-      </div>
-    </section>
-
-
-    <!-- =====================================================
-         时间轴
-    ====================================================== -->
-    <footer class="timeline-bar">
-
-      <el-button
-        size="small"
-        type="primary"
-        @click="togglePlay"
-      >
-        {{ playing ? '⏸ 暂停' : '▶ 态势推演' }}
-      </el-button>
-
-
-      <div class="timeline-year">
-        {{ currentYear || '当前' }}
-      </div>
-
-
-      <el-slider
-        v-model="yearIdx"
-        :min="0"
-        :max="maxIdx"
-        :step="1"
-        :show-tooltip="false"
-        class="timeline-slider"
-        @change="renderAll"
-      />
-
-
-      <div class="timeline-stat">
-        高风险节点
-        <b class="red-text">
-          {{ highRiskCount }}
-        </b>
-      </div>
-
-      <div class="timeline-stat">
-        综合风险
-        <b
-          :style="{
-            color: riskColor(overallRisk / 100)
-          }"
-        >
-          {{ overallRisk }}
-        </b>
-      </div>
-    </footer>
+      </aside>
+    </main>
   </div>
 </template>
 
-
 <script setup>
-import {
-  ref,
-  computed,
-  watch,
-  nextTick,
-  onMounted,
-  onBeforeUnmount
-} from 'vue'
-
 import * as echarts from 'echarts'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { ElMessage } from 'element-plus'
+import worldAtlas from 'world-atlas/countries-110m.json'
+import { feature } from 'topojson-client'
+import { getLatestSnapshot, recomputeSnapshot, getModelRegistry } from '@/api/uraniumSituationSnapshot'
+import { getChinaSourceAllocation } from '@/api/powerGame/uraniumKnowledge'
+import ChinaCurrentSituationBar from './ChinaCurrentSituationBar.vue'
+import { getChinaEvidenceBackedNetwork } from '@/api/powerGame/uraniumKnowledge'
 
-import {
-  ensureEchartsWorldMap
-} from '@/utils/ensureEchartsWorldMap'
+const chartRef = ref(null)
+let chart = null
 
+// 页面模式:当前态势(默认) / Simulation Demo
+// 当前态势模式:地图节点显示证据背书名称,不显示 Demo 标签。
+// K2-UI-RISK-2:正式态势固定 REAL(§4/§8);移除 demo 模式切换
+const mode = ref('real')
 
-/* ============================================================
-   Props
-============================================================ */
+// 证据背书网络元数据(K2-C3E):旧节点名 → 显示名/真实实体/证据等级。
+// 内部身份仍用旧 name(risk model / focusNode / tests 不变),仅展示层替换。
+const evidenceNetwork = ref(null)
 
-const props = defineProps({
-
-  scenario: {
-    type: String,
-    default: 'uranium'
-  },
-
-  situationMap: {
-    type: Object,
-    default: () => ({
-      updateTime: '',
-      points: [],
-      summary: '',
-      selfSufficiency: {},
-      supplierShares: [],
-      routes: [],
-      chokepoints: [],
-      storage: []
-    })
-  },
-
-  mapEvolution: {
-    type: Object,
-    default: () => ({
-      years: [],
-      frames: [],
-      events: [],
-      unit: ''
-    })
-  },
-
-  conclusion: {
-    type: Object,
-    default: () => ({
-      tag: '',
-      points: []
-    })
-  },
-
-  verificationSummary: {
-    type: Object,
-    default: () => ({
-      score: 0,
-      level: ''
-    })
+async function loadEvidenceNetwork() {
+  try {
+    const r = await getChinaEvidenceBackedNetwork()
+    evidenceNetwork.value = r.data || null
+  } catch (e) {
+    evidenceNetwork.value = null
   }
-})
+}
 
-defineEmits([
-  'open-verify'
-])
-
-
-/* ============================================================
-   Chart refs
-============================================================ */
-
-const mapRef = ref(null)
-
-const donutRef = ref(null)
-
-const radarRef = ref(null)
-
-let mapChart = null
-
-let donutChart = null
-
-let radarChart = null
-
-let resizeObserver = null
-
-let playTimer = null
-
-
-/* ============================================================
-   Timeline
-============================================================ */
-
-const playing = ref(false)
-
-const yearIdx = ref(0)
-
-const selectedRouteIndex = ref(0)
-
-
-const years = computed(() =>
-  Array.isArray(
-    props.mapEvolution.years
-  )
-    ? props.mapEvolution.years
-    : []
-)
-
-
-const frames = computed(() =>
-  Array.isArray(
-    props.mapEvolution.frames
-  )
-    ? props.mapEvolution.frames
-    : []
-)
-
-
-const events = computed(() =>
-  Array.isArray(
-    props.mapEvolution.events
-  )
-    ? props.mapEvolution.events
-    : []
-)
-
-
-const currentYear = computed(() =>
-  years.value[yearIdx.value] ||
-  ''
-)
-
-
-const maxIdx = computed(() =>
-  Math.max(
-    years.value.length - 1,
-    0
-  )
-)
-
-
-const currentFrame = computed(() =>
-  frames.value[
-    yearIdx.value
-  ] || {}
-)
-
-
-/* ============================================================
-   Basic data
-============================================================ */
-
-const selfSufficiency = computed(() =>
-  props.situationMap.selfSufficiency ||
-  {}
-)
-
-
-const supplierShares = computed(() =>
-  Array.isArray(
-    props.situationMap.supplierShares
-  )
-    ? props.situationMap.supplierShares
-    : []
-)
-
-
-const routes = computed(() =>
-  Array.isArray(
-    props.situationMap.routes
-  )
-    ? props.situationMap.routes
-    : []
-)
-
-
-const chokepoints = computed(() =>
-  Array.isArray(
-    props.situationMap.chokepoints
-  )
-    ? props.situationMap.chokepoints
-    : []
-)
-
-
-const storageNodes = computed(() =>
-  Array.isArray(
-    props.situationMap.storage
-  )
-    ? props.situationMap.storage
-    : []
-)
-
-
-/* ============================================================
-   Self sufficiency
-============================================================ */
-
-const selfPct = computed(() => {
-
-  const value =
-    selfSufficiency.value.ratioPct ??
-    selfSufficiency.value.selfPct ??
-    0
-
-  return Number(value) || 0
-})
-
-
-const overseasPct = computed(() => {
-
-  const value =
-    selfSufficiency.value.overseasRatioPct ??
-    selfSufficiency.value.overseasPct
-
-  if (value != null) {
-    return Number(value) || 0
-  }
-
-  return Math.max(
-    0,
-    100 - selfPct.value
-  )
-})
-
-
-const domesticVolume = computed(() =>
-  Number(
-    selfSufficiency.value.domestic ??
-    selfSufficiency.value.domesticVolume ??
-    0
-  ) || 0
-)
-
-
-const demandVolume = computed(() =>
-  Number(
-    selfSufficiency.value.demand ??
-    selfSufficiency.value.totalDemand ??
-    0
-  ) || 0
-)
-
-
-const overseasVolume = computed(() => {
-
-  if (
-    selfSufficiency.value.overseasVolume != null
-  ) {
-    return Number(
-      selfSufficiency.value.overseasVolume
-    ) || 0
-  }
-
-  return Math.max(
-    demandVolume.value -
-    domesticVolume.value,
-    0
-  )
-})
-
-
-/* ============================================================
-   Update time
-============================================================ */
-
-const updateTime = computed(() => {
-
-  if (
-    props.situationMap.updateTime
-  ) {
-    return props.situationMap.updateTime
-  }
-
-  return new Date().toLocaleString(
-    'zh-CN',
-    {
-      hour12: false
+const nodeMetaMap = computed(() => {
+  const map = {}
+  const routes = (evidenceNetwork.value && evidenceNetwork.value.routes) || []
+  for (const route of routes) {
+    for (const n of route.nodes || []) {
+      // 同一旧节点名出现在多条路线(如"国内接收枢纽"、"中哈边境口岸")时按路线区分绑定
+      map[`${route.route_id}|${n.old_name}`] = n
     }
-  )
+  }
+  return map
 })
 
+const routeEvidenceMap = computed(() => {
+  const map = {}
+  const routes = (evidenceNetwork.value && evidenceNetwork.value.routes) || []
+  for (const route of routes) map[route.route_id] = route
+  return map
+})
 
-/* ============================================================
-   Risk
-============================================================ */
-
-function normalizeRisk(value) {
-
-  let number =
-    Number(value) || 0
-
-  if (number > 1) {
-    number =
-      number / 100
-  }
-
-  return Math.max(
-    0,
-    Math.min(
-      1,
-      number
-    )
-  )
+function displayNodeName(node, routeId) {
+  const meta = nodeMetaMap.value[`${routeId}|${node.name}`]
+  // DISPLAY LAYER 中文化:display_name_zh 优先,保留英文 canonical display_name 作兜底/溯源
+  return (meta && (meta.display_name_zh || meta.display_name)) || node.name
 }
 
-
-function risk100(value) {
-
-  return Math.round(
-    normalizeRisk(value) *
-    100
-  )
+function nodeEvidenceMeta(node, routeId) {
+  return nodeMetaMap.value[`${routeId}|${node.name}`] || null
 }
 
+const activeRouteId = ref('all')
+const showNodeLabels = ref(true)
 
-function riskColor(value) {
-
-  const risk =
-    normalizeRisk(value)
-
-  if (risk >= 0.8) {
-    return '#dc2626'
-  }
-
-  if (risk >= 0.6) {
-    return '#f97316'
-  }
-
-  if (risk >= 0.4) {
-    return '#eab308'
-  }
-
-  return '#16a34a'
-}
-
-
-function riskBackground(value) {
-
-  const risk =
-    normalizeRisk(value)
-
-  if (risk >= 0.8) {
-    return '#fee2e2'
-  }
-
-  if (risk >= 0.6) {
-    return '#ffedd5'
-  }
-
-  if (risk >= 0.4) {
-    return '#fef9c3'
-  }
-
-  return '#dcfce7'
-}
-
-
-function riskLabel(value) {
-
-  const risk =
-    normalizeRisk(value)
-
-  if (risk >= 0.8) {
-    return '极高风险'
-  }
-
-  if (risk >= 0.6) {
-    return '高风险'
-  }
-
-  if (risk >= 0.4) {
-    return '中风险'
-  }
-
-  return '低风险'
-}
-
-
-function riskLevelShort(value) {
-
-  const risk =
-    normalizeRisk(value)
-
-  if (risk >= 0.8) {
-    return '极高'
-  }
-
-  if (risk >= 0.6) {
-    return '高'
-  }
-
-  if (risk >= 0.4) {
-    return '中'
-  }
-
-  return '低'
-}
-
-
-function supplierRisk(item = {}) {
-
-  return Math.max(
-
-    normalizeRisk(
-      item.riskScore
-    ),
-
-    normalizeRisk(
-      item.policyRisk
-    ),
-
-    normalizeRisk(
-      item.transportRisk
-    ),
-
-    normalizeRisk(
-      item.geopoliticalRisk
-    ),
-
-    normalizeRisk(
-      item.supplyRisk
-    )
-  )
-}
-
-
-/* ============================================================
-   Supplier shares
-============================================================ */
-
-const topSupplierShares = computed(() => {
-
-  return [
-    ...supplierShares.value
-  ]
-    .sort(
-      (a, b) =>
-        Number(b.sharePct || 0) -
-        Number(a.sharePct || 0)
-    )
-    .slice(
-      0,
-      7
-    )
+const summary = ref({
+  self: 35,
+  importShown: 55,
+  other: 10
 })
 
-
-/* ============================================================
-   Risk averages
-============================================================ */
-
-const supplierAverageRisk = computed(() => {
-
-  if (
-    !supplierShares.value.length
-  ) {
-    return 0
-  }
-
-  let weightedRisk = 0
-  let totalWeight = 0
-
-  supplierShares.value.forEach(
-    item => {
-
-      const weight =
-        Number(
-          item.sharePct
-        ) || 1
-
-      weightedRisk +=
-        supplierRisk(item) *
-        weight
-
-      totalWeight +=
-        weight
-    }
-  )
-
-  return weightedRisk /
-    Math.max(
-      totalWeight,
-      1
-    )
-})
-
-
-const policyAverageRisk = computed(() => {
-
-  if (
-    !supplierShares.value.length
-  ) {
-    return 0
-  }
-
-  return supplierShares.value.reduce(
-    (sum, item) =>
-      sum +
-      normalizeRisk(
-        item.policyRisk
-      ),
-    0
-  ) /
-  supplierShares.value.length
-})
-
-
-const geopoliticalAverageRisk = computed(() => {
-
-  if (
-    !supplierShares.value.length
-  ) {
-    return 0
-  }
-
-  return supplierShares.value.reduce(
-    (sum, item) =>
-      sum +
-      normalizeRisk(
-        item.geopoliticalRisk
-      ),
-    0
-  ) /
-  supplierShares.value.length
-})
-
-
-const routeAverageRisk = computed(() => {
-
-  if (
-    !routes.value.length
-  ) {
-    return 0
-  }
-
-  return routes.value.reduce(
-    (sum, item) =>
-      sum +
-      normalizeRisk(
-        item.riskScore
-      ),
-    0
-  ) /
-  routes.value.length
-})
-
-
-const chokepointAverageRisk = computed(() => {
-
-  if (
-    !chokepoints.value.length
-  ) {
-    return 0
-  }
-
-  return chokepoints.value.reduce(
-    (sum, item) =>
-      sum +
-      normalizeRisk(
-        item.riskScore
-      ),
-    0
-  ) /
-  chokepoints.value.length
-})
-
-
-const storageAverageRisk = computed(() => {
-
-  if (
-    !storageNodes.value.length
-  ) {
-    return 0
-  }
-
-  return storageNodes.value.reduce(
-    (sum, item) =>
-      sum +
-      normalizeRisk(
-        item.riskScore
-      ),
-    0
-  ) /
-  storageNodes.value.length
-})
-
-
-/* ============================================================
-   Overall risk
-============================================================ */
-
-const overallRisk = computed(() => {
-
-  const frameRisk =
-    currentFrame.value.risk
-
-  if (
-    frameRisk?.overall != null
-  ) {
-    return risk100(
-      frameRisk.overall
-    )
-  }
-
-  const value =
-    supplierAverageRisk.value * 0.30 +
-    routeAverageRisk.value * 0.25 +
-    chokepointAverageRisk.value * 0.30 +
-    storageAverageRisk.value * 0.15
-
-  return Math.round(
-    value * 100
-  )
-})
-
-
-const overallRiskText = computed(() =>
-  riskLabel(
-    overallRisk.value /
-    100
-  )
-)
-
-
-/* ============================================================
-   Radar
-============================================================ */
-
-const radarValues = computed(() => [
-
-  Math.round(
-    policyAverageRisk.value *
-    100
-  ),
-
-  Math.round(
-    geopoliticalAverageRisk.value *
-    100
-  ),
-
-  Math.round(
-    routeAverageRisk.value *
-    100
-  ),
-
-  Math.round(
-    chokepointAverageRisk.value *
-    100
-  ),
-
-  Math.round(
-    storageAverageRisk.value *
-    100
-  )
-])
-
-
-/* ============================================================
-   Bottom risk composition
-============================================================ */
-
-const riskComposition = computed(() => [
-
+const MOCK_ROUTES = [
   {
-    name:
-      '政策风险',
-
-    value:
-      Math.round(
-        policyAverageRisk.value *
-        100
-      ),
-
-    desc:
-      '出口限制、矿业政策、监管制度等变化'
-  },
-
-  {
-    name:
-      '地缘风险',
-
-    value:
-      Math.round(
-        geopoliticalAverageRisk.value *
-        100
-      ),
-
-    desc:
-      '供应国局势、外交环境及区域冲突影响'
-  },
-
-  {
-    name:
-      '运输风险',
-
-    value:
-      Math.round(
-        routeAverageRisk.value *
-        100
-      ),
-
-    desc:
-      '铁路、公路、海运及国际物流中断风险'
-  },
-
-  {
-    name:
-      '关键通道风险',
-
-    value:
-      Math.round(
-        chokepointAverageRisk.value *
-        100
-      ),
-
-    desc:
-      '海峡、运河、港口等关键物流节点风险'
-  },
-
-  {
-    name:
-      '接收仓储风险',
-
-    value:
-      Math.round(
-        storageAverageRisk.value *
-        100
-      ),
-
-    desc:
-      '国内接收、库存、储备及周转能力风险'
-  }
-])
-
-
-const highestRiskCategory = computed(() => {
-
-  if (
-    !riskComposition.value.length
-  ) {
-    return null
-  }
-
-  return [
-    ...riskComposition.value
-  ].sort(
-    (a, b) =>
-      b.value -
-      a.value
-  )[0]
-})
-
-
-/* ============================================================
-   Risk ranking
-============================================================ */
-
-function buildSupplierReason(item) {
-
-  if (
-    item.riskReason
-  ) {
-    return item.riskReason
-  }
-
-  const reasons = []
-
-  if (
-    normalizeRisk(
-      item.policyRisk
-    ) >= 0.6
-  ) {
-    reasons.push(
-      '政策变化风险较高'
-    )
-  }
-
-  if (
-    normalizeRisk(
-      item.geopoliticalRisk
-    ) >= 0.6
-  ) {
-    reasons.push(
-      '地缘环境风险较高'
-    )
-  }
-
-  if (
-    normalizeRisk(
-      item.transportRisk
-    ) >= 0.6
-  ) {
-    reasons.push(
-      '运输链路风险较高'
-    )
-  }
-
-  if (
-    normalizeRisk(
-      item.supplyRisk
-    ) >= 0.6
-  ) {
-    reasons.push(
-      '原料供应稳定性下降'
-    )
-  }
-
-  return reasons.length
-    ? reasons.join('、')
-    : '当前风险总体可控'
-}
-
-
-const allRiskNodes = computed(() => {
-
-  const result = []
-
-
-  supplierShares.value.forEach(
-    item => {
-
-      const risk =
-        supplierRisk(item)
-
-      result.push({
-
-        name:
-          item.country,
-
-        type:
-          '供应国',
-
-        risk,
-
-        riskScore:
-          risk100(risk),
-
-        reason:
-          buildSupplierReason(
-            item
-          )
-      })
-    }
-  )
-
-
-  routes.value.forEach(
-    item => {
-
-      const risk =
-        normalizeRisk(
-          item.riskScore
-        )
-
-      result.push({
-
-        name:
-          item.name ||
-          `${item.from || ''} → ${item.to || '中国'}`,
-
-        type:
-          '运输线路',
-
-        risk,
-
-        riskScore:
-          risk100(risk),
-
-        reason:
-          item.riskReason ||
-          item.reason ||
-          '运输中断、物流受阻或运输周期延长'
-      })
-    }
-  )
-
-
-  chokepoints.value.forEach(
-    item => {
-
-      const risk =
-        normalizeRisk(
-          item.riskScore
-        )
-
-      result.push({
-
-        name:
-          item.name,
-
-        type:
-          '关键通道',
-
-        risk,
-
-        riskScore:
-          risk100(risk),
-
-        reason:
-          item.riskReason ||
-          item.reason ||
-          '通道拥堵、中断或替代运输路径受限'
-      })
-    }
-  )
-
-
-  storageNodes.value.forEach(
-    item => {
-
-      const risk =
-        normalizeRisk(
-          item.riskScore
-        )
-
-      result.push({
-
-        name:
-          item.name,
-
-        type:
-          item.type === 'port'
-            ? '接收港'
-            : '仓储节点',
-
-        risk,
-
-        riskScore:
-          risk100(risk),
-
-        reason:
-          item.riskReason ||
-          item.reason ||
-          '接收能力、库存能力或物流衔接存在风险'
-      })
-    }
-  )
-
-
-  return result.sort(
-    (a, b) =>
-      b.riskScore -
-      a.riskScore
-  )
-})
-
-
-const topRiskNodes = computed(() =>
-  allRiskNodes.value.slice(
-    0,
-    8
-  )
-)
-
-
-const highRiskCount = computed(() =>
-  allRiskNodes.value.filter(
-    item =>
-      item.riskScore >= 60
-  ).length
-)
-
-
-const criticalRiskCount = computed(() =>
-  allRiskNodes.value.filter(
-    item =>
-      item.riskScore >= 80
-  ).length
-)
-
-
-/* ============================================================
-   Events
-============================================================ */
-
-const visibleEvents = computed(() => {
-
-  if (
-    !events.value.length
-  ) {
-    return []
-  }
-
-  if (
-    !currentYear.value
-  ) {
-    return events.value.slice(
-      0,
-      10
-    )
-  }
-
-  const result =
-    events.value.filter(
-      item =>
-        String(
-          item.time || ''
-        ).startsWith(
-          String(
-            currentYear.value
-          )
-        )
-    )
-
-  return result.length
-    ? result.slice(
-        0,
-        10
-      )
-    : events.value.slice(
-        0,
-        10
-      )
-})
-
-
-function eventRisk(event) {
-
-  if (
-    event.riskScore != null
-  ) {
-    return normalizeRisk(
-      event.riskScore
-    )
-  }
-
-  if (
-    event.level === '极高'
-  ) {
-    return 0.9
-  }
-
-  if (
-    event.level === '高'
-  ) {
-    return 0.7
-  }
-
-  if (
-    event.level === '中'
-  ) {
-    return 0.5
-  }
-
-  return 0.25
-}
-
-
-function formatEventDate(value) {
-
-  if (!value) {
-    return '--'
-  }
-
-  return String(value).slice(
-    0,
-    10
-  )
-}
-
-
-/* ============================================================
-   Selected route
-============================================================ */
-
-const selectedRoute = computed(() =>
-  routes.value[
-    selectedRouteIndex.value
-  ] || null
-)
-
-
-watch(
-  routes,
-  () => {
-
-    if (
-      selectedRouteIndex.value >=
-      routes.value.length
-    ) {
-      selectedRouteIndex.value = 0
-    }
+    id: 'kazakhstan',
+    country: '哈萨克斯坦',
+    mapName: 'Kazakhstan',
+    material: '天然铀 / 铀产品',
+    share: 16,
+    color: '#E9B949',
+    riskLevel: 'medium',
+    transport: '铁路联运为主',
+    desc: '中亚陆路方向，主要关注铁路运力、边境口岸通关效率和跨境物流稳定性。',
+    nodes: [
+      {
+        name: '哈萨克斯坦供应区',
+        type: '海外供应商',
+        coord: [67.0, 48.0],
+        risk: 'medium',
+        score: 58,
+        reason: '资源国出口安排、矿山产能和合同执行节奏变化可能影响供应。'
+      },
+      {
+        name: '中亚铁路集结点',
+        type: '铁路节点',
+        coord: [76.9, 43.2],
+        risk: 'low',
+        score: 32,
+        reason: '常规铁路节点，主要风险来自调度延误和换装效率。'
+      },
+      {
+        name: '中哈边境口岸',
+        type: '边境口岸',
+        coord: [82.6, 45.2],
+        risk: 'high',
+        score: 78,
+        reason: '跨境口岸若出现拥堵、通关变化或铁路换装延迟，可能形成瓶颈。'
+      },
+      {
+        name: '西北物流枢纽',
+        type: '国内转运',
+        coord: [87.6, 43.8],
+        risk: 'medium',
+        score: 51,
+        reason: '内陆转运受铁路组织、安保调度和天气影响。'
+      },
+      {
+        name: '国内接收枢纽',
+        type: '国内接收',
+        coord: [103.8, 36.1],
+        risk: 'low',
+        score: 26,
+        reason: '脱敏聚合节点，用于前端展示，不对应真实仓储地点。'
+      }
+    ]
   },
   {
-    deep: true
+    id: 'namibia',
+    country: '纳米比亚',
+    mapName: 'Namibia',
+    material: '天然铀 / 铀矿产品',
+    share: 10,
+    color: '#F97316',
+    riskLevel: 'high',
+    transport: '海运为主',
+    desc: '非洲西南方向，远洋链路较长，港口、船期和航运通道风险更突出。',
+    nodes: [
+      {
+        name: '纳米比亚供应区',
+        type: '海外供应商',
+        coord: [17.1, -22.5],
+        risk: 'medium',
+        score: 61,
+        reason: '矿山生产、出口政策和港口外运能力会影响交付节奏。'
+      },
+      {
+        name: '西南非洲出海港',
+        type: '港口',
+        coord: [14.5, -22.9],
+        risk: 'high',
+        score: 82,
+        reason: '港口拥堵、设备检修、罢工或安保事件可能导致装船延误。'
+      },
+      {
+        name: '印度洋航运通道',
+        type: '海运通道',
+        coord: [57.0, -20.0],
+        risk: 'medium',
+        score: 55,
+        reason: '长距离海运受天气、保险、绕航和航运价格波动影响。'
+      },
+      {
+        name: '中国东部接收港',
+        type: '港口',
+        coord: [121.5, 31.2],
+        risk: 'medium',
+        score: 49,
+        reason: '港口排期、监管检查和内陆衔接可能影响运输时效。'
+      },
+      {
+        name: '国内接收枢纽',
+        type: '国内接收',
+        coord: [114.3, 30.6],
+        risk: 'low',
+        score: 28,
+        reason: '脱敏聚合节点，用于前端展示，不对应真实仓储地点。'
+      }
+    ]
+  },
+  {
+    id: 'canada',
+    country: '加拿大',
+    mapName: 'Canada',
+    material: '铀产品 / 长协供应',
+    share: 8,
+    color: '#3B82F6',
+    riskLevel: 'medium',
+    transport: '铁路 + 太平洋海运',
+    desc: '北美方向，关注出口许可、铁路到港、港口排期和跨太平洋船期。',
+    nodes: [
+      {
+        name: '加拿大供应区',
+        type: '海外供应商',
+        coord: [-106.3, 56.1],
+        risk: 'medium',
+        score: 57,
+        reason: '出口许可、监管政策和合同执行节奏可能影响供应。'
+      },
+      {
+        name: '北美西岸港口',
+        type: '港口',
+        coord: [-123.1, 49.3],
+        risk: 'medium',
+        score: 54,
+        reason: '港口劳资、铁路到港衔接和船期波动可能带来延误。'
+      },
+      {
+        name: '北太平洋航线',
+        type: '海运通道',
+        coord: [-160.0, 42.0],
+        risk: 'low',
+        score: 36,
+        reason: '常规远洋运输风险，主要受天气和航线调度影响。'
+      },
+      {
+        name: '中国东部接收港',
+        type: '港口',
+        coord: [121.5, 31.2],
+        risk: 'medium',
+        score: 48,
+        reason: '港口排期、监管检查和内陆转运衔接可能影响到货节奏。'
+      },
+      {
+        name: '国内接收枢纽',
+        type: '国内接收',
+        coord: [116.4, 39.9],
+        risk: 'low',
+        score: 25,
+        reason: '脱敏聚合节点，用于前端展示，不对应真实仓储地点。'
+      }
+    ]
+  },
+  {
+    id: 'australia',
+    country: '澳大利亚',
+    mapName: 'Australia',
+    material: '铀产品 / 海运供应',
+    share: 7,
+    color: '#8B5CF6',
+    riskLevel: 'medium',
+    transport: '海运为主',
+    desc: '澳洲方向以海运为主，关注出口政策、港口调度和西太平洋航线。',
+    nodes: [
+      {
+        name: '澳大利亚供应区',
+        type: '海外供应商',
+        coord: [134.0, -25.0],
+        risk: 'medium',
+        score: 59,
+        reason: '资源政策、监管审批和合同安排可能影响供应节奏。'
+      },
+      {
+        name: '澳洲南部出海港',
+        type: '港口',
+        coord: [138.6, -34.9],
+        risk: 'medium',
+        score: 53,
+        reason: '港口排期、铁路集港和海运调度可能带来延误。'
+      },
+      {
+        name: '西太平洋航线',
+        type: '海运通道',
+        coord: [150.0, -5.0],
+        risk: 'low',
+        score: 34,
+        reason: '常规海运风险，受天气和航线安排影响。'
+      },
+      {
+        name: '中国南部接收港',
+        type: '港口',
+        coord: [113.3, 23.1],
+        risk: 'medium',
+        score: 46,
+        reason: '港口作业、监管检查和内陆衔接可能影响运输时效。'
+      },
+      {
+        name: '国内接收枢纽',
+        type: '国内接收',
+        coord: [112.9, 28.2],
+        risk: 'low',
+        score: 24,
+        reason: '脱敏聚合节点，用于前端展示，不对应真实仓储地点。'
+      }
+    ]
+  },
+  {
+    id: 'uzbekistan',
+    country: '乌兹别克斯坦',
+    mapName: 'Uzbekistan',
+    material: '天然铀 / 中亚供应',
+    share: 6,
+    color: '#22C55E',
+    riskLevel: 'medium',
+    transport: '铁路联运为主',
+    desc: '中亚陆路方向，依赖区域铁路转运和跨境口岸稳定性。',
+    nodes: [
+      {
+        name: '乌兹别克斯坦供应区',
+        type: '海外供应商',
+        coord: [64.6, 41.4],
+        risk: 'medium',
+        score: 56,
+        reason: '出口政策和铁路联运能力变化可能影响供应稳定性。'
+      },
+      {
+        name: '中亚铁路转运点',
+        type: '铁路节点',
+        coord: [69.2, 41.3],
+        risk: 'medium',
+        score: 50,
+        reason: '区域铁路调度、换装能力和边境等待时间可能影响时效。'
+      },
+      {
+        name: '中亚铁路走廊',
+        type: '铁路通道',
+        coord: [74.6, 43.0],
+        risk: 'low',
+        score: 35,
+        reason: '主要风险为天气、调度和运力波动。'
+      },
+      {
+        name: '中哈边境口岸',
+        type: '边境口岸',
+        coord: [82.6, 45.2],
+        risk: 'high',
+        score: 77,
+        reason: '该类跨境节点一旦拥堵，会影响多条中亚路线。'
+      },
+      {
+        name: '国内接收枢纽',
+        type: '国内接收',
+        coord: [103.8, 36.1],
+        risk: 'low',
+        score: 26,
+        reason: '脱敏聚合节点，用于前端展示，不对应真实仓储地点。'
+      }
+    ]
+  },
+  {
+    id: 'niger',
+    country: '尼日尔',
+    mapName: 'Niger',
+    material: '天然铀 / 非洲供应',
+    share: 4,
+    color: '#EF4444',
+    riskLevel: 'high',
+    transport: '陆路转运 + 海运',
+    desc: '西非内陆方向，陆路转运和周边港口衔接是主要风险来源。',
+    nodes: [
+      {
+        name: '尼日尔供应区',
+        type: '海外供应商',
+        coord: [8.1, 17.6],
+        risk: 'high',
+        score: 84,
+        reason: '资源国政策、安全形势和出口通道变化可能显著影响供应。'
+      },
+      {
+        name: '西非陆路通道',
+        type: '陆路通道',
+        coord: [3.4, 11.8],
+        risk: 'high',
+        score: 80,
+        reason: '内陆运输距离长，边境、道路和区域安全因素可能造成不确定性。'
+      },
+      {
+        name: '西非出海港',
+        type: '港口',
+        coord: [2.4, 6.4],
+        risk: 'medium',
+        score: 60,
+        reason: '港口排期、陆海联运衔接和区域物流变化可能影响装船。'
+      },
+      {
+        name: '印度洋/南海航线',
+        type: '海运通道',
+        coord: [75.0, 5.0],
+        risk: 'medium',
+        score: 54,
+        reason: '长距离海运受天气、保险、绕航和船期影响。'
+      },
+      {
+        name: '中国南部接收港',
+        type: '港口',
+        coord: [113.3, 23.1],
+        risk: 'medium',
+        score: 47,
+        reason: '港口排期和监管检查可能影响内陆转运节奏。'
+      }
+    ]
+  },
+  {
+    id: 'russia',
+    country: '俄罗斯',
+    mapName: 'Russia',
+    material: '铀产品 / 核燃料服务',
+    share: 3,
+    color: '#06B6D4',
+    riskLevel: 'medium',
+    transport: '铁路 / 海运组合',
+    desc: '欧亚方向，关注制裁、支付、保险、铁路和口岸通行变化。',
+    nodes: [
+      {
+        name: '俄罗斯供应区',
+        type: '海外供应商',
+        coord: [90.0, 60.0],
+        risk: 'medium',
+        score: 63,
+        reason: '外部制裁、贸易政策和物流保险安排可能影响履约。'
+      },
+      {
+        name: '西伯利亚铁路通道',
+        type: '铁路通道',
+        coord: [82.0, 56.0],
+        risk: 'medium',
+        score: 52,
+        reason: '长距离铁路运输受调度、天气和运力影响。'
+      },
+      {
+        name: '欧亚边境通道',
+        type: '边境口岸',
+        coord: [106.0, 50.0],
+        risk: 'medium',
+        score: 55,
+        reason: '跨境通关和铁路调度变化可能影响运输时效。'
+      },
+      {
+        name: '东北物流枢纽',
+        type: '国内转运',
+        coord: [126.6, 45.8],
+        risk: 'low',
+        score: 31,
+        reason: '常规内陆转运风险，受天气和调度影响。'
+      },
+      {
+        name: '国内接收枢纽',
+        type: '国内接收',
+        coord: [116.4, 39.9],
+        risk: 'low',
+        score: 25,
+        reason: '脱敏聚合节点，用于前端展示，不对应真实仓储地点。'
+      }
+    ]
   }
-)
-
-
-const selectedChainNodes = computed(() => {
-
-  const route =
-    selectedRoute.value
-
-  if (!route) {
-    return []
-  }
-
-  if (
-    Array.isArray(
-      route.nodes
-    ) &&
-    route.nodes.length
-  ) {
-    return route.nodes
-  }
-
-
-  const result = []
-
-
-  if (
-    route.from
-  ) {
-
-    const supplier =
-      supplierShares.value.find(
-        item =>
-          item.country ===
-          route.from
-      )
-
-    result.push({
-
-      name:
-        route.from,
-
-      type:
-        'supplier',
-
-      riskScore:
-        supplier
-          ? supplierRisk(
-              supplier
-            )
-          : route.riskScore
-    })
-  }
-
-
-  chokepoints.value.forEach(
-    item => {
-
-      result.push({
-
-        ...item,
-
-        type:
-          item.type ||
-          'chokepoint'
-      })
-    }
-  )
-
-
-  result.push({
-
-    name:
-      '中国接收中心',
-
-    type:
-      'china',
-
-    riskScore:
-      0.25
-  })
-
-
-  return result
-})
-
-
-function routeNodeIcon(node) {
-
-  const type =
-    String(
-      node.type || ''
-    ).toLowerCase()
-
-  if (
-    type.includes('mine') ||
-    type.includes('矿')
-  ) {
-    return '◆'
-  }
-
-  if (
-    type.includes('rail') ||
-    type.includes('铁路')
-  ) {
-    return '▣'
-  }
-
-  if (
-    type.includes('road') ||
-    type.includes('公路')
-  ) {
-    return '▦'
-  }
-
-  if (
-    type.includes('port') ||
-    type.includes('港')
-  ) {
-    return '⚓'
-  }
-
-  if (
-    type.includes('storage') ||
-    type.includes('仓')
-  ) {
-    return '▤'
-  }
-
-  if (
-    type.includes('choke') ||
-    type.includes('海峡') ||
-    type.includes('运河') ||
-    type.includes('通道')
-  ) {
-    return '●'
-  }
-
-  if (
-    type.includes('china') ||
-    node.name?.includes('中国')
-  ) {
-    return '★'
-  }
-
-  return '●'
-}
-
-
-/* ============================================================
-   China destination
-============================================================ */
-
-/*
- * 统一对华供应线路最终汇聚坐标。
- *
- * 用东部接收 / 需求中心，而不是几何中心，
- * 海运线路视觉效果更自然。
- */
-const CHINA_DEMAND_CENTER = [
-  116.5,
-  31.5
 ]
 
+// 当前展示数据源:默认用 mock 兜底,后端 latest 快照加载成功后替换
+const routes = ref(MOCK_ROUTES)
+const loadingSnapshot = ref(false)
+const snapshotError = ref('')
+const snapshotMeta = ref(null)
+const recomputing = ref(false)
+const recomputeMessage = ref('')
 
-/* ============================================================
-   Route coordinates
-============================================================ */
+// ── 第十二步:风险解释与模型链可视化状态 ─────────────
+const snapshotData = ref(null) // 完整快照(osint_events / model_chain / model_runs / edges)
+const activeTab = ref('risk') // risk | osint | chain
+const expandedRouteId = ref('')
+const showDataStatus = ref(false)
+const selectedNodeDetail = ref(null)
+const selectedEventId = ref('')
+const emphasizedNodeNames = ref([])
+const emphasizedEdgeKeys = ref([])
+const expandedModelRun = ref('')
+const modelCards = ref([])
+const showModelCard = ref(false)
+const selectedModelCard = ref(null)
 
-function correctRouteCoords(route) {
+const currentRouteName = computed(() => {
+  const route = routes.value.find(item => item.id === activeRouteId.value)
+  return route ? route.country : '全部'
+})
 
-  let coords =
-    Array.isArray(
-      route.waypoints
-    )
-      ? route.waypoints
-          .filter(
-            point =>
-              Array.isArray(
-                point
-              ) &&
-              point.length >= 2
-          )
-          .map(
-            point => [
-              Number(
-                point[0]
-              ),
-              Number(
-                point[1]
-              )
-            ]
-          )
-      : []
+const visibleRoutes = computed(() => {
+  if (activeRouteId.value === 'all') return routes.value
+  return routes.value.filter(item => item.id === activeRouteId.value)
+})
 
-
-  /*
-   * waypoints 为空时，
-   * 自动尝试供应国坐标。
-   */
-  if (
-    !coords.length
-  ) {
-
-    const supplier =
-      supplierShares.value.find(
-        item =>
-          item.country ===
-          route.from
-      )
-
-    if (
-      supplier &&
-      Number.isFinite(
-        Number(
-          supplier.lng
-        )
-      ) &&
-      Number.isFinite(
-        Number(
-          supplier.lat
-        )
-      )
-    ) {
-
-      coords.push([
-        Number(
-          supplier.lng
-        ),
-        Number(
-          supplier.lat
-        )
-      ])
-    }
-  }
-
-
-  if (
-    !coords.length
-  ) {
-    return []
-  }
-
-
-  const last =
-    coords[
-      coords.length - 1
-    ]
-
-
-  const distance =
-    Math.sqrt(
-
-      Math.pow(
-        last[0] -
-        CHINA_DEMAND_CENTER[0],
-        2
-      ) +
-
-      Math.pow(
-        last[1] -
-        CHINA_DEMAND_CENTER[1],
-        2
-      )
-    )
-
-
-  /*
-   * 无论后台传什么，
-   * 最后一段统一真正连到中国。
-   */
-  if (
-    distance > 2
-  ) {
-
-    coords.push(
-      [
-        ...CHINA_DEMAND_CENTER
-      ]
-    )
-  }
-  else {
-
-    coords[
-      coords.length - 1
-    ] = [
-      ...CHINA_DEMAND_CENTER
-    ]
-  }
-
-
-  return coords
-}
-
-
-/* ============================================================
-   Map series
-============================================================ */
-
-function buildMapSeries() {
-
-  const series = []
-
-
-  /* ========================================================
-     1. 国际运输线路
-  ======================================================== */
-
-  const lineData = []
-
-
-  routes.value.forEach(
-    route => {
-
-      const coords =
-        correctRouteCoords(
-          route
-        )
-
-
-      if (
-        coords.length < 2
-      ) {
-        return
-      }
-
-
-      const risk =
-        normalizeRisk(
-          route.riskScore
-        )
-
-
-      lineData.push({
-
-        name:
-          route.name ||
-          `${route.from || ''} → 中国`,
-
-        coords,
-
-        riskScore:
-          risk,
-
-        mode:
-          route.mode ||
-          '综合运输',
-
-        riskReason:
-          route.riskReason ||
-          route.reason ||
-          '',
-
-        lineStyle: {
-
-          color:
-            riskColor(risk),
-
-          width:
-            risk >= 0.8
-              ? 4.5
-              : risk >= 0.6
-                ? 3.6
-                : risk >= 0.4
-                  ? 2.6
-                  : 1.8,
-
-          opacity:
-            risk >= 0.6
-              ? 0.95
-              : 0.75,
-
-          type:
-            route.backup
-              ? 'dashed'
-              : 'solid'
-        },
-
-        effect: {
-          color:
-            riskColor(risk)
-        }
-      })
-    }
+const allRiskNodes = computed(() => {
+  return routes.value.flatMap(route =>
+    route.nodes.map(node => ({
+      routeId: route.id,
+      route: route.country,
+      node: node.name,
+      level: node.risk,
+      reason: node.reason,
+      score: node.score
+    }))
   )
+})
 
-
-  if (
-    lineData.length
-  ) {
-
-    series.push({
-
-      name:
-        '全球铀运输线路',
-
-      type:
-        'lines',
-
-      coordinateSystem:
-        'geo',
-
-      polyline:
-        true,
-
-      zlevel:
-        2,
-
-      effect: {
-
-        show:
-          true,
-
-        constantSpeed:
-          26,
-
-        trailLength:
-          0.07,
-
-        symbol:
-          'arrow',
-
-        symbolSize:
-          7
-      },
-
-      lineStyle: {
-
-        opacity:
-          0.82
-      },
-
-      data:
-        lineData
-    })
-  }
-
-
-  /* ========================================================
-     2. 供应国
-  ======================================================== */
-
-  const supplierData =
-    supplierShares.value
-      .filter(
-        item =>
-          Number.isFinite(
-            Number(
-              item.lng
-            )
-          ) &&
-          Number.isFinite(
-            Number(
-              item.lat
-            )
-          )
-      )
-      .map(
-        item => {
-
-          const risk =
-            supplierRisk(
-              item
-            )
-
-          return {
-
-            name:
-              item.country,
-
-            supplier:
-              item,
-
-            riskScore:
-              risk,
-
-            value: [
-              Number(
-                item.lng
-              ),
-              Number(
-                item.lat
-              ),
-              Number(
-                item.sharePct
-              ) || 0
-            ],
-
-            symbolSize:
-              Math.max(
-                12,
-                Math.min(
-                  25,
-                  12 +
-                  Number(
-                    item.sharePct || 0
-                  ) *
-                  0.22
-                )
-              ),
-
-            itemStyle: {
-
-              color:
-                riskColor(
-                  risk
-                ),
-
-              borderColor:
-                '#ffffff',
-
-              borderWidth:
-                2,
-
-              shadowBlur:
-                risk >= 0.6
-                  ? 14
-                  : 5,
-
-              shadowColor:
-                riskColor(
-                  risk
-                )
-            }
-          }
-        }
-      )
-
-
-  if (
-    supplierData.length
-  ) {
-
-    series.push({
-
-      name:
-        '供应国',
-
-      type:
-        'effectScatter',
-
-      coordinateSystem:
-        'geo',
-
-      zlevel:
-        5,
-
-      rippleEffect: {
-
-        brushType:
-          'stroke',
-
-        scale:
-          2.6
-      },
-
-      label: {
-
-        show:
-          true,
-
-        position:
-          'top',
-
-        distance:
-          7,
-
-        formatter(params) {
-
-          const item =
-            params.data.supplier
-
-          return (
-            `{country|${item.country}}\n` +
-            `{share|供应 ${Number(item.sharePct || 0).toFixed(1)}%} ` +
-            `{risk|风险 ${risk100(params.data.riskScore)}}`
-          )
-        },
-
-        rich: {
-
-          country: {
-
-            color:
-              '#1e293b',
-
-            fontSize:
-              11,
-
-            fontWeight:
-              700,
-
-            lineHeight:
-              17,
-
-            backgroundColor:
-              'rgba(255,255,255,.91)',
-
-            borderColor:
-              '#dbe4ec',
-
-            borderWidth:
-              1,
-
-            padding:
-              [2, 4],
-
-            borderRadius:
-              3
-          },
-
-          share: {
-
-            color:
-              '#475569',
-
-            fontSize:
-              9,
-
-            lineHeight:
-              16
-          },
-
-          risk: {
-
-            color:
-              '#b91c1c',
-
-            fontSize:
-              9,
-
-            fontWeight:
-              700,
-
-            lineHeight:
-              16
-          }
-        }
-      },
-
-      data:
-        supplierData
-    })
-  }
-
-
-  /* ========================================================
-     3. 关键海峡 / 运河
-  ======================================================== */
-
-  const chokepointData =
-    chokepoints.value
-      .filter(
-        item =>
-          Number.isFinite(
-            Number(
-              item.lng
-            )
-          ) &&
-          Number.isFinite(
-            Number(
-              item.lat
-            )
-          )
-      )
-      .map(
-        item => {
-
-          const risk =
-            normalizeRisk(
-              item.riskScore
-            )
-
-          return {
-
-            name:
-              item.name,
-
-            raw:
-              item,
-
-            riskScore:
-              risk,
-
-            value: [
-              Number(
-                item.lng
-              ),
-              Number(
-                item.lat
-              ),
-              risk100(
-                risk
-              )
-            ],
-
-            symbolSize:
-              risk >= 0.8
-                ? 31
-                : risk >= 0.6
-                  ? 27
-                  : risk >= 0.4
-                    ? 22
-                    : 18,
-
-            itemStyle: {
-
-              color:
-                riskColor(
-                  risk
-                ),
-
-              shadowBlur:
-                risk >= 0.6
-                  ? 16
-                  : 5,
-
-              shadowColor:
-                riskColor(
-                  risk
-                )
-            }
-          }
-        }
-      )
-
-
-  if (
-    chokepointData.length
-  ) {
-
-    series.push({
-
-      name:
-        '关键咽喉',
-
-      type:
-        'effectScatter',
-
-      coordinateSystem:
-        'geo',
-
-      zlevel:
-        8,
-
-      symbol:
-        'pin',
-
-      rippleEffect: {
-
-        brushType:
-          'stroke',
-
-        scale:
-          3
-      },
-
-      label: {
-
-        show:
-          true,
-
-        position:
-          'right',
-
-        distance:
-          7,
-
-        formatter(params) {
-
-          return (
-            `{name|${params.name}}\n` +
-            `{risk|风险 ${risk100(params.data.riskScore)} · ${riskLevelShort(params.data.riskScore)}}`
-          )
-        },
-
-        rich: {
-
-          name: {
-
-            color:
-              '#1e293b',
-
-            fontSize:
-              10,
-
-            fontWeight:
-              700,
-
-            backgroundColor:
-              'rgba(255,255,255,.92)',
-
-            borderColor:
-              '#dbe4ec',
-
-            borderWidth:
-              1,
-
-            padding:
-              [2, 4],
-
-            borderRadius:
-              3
-          },
-
-          risk: {
-
-            color:
-              '#b91c1c',
-
-            fontSize:
-              9,
-
-            lineHeight:
-              16
-          }
-        }
-      },
-
-      data:
-        chokepointData
-    })
-  }
-
-
-  /* ========================================================
-     4. 国内港口 / 仓储
-  ======================================================== */
-
-  const storageData =
-    storageNodes.value
-      .filter(
-        item =>
-          Number.isFinite(
-            Number(
-              item.lng
-            )
-          ) &&
-          Number.isFinite(
-            Number(
-              item.lat
-            )
-          )
-      )
-      .map(
-        item => {
-
-          const risk =
-            normalizeRisk(
-              item.riskScore
-            )
-
-          return {
-
-            name:
-              item.name,
-
-            raw:
-              item,
-
-            riskScore:
-              risk,
-
-            value: [
-              Number(
-                item.lng
-              ),
-              Number(
-                item.lat
-              ),
-              risk100(
-                risk
-              )
-            ],
-
-            itemStyle: {
-
-              color:
-                riskColor(
-                  risk
-                ),
-
-              borderColor:
-                '#ffffff',
-
-              borderWidth:
-                2,
-
-              shadowBlur:
-                risk >= 0.6
-                  ? 11
-                  : 4,
-
-              shadowColor:
-                riskColor(
-                  risk
-                )
-            }
-          }
-        }
-      )
-
-
-  if (
-    storageData.length
-  ) {
-
-    series.push({
-
-      name:
-        '港口/仓储',
-
-      type:
-        'scatter',
-
-      coordinateSystem:
-        'geo',
-
-      zlevel:
-        9,
-
-      symbol:
-        'diamond',
-
-      symbolSize:
-        16,
-
-      label: {
-
-        show:
-          true,
-
-        position:
-          'right',
-
-        distance:
-          7,
-
-        formatter(params) {
-
-          return (
-            `{name|${params.name}}\n` +
-            `{risk|风险 ${risk100(params.data.riskScore)}}`
-          )
-        },
-
-        rich: {
-
-          name: {
-
-            color:
-              '#334155',
-
-            fontSize:
-              10,
-
-            fontWeight:
-              700,
-
-            backgroundColor:
-              'rgba(255,255,255,.92)',
-
-            borderColor:
-              '#dbe4ec',
-
-            borderWidth:
-              1,
-
-            padding:
-              [2, 4],
-
-            borderRadius:
-              3
-          },
-
-          risk: {
-
-            color:
-              '#b91c1c',
-
-            fontSize:
-              9,
-
-            lineHeight:
-              16
-          }
-        }
-      },
-
-      data:
-        storageData
-    })
-  }
-
-
-  /* ========================================================
-     5. 中国接收中心
-  ======================================================== */
-
-  series.push({
-
-    name:
-      '中国接收中心',
-
-    type:
-      'effectScatter',
-
-    coordinateSystem:
-      'geo',
-
-    zlevel:
-      15,
-
-    symbol:
-      'diamond',
-
-    symbolSize:
-      28,
-
-    rippleEffect: {
-
-      scale:
-        3.5,
-
-      brushType:
-        'stroke'
-    },
-
-    label: {
-
-      show:
-        true,
-
-      position:
-        'top',
-
-      distance:
-        9,
-
-      formatter:
-        '{china|中国}\n{desc|铀供应接收汇聚中心}',
-
-      rich: {
-
-        china: {
-
-          color:
-            '#b91c1c',
-
-          fontSize:
-            13,
-
-          fontWeight:
-            800
-        },
-
-        desc: {
-
-          color:
-            '#64748b',
-
-          fontSize:
-            9
-        }
-      }
-    },
-
-    data: [
-
-      {
-
-        name:
-          '中国',
-
-        value: [
-          CHINA_DEMAND_CENTER[0],
-          CHINA_DEMAND_CENTER[1],
-          100
-        ],
-
-        itemStyle: {
-
-          color:
-            '#facc15',
-
-          borderColor:
-            '#ffffff',
-
-          borderWidth:
-            2,
-
-          shadowBlur:
-            16,
-
-          shadowColor:
-            '#f59e0b'
-        }
-      }
-    ]
-  })
-
-
-  /* ========================================================
-     6. 极高风险预警圈
-  ======================================================== */
-
-  const criticalNodes = []
-
-
-  supplierShares.value.forEach(
-    item => {
-
-      if (
-        supplierRisk(
-          item
-        ) >= 0.8 &&
-        Number.isFinite(
-          Number(
-            item.lng
-          )
-        ) &&
-        Number.isFinite(
-          Number(
-            item.lat
-          )
-        )
-      ) {
-
-        criticalNodes.push({
-
-          name:
-            item.country,
-
-          value: [
-            Number(
-              item.lng
-            ),
-            Number(
-              item.lat
-            ),
-            risk100(
-              supplierRisk(
-                item
-              )
-            )
-          ]
-        })
-      }
-    }
-  )
-
-
-  chokepoints.value.forEach(
-    item => {
-
-      if (
-        normalizeRisk(
-          item.riskScore
-        ) >= 0.8 &&
-        Number.isFinite(
-          Number(
-            item.lng
-          )
-        ) &&
-        Number.isFinite(
-          Number(
-            item.lat
-          )
-        )
-      ) {
-
-        criticalNodes.push({
-
-          name:
-            item.name,
-
-          value: [
-            Number(
-              item.lng
-            ),
-            Number(
-              item.lat
-            ),
-            risk100(
-              item.riskScore
-            )
-          ]
-        })
-      }
-    }
-  )
-
-
-  storageNodes.value.forEach(
-    item => {
-
-      if (
-        normalizeRisk(
-          item.riskScore
-        ) >= 0.8 &&
-        Number.isFinite(
-          Number(
-            item.lng
-          )
-        ) &&
-        Number.isFinite(
-          Number(
-            item.lat
-          )
-        )
-      ) {
-
-        criticalNodes.push({
-
-          name:
-            item.name,
-
-          value: [
-            Number(
-              item.lng
-            ),
-            Number(
-              item.lat
-            ),
-            risk100(
-              item.riskScore
-            )
-          ]
-        })
-      }
-    }
-  )
-
-
-  if (
-    criticalNodes.length
-  ) {
-
-    series.push({
-
-      name:
-        '极高风险预警',
-
-      type:
-        'effectScatter',
-
-      coordinateSystem:
-        'geo',
-
-      zlevel:
-        4,
-
-      symbol:
-        'circle',
-
-      symbolSize:
-        38,
-
-      rippleEffect: {
-
-        period:
-          2,
-
-        scale:
-          4,
-
-        brushType:
-          'stroke'
-      },
-
-      itemStyle: {
-
-        color:
-          'rgba(220,38,38,.18)'
-      },
-
-      label: {
-        show:
-          false
-      },
-
-      data:
-        criticalNodes
-    })
-  }
-
-
-  return series
-}
-
-
-/* ============================================================
-   Map option
-============================================================ */
-
-function buildMapOption() {
+const riskCount = computed(() => {
+  const nodes = visibleRoutes.value.flatMap(route => route.nodes)
 
   return {
+    high: nodes.filter(node => node.risk === 'high').length,
+    medium: nodes.filter(node => node.risk === 'medium').length,
+    low: nodes.filter(node => node.risk === 'low').length
+  }
+})
 
-    backgroundColor:
-      '#eef5fa',
+const visibleRiskEvents = computed(() => {
+  const activeIds = visibleRoutes.value.map(item => item.id)
 
-    animation:
-      true,
+  return allRiskNodes.value
+    .filter(item => activeIds.includes(item.routeId))
+    .filter(item => item.level !== 'low')
+    .sort((a, b) => b.score - a.score)
+})
 
-    tooltip: {
+function riskText(level) {
+  return {
+    low: '低风险',
+    medium: '中风险',
+    high: '高风险'
+  }[level]
+}
 
-      trigger:
-        'item',
+function riskColor(level) {
+  return {
+    low: '#16A34A',
+    medium: '#F59E0B',
+    high: '#DC2626'
+  }[level]
+}
 
-      confine:
-        true,
+// 路线风险语义色:high→red / medium→orange / low→green
+// 所有路线主线必须使用此函数,选中/高亮只能改变宽度/透明度/glow,不能改变风险色
+const ROUTE_RISK_COLOR = { high: '#DC2626', medium: '#F59E0B', low: '#16A34A' }
+const ROUTE_RISK_DEFAULT_COLOR = '#64748B'
 
-      backgroundColor:
-        'rgba(255,255,255,.98)',
+function getRouteRiskColor(route) {
+  const level = route.riskLevel || route.risk_level
+  return ROUTE_RISK_COLOR[level] || ROUTE_RISK_DEFAULT_COLOR
+}
 
-      borderColor:
-        '#cbd5e1',
+// ═══════════════════════════════════════════════
+// 第十二步:风险解释 / OSINT / 模型链 计算与辅助
+// ═══════════════════════════════════════════════
 
-      borderWidth:
-        1,
+const edges = computed(() => snapshotData.value?.edges || [])
 
-      padding:
-        10,
+const osintEvents = computed(() => {
+  const evs = (snapshotData.value?.osint_events || []).map(ev => ({
+    ...ev,
+    effective_severity: Number(ev.effective_severity || 0)
+  }))
+  return evs.sort((a, b) => b.effective_severity - a.effective_severity)
+})
 
-      textStyle: {
+const modelRuns = computed(() => {
+  // K2-UI-RISK-2:优先本次真实 execution_trace(§42),回退 meta.model_runs
+  const runs = snapshotData.value?.execution_trace || snapshotData.value?.meta?.model_runs || []
+  return [...runs].sort(
+    (a, b) => (a.pipeline_stage ?? 99) - (b.pipeline_stage ?? 99)
+  )
+})
 
-        color:
-          '#334155',
+const modelChainSummary = computed(() => snapshotData.value?.model_chain || null)
 
-        fontSize:
-          12
-      },
+const routeStats = computed(() => {
+  const arr = routes.value
+  return {
+    high: arr.filter(r => r.riskLevel === 'high').length,
+    medium: arr.filter(r => r.riskLevel === 'medium').length,
+    low: arr.filter(r => r.riskLevel === 'low').length
+  }
+})
 
-      extraCssText:
-        'box-shadow:0 8px 26px rgba(15,23,42,.14);border-radius:8px;',
+const osintSummary = computed(() => {
+  const oi = snapshotData.value?.osint_info || {}
+  const base = {
+    nodes: snapshotData.value?.summary?.affectedNodes ?? 0,
+    edges: snapshotData.value?.summary?.affectedEdges ?? 0,
+    registered: oi.registered_total ?? oi.real_event_count ?? 0,
+    effective: oi.effective_count ?? oi.real_event_count ?? osintEvents.value.length
+  }
+  if (mode.value === 'real' && oi.osint_mode === 'REAL') {
+    return {
+      ...base,
+      events: oi.real_event_count ?? osintEvents.value.length,
+      active: oi.active_event_count ?? 0,
+      recovered: oi.recovered_event_count ?? 0,
+      riskEffective: oi.risk_effective_count ?? 0,
+      isReal: true
+    }
+  }
+  return { ...base, events: osintEvents.value.length, active: 0, recovered: 0, isReal: false }
+})
 
-      formatter(params) {
+// K2-UI-RISK-1:快照真实性/溯源(§56-59)
+const routeShareMap = ref({})
+// K2-SUPPLY-SHARE-3F-R:路线供应占比(route_id → display %)
+async function loadSourceAllocation() {
+  try {
+    const r = await getChinaSourceAllocation()
+    const comps = ((r && r.data) || {}).components || []
+    const m = {}
+    comps.forEach(c => { if (c.route_id) m[c.route_id] = c.display_share_percent })
+    routeShareMap.value = m
+  } catch (e) { /* 降级为空 */ }
+}
+function routeShare(routeId) { return routeShareMap.value[routeId] }
+const empiricalCalibration = computed(() => snapshotData.value?.empirical_calibration || null)
+const empiricalSampleNote = computed(() => {
+  const c = empiricalCalibration.value
+  return c ? (c.horizon_days + ' 天 · ' + (c.method || '经验分箱')) : '样本积累中'
+})
+const snapshotIsReal = computed(() => {
+  const oi = snapshotData.value?.osint_info || {}
+  return mode.value === 'real' && oi.osint_mode === 'REAL' && !!snapshotData.value?.is_official_runtime_view
+})
+const snapshotMode = computed(() => (snapshotData.value?.osint_info || {}).osint_mode || 'REAL')
+const dataProvenance = computed(() => snapshotData.value?.data_provenance || null)
 
-
-        /* 线路 */
-        if (
-          params.seriesName ===
-          '全球铀运输线路'
-        ) {
-
-          const data =
-            params.data ||
-            {}
-
-          return `
-            <div style="
-              font-size:14px;
-              font-weight:700;
-              margin-bottom:7px;
-            ">
-              ${data.name || ''}
-            </div>
-
-            <div>
-              运输方式：
-              <b>${data.mode || '--'}</b>
-            </div>
-
-            <div>
-              风险指数：
-              <b style="
-                color:${riskColor(data.riskScore)}
-              ">
-                ${risk100(data.riskScore)}
-              </b>
-            </div>
-
-            <div>
-              风险等级：
-              <b style="
-                color:${riskColor(data.riskScore)}
-              ">
-                ${riskLabel(data.riskScore)}
-              </b>
-            </div>
-
-            ${
-              data.riskReason
-                ? `
-                  <div style="
-                    margin-top:6px;
-                    max-width:280px;
-                    color:#64748b;
-                    line-height:1.5;
-                  ">
-                    风险原因：
-                    ${data.riskReason}
-                  </div>
-                `
-                : ''
-            }
-          `
-        }
-
-
-        /* 供应国 */
-        if (
-          params.seriesName ===
-          '供应国'
-        ) {
-
-          const data =
-            params.data.supplier ||
-            {}
-
-          const risk =
-            supplierRisk(
-              data
-            )
-
-          return `
-            <div style="
-              font-size:14px;
-              font-weight:700;
-              margin-bottom:7px;
-            ">
-              ${data.country || ''}
-            </div>
-
-            <div>
-              对华供应占比：
-              <b>
-                ${Number(data.sharePct || 0).toFixed(1)}%
-              </b>
-            </div>
-
-            ${
-              data.annualImport != null
-                ? `
-                  <div>
-                    供应量：
-                    ${formatNumber(data.annualImport)} tU
-                  </div>
-                `
-                : ''
-            }
-
-            <div>
-              政策风险：
-              ${risk100(data.policyRisk)}
-            </div>
-
-            <div>
-              地缘风险：
-              ${risk100(data.geopoliticalRisk)}
-            </div>
-
-            <div>
-              运输风险：
-              ${risk100(data.transportRisk)}
-            </div>
-
-            <div>
-              供应风险：
-              ${risk100(data.supplyRisk)}
-            </div>
-
-            <div style="
-              margin-top:5px;
-            ">
-              综合风险：
-              <b style="
-                color:${riskColor(risk)}
-              ">
-                ${risk100(risk)}
-                ·
-                ${riskLabel(risk)}
-              </b>
-            </div>
-
-            ${
-              data.riskReason
-                ? `
-                  <div style="
-                    margin-top:6px;
-                    max-width:280px;
-                    color:#64748b;
-                    line-height:1.5;
-                  ">
-                    ${data.riskReason}
-                  </div>
-                `
-                : ''
-            }
-          `
-        }
-
-
-        /* 咽喉 */
-        if (
-          params.seriesName ===
-          '关键咽喉'
-        ) {
-
-          const data =
-            params.data.raw ||
-            {}
-
-          return `
-            <div style="
-              font-size:14px;
-              font-weight:700;
-              margin-bottom:6px;
-            ">
-              ${data.name || ''}
-            </div>
-
-            <div>
-              风险指数：
-              <b style="
-                color:${riskColor(data.riskScore)}
-              ">
-                ${risk100(data.riskScore)}
-              </b>
-            </div>
-
-            <div>
-              风险等级：
-              <b style="
-                color:${riskColor(data.riskScore)}
-              ">
-                ${riskLabel(data.riskScore)}
-              </b>
-            </div>
-
-            ${
-              data.reason ||
-              data.riskReason
-                ? `
-                  <div style="
-                    margin-top:6px;
-                    max-width:280px;
-                    color:#64748b;
-                    line-height:1.5;
-                  ">
-                    ${
-                      data.riskReason ||
-                      data.reason
-                    }
-                  </div>
-                `
-                : ''
-            }
-          `
-        }
-
-
-        /* 仓储 */
-        if (
-          params.seriesName ===
-          '港口/仓储'
-        ) {
-
-          const data =
-            params.data.raw ||
-            {}
-
-          return `
-            <div style="
-              font-size:14px;
-              font-weight:700;
-              margin-bottom:6px;
-            ">
-              ${data.name || ''}
-            </div>
-
-            <div>
-              类型：
-              ${data.type || '港口/仓储'}
-            </div>
-
-            <div>
-              风险指数：
-              <b style="
-                color:${riskColor(data.riskScore)}
-              ">
-                ${risk100(data.riskScore)}
-              </b>
-            </div>
-
-            ${
-              data.capacity != null
-                ? `
-                  <div>
-                    库容：
-                    ${formatNumber(data.capacity)} tU
-                  </div>
-                `
-                : ''
-            }
-
-            ${
-              data.reason ||
-              data.riskReason
-                ? `
-                  <div style="
-                    margin-top:6px;
-                    max-width:280px;
-                    color:#64748b;
-                    line-height:1.5;
-                  ">
-                    ${
-                      data.riskReason ||
-                      data.reason
-                    }
-                  </div>
-                `
-                : ''
-            }
-          `
-        }
-
-
-        return params.name ||
-          ''
+// K2-UI-RISK-1:路线风险排行榜(§22-23),按 display risk 降序
+const routeRanking = computed(() => {
+  return [...routes.value]
+    .map(r => ({
+      id: r.id,
+      country: r.country,
+      level: r.riskLevel || r.risk_level || 'low',
+      displayRisk: Number(r.display_risk_score ?? r.risk_score ?? 0),
+      rawRisk: Number(r.raw_risk_score ?? r.risk_score ?? 0),
+      osintCount: routeOsintEventCount(r),
+      evidenceLevel: routeEvidenceMap.value[r.id]?.evidence_level || '—',
+      transport: r.transport || ''
+    }))
+    .sort((a, b) => b.displayRisk - a.displayRisk)
+})
+const routeRankingTop = computed(() => routeRanking.value.slice(0, 5))
+const showAllRanking = ref(false)
+const currentRoute = computed(() => routes.value.find(r => r.id === activeRouteId.value) || null)
+// K2-UI-RISK-2:高风险节点(来自 node risk 输出,非 criticality;按 name 去重 §10-12)
+const highRiskNodesTop = computed(() => {
+  const byName = {}
+  ;(snapshotData.value?.nodes || []).forEach(n => {
+    const score = Number(n.combined_risk_score ?? n.risk_score ?? 0)
+    const key = n.name
+    if (!key) return
+    if (!byName[key] || score > byName[key].score) {
+      byName[key] = {
+        name: n.name, type: n.type || '', route: n.route || '', routeId: n.routeId || '',
+        score, level: n.risk_level || n.risk || 'low',
+        osintCount: Number(n.osint_event_count ?? 0), osintDelta: Number(n.osint_risk_delta ?? 0),
+        criticality: Number(n.criticality_score ?? 0), supplyShare: n.supply_share
       }
-    },
+    }
+  })
+  return Object.values(byName).sort((a, b) => b.score - a.score).slice(0, 5)
+})
+// K2-UI-RISK-2:网络关键节点(全网 criticality,按 name 去重 §20)
+const networkCriticalNodes = computed(() => {
+  const byName = {}
+  ;(snapshotData.value?.critical_nodes || []).forEach(n => {
+    const score = Number(n.criticality_score ?? 0)
+    const key = n.name
+    if (!key) return
+    if (!byName[key] || score > byName[key].score) byName[key] = { name: n.name, score, type: n.type || '' }
+  })
+  return Object.values(byName).sort((a, b) => b.score - a.score)
+})
+// K2-UI-RISK-2:外部供应关键节点(排除国内接收/转运,供应侧研判视角 §21)
+const externalSupplyCriticalNodes = computed(() => {
+  const exclude = ['国内接收', '国内转运', '接收枢纽', 'Receiving']
+  return networkCriticalNodes.value.filter(n =>
+    !exclude.some(k => ((n.type || '') + (n.name || '')).includes(k)))
+})
+const criticalityView = ref('network') // network | external
+// K2-UI-RISK-2:本次真实执行轨迹(§42)
+const executionTrace = computed(() => snapshotData.value?.execution_trace || [])
+// K2-UI-RISK-1:按当前路线过滤的 OSINT(§38);全局=全部
+const routeOsintEvents = computed(() => {
+  if (activeRouteId.value === 'all') return osintEvents.value
+  const evs = osintEvents.value.filter(ev => (ev.affected_route_ids || []).includes(activeRouteId.value))
+  return evs
+})
+// K2-UI-RISK-2:全部 REAL 注册事件(13)+ runtime 状态(§25-31)
+const osintRegisteredEvents = computed(() => snapshotData.value?.osint_registered_events || [])
+const osintFilter = ref('all') // all|effective|recovered|resolved|positive|excluded
+const osintFilteredEvents = computed(() => {
+  let list = activeRouteId.value === 'all'
+    ? osintRegisteredEvents.value
+    : osintRegisteredEvents.value.filter(ev => (ev.affected_route_ids || []).includes(activeRouteId.value))
+  const f = osintFilter.value
+  if (f === 'effective') list = list.filter(e => e.runtime_status === 'EFFECTIVE')
+  else if (f === 'recovered') list = list.filter(e => e.event_state === 'RECOVERED')
+  else if (f === 'resolved') list = list.filter(e => e.event_state === 'RESOLVED')
+  else if (f === 'positive') list = list.filter(e => e.direction === 'POSITIVE')
+  else if (f === 'excluded') list = list.filter(e => e.runtime_status !== 'EFFECTIVE')
+  else if (f === 'breaking') list = list.filter(e => e.freshness_class === 'BREAKING')
+  else if (f === 'recent') list = list.filter(e => ['BREAKING', 'RECENT'].includes(e.freshness_class))
+  else if (f === 'y2026') list = list.filter(e => (e.event_date || '').startsWith('2026'))
+  // 默认最新优先(§42)
+  return [...list].sort((a, b) => String(b.published_at || '').localeCompare(String(a.published_at || '')))
+})
+const osintFilterCounts = computed(() => {
+  const list = activeRouteId.value === 'all' ? osintRegisteredEvents.value
+    : osintRegisteredEvents.value.filter(ev => (ev.affected_route_ids || []).includes(activeRouteId.value))
+  return {
+    all: list.length,
+    effective: list.filter(e => e.runtime_status === 'EFFECTIVE').length,
+    recovered: list.filter(e => e.event_state === 'RECOVERED').length,
+    resolved: list.filter(e => e.event_state === 'RESOLVED').length,
+    positive: list.filter(e => e.direction === 'POSITIVE').length,
+    excluded: list.filter(e => e.runtime_status !== 'EFFECTIVE').length,
+  }
+})
+function runtimeStatusLabel(s) {
+  return { EFFECTIVE: '当前生效', ELIGIBLE_NOT_EFFECTIVE: '已登记/不计入当前', EXCLUDED: '排除' }[s] || s
+}
+function runtimeStatusClass(s) {
+  return s === 'EFFECTIVE' ? 'ok' : s === 'EXCLUDED' ? 'bad' : 'muted'
+}
 
-
-    geo: {
-
-      map:
-        'world',
-
-      roam:
-        true,
-
-      zoom:
-        1.08,
-
-      center:
-        [
-          66,
-          23
-        ],
-
-      left:
-        0,
-
-      right:
-        0,
-
-      top:
-        0,
-
-      bottom:
-        0,
-
-      label: {
-        show:
-          false
-      },
-
-      itemStyle: {
-
-        areaColor:
-          '#e0eaf2',
-
-        borderColor:
-          '#acbdcb',
-
-        borderWidth:
-          0.65,
-
-        shadowColor:
-          'rgba(100,116,139,.08)',
-
-        shadowBlur:
-          2
-      },
-
-      emphasis: {
-
-        itemStyle: {
-
-          areaColor:
-            '#ccdce8'
-        },
-
-        label: {
-          show:
-            false
-        }
-      },
-
-      regions: [
-
-        {
-
-          name:
-            'China',
-
-          itemStyle: {
-
-            areaColor:
-              '#f5b5b5',
-
-            borderColor:
-              '#dc2626',
-
-            borderWidth:
-              1.5
-          }
-        }
-      ]
-    },
-
-
-    series:
-      buildMapSeries()
+function nodeOsintDetail(node) {
+  return {
+    name: node.name,
+    type: node.type || '',
+    risk: node.risk || node.risk_level || 'low',
+    combined: node.combined_risk_score ?? node.risk_score ?? node.score ?? 0,
+    vul: node.vulnerability_score ?? node.base_risk_score ?? node.score ?? 0,
+    cons: node.consequence_score ?? 0,
+    legacy: node.legacy_risk_score ?? node.risk_score ?? 0,
+    delta: Number(node.osint_risk_delta ?? 0),
+    count: Number(node.osint_event_count ?? 0),
+    criticality: node.criticality_score ?? 0,
+    supplyShare: node.supply_share ?? 0,
+    routeCount: node.route_count ?? 0,
+    reason: node.risk_level_reason || '',
+    description: node.description || node.reason || ''
   }
 }
 
+function reasonText(reason) {
+  return {
+    combined_high: '综合风险高（脆弱性与供应后果均较高）',
+    high_consequence_shared_hub: '高风险主要由供应后果驱动：该节点连接多条供应路线，失效后果极高',
+    high_vulnerability_high_impact: '脆弱性与供应后果均高',
+    medium_exposure: '当前暴露/脆弱性中等',
+    medium_consequence: '供应后果中等',
+    low_overall: '综合风险较低'
+  }[reason] || reason || ''
+}
 
-/* ============================================================
-   Donut
-============================================================ */
+function routeCalibrationMethod(route) {
+  const m = route.calibration_method
+  if (m === 'route_minmax_25_85') return 'Snapshot Min-Max'
+  if (m === 'raw') return '未校准(直接使用模型分)'
+  return m || '—'
+}
 
-function renderDonut() {
+function routeKeyRiskPoints(route) {
+  return route.key_risk_points || []
+}
 
-  if (
-    !donutRef.value
-  ) {
-    return
+function routeOsintEventCount(route) {
+  const nodeNames = new Set((route.nodes || []).map(n => n.name))
+  const routeEdges = edges.value.filter(e => e.route_id === route.id)
+  const routeEdgeIds = new Set(routeEdges.map(e => e.edge_id))
+  return osintEvents.value.filter(ev => {
+    const hitNode = (ev.affected_node_ids || []).some(n => nodeNames.has(n))
+    const hitEdge = (ev.affected_edge_ids || []).some(id => routeEdgeIds.has(id))
+    return hitNode || hitEdge
+  }).length
+}
+
+function pointOsint(p, route) {
+  if ((p.type || '').startsWith('边/')) {
+    const [fromNode, toNode] = (p.name || '').split('→')
+    const e = edges.value.find(
+      x => x.route_id === route.id && x.from_node === fromNode && x.to_node === toNode
+    )
+    const delta = Number(e?.osint_risk_delta ?? 0)
+    return { affected: delta > 0, delta }
+  }
+  const n = (route.nodes || []).find(x => x.name === p.name)
+  const delta = Number(n?.osint_risk_delta ?? 0)
+  return { affected: delta > 0, delta }
+}
+
+function eventAffectedRoutes(event) {
+  const routeIds = new Set()
+  const evNodes = new Set(event.affected_node_ids || [])
+  const evEdges = new Set(event.affected_edge_ids || [])
+  edges.value.forEach(e => {
+    if (evEdges.has(e.edge_id)) routeIds.add(e.route_id)
+  })
+  routes.value.forEach(r => {
+    const hasNode = (r.nodes || []).some(n => evNodes.has(n.name))
+    if (hasNode) routeIds.add(r.id)
+  })
+  return routes.value.filter(r => routeIds.has(r.id))
+}
+
+function severityLabel(eff) {
+  if (eff >= 0.7) return { text: 'severe', cls: 'severe' }
+  if (eff >= 0.4) return { text: 'elevated', cls: 'elevated' }
+  return { text: 'moderate', cls: 'moderate' }
+}
+
+function eventTypeLabel(t) {
+  return {
+    port_congestion: '港口拥堵',
+    supplier_policy: '供应政策',
+    geopolitical: '地缘政治',
+    customs_delay: '通关延误',
+    logistics_disruption: '物流扰动',
+    warehouse_abnormal: '仓储异常',
+    transport_accident: '运输事故',
+    sanction_or_export_control: '制裁/出口管制'
+  }[t] || t || '—'
+}
+
+// K2-UI-RISK-1:REAL OSINT 状态/方向标签(§40-41)
+function eventStateLabel(s) {
+  return {
+    ACTIVE: 'ACTIVE', ONGOING: 'ONGOING', RECOVERED: 'RECOVERED', RESOLVED: 'RESOLVED', SUPERSEDED: 'SUPERSEDED'
+  }[s] || s || '—'
+}
+function directionLabel(d) {
+  return {
+    POSITIVE: '正向', NEGATIVE: '负向', NEUTRAL: '中性', MIXED: '混合'
+  }[d] || d || '—'
+}
+
+const ROUTE_BREAKDOWN_LABELS = {
+  avg_node_edge_risk: '节点/边风险',
+  max_bottleneck_risk: '网络关键性',
+  route_share_risk: '供应依赖',
+  critical_node_risk: '关键节点',
+  event_route_risk: '事件影响',
+  endpoint_risk: '端点风险',
+  transport_mode_risk: '运输方式',
+  route_context_risk: '路线上下文',
+  event_impact_risk: '事件影响',
+  distance_or_cycle_risk: '距离/周期',
+  base_risk: '基础风险',
+  country_or_region_risk: '国家/区域',
+  transport_or_storage_risk: '运输/仓储',
+  event_risk: '事件风险',
+  criticality_risk: '网络关键性',
+  alternative_risk: '替代性',
+  osint_delta: 'OSINT 增量',
+  osint_direct_delta: 'OSINT 直接',
+  node_transmission_delta: '节点传导'
+}
+
+function breakdownItems(obj) {
+  const o = obj || {}
+  return Object.entries(o).map(([k, v]) => ({
+    key: k,
+    label: ROUTE_BREAKDOWN_LABELS[k] || k,
+    value: v
+  }))
+}
+
+function modelName(id) {
+  return {
+    uranium_supply_graph_builder_v1: '图谱构建',
+    uranium_dependency_model_v1: '依赖度',
+    uranium_osint_event_model_v1: 'OSINT 事件',
+    uranium_event_mapping_model_v1: '事件映射',
+    uranium_osint_risk_model_v1: 'OSINT 风险',
+    uranium_network_criticality_model_v1: '关键节点',
+    uranium_node_risk_model_v1: '节点风险',
+    uranium_edge_risk_model_v1: '边风险',
+    uranium_route_risk_model_v1: '路径风险',
+    uranium_snapshot_builder_v1: '快照生成',
+    uranium_supply_situation_snapshot_v1: '态势快照(组合)'
+  }[id] || id
+}
+
+function modelStatusClass(status, registryStatus) {
+  if (status === 'failed') return 'failed'
+  if (registryStatus === 'missing') return 'warning'
+  return 'success'
+}
+
+function selectEvent(ev) {
+  selectedEventId.value = ev.event_id
+  emphasizedNodeNames.value = ev.affected_node_ids || []
+  emphasizedEdgeKeys.value = (ev.affected_edge_ids || []).map(id => {
+    const e = edges.value.find(x => x.edge_id === id)
+    return e ? `${e.route_id}:${e.from_node}>${e.to_node}` : id
+  })
+  const affected = eventAffectedRoutes(ev)
+  if (affected.length) activeRouteId.value = affected[0].id
+  renderChart()
+}
+
+// K2-UI-RISK-2:注册事件(含已解决/候选)地图高亮;按 event_id 兼容 osint_events 与 registered
+function selectRegisteredEvent(ev) {
+  selectedEventId.value = ev.event_id
+  emphasizedNodeNames.value = ev.affected_node_ids || []
+  emphasizedEdgeKeys.value = (ev.affected_edge_ids || []).map(id => {
+    const e = edges.value.find(x => x.edge_id === id)
+    return e ? `${e.route_id}:${e.from_node}>${e.to_node}` : id
+  })
+  const routes = ev.affected_route_ids || []
+  if (routes.length) activeRouteId.value = routes[0]
+  renderChart()
+}
+
+function selectNodeOnMap(node, route) {
+  selectedNodeDetail.value = nodeOsintDetail(node)
+  activeTab.value = 'risk'
+  if (route) changeRoute(route.id)
+}
+
+function toggleModelDetail(runId) {
+  expandedModelRun.value = expandedModelRun.value === runId ? '' : runId
+}
+
+async function viewModelCard(modelId) {
+  if (!modelCards.value.length) {
+    try {
+      const res = await getModelRegistry()
+      if (res.success && res.data?.model_groups?.length) {
+        modelCards.value = res.data.model_groups.flatMap(g => g.models || [])
+      }
+    } catch (e) {
+      console.warn('加载模型卡失败:', e)
+    }
+  }
+  selectedModelCard.value = modelCards.value.find(c => c.model_id === modelId) || null
+  showModelCard.value = true
+}
+
+function scoreTypeText(card) {
+  const t = card?.score_type
+  if (t === 'absolute_and_relative') return 'Absolute + Snapshot Relative'
+  if (t === 'absolute') return 'Absolute(0-100)'
+  return '—'
+}
+
+function buildHighlightedEdges() {
+  if (!emphasizedEdgeKeys.value.length) return []
+  const coordMap = new Map()
+  routes.value.forEach(r =>
+    (r.nodes || []).forEach(n => {
+      if (!coordMap.has(n.name)) coordMap.set(n.name, n.coord)
+    })
+  )
+  const result = []
+  emphasizedEdgeKeys.value.forEach(key => {
+    const sep = key.indexOf(':')
+    const pair = key.slice(sep + 1)
+    const [fromNode, toNode] = pair.split('>')
+    const c1 = coordMap.get(fromNode)
+    const c2 = coordMap.get(toNode)
+    if (c1 && c2) result.push({ coords: [c1, c2], name: `${fromNode}→${toNode}` })
+  })
+  return result
+}
+
+function num(v) {
+  const n = Number(v)
+  if (!Number.isFinite(n)) return '—'
+  return Number.isInteger(n) ? n : n.toFixed(1)
+}
+
+// ═══════════════════════════════════════════════
+// 后端 latest 快照接入(不触发 recompute)
+// ═══════════════════════════════════════════════
+async function loadLatestSnapshot() {
+  loadingSnapshot.value = true
+  snapshotError.value = ''
+  try {
+    // K2-UI-RISK-1:正式页面始终请求 REAL snapshot(§6);后端按模式隔离缓存(§61)
+    const res = await getLatestSnapshot('REAL')
+    if (res.success && res.data && Array.isArray(res.data.routes) && res.data.routes.length) {
+      // 后端快照优先:routes 字段已兼容当前组件,直接替换
+      routes.value = res.data.routes
+      snapshotData.value = res.data
+      if (res.data.summary) {
+        summary.value = { ...summary.value, ...res.data.summary }
+      }
+      snapshotMeta.value = {
+        generated_at: res.data.generated_at || '',
+        model_version: res.data.model_version || '',
+        meta: res.data.meta || null,
+        osint_mode: (res.data.osint_info || {}).osint_mode || 'REAL',
+        snapshot_id: res.data.snapshot_id || '',
+        is_official_runtime_view: !!res.data.is_official_runtime_view,
+        data_provenance: res.data.data_provenance || null,
+        osint_info: res.data.osint_info || null,
+      }
+      // 清理选择状态(切换快照后不残留旧高亮)
+      selectedEventId.value = ''
+      emphasizedNodeNames.value = []
+      emphasizedEdgeKeys.value = []
+      expandedModelRun.value = ''
+      selectedNodeDetail.value = null
+    } else {
+      // 接口正常但无数据:保持 mock fallback
+      snapshotError.value = '后端态势快照为空，当前展示本地默认态势图'
+    }
+  } catch (e) {
+    // 后端不可用:不崩溃,继续用 mock fallback
+    console.warn('加载后端态势快照失败:', e)
+    snapshotError.value = '后端态势快照加载失败，当前展示本地默认态势图'
+  } finally {
+    loadingSnapshot.value = false
+    renderChart()
+  }
+}
+
+// 重新计算态势图:POST recompute 只返回摘要,必须再 GET latest 拿完整快照刷新地图
+// K2-UI-RISK-2:重算前后 diff(§54-58)
+function snapshotDiff(before, after) {
+  const bRoutes = {}, aRoutes = {}
+  ;(before?.routes || []).forEach(r => { bRoutes[r.id] = Number(r.display_risk_score ?? r.risk_score ?? 0) })
+  ;(after?.routes || []).forEach(r => { aRoutes[r.id] = Number(r.display_risk_score ?? r.risk_score ?? 0) })
+  const changedRoutes = Object.keys(aRoutes).filter(id => Math.abs((aRoutes[id] || 0) - (bRoutes[id] || 0)) > 0.05)
+  const bl = {}, al = {}
+  ;(before?.nodes || []).forEach(n => { bl[n.name] = n.risk_level || n.risk })
+  ;(after?.nodes || []).forEach(n => { al[n.name] = n.risk_level || n.risk })
+  const changedNodes = Object.keys(al).filter(name => al[name] !== bl[name])
+  return {
+    changedRoutes,
+    changedNodes,
+    levelsChanged: changedNodes.length,
+    effectiveOsintBefore: (before?.osint_info || {}).effective_count ?? (before?.osint_info || {}).real_event_count ?? 0,
+    effectiveOsintAfter: (after?.osint_info || {}).effective_count ?? (after?.osint_info || {}).real_event_count ?? 0,
+  }
+}
+
+async function handleRecompute() {
+  if (recomputing.value) return
+  recomputing.value = true
+  recomputeMessage.value = '正在重新计算 REAL 态势…'
+  snapshotError.value = ''
+  const before = snapshotData.value
+  // K2-UI-RISK-2:正式页面始终 REAL(§4/§6);不依赖后端隐式默认
+  const osintMode = 'REAL'
+  const t0 = performance.now()
+  try {
+    const res = await recomputeSnapshot(osintMode)
+    const durMs = Math.round(performance.now() - t0)
+    if (res.success) {
+      await loadLatestSnapshot()
+      const after = snapshotData.value
+      const diff = snapshotDiff(before, after)
+      const newId = snapshotMeta.value?.snapshot_id || ''
+      let msg
+      if (diff.changedRoutes.length === 0 && diff.levelsChanged === 0
+          && diff.effectiveOsintBefore === diff.effectiveOsintAfter) {
+        msg = `重新计算完成。输入数据未变化,风险结果与上一快照一致。(REAL · ${durMs}ms · 新快照 ${String(newId).slice(-8)})`
+      } else {
+        msg = `重新计算完成:${diff.changedRoutes.length} 条路线风险变化,${diff.levelsChanged} 个节点等级变化。(REAL · ${durMs}ms)`
+      }
+      recomputeMessage.value = msg
+      try { ElMessage({ type: diff.changedRoutes.length ? 'success' : 'info', message: msg, duration: 6000 }) } catch (e) { /* ignore */ }
+    } else {
+      recomputeMessage.value = '重新计算失败,已保留上次快照'
+      snapshotError.value = res.message || '重新计算失败'
+      try { ElMessage({ type: 'error', message: '态势重新计算失败,已保留上次快照' }) } catch (e) { /* ignore */ }
+    }
+  } catch (e) {
+    console.warn('重新计算态势图失败:', e)
+    recomputeMessage.value = '重新计算失败,已保留上次快照'
+    snapshotError.value = '重新计算失败: ' + ((e && e.message) || e)
+    try { ElMessage({ type: 'error', message: '态势重新计算失败,已保留上次快照' }) } catch (err) { /* ignore */ }
+  } finally {
+    recomputing.value = false
+  }
+}
+
+function changeRoute(id) {
+  activeRouteId.value = id
+  renderChart()
+}
+
+function toggleNodeLabels() {
+  showNodeLabels.value = !showNodeLabels.value
+  renderChart()
+}
+
+function focusNode(routeId, nodeName) {
+  activeRouteId.value = routeId
+  renderChart()
+
+  const route = routes.value.find(item => item.id === routeId)
+  const node = route?.nodes.find(item => item.name === nodeName)
+
+  if (!node || !chart) return
+
+  chart.dispatchAction({
+    type: 'showTip',
+    seriesIndex: 4,
+    name: node.name
+  })
+}
+
+function createLineData(route) {
+  const isActive = activeRouteId.value === route.id
+  const isAnyActive = activeRouteId.value !== 'all'
+  const baseColor = getRouteRiskColor(route)
+  const high = route.riskLevel === 'high'
+  return {
+    name: `${route.country}供应链`,
+    coords: route.nodes.map(node => node.coord),
+    routeId: route.id,
+    country: route.country,
+    riskLevel: route.riskLevel,
+    lineStyle: {
+      // 风险语义色(high红/medium橙/low绿),选中只改宽度/透明度/glow,不改颜色
+      color: baseColor,
+      width: isActive ? (high ? 5.6 : 4.6) : high ? 4.2 : 3.0,
+      opacity: isAnyActive ? (isActive ? 1 : 0.42) : 0.74,
+      shadowBlur: isActive ? 28 : 16,
+      shadowColor: baseColor
+    }
+  }
+}
+
+function createNodeData(route) {
+  return route.nodes.map(node => {
+    const emphasized = emphasizedNodeNames.value.includes(node.name)
+    const baseSize = node.risk === 'high' ? 18 : node.risk === 'medium' ? 14 : 10
+    // 填充色始终用节点风险色;OSINT 高亮仅加橙色描边 + glow,不覆盖风险色语义
+    const baseColor = riskColor(node.risk)
+    const meta = nodeEvidenceMeta(node, route.id)
+    return {
+      name: node.name,
+      displayName: displayNodeName(node, route.id),
+      realEntity: meta ? meta.real_entity || '' : '',
+      evidenceLevel: meta ? meta.evidence_level || '' : '',
+      aggregationLevel: meta ? meta.aggregation_level || '' : '',
+      evidenceCount: meta ? (meta.evidence_refs || []).length : 0,
+      value: [...node.coord, node.score],
+      routeId: route.id,
+      country: route.country,
+      nodeType: node.type,
+      risk: node.risk,
+      reason: node.reason,
+      score: node.score,
+      baseRiskScore: node.base_risk_score ?? node.score,
+      vul: node.vulnerability_score ?? node.score,
+      cons: node.consequence_score ?? 0,
+      osintDelta: Number(node.osint_risk_delta ?? 0),
+      osintCount: Number(node.osint_event_count ?? 0),
+      itemStyle: {
+        color: baseColor,
+        borderColor: emphasized ? '#F97316' : '#ffffff',
+        borderWidth: emphasized ? 3 : 2,
+        shadowBlur: emphasized
+          ? 32
+          : node.risk === 'high'
+            ? 26
+            : node.risk === 'medium'
+              ? 18
+              : 10,
+        shadowColor: emphasized ? '#F97316' : baseColor
+      },
+      symbolSize: emphasized ? baseSize + 6 : baseSize
+    }
+  })
+}
+
+function getWorldGeoJson() {
+  const geoJson = feature(worldAtlas, worldAtlas.objects.countries)
+
+  geoJson.features.forEach(item => {
+    const name = item.properties?.name || item.id
+
+    item.properties = {
+      ...item.properties,
+      name
+    }
+  })
+
+  return cleanAntimeridianLines(geoJson)
+}
+
+function cleanAntimeridianLines(geoJson) {
+  const cloned = JSON.parse(JSON.stringify(geoJson))
+
+  cloned.features = cloned.features.map(featureItem => {
+    const geometry = featureItem.geometry
+    if (!geometry) return featureItem
+
+    if (geometry.type === 'Polygon') {
+      geometry.coordinates = geometry.coordinates
+        .map(cleanRing)
+        .filter(ring => ring.length >= 4)
+    }
+
+    if (geometry.type === 'MultiPolygon') {
+      geometry.coordinates = geometry.coordinates
+        .map(polygon => polygon.map(cleanRing).filter(ring => ring.length >= 4))
+        .filter(polygon => polygon.length > 0)
+    }
+
+    return featureItem
+  })
+
+  return cloned
+}
+
+function cleanRing(ring) {
+  if (!Array.isArray(ring) || ring.length < 2) return ring
+
+  const result = []
+
+  for (let i = 0; i < ring.length; i++) {
+    const current = ring[i]
+    const prev = result[result.length - 1]
+
+    if (!prev) {
+      result.push(current)
+      continue
+    }
+
+    const lngDiff = Math.abs(current[0] - prev[0])
+    const latDiff = Math.abs(current[1] - prev[1])
+
+    if (lngDiff > 120 && latDiff < 8) {
+      continue
+    }
+
+    result.push(current)
   }
 
-  if (
-    !donutChart
-  ) {
+  if (result.length >= 3) {
+    const first = result[0]
+    const last = result[result.length - 1]
 
-    donutChart =
-      echarts.init(
-        donutRef.value
-      )
+    if (first[0] !== last[0] || first[1] !== last[1]) {
+      result.push([...first])
+    }
   }
 
+  return result
+}
 
-  donutChart.setOption(
+function getRegions() {
+  const regionMap = new Map()
+
+  regionMap.set('China', {
+    name: 'China',
+    itemStyle: {
+      areaColor: '#DBEAFE',
+      borderColor: '#2563EB',
+      borderWidth: 1.5
+    }
+  })
+
+  routes.value.forEach(route => {
+    if (!route.mapName) return
+
+    regionMap.set(route.mapName, {
+      name: route.mapName,
+      itemStyle: {
+        areaColor: 'rgba(96,165,250,0.13)',
+        borderColor: '#93C5FD',
+        borderWidth: 1
+      },
+      emphasis: {
+        itemStyle: {
+          areaColor: 'rgba(59,130,246,0.22)',
+          borderColor: '#2563EB',
+          borderWidth: 1.2
+        }
+      }
+    })
+  })
+
+  return Array.from(regionMap.values())
+}
+
+function renderChart() {
+  if (!chart) return
+
+  const lineData = visibleRoutes.value.map(createLineData)
+  const nodeData = visibleRoutes.value.flatMap(createNodeData)
+
+  chart.setOption(
     {
+      backgroundColor: 'transparent',
 
       tooltip: {
+        trigger: 'item',
+        backgroundColor: 'rgba(255,255,255,0.97)',
+        borderColor: '#D6E4F0',
+        borderWidth: 1,
+        extraCssText:
+          'box-shadow: 0 18px 50px rgba(31, 41, 55, 0.16); border-radius: 14px;',
+        padding: 12,
+        textStyle: {
+          color: '#0F172A'
+        },
+        formatter(params) {
+          if (params.seriesType === 'effectScatter') {
+            const d = params.data
+            const osintLine =
+              d.osintCount > 0
+                ? `OSINT 增量：+${d.osintDelta}（${d.osintCount} 事件）<br/>`
+                : '当前无直接 OSINT 风险事件<br/>'
+            const dimLine =
+              typeof d.vul !== 'undefined'
+                ? `脆弱性：${d.vul}　/　供应后果：${d.cons}<br/>`
+                : ''
+            const entityLine = d.realEntity
+              ? `真实实体：${d.realEntity}<br/>`
+              : ''
+            const evLine = d.evidenceLevel
+              ? `证据等级：${d.evidenceLevel}　/　来源数：${d.evidenceCount}<br/>`
+              : ''
 
-        trigger:
-          'item',
+            return `
+              <div style="width:300px">
+                <div style="font-size:15px;font-weight:800;margin-bottom:8px;color:#0F172A;">
+                  ${d.displayName || d.name}
+                </div>
+                <div style="line-height:1.8;color:#334155;">
+                  所属路线：${d.country}<br/>
+                  节点类型：${d.nodeType}<br/>
+                  风险等级：${riskText(d.risk)}<br/>
+                  综合风险：${d.score}/100<br/>
+                  ${entityLine}${evLine}${dimLine}${osintLine}
+                </div>
+                <div style="margin-top:8px;color:#475569;line-height:1.55;">
+                  ${d.reason}
+                </div>
+              </div>
+            `
+          }
 
-        formatter:
-          '{b}<br/>{c}%'
+          if (params.seriesType === 'lines') {
+            return `
+              <div>
+                <b>${params.data.country} → 中国</b><br/>
+                风险等级：${riskText(params.data.riskLevel)}
+              </div>
+            `
+          }
+
+          return params.name || ''
+        }
       },
 
-      series: [
+      geo: {
+        map: 'world-high-light',
 
-        {
+  // 保留缩放，但是默认展示完整供应链区域
+        roam: true,
 
-          type:
-            'pie',
+  // 放大一点，减少上下空白
+        zoom: 1.45,
 
-          radius:
-            [
-              '57%',
-              '79%'
-            ],
-
-          center:
-            [
-              '50%',
-              '50%'
-            ],
-
-          label: {
-            show:
-              false
-          },
-
-          emphasis: {
-
-            scale:
-              true,
-
-            scaleSize:
-              5
-          },
-
-          data: [
-
-            {
-
-              name:
-                '独立自主',
-
-              value:
-                selfPct.value,
-
-              itemStyle: {
-
-                color:
-                  '#16a34a'
-              }
-            },
-
-            {
-
-              name:
-                '海外依存',
-
-              value:
-                overseasPct.value,
-
-              itemStyle: {
-
-                color:
-                  '#f59e0b'
-              }
-            }
-          ]
-        }
-      ]
-    },
-    true
-  )
-}
-
-
-/* ============================================================
-   Radar
-============================================================ */
-
-function renderRadar() {
-
-  if (
-    !radarRef.value
-  ) {
-    return
-  }
-
-  if (
-    !radarChart
-  ) {
-
-    radarChart =
-      echarts.init(
-        radarRef.value
-      )
-  }
-
-
-  radarChart.setOption(
-    {
-
-      radar: {
-
-        center:
-          [
-            '50%',
-            '53%'
-          ],
-
-        radius:
-          '60%',
-
-        splitNumber:
-          4,
-
-        indicator: [
-
-          {
-            name:
-              '政策',
-            max:
-              100
-          },
-
-          {
-            name:
-              '地缘',
-            max:
-              100
-          },
-
-          {
-            name:
-              '运输',
-            max:
-              100
-          },
-
-          {
-            name:
-              '关键通道',
-            max:
-              100
-          },
-
-          {
-            name:
-              '接收仓储',
-            max:
-              100
-          }
-        ],
-
-        axisName: {
-
-          color:
-            '#64748b',
-
-          fontSize:
-            10
+  // 视觉中心向右上移动
+        center: [85, 25],
+        scaleLimit: {
+          min: 1.15,
+          max: 6
         },
-
-        splitArea: {
-
-          areaStyle: {
-
-            color: [
-
-              'rgba(248,250,252,.7)',
-
-              'rgba(241,245,249,.6)'
+        itemStyle: {
+          areaColor: {
+            type: 'linear',
+            x: 0,
+            y: 0,
+            x2: 1,
+            y2: 1,
+            colorStops: [
+              { offset: 0, color: '#FCFEFF' },
+              { offset: 0.45, color: '#F1F7FF' },
+              { offset: 1, color: '#E6F0FB' }
             ]
+          },
+          borderColor: '#A8C1DD',
+          borderWidth: 0.8,
+          shadowBlur: 10,
+          shadowColor: 'rgba(59,130,246,0.10)'
+        },
+        emphasis: {
+          itemStyle: {
+            areaColor: '#DCEBFF',
+            borderColor: '#60A5FA',
+            borderWidth: 1.2
+          },
+          label: {
+            show: false
           }
         },
-
-        splitLine: {
-
-          lineStyle: {
-
-            color:
-              '#cbd5e1'
-          }
+        label: {
+          show: false
         },
-
-        axisLine: {
-
-          lineStyle: {
-
-            color:
-              '#d5dee7'
-          }
-        }
+        regions: getRegions()
       },
 
-
       series: [
-
         {
-
-          type:
-            'radar',
-
+          name: '中国态势中心光晕',
+          type: 'effectScatter',
+          coordinateSystem: 'geo',
+          zlevel: 1,
+          rippleEffect: {
+            scale: 6,
+            brushType: 'stroke'
+          },
+          symbolSize: 12,
+          itemStyle: {
+            color: '#2563EB',
+            shadowBlur: 28,
+            shadowColor: '#2563EB'
+          },
           data: [
-
             {
-
-              value:
-                radarValues.value,
-
-              areaStyle: {
-
-                color:
-                  'rgba(239,68,68,.20)'
-              },
-
-              lineStyle: {
-
-                color:
-                  '#ef4444',
-
-                width:
-                  2
-              },
-
-              itemStyle: {
-
-                color:
-                  '#ef4444'
-              },
-
-              symbolSize:
-                4
+              name: '中国供应链态势中心',
+              value: [103.8, 36.1, 100]
             }
           ]
+        },
+        {
+          name: '供应链路径底线',
+          type: 'lines',
+          coordinateSystem: 'geo',
+          polyline: true,
+          zlevel: 2,
+          silent: true,
+          lineStyle: {
+            color: 'rgba(100,116,139,0.16)',
+            width: 8,
+            opacity: 0.46,
+            cap: 'round',
+            join: 'round'
+          },
+          data: lineData
+        },
+        {
+          name: '供应链路径',
+          type: 'lines',
+          coordinateSystem: 'geo',
+          polyline: true,
+          zlevel: 3,
+          effect: {
+            show: true,
+            period: 5,
+            trailLength: 0.22,
+            symbol: 'arrow',
+            symbolSize: 9,
+            color: '#ffffff'
+          },
+          lineStyle: {
+            curveness: 0.16,
+            cap: 'round',
+            join: 'round'
+          },
+          data: lineData
+        },
+        {
+          name: 'OSINT 高亮边',
+          type: 'lines',
+          coordinateSystem: 'geo',
+          polyline: false,
+          zlevel: 5,
+          silent: true,
+          lineStyle: {
+            color: '#F97316',
+            type: 'dashed',
+            width: 4,
+            opacity: 0.9,
+            cap: 'round',
+            shadowBlur: 20,
+            shadowColor: '#F97316'
+          },
+          data: buildHighlightedEdges()
+        },
+        {
+          name: '风险节点',
+          type: 'effectScatter',
+          coordinateSystem: 'geo',
+          zlevel: 4,
+          rippleEffect: {
+            scale: 3.8,
+            brushType: 'stroke'
+          },
+          label: {
+            show: showNodeLabels.value,
+            position: 'right',
+            formatter: (p) => (p.data && p.data.displayName) || p.name,
+            color: '#1E293B',
+            fontSize: 11,
+            fontWeight: 600,
+            backgroundColor: 'rgba(255,255,255,0.88)',
+            borderColor: 'rgba(148,163,184,0.32)',
+            borderWidth: 1,
+            padding: [4, 6],
+            borderRadius: 6
+          },
+          emphasis: {
+            scale: 1.25,
+            label: {
+              show: true,
+              color: '#0F172A',
+              fontWeight: 700,
+              backgroundColor: 'rgba(255,255,255,0.94)'
+            }
+          },
+          data: nodeData
         }
       ]
     },
@@ -3960,2756 +1939,1603 @@ function renderRadar() {
   )
 }
 
+function initChart() {
+  chart = echarts.init(chartRef.value)
 
-/* ============================================================
-   Render map
-============================================================ */
+  const worldGeoJson = getWorldGeoJson()
 
-async function renderMap() {
+  echarts.registerMap('world-high-light', worldGeoJson)
 
-  if (
-    !mapRef.value
-  ) {
-    return
-  }
+  renderChart()
 
-  try {
-
-    await ensureEchartsWorldMap(
-      echarts
-    )
-
-
-    if (
-      !mapChart
-    ) {
-
-      mapChart =
-        echarts.init(
-          mapRef.value
-        )
+  chart.on('click', params => {
+    if (params?.data?.routeId) {
+      if (params.seriesType === 'effectScatter' && params.data.name) {
+        const route = routes.value.find(r => r.id === params.data.routeId)
+        const node = route?.nodes.find(n => n.name === params.data.name)
+        if (node) {
+          selectNodeOnMap(node, route)
+          return
+        }
+      }
+      changeRoute(params.data.routeId)
     }
+  })
 
-
-    mapChart.setOption(
-      buildMapOption(),
-      true
-    )
-  }
-  catch (error) {
-
-    console.warn(
-      'Uranium map render error:',
-      error
-    )
-  }
+  window.addEventListener('resize', handleResize)
 }
 
+function handleResize() {
+  chart?.resize()
+}
 
-/* ============================================================
-   Render all
-============================================================ */
-
-async function renderAll() {
-
+onMounted(async () => {
   await nextTick()
-
-  await renderMap()
-
-  renderDonut()
-
-  renderRadar()
-}
-
-
-/* ============================================================
-   Play
-============================================================ */
-
-function togglePlay() {
-
-  if (
-    playing.value
-  ) {
-
-    stopPlay()
-  }
-  else {
-
-    startPlay()
-  }
-}
-
-
-function startPlay() {
-
-  if (
-    !years.value.length
-  ) {
-    return
-  }
-
-
-  playing.value =
-    true
-
-
-  if (
-    yearIdx.value >=
-    maxIdx.value
-  ) {
-
-    yearIdx.value =
-      0
-  }
-
-
-  playTimer =
-    window.setInterval(
-      () => {
-
-        if (
-          yearIdx.value <
-          maxIdx.value
-        ) {
-
-          yearIdx.value +=
-            1
-
-          renderAll()
-        }
-        else {
-
-          stopPlay()
-        }
-      },
-      1200
-    )
-}
-
-
-function stopPlay() {
-
-  playing.value =
-    false
-
-
-  if (
-    playTimer
-  ) {
-
-    clearInterval(
-      playTimer
-    )
-
-    playTimer =
-      null
-  }
-}
-
-
-/* ============================================================
-   Format
-============================================================ */
-
-function formatNumber(value) {
-
-  return (
-    Number(value) || 0
-  ).toLocaleString(
-    'zh-CN'
-  )
-}
-
-
-/* ============================================================
-   Verification
-============================================================ */
-
-const scoreColor = computed(() => {
-
-  const score =
-    Number(
-      props.verificationSummary.score
-    ) || 0
-
-  if (
-    score >= 80
-  ) {
-    return '#16a34a'
-  }
-
-  if (
-    score >= 60
-  ) {
-    return '#f59e0b'
-  }
-
-  return '#dc2626'
+  initChart()
+  loadEvidenceNetwork()  // 证据背书节点名称(K2-C3E)
+  await loadLatestSnapshot()
+  loadSourceAllocation()  // K2-SUPPLY-SHARE-3F-R:路线供应占比
 })
-
-
-const levelTag = computed(() => {
-
-  const score =
-    Number(
-      props.verificationSummary.score
-    ) || 0
-
-  if (
-    score >= 80
-  ) {
-    return 'success'
-  }
-
-  if (
-    score >= 60
-  ) {
-    return 'warning'
-  }
-
-  return 'danger'
-})
-
-
-/* ============================================================
-   Watch
-============================================================ */
-
-watch(
-  () =>
-    props.situationMap,
-  () => {
-
-    nextTick(
-      renderAll
-    )
-  },
-  {
-    deep:
-      true
-  }
-)
-
-
-watch(
-  () =>
-    props.mapEvolution,
-  () => {
-
-    yearIdx.value =
-      0
-
-    stopPlay()
-
-    nextTick(
-      renderAll
-    )
-  },
-  {
-    deep:
-      true
-  }
-)
-
-
-watch(
-  () =>
-    props.scenario,
-  () => {
-
-    nextTick(
-      renderAll
-    )
-  }
-)
-
-
-/* ============================================================
-   Resize
-============================================================ */
-
-function resizeCharts() {
-
-  mapChart?.resize()
-
-  donutChart?.resize()
-
-  radarChart?.resize()
-}
-
-
-/* ============================================================
-   Lifecycle
-============================================================ */
-
-onMounted(() => {
-
-  nextTick(
-    renderAll
-  )
-
-
-  window.addEventListener(
-    'resize',
-    resizeCharts
-  )
-
-
-  if (
-    typeof ResizeObserver !==
-    'undefined'
-  ) {
-
-    resizeObserver =
-      new ResizeObserver(
-        resizeCharts
-      )
-
-    if (
-      mapRef.value
-    ) {
-
-      resizeObserver.observe(
-        mapRef.value
-      )
-    }
-  }
-})
-
 
 onBeforeUnmount(() => {
-
-  stopPlay()
-
-
-  window.removeEventListener(
-    'resize',
-    resizeCharts
-  )
-
-
-  resizeObserver?.disconnect()
-
-
-  mapChart?.dispose()
-
-  donutChart?.dispose()
-
-  radarChart?.dispose()
-
-
-  mapChart =
-    null
-
-  donutChart =
-    null
-
-  radarChart =
-    null
+  window.removeEventListener('resize', handleResize)
+  chart?.dispose()
 })
 </script>
 
-
 <style scoped>
-
-/* ============================================================
-   Root
-============================================================ */
-
-.uranium-page {
-  --page-bg: #eef5fa;
-  --card-bg: #ffffff;
-  --border: #d8e4ed;
-
-  --text: #1e293b;
-  --text2: #475569;
-  --muted: #94a3b8;
-
-  --blue: #0284c7;
-  --green: #16a34a;
-  --yellow: #eab308;
-  --orange: #f97316;
-  --red: #dc2626;
-
-  width: 100%;
-
-  min-width: 1180px;
-
+.supply-page {
+  min-height: 100vh;
+  padding: 18px;
   box-sizing: border-box;
-
-  padding: 12px;
-
-  color: var(--text);
-
+  color: #0f172a;
   background:
-    linear-gradient(
-      180deg,
-      #f8fbfd 0%,
-      #edf5fa 100%
-    );
-
+    radial-gradient(circle at 14% 8%, rgba(59, 130, 246, 0.16), transparent 28%),
+    radial-gradient(circle at 82% 18%, rgba(14, 165, 233, 0.10), transparent 24%),
+    linear-gradient(135deg, #f8fbff 0%, #eef5ff 44%, #f9fbff 100%);
   font-family:
     Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
     "PingFang SC",
     "Microsoft YaHei",
     sans-serif;
 }
 
-
-/* ============================================================
-   Header
-============================================================ */
-
 .page-header {
-  height: 62px;
-
   display: flex;
-
-  align-items: center;
-
   justify-content: space-between;
-
-  box-sizing: border-box;
-
-  padding:
-    0 8px;
-
-  border-bottom:
-    1px solid #dbe7ef;
+  gap: 18px;
+  align-items: center;
+  margin-bottom: none;
 }
 
+.eyebrow {
+  display: inline-flex;
+  padding: 5px 10px;
+  margin-bottom: 8px;
+  border-radius: 999px;
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
 
-.title-row {
+.page-header h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+}
+
+.page-header p {
+  margin: 7px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.snapshot-status {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+.snapshot-status.loading {
+  color: #2563eb;
+}
+.snapshot-status.error {
+  color: #ef4444;
+}
+
+.header-right {
   display: flex;
-
-  align-items: center;
-
+  flex-direction: column;
+  align-items: flex-end;
   gap: 10px;
 }
 
+.mode-switch {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}
+.mode-switch button {
+  padding: 5px 13px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.mode-switch button.active {
+  background: #2563eb;
+  color: #fff;
+}
 
-.title-row h1 {
-  margin: 0;
-
-  color: #15324a;
-
-  font-size: 25px;
-
+.demo-tag {
+  display: inline-block;
+  margin-left: 2px;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: rgba(100, 116, 139, 0.16);
+  color: #64748b;
+  font-size: 9px;
+  font-style: normal;
   font-weight: 800;
+  letter-spacing: 0.05em;
+  vertical-align: 1px;
+}
 
-  letter-spacing: 1px;
+.map-demo-note {
+  margin: 0 0 12px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.22);
+  color: #92400e;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 116px);
+  gap: 10px;
+  justify-content: end;
+}
+
+.summary-card {
+  padding: 13px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(14px);
+}
+
+.summary-card span {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.summary-card strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.summary-card.self strong {
+  color: #16a34a;
+}
+
+.summary-card.import strong {
+  color: #2563eb;
+}
+
+.summary-card.other strong {
+  color: #94a3b8;
+}
+
+.summary-card.total strong {
+  color: #dc2626;
+}
+
+.main-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 390px;
+  gap: 14px;
+
+  /*
+   * 核心：
+   * 首屏高度永远不超过浏览器可视区域
+   */
+  height: calc(100dvh - 118px);
+  min-height: 520px;
+  max-height: 820px;
 }
 
 
-.china-badge {
-  padding:
-    3px 8px;
-
-  border-radius:
-    4px;
-
-  color:
-    #fff;
-
+.map-panel {
+  position: relative;
+  min-height: calc(100vh - 136px);
+  overflow: hidden;
+  border-radius: 28px;
   background:
-    #dc2626;
-
-  font-size:
-    11px;
-
-  font-weight:
-    700;
-}
-
-
-.subtitle {
-  margin-top:
-    3px;
-
-  color:
-    #94a3b8;
-
-  font-size:
-    10px;
-
-  letter-spacing:
-    1px;
-}
-
-
-.header-right {
-  text-align:
-    right;
-}
-
-
-.update-label {
-  color:
-    #94a3b8;
-
-  font-size:
-    9px;
-}
-
-
-.update-time {
-  margin-top:
-    3px;
-
-  color:
-    #475569;
-
-  font-size:
-    11px;
-}
-
-
-/* ============================================================
-   Shared cards
-============================================================ */
-
-.card,
-.map-card,
-.risk-ranking-panel,
-.chain-card,
-.bottom-card {
-  box-sizing:
-    border-box;
-
-  background:
-    #ffffff;
-
-  border:
-    1px solid var(--border);
-
-  border-radius:
-    8px;
-
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(244, 248, 255, 0.90)),
+    radial-gradient(circle at center, rgba(59, 130, 246, 0.06), transparent 60%);
+  border: 1px solid rgba(148, 163, 184, 0.24);
   box-shadow:
-    0 4px 15px
-    rgba(15, 23, 42, .045);
+    inset 0 0 60px rgba(59, 130, 246, 0.04),
+    0 24px 70px rgba(15, 23, 42, 0.08);
 }
 
-
-.card-title,
-.panel-title {
-  height:
-    34px;
-
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  box-sizing:
-    border-box;
-
-  padding:
-    0 12px;
-
-  color:
-    #334155;
-
-  border-bottom:
-    1px solid #edf2f7;
-
-  font-size:
-    12px;
-
-  font-weight:
-    700;
-}
-
-
-.panel-title span {
-  margin-left:
-    6px;
-
-  color:
-    #94a3b8;
-
-  font-size:
-    8px;
-
-  font-weight:
-    400;
-}
-
-
-.danger-title {
-  color:
-    #b91c1c;
-}
-
-
-.red-text {
-  color:
-    #dc2626 !important;
-}
-
-
-/* ============================================================
-   Top dashboard
-============================================================ */
-
-.top-dashboard {
-  height:
-    150px;
-
-  display:
-    grid;
-
-  grid-template-columns:
-    1fr
-    1.35fr
-    1.35fr
-    1fr
-    1.1fr;
-
-  gap:
-    7px;
-
-  margin-top:
-    7px;
-}
-
-
-/* demand */
-
-.metric-list {
-  padding:
-    7px 12px;
-}
-
-
-.metric-item {
-  height:
-    23px;
-
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  justify-content:
-    space-between;
-
-  color:
-    #64748b;
-
-  font-size:
-    10px;
-}
-
-
-.metric-item b {
-  color:
-    #334155;
-
-  font-size:
-    11px;
-}
-
-
-.metric-main {
-  color:
-    #0284c7 !important;
-}
-
-
-.metric-green {
-  color:
-    #16a34a !important;
-}
-
-
-.metric-orange {
-  color:
-    #f59e0b !important;
-}
-
-
-/* structure */
-
-.structure-main {
-  height:
-    calc(100% - 34px);
-
-  display:
-    flex;
-
-  align-items:
-    center;
-}
-
-
-.donut-chart {
-  width:
-    55%;
-
-  height:
-    100%;
-}
-
-
-.structure-info {
-  flex:
-    1;
-}
-
-
-.structure-line {
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  gap:
-    7px;
-
-  margin:
-    8px 0;
-}
-
-
-.structure-dot {
-  width:
-    8px;
-
-  height:
-    8px;
-
-  flex-shrink:
-    0;
-
-  border-radius:
-    50%;
-}
-
-
-.structure-dot.domestic {
-  background:
-    #16a34a;
-}
-
-
-.structure-dot.overseas {
-  background:
-    #f59e0b;
-}
-
-
-.structure-line div {
-  display:
-    flex;
-
-  flex-direction:
-    column;
-}
-
-
-.structure-line div span {
-  color:
-    #64748b;
-
-  font-size:
-    9px;
-}
-
-
-.structure-line strong {
-  margin-top:
-    2px;
-
-  font-size:
-    16px;
-}
-
-
-/* supplier shares */
-
-.mini-share-list {
-  padding:
-    6px 10px;
-}
-
-
-.mini-share-item {
-  min-height:
-    15px;
-
-  display:
-    grid;
-
-  grid-template-columns:
-    72px
-    1fr
-    37px;
-
-  align-items:
-    center;
-
-  gap:
-    6px;
-}
-
-
-.mini-share-country {
-  min-width:
-    0;
-
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  gap:
-    5px;
-
-  color:
-    #475569;
-
-  font-size:
-    9px;
-}
-
-
-.mini-share-country span {
-  overflow:
-    hidden;
-
-  white-space:
-    nowrap;
-
-  text-overflow:
-    ellipsis;
-}
-
-
-.mini-dot {
-  width:
-    6px;
-
-  height:
-    6px;
-
-  flex-shrink:
-    0;
-
-  border-radius:
-    50%;
-}
-
-
-.mini-share-track {
-  height:
-    5px;
-
-  overflow:
-    hidden;
-
-  border-radius:
-    4px;
-
-  background:
-    #edf2f7;
-}
-
-
-.mini-share-fill {
-  height:
-    100%;
-
-  border-radius:
-    4px;
-
-  background:
-    linear-gradient(
-      90deg,
-      #38bdf8,
-      #0284c7
-    );
-}
-
-
-.mini-share-item b {
-  color:
-    #334155;
-
-  text-align:
-    right;
-
-  font-size:
-    9px;
-}
-
-
-.empty-small {
-  padding:
-    15px;
-
-  color:
-    #94a3b8;
-
-  text-align:
-    center;
-
-  font-size:
-    9px;
-}
-
-
-/* total risk */
-
-.total-risk-body {
-  height:
-    67px;
-
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  justify-content:
-    center;
-
-  gap:
-    3px;
-}
-
-
-.total-risk-score {
-  font-size:
-    40px;
-
-  font-weight:
-    800;
-}
-
-
-.total-risk-unit {
-  margin-top:
-    14px;
-
-  color:
-    #94a3b8;
-
-  font-size:
-    11px;
-}
-
-
-.total-risk-label {
-  margin-left:
-    8px;
-
-  font-size:
-    11px;
-
-  font-weight:
-    700;
-}
-
-
-.risk-scale {
-  height:
-    5px;
-
-  display:
-    flex;
-
-  margin:
-    0 12px;
-
-  overflow:
-    hidden;
-
-  border-radius:
-    4px;
-}
-
-
-.risk-scale > div {
-  flex:
-    1;
-}
-
-
-.scale-green {
-  background:
-    #16a34a;
-}
-
-
-.scale-yellow {
-  background:
-    #eab308;
-}
-
-
-.scale-orange {
-  background:
-    #f97316;
-}
-
-
-.scale-red {
-  background:
-    #dc2626;
-}
-
-
-.risk-scale-labels {
-  display:
-    flex;
-
-  justify-content:
-    space-between;
-
-  margin:
-    4px 12px;
-
-  color:
-    #94a3b8;
-
-  font-size:
-    8px;
-}
-
-
-.radar-chart {
-  height:
-    calc(100% - 34px);
-}
-
-
-/* ============================================================
-   Main
-============================================================ */
-
-.main-dashboard {
-  height:
-    500px;
-
-  display:
-    grid;
-
-  grid-template-columns:
-    minmax(760px, 1fr)
-    295px;
-
-  gap:
-    7px;
-
-  margin-top:
-    7px;
-}
-
-
-/* ============================================================
-   Map
-============================================================ */
-
-.map-card {
-  position:
-    relative;
-
-  overflow:
-    hidden;
-
-  background:
-    #eef5fa;
-}
-
-
-.world-map {
-  position:
-    absolute;
-
-  inset:
-    0;
-}
-
-
-.map-risk-legend {
-  position:
-    absolute;
-
-  z-index:
-    30;
-
-  left:
-    12px;
-
-  top:
-    12px;
-
-  width:
-    132px;
-
-  box-sizing:
-    border-box;
-
-  padding:
-    8px 10px;
-
-  border:
-    1px solid #d7e2ea;
-
-  border-radius:
-    7px;
-
-  background:
-    rgba(255, 255, 255, .95);
-
-  box-shadow:
-    0 4px 15px
-    rgba(15, 23, 42, .08);
-
-  pointer-events:
-    none;
-}
-
-
-.map-risk-title {
-  margin-bottom:
-    5px;
-
-  color:
-    #334155;
-
-  font-size:
-    10px;
-
-  font-weight:
-    700;
-}
-
-
-.map-risk-legend > div:not(:first-child) {
-  height:
-    20px;
-
-  display:
-    grid;
-
-  grid-template-columns:
-    8px
-    1fr
-    auto;
-
-  align-items:
-    center;
-
-  gap:
-    5px;
-
-  color:
-    #64748b;
-
-  font-size:
-    8px;
-}
-
-
-.map-risk-legend b {
-  color:
-    #94a3b8;
-
-  font-size:
-    7px;
-}
-
-
-.risk-dot {
-  width:
-    7px;
-
-  height:
-    7px;
-
-  border-radius:
-    50%;
-}
-
-
-.risk-critical {
-  background:
-    #dc2626;
-}
-
-
-.risk-high {
-  background:
-    #f97316;
-}
-
-
-.risk-medium {
-  background:
-    #eab308;
-}
-
-
-.risk-low {
-  background:
-    #16a34a;
-}
-
-
-/* route legend */
-
-.route-legend {
-  position:
-    absolute;
-
-  z-index:
-    30;
-
-  left:
-    158px;
-
-  top:
-    12px;
-
-  display:
-    flex;
-
-  gap:
-    13px;
-
-  padding:
-    7px 10px;
-
-  border:
-    1px solid #d7e2ea;
-
-  border-radius:
-    7px;
-
-  background:
-    rgba(255,255,255,.95);
-
-  box-shadow:
-    0 4px 15px
-    rgba(15,23,42,.06);
-
-  pointer-events:
-    none;
-}
-
-
-.route-legend-item {
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  gap:
-    5px;
-
-  color:
-    #64748b;
-
-  font-size:
-    8px;
+.map-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(37, 99, 235, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37, 99, 235, 0.035) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(circle at center, black 48%, transparent 94%);
+  z-index: 1;
 }
 
-
-.route-line {
-  width:
-    20px;
-
-  height:
-    3px;
-
-  display:
-    inline-block;
-
-  border-radius:
-    2px;
-}
-
-
-.route-red {
-  background:
-    #dc2626;
+.map-topbar {
+  position: absolute;
+  z-index: 8;
+  top: 14px;
+  left: 14px;
+  right: 14px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
 }
 
-
-.route-orange {
-  background:
-    #f97316;
+.filter-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-
-.route-green {
-  background:
-    #16a34a;
+.filter-buttons button {
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  color: #334155;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.30);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.05);
+  backdrop-filter: blur(12px);
 }
-
-
-/* bottom node legend */
-
-.map-node-legend {
-  position:
-    absolute;
-
-  z-index:
-    30;
-
-  left:
-    50%;
-
-  bottom:
-    11px;
-
-  transform:
-    translateX(-50%);
-
-  display:
-    flex;
-
-  gap:
-    19px;
-
-  padding:
-    6px 13px;
-
-  border:
-    1px solid #d8e3eb;
-
-  border-radius:
-    6px;
 
-  background:
-    rgba(255,255,255,.95);
-
-  box-shadow:
-    0 3px 12px
-    rgba(15,23,42,.07);
-
-  color:
-    #64748b;
-
-  font-size:
-    8px;
-
-  white-space:
-    nowrap;
-
-  pointer-events:
-    none;
+.filter-buttons button.active,
+.filter-buttons button:hover {
+  color: #ffffff;
+  background: #2563eb;
+  border-color: #2563eb;
 }
 
-
-.map-node-legend span {
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  gap:
-    5px;
+.filter-buttons .label-toggle {
+  border-color: rgba(15, 118, 110, 0.26);
 }
-
-
-.legend-symbol {
-  width:
-    8px;
 
-  height:
-    8px;
-
-  display:
-    inline-block;
+.filter-buttons .label-toggle.active {
+  background: #0f766e;
+  border-color: #0f766e;
+  color: #ffffff;
 }
-
 
-.supplier-symbol {
-  border-radius:
-    50%;
-
-  background:
-    #16a34a;
+.snapshot-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
-
-
-.chokepoint-symbol {
-  transform:
-    rotate(45deg);
 
-  background:
-    #dc2626;
+.snapshot-btn {
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  color: #334155;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.30);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.05);
+  backdrop-filter: blur(12px);
+  font-size: 12px;
 }
 
-
-.storage-symbol {
-  background:
-    #0284c7;
+.snapshot-btn.primary {
+  color: #ffffff;
+  background: #2563eb;
+  border-color: #2563eb;
 }
-
-
-.china-symbol {
-  transform:
-    rotate(45deg);
 
-  background:
-    #facc15;
+.snapshot-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
-
-/* ============================================================
-   Risk ranking
-============================================================ */
-
-.risk-ranking-panel {
-  overflow:
-    hidden;
+.snapshot-time {
+  color: #475569;
+  font-size: 11px;
+  white-space: nowrap;
 }
-
 
 .risk-summary {
-  height:
-    50px;
-
-  display:
-    grid;
-
-  grid-template-columns:
-    1fr 1fr;
-
-  border-bottom:
-    1px solid #edf2f7;
-
-  background:
-    #fafcfd;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 999px;
+  color: #475569;
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.05);
+  backdrop-filter: blur(12px);
+  white-space: nowrap;
+  font-size: 12px;
 }
 
-
-.risk-summary-item {
-  display:
-    flex;
-
-  flex-direction:
-    column;
-
-  align-items:
-    center;
-
-  justify-content:
-    center;
-
-  gap:
-    2px;
-
-  color:
-    #94a3b8;
-
-  font-size:
-    8px;
+.chart {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: calc(100vh - 136px);
+  min-height: 600px;
 }
 
-
-.risk-summary-item:first-child {
-  border-right:
-    1px solid #edf2f7;
+.legend {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 8;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 13px;
+  border-radius: 16px;
+  color: #475569;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.07);
+  backdrop-filter: blur(12px);
+  font-size: 12px;
 }
 
-
-.risk-summary-item b {
-  font-size:
-    16px;
+.node {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 6px;
+  border-radius: 50%;
 }
 
-
-.risk-ranking-scroll {
-  height:
-    calc(100% - 84px);
-
-  overflow-y:
-    auto;
-
-  padding:
-    3px 9px;
+.node.low {
+  background: #16a34a;
 }
 
-
-.ranking-item {
-  display:
-    flex;
-
-  gap:
-    8px;
-
-  padding:
-    9px 2px;
-
-  border-bottom:
-    1px solid #eef2f6;
+.node.medium {
+  background: #f59e0b;
 }
 
-
-.ranking-index {
-  width:
-    22px;
-
-  height:
-    22px;
-
-  flex-shrink:
-    0;
-
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  justify-content:
-    center;
-
-  border-radius:
-    5px;
-
-  background:
-    #eef4f8;
-
-  color:
-    #64748b;
-
-  font-size:
-    9px;
-
-  font-weight:
-    700;
+.node.high {
+  background: #dc2626;
 }
 
-
-.ranking-index.rankingTop {
-  color:
-    #ffffff;
-
-  background:
-    #dc2626;
+.line {
+  display: inline-block;
+  width: 28px;
+  height: 3px;
+  margin-right: 6px;
+  vertical-align: middle;
+  border-radius: 999px;
+  background: #2563eb;
+  box-shadow: 0 0 12px rgba(37, 99, 235, 0.45);
 }
 
-
-.ranking-content {
-  min-width:
-    0;
-
-  flex:
-    1;
+.side-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: calc(100vh - 136px);
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
-
-.ranking-head {
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  justify-content:
-    space-between;
-
-  gap:
-    6px;
+.panel {
+  padding: 16px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  box-shadow: 0 20px 58px rgba(15, 23, 42, 0.07);
+  backdrop-filter: blur(14px);
 }
 
+/* ── K2-UI-RISK-1:右栏研判重构 ─────────────── */
+.mode-warning {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 700;
+}
+.k2-head-panel { padding: 12px 14px; }
+.k2-head-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.k2-head-row h2 { margin: 0; font-size: 15px; }
+.k2-sub { color: #64748b; font-size: 12.5px; }
+.k2-back-btn {
+  margin-left: auto; font-size: 11.5px; color: #2563eb; background: none; border: none; cursor: pointer;
+}
+.k2-global-overview, .k2-route-overview { margin-top: 10px; }
+.k2-route-stats { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: #475569; }
+.k2-route-stats b.high { color: #DC2626; } .k2-route-stats b.medium { color: #F59E0B; } .k2-route-stats b.low { color: #16A34A; }
+.k2-top-route { margin-top: 8px; font-size: 12.5px; color: #334155; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.k2-top-risk { color: #DC2626; font-size: 14px; }
+.k2-osint-sum { margin-top: 8px; font-size: 12px; color: #64748b; }
+.k2-osint-sum b { color: #0f172a; }
+.k2-route-tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.k2-transport { font-size: 12px; color: #64748b; }
+.k2-scores { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font-size: 12px; color: #475569; }
+.k2-scores b { font-size: 13.5px; color: #0f172a; }
+.k2-route-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; font-size: 11.5px; color: #64748b; }
+.k2-empirical { margin-top: 8px; padding: 6px 8px; background: #f0fdf4; border-left: 3px solid #16A34A; border-radius: 4px; font-size: 12px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.k2-empirical b { font-size: 15px; color: #15803d; }
+.k2-emp-accum { background: #fffbeb; border-left-color: #f59e0b; }
+.k2-emp-accum b { color: #b45309; }
+.k2-emp-method { font-size: 10.5px; color: #64748b; }
 
-.ranking-head strong {
-  min-width:
-    0;
+.k2-route-select-panel { padding: 8px 12px; }
+.k2-route-panel-title { font-size: 12px; font-weight: 600; color: #94a3b8; margin-bottom: 6px; letter-spacing: 0.5px; }
+.k2-route-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.k2-chip {
+  padding: 4px 10px; border-radius: 999px; border: 1px solid #e2e8f0; background: #f8fafc;
+  font-size: 12px; color: #475569; cursor: pointer; transition: all .12s;
+}
+.k2-chip.active { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
+.k2-rank-share { font-size: 10.5px; color: #1e3a8a; background: #eef2ff; padding: 1px 5px; border-radius: 4px; }
+.k2-chip b { font-weight: 800; }
 
-  color:
-    #334155;
+.k2-chip:hover { border-color: #93c5fd; }
+.k2-tabs-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 12px 14px; }
+.k2-tab-scroll { overflow-y: auto; flex: 1; min-height: 0; max-height: calc(100vh - 470px); }
+.k2-risk-global { margin-bottom: 12px; }
+.k2-sec-title { font-size: 12.5px; font-weight: 800; margin: 10px 0 6px; color: #334155; }
+.k2-ranking { display: flex; flex-direction: column; gap: 4px; }
+.k2-rank-row {
+  display: flex; align-items: center; gap: 7px; padding: 6px 8px; border-radius: 8px;
+  background: #f8fafc; border: 1px solid #e2e8f0; cursor: pointer; min-height: 40px;
+}
+.k2-rank-row:hover { border-color: #93c5fd; }
+.k2-rank-no { width: 16px; color: #94a3b8; font-size: 11px; flex: 0 0 auto; }
+.k2-rank-country {
+  flex: 1 1 auto; min-width: 0; font-size: 13px; font-weight: 700; color: #1e293b;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2;
+}
+.k2-rank-row .risk-tag { flex: 0 0 auto; white-space: nowrap; }
+.k2-rank-risk { font-size: 14px; font-weight: 800; color: #0f172a; width: 44px; flex: 0 0 auto; text-align: right; }
+.k2-rank-ev {
+  font-size: 10px; font-weight: 500; color: #7c8aa5; letter-spacing: 0.3px;
+  flex: 0 0 auto; white-space: nowrap; padding-left: 2px;
+}
+.k2-rank-more { text-align: center; font-size: 12px; color: #2563eb; cursor: pointer; padding: 6px; }
+.k2-critical-nodes { display: flex; flex-direction: column; gap: 4px; }
+.k2-cnode {
+  display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 8px;
+  background: #f8fafc; border: 1px solid #e2e8f0; font-size: 12px;
+}
+.k2-cnode-name { flex: 1; }
+.k2-cnode-route { color: #94a3b8; font-size: 11px; }
+.k2-cnode b { font-size: 12.5px; }
+.k2-risk-note { margin-top: 8px; font-size: 11px; color: #94a3b8; }
+.k2-osint-filter-note { margin-bottom: 8px; font-size: 11.5px; color: #64748b; }
+.ev-dir { font-size: 11px; color: #64748b; }
+.ev-recovered-note { margin-left: 4px; color: #16A34A; font-size: 11px; }
+.snapshot-ok { margin-left: 6px; color: #16A34A; font-size: 11px; }
+.k2-data-status { padding: 10px 12px; font-size: 11px; }
+.k2-ds-toggle { width: 100%; text-align: left; background: none; border: none; font-size: 12px; font-weight: 700; color: #64748b; cursor: pointer; padding: 2px 0 6px; }
+.k2-osint-stats { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11.5px; color: #475569; margin-bottom: 8px; }
+.k2-osint-stats b { font-size: 12.5px; color: #0f172a; } .k2-osint-stats b.ok { color: #16A34A; }
+.k2-osint-filters { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+.k2-of { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; cursor: pointer; }
+.k2-of.active { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
+.ev-note { font-size: 10.5px; color: #94a3b8; }
+.ev-reeff { font-size: 10.5px; color: #b91c1c; background: #fef2f2; padding: 1px 6px; border-radius: 4px; }
+.ev-knowledge { font-size: 10.5px; color: #64748b; background: #f1f5f9; padding: 1px 6px; border-radius: 4px; }
 
-  font-size:
-    10px;
+.ev-reason { margin: 6px 0 0; font-size: 11px; color: #b45309; }
+.k2-crit-toggle { display: flex; gap: 5px; margin-bottom: 6px; }
+.k2-crit-toggle button { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; cursor: pointer; }
+.k2-crit-toggle button.active { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
+.k2-cnode-osint { font-size: 10.5px; color: #b45309; }
 
-  overflow:
-    hidden;
 
-  white-space:
-    nowrap;
+.k2-ds-title { font-size: 12px; font-weight: 800; margin-bottom: 6px; color: #334155; }
+.k2-ds-row { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; color: #64748b; }
+.k2-ds-row b { color: #334155; font-weight: 600; text-align: right; }
+.k2-ds-note { margin: 6px 0 0; font-size: 10.5px; color: #94a3b8; }
 
-  text-overflow:
-    ellipsis;
+
+.panel-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 13px;
 }
 
-
-.ranking-head span {
-  color:
-    #94a3b8;
-
-  font-size:
-    7px;
-
-  white-space:
-    nowrap;
+.panel-title h2 {
+  margin: 0;
+  font-size: 16px;
 }
 
-
-.ranking-risk-row {
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  gap:
-    7px;
-
-  margin-top:
-    5px;
+.panel-title span {
+  color: #64748b;
+  font-size: 12px;
 }
 
-
-.ranking-track {
-  height:
-    6px;
-
-  flex:
-    1;
-
-  overflow:
-    hidden;
-
-  border-radius:
-    4px;
-
-  background:
-    #edf2f7;
+.coverage {
+  padding: 12px;
+  margin-bottom: 10px;
+  border-radius: 18px;
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.18);
 }
 
-
-.ranking-fill {
-  height:
-    100%;
-
-  border-radius:
-    4px;
+.coverage-bar {
+  display: flex;
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
 }
 
-
-.ranking-risk-row b {
-  width:
-    25px;
-
-  text-align:
-    right;
-
-  font-size:
-    11px;
+.coverage-self {
+  background: linear-gradient(90deg, #22c55e, #16a34a);
 }
 
-
-.ranking-meta {
-  margin-top:
-    3px;
-
-  font-size:
-    8px;
-
-  font-weight:
-    600;
+.coverage-import {
+  background: linear-gradient(90deg, #60a5fa, #2563eb);
 }
 
-
-.ranking-reason {
-  margin-top:
-    3px;
-
-  color:
-    #94a3b8;
-
-  font-size:
-    7.5px;
-
-  line-height:
-    1.45;
+.coverage-other {
+  background: linear-gradient(90deg, #cbd5e1, #94a3b8);
 }
 
-
-/* ============================================================
-   Chain
-============================================================ */
-
-.chain-card {
-  min-height:
-    155px;
-
-  margin-top:
-    7px;
-
-  padding:
-    11px 15px;
+.coverage-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 12px;
 }
 
-
-.chain-header {
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  justify-content:
-    space-between;
+.supplier-row {
+  display: grid;
+  grid-template-columns: 108px 1fr 42px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 0;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
 }
 
-
-.chain-title {
-  color:
-    #334155;
-
-  font-size:
-    12px;
-
-  font-weight:
-    700;
+.supplier-row:hover strong {
+  color: #2563eb;
 }
 
-
-.chain-subtitle {
-  margin-top:
-    3px;
-
-  color:
-    #94a3b8;
-
-  font-size:
-    8px;
+.supplier-main strong {
+  display: block;
+  color: #0f172a;
+  font-size: 14px;
 }
 
-
-.route-select {
-  max-width:
-    260px;
-
-  height:
-    29px;
-
-  padding:
-    0 9px;
-
-  outline:
-    none;
-
-  color:
-    #475569;
-
-  border:
-    1px solid #d6e0e8;
-
-  border-radius:
-    5px;
-
-  background:
-    #fff;
-
-  font-size:
-    9px;
+.supplier-main span {
+  display: block;
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 11px;
 }
 
-
-.chain-track {
-  display:
-    flex;
-
-  align-items:
-    flex-start;
-
-  justify-content:
-    center;
-
-  margin-top:
-    16px;
-
-  overflow-x:
-    auto;
-
-  padding-bottom:
-    5px;
+.supplier-bar {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
 }
 
+.supplier-fill {
+  height: 100%;
+  border-radius: 999px;
+  box-shadow: 0 0 12px rgba(37, 99, 235, 0.20);
+}
+
+.supplier-row b {
+  text-align: right;
+  color: #334155;
+}
+
+.route-card {
+  padding: 13px;
+  margin-bottom: 12px;
+  border-radius: 20px;
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.route-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.route-head strong {
+  font-size: 14px;
+}
+
+.route-head p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.risk-tag {
+  align-self: flex-start;
+  padding: 4px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.risk-tag.low {
+  color: #15803d;
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.risk-tag.medium {
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.14);
+}
+
+.risk-tag.high {
+  color: #b91c1c;
+  background: rgba(220, 38, 38, 0.12);
+}
+
+.node-chain {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+  margin: 12px 0;
+}
+
+.node-chain i {
+  color: #94a3b8;
+  font-style: normal;
+}
 
 .chain-node {
-  min-width:
-    90px;
-
-  max-width:
-    110px;
-
-  text-align:
-    center;
+  padding: 6px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: #ffffff;
+  cursor: pointer;
+  font-size: 12px;
 }
 
-
-.chain-node-icon {
-  width:
-    34px;
-
-  height:
-    34px;
-
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  justify-content:
-    center;
-
-  margin:
-    auto;
-
-  border:
-    2px solid;
-
-  border-radius:
-    50%;
-
-  background:
-    #fff;
-
-  font-size:
-    14px;
+.chain-node.low {
+  color: #15803d;
 }
 
-
-.chain-node-name {
-  max-width:
-    100px;
-
-  margin:
-    6px auto 0;
-
-  color:
-    #475569;
-
-  font-size:
-    8px;
-
-  overflow:
-    hidden;
-
-  white-space:
-    nowrap;
-
-  text-overflow:
-    ellipsis;
+.chain-node.medium {
+  color: #b45309;
 }
 
-
-.chain-node-score {
-  margin-top:
-    2px;
-
-  font-size:
-    8px;
-
-  font-weight:
-    700;
+.chain-node.high {
+  color: #b91c1c;
+  border-color: rgba(220, 38, 38, 0.22);
+  background: rgba(254, 242, 242, 0.9);
+  box-shadow: 0 0 18px rgba(220, 38, 38, 0.08);
 }
 
-
-.chain-node-level {
-  margin-top:
-    1px;
-
-  font-size:
-    7px;
+.route-desc {
+  margin: 0;
+  color: #475569;
+  line-height: 1.6;
+  font-size: 12px;
 }
 
-
-.chain-node-reason {
-  max-width:
-    105px;
-
-  margin:
-    3px auto 0;
-
-  color:
-    #94a3b8;
-
-  font-size:
-    6.5px;
-
-  line-height:
-    1.35;
-
-  display:
-    -webkit-box;
-
-  overflow:
-    hidden;
-
-  -webkit-line-clamp:
-    2;
-
-  -webkit-box-orient:
-    vertical;
+.risk-card {
+  padding: 13px;
+  margin-bottom: 10px;
+  border-radius: 18px;
+  cursor: pointer;
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-left: 5px solid #94a3b8;
 }
 
+.risk-card.high {
+  border-left-color: #dc2626;
+  background: linear-gradient(90deg, rgba(254, 242, 242, 0.9), #ffffff);
+}
+
+.risk-card.medium {
+  border-left-color: #f59e0b;
+  background: linear-gradient(90deg, rgba(255, 251, 235, 0.9), #ffffff);
+}
+
+.risk-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
+}
+
+.risk-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.risk-card-head strong {
+  font-size: 14px;
+}
+
+.risk-card-head span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.risk-card p {
+  margin: 8px 0;
+  color: #475569;
+  line-height: 1.55;
+  font-size: 12px;
+}
+
+.risk-score {
+  display: flex;
+  justify-content: space-between;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.risk-score b {
+  color: #0f172a;
+}
+
+/* ── 第十二步:统计条 / 路线双分 / Tab / OSINT / 模型链 ── */
+.stats-strip {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.05);
+  backdrop-filter: blur(12px);
+  font-size: 12px;
+}
+
+.stat-chip .sc-label {
+  color: #64748b;
+  font-weight: 700;
+  font-size: 11px;
+}
+
+.stat-chip .sc-value {
+  color: #334155;
+}
+
+.chip-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin: 0 2px;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+
+.chip-dot.high {
+  background: #dc2626;
+}
+
+/* route 双分 */
+.route-scores {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.score-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 12px;
+  color: #475569;
+}
+
+.score-row b {
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.score-row.muted b {
+  color: #64748b;
+}
+
+.score-row.meta {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.route-toggle {
+  display: block;
+  width: 100%;
+  margin: 2px 0 8px;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.route-toggle:hover {
+  background: #e2e8f0;
+  color: #2563eb;
+}
+
+.route-breakdown {
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.bd-note,
+.re-note {
+  margin: 0 0 8px;
+  color: #94a3b8;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.bd-item {
+  display: grid;
+  grid-template-columns: 72px 1fr 40px;
+  gap: 8px;
+  align-items: center;
+  padding: 3px 0;
+  font-size: 12px;
+}
+
+.bd-label,
+.re-label {
+  color: #64748b;
+}
+
+.bd-bar,
+.re-bar {
+  height: 7px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.bd-bar i,
+.re-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #93c5fd, #2563eb);
+}
+
+.bd-val {
+  text-align: right;
+  color: #334155;
+}
+
+.krp-title,
+.krp-label {
+  display: block;
+  margin: 8px 0 6px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.krp-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12px;
+}
+
+.krp-item .dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot.low {
+  background: #16a34a;
+}
+
+.dot.medium {
+  background: #f59e0b;
+}
+
+.dot.high {
+  background: #dc2626;
+}
+
+.krp-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.route-evidence {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(59, 130, 246, 0.05);
+  border: 1px solid rgba(59, 130, 246, 0.16);
+}
+.ev-list {
+  margin: 4px 0 6px;
+  padding-left: 16px;
+  color: #475569;
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+.ev-list a {
+  color: #2563eb;
+  text-decoration: none;
+  word-break: break-all;
+}
+.ev-level {
+  margin: 2px 0 0;
+  color: #1e40af;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.ev-level.muted {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.krp-main strong {
+  display: block;
+  color: #0f172a;
+}
+
+.krp-main small {
+  display: block;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.osint-flag {
+  color: #ea580c !important;
+  font-weight: 700;
+}
+
+.krp-name {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.krp-type {
+  flex: 1;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.tabs button {
+  flex: 1;
+  padding: 7px 4px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tabs button.active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.tab-count {
+  display: inline-block;
+  margin-left: 3px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  font-size: 11px;
+}
+
+.tab-body {
+  min-height: 120px;
+}
+
+.tab-hint {
+  padding: 16px;
+  color: #94a3b8;
+  text-align: center;
+  font-size: 12px;
+}
+
+/* 节点详情 */
+.node-detail {
+  padding: 12px;
+  margin-bottom: 12px;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.08);
+}
+
+.nd-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.nd-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.nd-grid > div {
+  padding: 8px;
+  border-radius: 10px;
+  background: #f8fafc;
+  text-align: center;
+}
+
+.nd-grid span {
+  display: block;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.nd-grid b {
+  display: block;
+  margin-top: 3px;
+  color: #0f172a;
+  font-size: 16px;
+}
+
+.nd-grid b.pos {
+  color: #ea580c;
+}
+
+.nd-none {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.nd-reason {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e40af;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.nd-desc {
+  margin: 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* 路线解释列表 */
+.route-expl-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.route-expl {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  cursor: pointer;
+}
+
+.route-expl.active {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+.re-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.re-scores {
+  display: flex;
+  gap: 16px;
+  margin: 6px 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.re-scores b {
+  color: #0f172a;
+}
+
+.re-bd {
+  margin: 6px 0;
+}
+
+.re-bd-item {
+  display: grid;
+  grid-template-columns: 72px 1fr 40px;
+  gap: 8px;
+  align-items: center;
+  padding: 2px 0;
+  font-size: 11px;
+}
+
+.re-krp {
+  margin-top: 6px;
+}
+
+.re-note {
+  margin-top: 6px;
+  margin-bottom: 0;
+}
+
+/* OSINT 事件 */
+.ev-card {
+  padding: 11px 12px;
+  margin-bottom: 8px;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  cursor: pointer;
+}
+
+.ev-card.active {
+  border-color: #f97316;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.14);
+}
+
+.ev-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.ev-head strong {
+  font-size: 13px;
+  color: #0f172a;
+  line-height: 1.4;
+}
+
+.ev-sev {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ev-sev.severe {
+  color: #b91c1c;
+  background: rgba(220, 38, 38, 0.12);
+}
+
+.ev-sev.elevated {
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.14);
+}
+
+.ev-sev.moderate {
+  color: #0f766e;
+  background: rgba(20, 184, 166, 0.14);
+}
+
+.ev-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.ev-type {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 11px;
+}
+
+.ev-ss {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.ev-src {
+  color: #cbd5e1;
+  font-size: 11px;
+}
+
+.ev-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.ev-detail {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(148, 163, 184, 0.3);
+}
+
+.ev-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.ev-row b {
+  color: #334155;
+  text-align: right;
+}
+
+.ev-affected {
+  margin-top: 6px;
+}
+
+.ev-af-label {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.ev-chips {
+  margin: 3px 0 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+/* 模型链 */
+.chain-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  font-size: 12px;
+  color: #64748b;
+}
+
+.chain-summary b.ok {
+  color: #16a34a;
+}
+
+.chain-summary b.bad {
+  color: #dc2626;
+}
+
+.chain-hint {
+  margin: 0 0 8px;
+  color: #94a3b8;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.chain-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chain-node {
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.chain-node.success {
+  border-left: 4px solid #16a34a;
+}
+
+.chain-node.failed {
+  border-left: 4px solid #dc2626;
+  background: rgba(254, 242, 242, 0.7);
+}
+
+.chain-node.warning {
+  border-left: 4px solid #f59e0b;
+}
+
+.cn-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.cn-head strong {
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.cn-dur {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.cn-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.cn-warn {
+  color: #b45309;
+  font-weight: 700;
+}
 
 .chain-arrow {
-  width:
-    50px;
-
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  margin-top:
-    16px;
+  color: #94a3b8;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1;
 }
 
-
-.chain-arrow-line {
-  height:
-    2px;
-
-  flex:
-    1;
+.model-detail {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  margin: 2px 0;
 }
 
-
-.chain-arrow span {
-  margin-left:
-    -1px;
-
-  font-size:
-    19px;
-
-  line-height:
-    10px;
+.md-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 0;
+  color: #64748b;
+  font-size: 12px;
 }
 
-
-.empty-chain {
-  padding:
-    30px 0;
-
-  color:
-    #94a3b8;
-
-  text-align:
-    center;
-
-  font-size:
-    9px;
+.md-row b {
+  color: #334155;
+  text-align: right;
+  word-break: break-all;
 }
 
-
-/* ============================================================
-   Bottom dashboard
-============================================================ */
-
-.bottom-dashboard {
-  height:
-    250px;
-
-  display:
-    grid;
-
-  grid-template-columns:
-    1.55fr
-    1fr
-    1.05fr;
-
-  gap:
-    7px;
-
-  margin-top:
-    7px;
+.md-error {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 12px;
 }
 
-
-.bottom-card {
-  overflow:
-    hidden;
+.md-card-btn {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(37, 99, 235, 0.3);
+  background: #ffffff;
+  color: #2563eb;
+  font-size: 12px;
+  cursor: pointer;
 }
 
-
-/* ============================================================
-   Events
-============================================================ */
-
-.event-scroll {
-  height:
-    calc(100% - 34px);
-
-  overflow-y:
-    auto;
+.md-card-btn:hover {
+  background: #eff6ff;
 }
 
-
-.event-item {
-  display:
-    grid;
-
-  grid-template-columns:
-    58px
-    4px
-    1fr;
-
-  gap:
-    9px;
-
-  padding:
-    9px 10px;
-
-  border-bottom:
-    1px solid #eef2f6;
+.model-card {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
 }
 
-
-.event-left {
-  display:
-    flex;
-
-  flex-direction:
-    column;
-
-  gap:
-    4px;
+.mc-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
 }
 
-
-.event-time {
-  color:
-    #94a3b8;
-
-  font-size:
-    7px;
+.mc-head strong {
+  color: #0f172a;
 }
 
-
-.event-risk-level {
-  font-size:
-    9px;
-
-  font-weight:
-    700;
+.mc-close {
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 14px;
+  cursor: pointer;
 }
 
-
-.event-risk-bar {
-  width:
-    3px;
-
-  min-height:
-    38px;
-
-  border-radius:
-    3px;
+.mc-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 0;
+  color: #64748b;
+  font-size: 12px;
 }
 
-
-.event-info {
-  min-width:
-    0;
+.mc-row b {
+  color: #334155;
+  text-align: right;
+  word-break: break-all;
 }
 
-
-.event-title-row {
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  justify-content:
-    space-between;
-
-  gap:
-    8px;
+.mc-cali {
+  margin: 6px 0;
+  padding: 8px;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e40af;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
-
-.event-title-row strong {
-  min-width:
-    0;
-
-  color:
-    #475569;
-
-  font-size:
-    9px;
-
-  overflow:
-    hidden;
-
-  white-space:
-    nowrap;
-
-  text-overflow:
-    ellipsis;
+.mc-desc {
+  margin: 8px 0 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
-
-.event-source {
-  padding:
-    1px 4px;
-
-  border-radius:
-    3px;
-
-  color:
-    #64748b;
-
-  background:
-    #f1f5f9;
-
-  font-size:
-    6.5px;
-
-  white-space:
-    nowrap;
+.mc-algo {
+  margin: 6px 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
-
-.event-desc {
-  display:
-    block;
-
-  margin-top:
-    3px;
-
-  color:
-    #94a3b8;
-
-  font-size:
-    7.5px;
-
-  line-height:
-    1.4;
+.mc-io {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
 }
 
-
-.event-score-row {
-  display:
-    grid;
-
-  grid-template-columns:
-    38px
-    1fr
-    24px;
-
-  align-items:
-    center;
-
-  gap:
-    5px;
-
-  margin-top:
-    5px;
-
-  color:
-    #94a3b8;
-
-  font-size:
-    7px;
+.mc-io span {
+  flex: 1;
+  padding: 8px;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.6;
 }
 
-
-.event-score-track {
-  height:
-    4px;
-
-  overflow:
-    hidden;
-
-  border-radius:
-    3px;
-
-  background:
-    #edf2f7;
+.mc-io b {
+  color: #334155;
 }
 
-
-.event-score-fill {
-  height:
-    100%;
-}
-
-
-.event-score-row b {
-  text-align:
-    right;
-
-  font-size:
-    8px;
-}
-
-
-/* ============================================================
-   Risk composition
-============================================================ */
-
-.risk-composition {
-  height:
-    calc(100% - 34px);
-
-  box-sizing:
-    border-box;
-
-  padding:
-    7px 11px;
-
-  overflow-y:
-    auto;
-}
-
-
-.risk-composition-item {
-  padding:
-    6px 0;
-
-  border-bottom:
-    1px solid #f0f4f7;
-}
-
-
-.composition-head {
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  justify-content:
-    space-between;
-
-  gap:
-    8px;
-}
-
-
-.composition-name {
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  gap:
-    6px;
-
-  color:
-    #475569;
-
-  font-size:
-    9px;
-
-  font-weight:
-    600;
-}
-
-
-.composition-name i {
-  width:
-    7px;
-
-  height:
-    7px;
-
-  border-radius:
-    50%;
-}
-
-
-.composition-head > div:last-child {
-  display:
-    flex;
-
-  align-items:
-    baseline;
-
-  gap:
-    5px;
-}
-
-
-.composition-head b {
-  font-size:
-    12px;
-}
-
-
-.composition-head span {
-  color:
-    #94a3b8;
-
-  font-size:
-    7px;
-}
-
-
-.composition-track {
-  height:
-    5px;
-
-  margin-top:
-    5px;
-
-  overflow:
-    hidden;
-
-  border-radius:
-    4px;
-
-  background:
-    #edf2f7;
-}
-
-
-.composition-fill {
-  height:
-    100%;
-
-  border-radius:
-    4px;
-}
-
-
-.composition-desc {
-  margin-top:
-    3px;
-
-  color:
-    #94a3b8;
-
-  font-size:
-    7px;
-}
-
-
-/* ============================================================
-   Analysis
-============================================================ */
-
-.analysis-content {
-  height:
-    calc(100% - 34px);
-
-  box-sizing:
-    border-box;
-
-  padding:
-    9px 10px;
-
-  overflow-y:
-    auto;
-}
-
-
-.analysis-level {
-  display:
-    inline-flex;
-
-  align-items:
-    center;
-
-  min-height:
-    23px;
-
-  box-sizing:
-    border-box;
-
-  padding:
-    3px 8px;
-
-  border-radius:
-    5px;
-
-  font-size:
-    9px;
-
-  font-weight:
-    700;
-}
-
-
-.analysis-kpi-row {
-  display:
-    grid;
-
-  grid-template-columns:
-    repeat(3, 1fr);
-
-  gap:
-    5px;
-
-  margin-top:
-    8px;
-}
-
-
-.analysis-kpi {
-  display:
-    flex;
-
-  flex-direction:
-    column;
-
-  align-items:
-    center;
-
-  justify-content:
-    center;
-
-  min-height:
-    43px;
-
-  border:
-    1px solid #edf2f7;
-
-  border-radius:
-    5px;
-
-  background:
-    #fafcfd;
-}
-
-
-.analysis-kpi span {
-  color:
-    #94a3b8;
-
-  font-size:
-    7px;
-}
-
-
-.analysis-kpi b {
-  margin-top:
-    2px;
-
-  color:
-    #334155;
-
-  font-size:
-    14px;
-}
-
-
-.analysis-points {
-  margin-top:
-    7px;
-}
-
-
-.analysis-point {
-  display:
-    flex;
-
-  align-items:
-    flex-start;
-
-  gap:
-    6px;
-
-  margin-bottom:
-    5px;
-
-  color:
-    #64748b;
-
-  font-size:
-    7.5px;
-
-  line-height:
-    1.5;
-}
-
-
-.analysis-point > i {
-  width:
-    5px;
-
-  height:
-    5px;
-
-  flex-shrink:
-    0;
-
-  margin-top:
-    4px;
-
-  border-radius:
-    50%;
-
-  background:
-    #0284c7;
-}
-
-
-.analysis-point b {
-  color:
-    #334155;
-}
-
-
-.analysis-confidence {
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  gap:
-    6px;
-
-  margin-top:
-    7px;
-
-  padding:
-    6px;
-
-  border-radius:
-    5px;
-
-  background:
-    #f8fafc;
-
-  color:
-    #94a3b8;
-
-  font-size:
-    8px;
-}
-
-
-.analysis-confidence b {
-  font-size:
-    12px;
-}
-
-
-.verify-btn {
-  width:
-    100%;
-
-  margin-top:
-    7px;
-}
-
-
-/* ============================================================
-   Timeline
-============================================================ */
-
-.timeline-bar {
-  height:
-    52px;
-
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  gap:
-    12px;
-
-  box-sizing:
-    border-box;
-
-  margin-top:
-    7px;
-
-  padding:
-    0 12px;
-
-  border:
-    1px solid #d8e4ed;
-
-  border-radius:
-    7px;
-
-  background:
-    #ffffff;
-
-  box-shadow:
-    0 3px 12px
-    rgba(15,23,42,.035);
-}
-
-
-.timeline-year {
-  min-width:
-    48px;
-
-  color:
-    #0284c7;
-
-  text-align:
-    center;
-
-  font-size:
-    11px;
-
-  font-weight:
-    700;
-}
-
-
-.timeline-slider {
-  flex:
-    1;
-}
-
-
-.timeline-stat {
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  gap:
-    4px;
-
-  color:
-    #94a3b8;
-
-  font-size:
-    8px;
-
-  white-space:
-    nowrap;
-}
-
-
-.timeline-stat b {
-  font-size:
-    11px;
-}
-
-
-/* ============================================================
-   Empty
-============================================================ */
-
-.empty-message {
-  padding:
-    20px 10px;
-
-  color:
-    #94a3b8;
-
-  text-align:
-    center;
-
-  font-size:
-    9px;
-}
-
-
-/* ============================================================
-   Scrollbars
-============================================================ */
-
-.risk-ranking-scroll::-webkit-scrollbar,
-.event-scroll::-webkit-scrollbar,
-.risk-composition::-webkit-scrollbar,
-.analysis-content::-webkit-scrollbar,
-.chain-track::-webkit-scrollbar {
-  width:
-    4px;
-
-  height:
-    4px;
-}
-
-
-.risk-ranking-scroll::-webkit-scrollbar-thumb,
-.event-scroll::-webkit-scrollbar-thumb,
-.risk-composition::-webkit-scrollbar-thumb,
-.analysis-content::-webkit-scrollbar-thumb,
-.chain-track::-webkit-scrollbar-thumb {
-  border-radius:
-    4px;
-
-  background:
-    #cbd5e1;
-}
-
-
-/* ============================================================
-   Element Plus
-============================================================ */
-
-:deep(.el-slider__runway) {
-  height:
-    3px;
-
-  background:
-    #e2e8f0;
-}
-
-
-:deep(.el-slider__bar) {
-  height:
-    3px;
-
-  background:
-    #0284c7;
-}
-
-
-:deep(.el-slider__button) {
-  width:
-    11px;
-
-  height:
-    11px;
-
-  border:
-    2px solid #0284c7;
-}
-
-
-/* ============================================================
-   Responsive
-============================================================ */
-
-@media (max-width: 1450px) {
-
-  .uranium-page {
-    min-width:
-      1100px;
+@media (max-width: 1280px) {
+  .page-header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
-
-  .main-dashboard {
-    grid-template-columns:
-      minmax(690px, 1fr)
-      270px;
+  .summary-grid {
+    grid-template-columns: repeat(4, minmax(100px, 1fr));
+    width: 100%;
   }
 
+  .main-layout {
+    grid-template-columns: 1fr;
+  }
 
-  .bottom-dashboard {
-    grid-template-columns:
-      1.45fr
-      .95fr
-      1fr;
+  .side-panel {
+    max-height: none;
   }
 }
 
+@media (max-width: 720px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .map-topbar {
+    position: relative;
+    flex-direction: column;
+    top: auto;
+    left: auto;
+    right: auto;
+    padding: 14px;
+  }
+
+  .chart {
+    height: 620px;
+    min-height: 620px;
+  }
+
+  .map-panel {
+    min-height: auto;
+  }
+
+  .legend {
+    position: static;
+    margin: 0 14px 14px;
+    flex-wrap: wrap;
+  }
+}
 </style>

@@ -2,6 +2,17 @@
 import request from '@/utils/request'
 
 /**
+ * 从 SCnet 后端获取开源情报事件（按场景分类）
+ * @param {string} scenario - 'uranium' | 'supply_chain'
+ * @param {string} [keyword] - 可选关键词过滤
+ */
+export function getScnetOsintEvents(scenario, keyword) {
+  return request.get('/SCnet/osint/events', {
+    params: { scenario, keyword: keyword || undefined }
+  })
+}
+
+/**
  * 按来源类型获取情报列表（不含 content/summary，轻量）
  * @param {string} sourceCategory - 'news' | 'social' | 'official'
  * @param {string|null} keyword - 可选关键词过滤

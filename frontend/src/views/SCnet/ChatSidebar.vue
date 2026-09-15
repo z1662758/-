@@ -98,6 +98,15 @@
           </div>
         </div>
       </template>
+      <div v-else-if="historyError && !historyLoaded" class="chat-sidebar-conv-empty">
+        <el-icon :size="24" color="#f59e0b"><WarningFilled /></el-icon>
+        <span>历史对话加载失败</span>
+        <button class="chat-sidebar-retry-btn" type="button" @click="$emit('retry-history')">重试</button>
+      </div>
+      <div v-else-if="historyLoading && !historyLoaded" class="chat-sidebar-conv-empty">
+        <el-icon :size="24" color="#d1d5db"><Loading /></el-icon>
+        <span>正在加载历史对话…</span>
+      </div>
       <div v-else class="chat-sidebar-conv-empty">
         <el-icon :size="24" color="#d1d5db"><ChatDotRound /></el-icon>
         <span>暂无对话</span>
@@ -144,7 +153,7 @@
 <script>
 import {
   Fold, Expand, Plus, Memo, ChatDotRound, SwitchButton,
-  MoreFilled, EditPen, Delete, Close, CircleCheck, CircleCheckFilled, Operation
+  MoreFilled, EditPen, Delete, Close, CircleCheck, CircleCheckFilled, Operation, WarningFilled, Loading
 } from '@element-plus/icons-vue'
 import logoUrl from '@/assets/images/logo.png'
 
@@ -152,16 +161,19 @@ export default {
   name: 'ChatSidebar',
   components: {
     Fold, Expand, Plus, Memo, ChatDotRound, SwitchButton,
-    MoreFilled, EditPen, Delete, Close, CircleCheck, CircleCheckFilled, Operation
+    MoreFilled, EditPen, Delete, Close, CircleCheck, CircleCheckFilled, Operation, WarningFilled, Loading
   },
   props: {
     conversations: { type: Array, default: () => [] },
     activeId: { type: String, default: null },
-    collapsed: { type: Boolean, default: false }
+    collapsed: { type: Boolean, default: false },
+    historyLoaded: { type: Boolean, default: false },
+    historyError: { type: Boolean, default: false },
+    historyLoading: { type: Boolean, default: false }
   },
   emits: [
     'new-conversation', 'select-conversation', 'delete-conversation',
-    'batch-delete', 'rename-conversation', 'toggle', 'exit'
+    'batch-delete', 'rename-conversation', 'toggle', 'exit', 'retry-history'
   ],
   data() {
     return {
@@ -394,6 +406,11 @@ export default {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 8px; padding: 20px 0; color: #9ca3af; font-size: 13px;
 }
+.chat-sidebar-retry-btn {
+  margin-top: 2px; padding: 4px 14px; border: 1px solid #e5e7eb; border-radius: 8px;
+  background: #fff; color: #6366f1; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.chat-sidebar-retry-btn:hover { background: #eef2ff; border-color: #c7d2fe; }
 
 .chat-sidebar-footer {
   display: flex; align-items: center; height: 60px; padding: 0 12px;

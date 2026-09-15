@@ -17,11 +17,12 @@
         @open-verify="verifyDrawer = true"
       />
 
-      <!-- 供应网络关键节点分析（仅铀场景） -->
+      <!-- 供应网络关键节点分析（仅铀场景）
       <SupplyNetworkPanel
         v-if="scenario === 'uranium'"
         :supply-network="supplyNetwork"
       />
+      -->
 
       <!-- ====== 下半部分：详情分析 ====== -->
       <div class="sj-detail-section">
@@ -60,6 +61,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import { getJudgmentData } from '@/api/situation'
+import { buildUraniumSituationRoutes } from '@/assets/data/scnetReferenceData'
 import VerificationReport from './PreScene/VerificationReport.vue'
 import SituationMap from './PreScene/SituationMap.vue'
 import SupplyNetworkPanel from './PreScene/SupplyNetworkPanel.vue'
@@ -93,6 +95,12 @@ async function fetchData() {
     const res = await getJudgmentData(props.scenario)
     if (res.success) {
       chartData.value = res.data
+      // 事前态势图线路强制使用前端参考通道数据（仅铀场景）
+      if (props.scenario === 'uranium') {
+        const sm = chartData.value?.situationMap || (chartData.value.situationMap = {})
+        sm.routes = buildUraniumSituationRoutes()
+        sm.updateTime = sm.updateTime || new Date().toISOString()
+      }
       await nextTick()
       initAllCharts()
     } else {

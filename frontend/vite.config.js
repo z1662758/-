@@ -63,6 +63,14 @@ export default defineConfig({
         target: 'http://localhost:9091/',
         changeOrigin: true
       },
+      // K3-CHAT-1:Agent 对话 API(对话首页 Agent 研判)。后端蓝图 url_prefix=/api/agent,
+      // 不做路径重写;SSE 长连接单独拉高超时,避免代理 502。
+      '/api/agent': {
+        target: 'http://localhost:9091/',
+        changeOrigin: true,
+        timeout: 600000,
+        proxyTimeout: 600000
+      },
       // 其他 /api 开头的请求，移除 /api 前缀（后端路由不含 /api）
       '/api': {
         target: 'http://localhost:9091/',

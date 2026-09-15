@@ -2,16 +2,24 @@
   <div class="knowledge-center">
     <!-- ====== OVERVIEW MODE ====== -->
     <template v-if="!activeLibrary">
-      <div class="kc-header">
-        <div class="kc-header-left">
-          <h1 class="kc-title">知识库</h1>
-          <p class="kc-subtitle">从证据资料到认知结构，再到可复用仿真资产</p>
+      
+
+      <div class="kc-home-toolbar">
+        <div class="kc-home-title">
+          <h1 class="kc-home-title__text">知识库</h1>
+          <span class="kc-home-title__sub">{{ domainLabel }}领域{{ scenarioStore.isSupplyChain ? ' · 统计信息' : ' · 实时统计' }}</span>
         </div>
-        <div class="kc-header-tools">
-          <div class="kc-tool-card kc-tool-config" @click="activeLibrary = 'config'">
-            <el-icon :size="18"><Setting /></el-icon>
-            <span>知识库配置</span>
-          </div>
+        <div class="kc-domain-switch" role="group" aria-label="知识库领域切换">
+          <button
+            v-for="d in domainOptions"
+            :key="d.id"
+            type="button"
+            class="kc-domain-switch__btn"
+            :class="{ 'is-active': domainId === d.id }"
+            @click="setDomain(d.id)"
+          >
+            <span class="kc-domain-switch__dot" :class="`is-${d.id}`"></span>{{ d.label }}
+          </button>
         </div>
       </div>
 
@@ -34,12 +42,11 @@
               :key="item.key"
               :class="['kc-level-card', `kc-level-card--${item.theme}`]"
             >
-              <!-- 左侧：铀场景（默认） -->
+              <!-- 单领域入口：卡片只服务当前 selectedDomain（铀/汽车由页头切换器决定） -->
               <button
                 type="button"
-                class="kc-level-card__side kc-level-card__side--left"
-                :class="{ 'is-active': !scenarioStore.isSupplyChain }"
-                @click="scenarioStore.setScenario('uranium'); openKnowledgeEntry(item)"
+                :class="['kc-level-card__side', scenarioStore.isSupplyChain ? 'kc-level-card__side--right' : 'kc-level-card__side--left']"
+                @click="openKnowledgeEntry(item)"
               >
                 <span class="kc-level-card__mark"></span>
                 <span class="kc-level-card__icon">
@@ -49,23 +56,7 @@
                   <span class="kc-level-card__title">{{ item.title }}</span>
                   <span class="kc-level-card__desc">{{ item.desc }}</span>
                 </span>
-                <span class="kc-level-card__side-tag">铀</span>
-              </button>
-              <!-- 右侧：汽车场景 -->
-              <button
-                type="button"
-                class="kc-level-card__side kc-level-card__side--right"
-                :class="{ 'is-active': scenarioStore.isSupplyChain }"
-                @click="scenarioStore.setScenario('supply_chain'); openKnowledgeEntry(item)"
-              >
-                <span class="kc-level-card__icon">
-                  <el-icon :size="24"><component :is="item.icon" /></el-icon>
-                </span>
-                <span class="kc-level-card__body">
-                  <span class="kc-level-card__title">{{ item.title }}</span>
-                  <span class="kc-level-card__desc">{{ item.desc }}</span>
-                </span>
-                <span class="kc-level-card__side-tag">汽车</span>
+                <span class="kc-level-card__side-tag">{{ domainLabel }}</span>
               </button>
               <!-- 统计信息（共用，放在卡片底部） -->
               <span class="kc-level-card__stats" v-if="resourceOverviewByKey[item.key]?.length">
@@ -91,12 +82,26 @@
       <!-- Dataset Section (collapsible → 弹窗打开旧 KnowledgeCreate) -->
     </template>
 
+    <!-- ====== AUTO-K2-E1 汽车本体网络(图谱) ====== -->
+    <template v-else-if="activeLibrary === 'auto_ontology_net'">
+      <div class="kc-detail">
+        <AutomotiveOntologyNetwork @back="backToKnowledgeHub" />
+      </div>
+    </template>
+
+    <!-- ====== AUTO-K1 汽车库通用查看器 ====== -->
+    <template v-else-if="isAutoLibraryDetail">
+      <div class="kc-detail kc-auto-lib-host">
+        <AutomotiveLibraryView :lib="autoLibKey" @back="backToKnowledgeHub" />
+      </div>
+    </template>
+
     <!-- ====== DETAIL MODE ====== -->
     <template v-else>
       <div class="kc-detail">
         <!-- Back button & header -->
         <div class="kc-detail-topbar">
-          <el-button text @click="activeLibrary = null">
+          <el-button text @click="backToKnowledgeHub">
             <el-icon><ArrowLeft /></el-icon>
             返回
           </el-button>
@@ -107,7 +112,7 @@
               </el-icon>
               <h2 class="kc-detail-title">{{ currentLib.name }}</h2>
               <el-switch
-                v-if="!['config', 'subject', 'subject_uranium', 'subject_auto', 'environment', 'environment_uranium', 'environment_auto', 'rules', 'rules_uranium', 'rules_auto', 'experts', 'ontology', 'ontology_uranium', 'ontology_auto'].includes(activeLibrary)"
+                v-if="!['config', 'subject', 'subject_uranium', 'subject_auto', 'environment', 'environment_uranium', 'environment_auto', 'rules', 'rules_uranium', 'rules_auto', 'experts', 'papers_lib', 'ontology', 'ontology_uranium', 'ontology_auto', 'ontology_network', 'model_library'].includes(activeLibrary)"
                 :model-value="currentLib.enabled"
                 @change="(v) => toggleLibrary(activeLibrary, v)"
                 size="small"
@@ -116,10 +121,22 @@
             </div>
             <p class="kc-detail-desc">{{ currentLib.desc }}</p>
           </div>
+          <!-- 专家观点右上角：知识图谱 / 返回专家观点（仅铀场景，同页切换不跳路由） -->
+          <el-button
+            v-if="activeLibrary === 'experts' && !scenarioStore.isSupplyChain"
+            class="kc-expert-graph-btn"
+            plain
+            type="primary"
+            @click="toggleExpertGraph"
+          >
+            <el-icon v-if="expertViewMode === 'graph'" style="margin-right:4px"><ArrowLeft /></el-icon>
+            <el-icon v-else style="margin-right:4px"><Connection /></el-icon>
+            {{ expertViewMode === 'graph' ? '返回专家观点' : '知识图谱' }}
+          </el-button>
         </div>
 
         <!-- Stats row (仅四库展示，配置/专家观点/本体编辑不显示) -->
-        <div v-if="!['config','experts','ontology','ontology_uranium','ontology_auto'].includes(activeLibrary)" class="kc-detail-stats">
+        <div v-if="!automotiveEmptyDetail && !['config','experts','papers_lib','ontology','ontology_uranium','ontology_auto','ontology_network','model_library'].includes(activeLibrary)" class="kc-detail-stats">
           <div v-for="s in libraryStats" :key="s.label" class="kc-stat-card">
             <div class="kc-stat-card__value">{{ s.value }}</div>
             <div class="kc-stat-card__label">{{ s.label }}</div>
@@ -127,8 +144,8 @@
           </div>
         </div>
 
-        <!-- Action buttons (仅四库展示) -->
-        <div v-if="!['config','experts','ontology','ontology_uranium','ontology_auto'].includes(activeLibrary)" class="kc-detail-actions">
+        <!-- Action buttons (仅四库展示;主体库/环境库/规则库/模型库为只读) -->
+        <div v-if="!automotiveEmptyDetail && !isSubjectLibrary && !isEnvironmentLibrary && !isRuleLibrary && !isModelLibrary && !['config','experts','papers_lib','ontology','ontology_uranium','ontology_auto','ontology_network'].includes(activeLibrary)" class="kc-detail-actions">
           <el-button size="small" type="primary" @click="showUploadDialog = true">
             <el-icon><Upload /></el-icon>
             上传文档
@@ -151,14 +168,333 @@
           </el-popconfirm>
         </div>
 
-        <!-- Tabbed content（四库: Graph / Docs / Entities） -->
-        <template v-if="!['config','experts','ontology','ontology_uranium','ontology_auto'].includes(activeLibrary)">
+        <!-- 汽车领域空态守卫：防止点汽车库看到铀/演示数据 -->
+        <div v-if="automotiveEmptyDetail" class="kc-detail-empty">
+          <el-empty :description="autoEmptyDesc" :image-size="120">
+            <p style="color:#94a3b8;font-size:12px">汽车场景「{{ autoEmptyLibName }}」数据尚未建设，后续接入后此页自动填充。</p>
+          </el-empty>
+        </div>
+
+        <!-- 模型库(铀):只读模型浏览 -->
+        <div v-if="isModelLibrary && !automotiveEmptyDetail" class="kc-models" v-loading="modelsLoading">
+          <div v-if="modelSummary" class="kc-models-summary">
+            <span>态势模型 <b>{{ modelSummary.situation_models }}</b></span>
+            <span>专业模型 <b>{{ modelSummary.professional_models }}</b></span>
+            <span>通用算法 <b>{{ modelSummary.general_algorithms }}</b>({{ modelSummary.algorithm_implementations }} 实现)</span>
+            <span>Runtime 生效 <b>{{ modelSummary.runtime_effective_models }}</b></span>
+            <span>引擎就绪 <b>{{ modelSummary.engine_ready_models }}</b></span>
+          </div>
+          <el-tabs v-model="modelTab" class="kc-models-tabs">
+            <el-tab-pane label="态势模型" name="SITUATION">
+              <div class="kc-models-pipeline">Graph Builder → Dependency → OSINT Event → Event Mapping → OSINT Risk → Network Criticality → Node Risk → Edge Risk → Route Risk → Snapshot Builder</div>
+            </el-tab-pane>
+            <el-tab-pane label="专业模型" name="PROFESSIONAL" />
+            <el-tab-pane label="通用算法" name="ALGORITHM" />
+          </el-tabs>
+          <div class="kc-models-filter">
+            <el-input v-model="modelFilter.keyword" size="small" placeholder="搜索模型/方法..." clearable style="width:220px" />
+          </div>
+          <div class="kc-models-list">
+            <div v-for="m in filteredModels()" :key="m.model_id" class="kc-model-card" @click="openModelDetail(m.model_id)">
+              <div class="kc-model-head">
+                <b>{{ m.model_name }}</b>
+                <span class="kc-model-cat">{{ modelCategoryLabel(m.model_category) }}</span>
+                <span class="kc-model-method">{{ m.methodology }}</span>
+                <span class="kc-model-rt" :class="m.runtime_effective ? 'ok' : 'muted'">{{ m.runtime_effective ? 'RUNTIME' : 'AVAILABLE' }}</span>
+              </div>
+              <p class="kc-model-desc">{{ m.purpose }}</p>
+              <div class="kc-model-meta">
+                <span>数据: <b class="kc-mr" :class="modelReadinessClass(m.data_readiness)">{{ m.data_readiness }}</b></span>
+                <span>引擎: {{ m.engine_status }}</span>
+                <span>测试: {{ m.test_status }}</span>
+                <span v-if="m.implementations">实现: {{ m.implementations.join(' / ') }}</span>
+              </div>
+            </div>
+            <el-empty v-if="!filteredModels().length" description="暂无模型" :image-size="60" />
+          </div>
+
+          <!-- 模型详情抽屉 -->
+          <el-drawer v-model="modelDetailVisible" size="48%" title="模型详情" destroy-on-close>
+            <div v-if="modelDetail" class="kc-model-detail">
+              <h3 class="kc-model-detail-title">{{ modelDetail.model_name }} <span class="kc-model-cat">{{ modelCategoryLabel(modelDetail.model_category) }}</span></h3>
+              <table class="csd-mini">
+                <tr><td>用途</td><td>{{ modelDetail.purpose }}</td></tr>
+                <tr><td>方法</td><td><b>{{ modelDetail.methodology }}</b></td></tr>
+                <tr><td>模型类型</td><td>{{ modelDetail.model_type }} · {{ modelDetail.algorithm_family }}</td></tr>
+                <tr><td>状态</td><td>{{ modelDetail.runtime_effective ? 'Runtime 生效' : 'Available / 未在当前 runtime' }} · 引擎 {{ modelDetail.engine_status }}</td></tr>
+                <tr><td>数据就绪</td><td><b :class="modelReadinessClass(modelDetail.data_readiness)">{{ modelReadinessLabel(modelDetail.data_readiness) }}</b></td></tr>
+                <tr><td>源码</td><td>{{ modelDetail.source_location }}</td></tr>
+                <tr><td>版本</td><td>{{ modelDetail.version }}</td></tr>
+              </table>
+
+              <!-- K2-M2:真实数据运行(PARALLEL,不改 runtime risk) -->
+              <div v-if="['PROFESSIONAL','ALGORITHM'].includes(modelDetail.model_category)" class="kc-model-run">
+                <el-button type="primary" size="small" :loading="modelRunning" @click="runModel(modelDetail)">
+                  {{ modelRunning ? '运行中…' : '以真实数据运行' }}
+                </el-button>
+                <span class="kc-model-run-note">PARALLEL 分析;不改当前态势风险</span>
+                <div v-if="modelRunResult" class="kc-model-run-result">
+                  <h4>运行结果(REAL input)</h4>
+                  <pre>{{ formatRunResult(modelRunResult) }}</pre>
+                </div>
+              </div>
+
+              <!-- K2-M2:真实数据就绪矩阵 -->
+              <div class="kc-model-detail-sec" v-if="modelDetail.real_data_readiness"><h4>真实数据就绪(K2-M2)</h4>
+                <table class="csd-mini">
+                  <tr v-for="(v, k) in modelDetail.real_data_readiness" :key="k"><td>{{ k }}</td><td>{{ v }}</td></tr>
+                </table>
+              </div>
+
+              <!-- K2-M2:算法真实数据绑定 -->
+              <div class="kc-model-detail-sec" v-if="modelDetail.data_bindings && modelDetail.data_bindings.length"><h4>真实数据绑定</h4>
+                <div v-for="b in modelDetail.data_bindings" :key="b.implementation" class="kc-model-binding">
+                  <b>{{ b.implementation }}</b>
+                  <span :class="modelReadinessClass(b.readiness)">{{ b.readiness }}</span>
+                  <p>{{ b.default_series }} — {{ b.output_semantics }}</p>
+                </div>
+              </div>
+
+              <div class="kc-model-detail-sec" v-if="modelDetail.inputs && modelDetail.inputs.length"><h4>输入</h4><p>{{ modelDetail.inputs.join(' · ') || '—' }}</p></div>
+              <div class="kc-model-detail-sec" v-if="modelDetail.outputs && modelDetail.outputs.length"><h4>输出</h4><p>{{ modelDetail.outputs.join(' · ') || '—' }}</p></div>
+              <div class="kc-model-detail-sec" v-if="modelDetail.implementations"><h4>实现</h4><p>{{ modelDetail.implementations.join(' / ') }}</p></div>
+              <p v-if="modelDetail.notes" class="kc-model-note">{{ modelDetail.notes }}</p>
+            </div>
+          </el-drawer>
+        </div>
+
+        <!-- 规则库(铀):只读规则浏览 -->
+        <div v-else-if="isRuleLibrary" class="kc-rules" v-loading="rulesLoading">
+          <div v-if="rulesSummary" class="kc-rules-summary">
+            <span>规则 <b>{{ rulesSummary.rules_total }}</b></span>
+            <span>Runtime 生效 <b>{{ rulesSummary.runtime_effective_rules }}</b></span>
+            <span>规则组 <b>{{ rulesSummary.rule_groups }}</b></span>
+            <span>事件规则 <b>{{ rulesSummary.event_rules }}</b></span>
+            <span>风险规则 <b>{{ rulesSummary.risk_rules }}</b></span>
+            <span>数据守卫 <b>{{ rulesSummary.data_guard_rules }}</b></span>
+          </div>
+          <div class="kc-rules-filter">
+            <el-input v-model="rulesFilter.keyword" size="small" placeholder="搜索规则(OSINT/recovery/route/threshold/...)..." clearable style="width:260px" />
+            <el-select v-model="rulesFilter.group" size="small" clearable placeholder="全部规则组" style="width:150px">
+              <el-option v-for="g in Object.keys({EVENT_MAPPING:1,EVENT_STATE:1,EVENT_RISK:1,TIME_DECAY:1,NETWORK_CRITICALITY:1,NODE_RISK:1,EDGE_RISK:1,ROUTE_RISK:1,RISK_LEVEL:1,CALIBRATION:1,DATA_GATE:1,QUALITY_GUARD:1,DEPENDENCY:1})" :key="g" :label="ruleGroupLabel(g)" :value="g" />
+            </el-select>
+            <el-button size="small" @click="loadRules()">刷新</el-button>
+          </div>
+          <div class="kc-rules-list">
+            <div v-for="rr in filteredRules()" :key="rr.rule_id" class="kc-rule-card" @click="openRuleDetail(rr.rule_id)">
+              <div class="kc-rule-head">
+                <b>{{ rr.label_zh }}</b>
+                <span class="kc-rule-group">{{ ruleGroupLabel(rr.rule_group) }}</span>
+                <span class="kc-rule-stage">{{ rr.model_stage }}</span>
+                <span class="kc-rule-rt" :class="rr.runtime_effective ? 'ok' : 'muted'">{{ rr.runtime_effective ? 'Runtime' : 'KB' }}</span>
+              </div>
+              <p class="kc-rule-desc">{{ rr.description }}</p>
+              <div class="kc-rule-params" v-if="rr.parameters && Object.keys(rr.parameters).length">
+                <span v-for="(v, k) in rr.parameters" :key="k" class="kc-rule-param">{{ k }} = {{ typeof v === 'object' ? JSON.stringify(v) : v }}</span>
+              </div>
+            </div>
+            <el-empty v-if="!filteredRules().length" description="暂无符合的规则" :image-size="60" />
+          </div>
+
+          <!-- 规则详情抽屉 -->
+          <el-drawer v-model="ruleDetailVisible" size="46%" title="规则详情" destroy-on-close>
+            <div v-if="ruleDetail" class="kc-rule-detail">
+              <h3 class="kc-rule-detail-title">{{ ruleDetail.label_zh }} <span class="kc-rule-group">{{ ruleGroupLabel(ruleDetail.rule_group) }}</span></h3>
+              <table class="csd-mini">
+                <tr><td>规则名称</td><td>{{ ruleDetail.rule_name }}</td></tr>
+                <tr><td>类别</td><td>{{ ruleGroupLabel(ruleDetail.rule_group) }} ({{ ruleDetail.rule_group }})</td></tr>
+                <tr><td>模型阶段</td><td>{{ ruleDetail.model_stage }}</td></tr>
+                <tr><td>规则类型</td><td>{{ ruleDetail.rule_type }}</td></tr>
+                <tr><td>Runtime 生效</td><td>{{ ruleDetail.runtime_effective ? '是' : '否' }} ({{ ruleDetail.source_type }})</td></tr>
+                <tr><td>来源</td><td>{{ ruleDetail.source_location }}</td></tr>
+                <tr><td>版本</td><td>{{ ruleDetail.version }}</td></tr>
+              </table>
+              <div class="kc-rule-detail-sec"><h4>说明</h4><p>{{ ruleDetail.description }}</p></div>
+              <div class="kc-rule-detail-sec" v-if="ruleDetail.inputs && ruleDetail.inputs.length"><h4>输入</h4><p>{{ ruleDetail.inputs.join(' · ') }}</p></div>
+              <div class="kc-rule-detail-sec" v-if="ruleDetail.outputs && ruleDetail.outputs.length"><h4>输出</h4><p>{{ ruleDetail.outputs.join(' · ') }}</p></div>
+              <div class="kc-rule-detail-sec" v-if="ruleDetail.parameters && Object.keys(ruleDetail.parameters).length"><h4>参数</h4>
+                <table class="csd-mini"><tr v-for="(v, k) in ruleDetail.parameters" :key="k"><td>{{ k }}</td><td>{{ typeof v === 'object' ? JSON.stringify(v) : v }}</td></tr></table>
+              </div>
+              <p v-if="ruleDetail.notes" class="kc-rule-note">{{ ruleDetail.notes }}</p>
+            </div>
+          </el-drawer>
+        </div>
+
+        <!-- 环境库(铀):只读环境数据浏览;点击数据集就地展开/收起 -->
+        <div v-else-if="isEnvironmentLibrary" class="kc-env" v-loading="envLoading">
+          <div v-if="envSummary" class="kc-env-summary">
+            <span>核心数据集 <b>{{ envSummary.datasets_total }}</b></span>
+            <span>Canonical <b>{{ envSummary.canonical_records }}</b></span>
+            <span>Red Book <b>{{ envSummary.redbook_editions }}</b> 版</span>
+            <span>最新年份 <b>{{ envSummary.latest_year }}</b></span>
+            <span>贸易年份 <b>{{ (envSummary.trade_years || []).join(' / ') }}</b></span>
+            <span class="kc-env-legacy">Legacy 隐藏 {{ envSummary.legacy_visible }}</span>
+          </div>
+          <el-tabs v-model="envTab" class="kc-env-tabs">
+            <el-tab-pane label="资源" name="resources">
+              <div
+                class="kc-env-dataset"
+                :class="{ 'is-expanded': envExpanded === 'redbook.resources_history.v1' }"
+                @click="toggleEnvDataset('redbook.resources_history.v1', 'Uranium Resources History')"
+              >
+                <div class="kc-env-dataset-head">
+                  <b>Uranium Resources History</b>
+                  <span class="kc-env-dataset-count">{{ (envDatasetMeta('resources') || {}).record_count }} 条 <i class="kc-env-chev">{{ envExpanded === 'redbook.resources_history.v1' ? '▾' : '▸' }}</i></span>
+                </div>
+                <div class="kc-env-dataset-meta">年份 {{ (envDatasetMeta('resources') || {}).year_min }}–{{ (envDatasetMeta('resources') || {}).year_max }} · 国家 {{ ((envDatasetMeta('resources') || {}).countries || []).slice(0, 6).join(' / ') }}</div>
+                <div v-if="envExpanded === 'redbook.resources_history.v1'" class="kc-env-records">
+                  <div class="kc-env-records-note">共 {{ envExpandedTotal }} 条(显示前 50)</div>
+                  <el-table :data="envRecords" stripe size="small" max-height="420">
+                    <el-table-column prop="subject" label="国家/主体" width="150" />
+                    <el-table-column prop="data_year" label="年份" width="70" />
+                    <el-table-column prop="indicator" label="指标" width="140" />
+                    <el-table-column prop="value" label="值" width="100" />
+                    <el-table-column prop="unit" label="单位" width="70" />
+                    <el-table-column prop="resource_basis" label="Resource Basis" width="120" />
+                    <el-table-column prop="resource_category" label="类别" width="90" />
+                    <el-table-column prop="cost_category" label="成本" width="90" />
+                  </el-table>
+                </div>
+              </div>
+            </el-tab-pane>
+            <el-tab-pane label="生产" name="production">
+              <div
+                class="kc-env-dataset"
+                :class="{ 'is-expanded': envExpanded === 'redbook.production_history.v1' }"
+                @click="toggleEnvDataset('redbook.production_history.v1', 'Uranium Production History')"
+              >
+                <div class="kc-env-dataset-head"><b>Uranium Production History</b><span class="kc-env-dataset-count">{{ (envDatasetMeta('production') || {}).record_count }} 条 <i class="kc-env-chev">{{ envExpanded === 'redbook.production_history.v1' ? '▾' : '▸' }}</i></span></div>
+                <div class="kc-env-dataset-meta">国家级铀产量历史</div>
+                <div v-if="envExpanded === 'redbook.production_history.v1'" class="kc-env-records">
+                  <div class="kc-env-records-note">共 {{ envExpandedTotal }} 条(显示前 50)</div>
+                  <el-table :data="envRecords" stripe size="small" max-height="420">
+                    <el-table-column prop="subject" label="国家" width="150" />
+                    <el-table-column prop="data_year" label="年份" width="70" />
+                    <el-table-column prop="indicator" label="指标" width="140" />
+                    <el-table-column prop="value" label="值" width="100" />
+                    <el-table-column prop="unit" label="单位" width="70" />
+                    <el-table-column prop="value_type" label="值类型" width="90" />
+                    <el-table-column prop="source_edition" label="Edition" width="90" />
+                  </el-table>
+                </div>
+              </div>
+              <div
+                class="kc-env-dataset"
+                :class="{ 'is-expanded': envExpanded === 'redbook.cumulative_production_history.v1' }"
+                @click="toggleEnvDataset('redbook.cumulative_production_history.v1', '累计生产')"
+              >
+                <div class="kc-env-dataset-head"><b>累计生产</b><span class="kc-env-dataset-count">({{ (envDatasets.find(d => d.dataset_id.includes('cumulative')) || {}).record_count }}) <i class="kc-env-chev">{{ envExpanded === 'redbook.cumulative_production_history.v1' ? '▾' : '▸' }}</i></span></div>
+                <div v-if="envExpanded === 'redbook.cumulative_production_history.v1'" class="kc-env-records">
+                  <div class="kc-env-records-note">共 {{ envExpandedTotal }} 条(显示前 50)</div>
+                  <el-table :data="envRecords" stripe size="small" max-height="420">
+                    <el-table-column prop="subject" label="国家" width="150" />
+                    <el-table-column prop="data_year" label="年份" width="70" />
+                    <el-table-column prop="value" label="值" width="100" />
+                    <el-table-column prop="unit" label="单位" width="70" />
+                  </el-table>
+                </div>
+              </div>
+            </el-tab-pane>
+            <el-tab-pane label="需求" name="requirements">
+              <div
+                class="kc-env-dataset"
+                :class="{ 'is-expanded': envExpanded === 'redbook.requirements_history.v1' }"
+                @click="toggleEnvDataset('redbook.requirements_history.v1', 'Historical Requirements')"
+              >
+                <div class="kc-env-dataset-head"><b>Historical Requirements</b><span class="kc-env-dataset-count"><i class="kc-env-chev">{{ envExpanded === 'redbook.requirements_history.v1' ? '▾' : '▸' }}</i></span></div>
+                <div class="kc-env-dataset-meta">历史需求</div>
+                <div v-if="envExpanded === 'redbook.requirements_history.v1'" class="kc-env-records">
+                  <div class="kc-env-records-note">共 {{ envExpandedTotal }} 条(显示前 50)</div>
+                  <el-table :data="envRecords" stripe size="small" max-height="420">
+                    <el-table-column prop="subject" label="国家" width="150" />
+                    <el-table-column prop="data_year" label="年份" width="70" />
+                    <el-table-column prop="value" label="值" width="100" />
+                    <el-table-column prop="unit" label="单位" width="70" />
+                    <el-table-column prop="value_type" label="值类型" width="90" />
+                  </el-table>
+                </div>
+              </div>
+              <div
+                class="kc-env-dataset"
+                :class="{ 'is-expanded': envExpanded === 'redbook.requirements_projection.v1' }"
+                @click="toggleEnvDataset('redbook.requirements_projection.v1', 'Projection Requirements')"
+              >
+                <div class="kc-env-dataset-head"><b>Projection Requirements</b><span class="kc-env-dataset-count">vintage/scenario <i class="kc-env-chev">{{ envExpanded === 'redbook.requirements_projection.v1' ? '▾' : '▸' }}</i></span></div>
+                <div class="kc-env-dataset-meta">预测需求(区分历史/预测,保留 vintage/scenario)</div>
+                <div v-if="envExpanded === 'redbook.requirements_projection.v1'" class="kc-env-records">
+                  <div class="kc-env-records-note">共 {{ envExpandedTotal }} 条(显示前 50)</div>
+                  <el-table :data="envRecords" stripe size="small" max-height="420">
+                    <el-table-column prop="subject" label="国家" width="150" />
+                    <el-table-column prop="data_year" label="年份" width="70" />
+                    <el-table-column prop="value" label="值" width="100" />
+                    <el-table-column prop="unit" label="单位" width="70" />
+                    <el-table-column prop="scenario" label="情景" width="80" />
+                    <el-table-column prop="projection_vintage" label="Vintage" width="90" />
+                  </el-table>
+                </div>
+              </div>
+            </el-tab-pane>
+            <el-tab-pane label="产能" name="capability">
+              <div
+                class="kc-env-dataset"
+                :class="{ 'is-expanded': envExpanded === 'redbook.production_capability_history.v1' }"
+                @click="toggleEnvDataset('redbook.production_capability_history.v1', 'Production Capability History')"
+              >
+                <div class="kc-env-dataset-head"><b>Production Capability History</b><span class="kc-env-dataset-count"><i class="kc-env-chev">{{ envExpanded === 'redbook.production_capability_history.v1' ? '▾' : '▸' }}</i></span></div>
+                <div v-if="envExpanded === 'redbook.production_capability_history.v1'" class="kc-env-records">
+                  <div class="kc-env-records-note">共 {{ envExpandedTotal }} 条(显示前 50)</div>
+                  <el-table :data="envRecords" stripe size="small" max-height="420">
+                    <el-table-column prop="subject" label="国家" width="150" />
+                    <el-table-column prop="data_year" label="年份" width="70" />
+                    <el-table-column prop="value" label="值" width="100" />
+                    <el-table-column prop="unit" label="单位" width="70" />
+                  </el-table>
+                </div>
+              </div>
+              <div
+                class="kc-env-dataset"
+                :class="{ 'is-expanded': envExpanded === 'redbook.production_capability_projection.v1' }"
+                @click="toggleEnvDataset('redbook.production_capability_projection.v1', 'Production Capability Projection')"
+              >
+                <div class="kc-env-dataset-head"><b>Production Capability Projection</b><span class="kc-env-dataset-count">scenario <i class="kc-env-chev">{{ envExpanded === 'redbook.production_capability_projection.v1' ? '▾' : '▸' }}</i></span></div>
+                <div v-if="envExpanded === 'redbook.production_capability_projection.v1'" class="kc-env-records">
+                  <div class="kc-env-records-note">共 {{ envExpandedTotal }} 条(显示前 50)</div>
+                  <el-table :data="envRecords" stripe size="small" max-height="420">
+                    <el-table-column prop="subject" label="国家" width="150" />
+                    <el-table-column prop="data_year" label="年份" width="70" />
+                    <el-table-column prop="value" label="值" width="100" />
+                    <el-table-column prop="unit" label="单位" width="70" />
+                    <el-table-column prop="scenario" label="情景" width="80" />
+                  </el-table>
+                </div>
+              </div>
+            </el-tab-pane>
+            <el-tab-pane label="贸易" name="trade">
+              <div class="kc-env-note">HS284410 天然铀 · HS284420 浓缩相关 · HS261210 矿石/精矿;不同商品不按 kg 合并。Reporter 与 Mirror 冲突并存。</div>
+              <div class="kc-env-dataset">
+                <div class="kc-env-dataset-head"><b>多商品贸易结构</b><span class="kc-env-dataset-count">{{ (envSummary && envSummary.trade_years || []).join(' / ') }}</span></div>
+                <div class="kc-env-dataset-meta">2024 天然铀:KAZ 63.5% · NAM 36.5%;浓缩相关:RUS 86.3%(详见中国供应/贸易页)</div>
+              </div>
+            </el-tab-pane>
+            <el-tab-pane label="数据质量" name="readiness">
+              <div class="kc-env-dataset">
+                <div class="kc-env-dataset-head"><b>Data Readiness</b></div>
+                <div class="kc-env-dataset-meta">历史/贸易/实体/物流/OSINT/路线/模型 就绪度(读 data_readiness)</div>
+              </div>
+            </el-tab-pane>
+          </el-tabs>
+        </div>
+
+        <!-- Tabbed content（Graph / Docs / Entities / 主体库;论文库走专门分支,不在此通用 UI。
+             主体库(铀/汽车)需渲染本模板的「主体库」tab,故不排除 isSubjectLibrary;
+             graph/docs/entities pane 已各自 v-if=!isSubjectLibrary 自动隐藏） -->
+        <template v-else-if="!isEnvironmentLibrary && !isRuleLibrary && !['config','experts','papers_lib','ontology','ontology_uranium','ontology_auto','ontology_network','model_library'].includes(activeLibrary)">
           <el-tabs v-model="viewMode" class="kc-detail-tabs">
-            <el-tab-pane label="知识图谱" name="graph">
+            <el-tab-pane v-if="!isSubjectLibrary" label="知识图谱" name="graph">
               <div v-if="currentLib.graphData" ref="graphRef" class="kc-graph-container" />
               <el-empty v-else description="暂无知识图谱数据" :image-size="80" />
             </el-tab-pane>
-            <el-tab-pane label="文档列表" name="docs">
+            <el-tab-pane v-if="!isSubjectLibrary" label="文档列表" name="docs">
               <el-table :data="currentLib.documents || []" stripe size="small" empty-text="暂无文档">
                 <el-table-column prop="name" label="名称" />
                 <el-table-column prop="type" label="类型" width="100" />
@@ -166,7 +502,7 @@
                 <el-table-column prop="uploadTime" label="上传时间" width="160" />
               </el-table>
             </el-tab-pane>
-            <el-tab-pane label="实体分析" name="entities">
+            <el-tab-pane v-if="!isSubjectLibrary" label="实体分析" name="entities">
               <div v-if="entityList.length" class="kc-entity-grid">
                 <div v-for="group in entityList" :key="group.name" class="kc-entity-group">
                   <h4 class="kc-entity-group__title">{{ group.label }} ({{ group.count }})</h4>
@@ -178,12 +514,127 @@
               </div>
               <el-empty v-else description="暂无实体数据" :image-size="80" />
             </el-tab-pane>
+            <!-- 主体库(K2-S1)-->
+            <el-tab-pane label="主体库" name="subjects">
+              <div v-if="isSubjectAutoLibrary" class="kc-subjects">
+                <el-empty description="汽车主体库暂无数据" :image-size="80">
+                  <p style="color:#94a3b8;font-size:12px">当前汽车场景主体库为空,后续再接入汽车主体数据。</p>
+                </el-empty>
+              </div>
+              <div v-else class="kc-subjects">
+                <div v-if="subjectsSummary" class="kc-subj-summary">
+                  <span>主体 <b>{{ subjectsSummary.total }}</b></span>
+                  <span>已验证 <b>{{ subjectsSummary.usable }}</b></span>
+                  <span>关系 <b>{{ subjectsSummary.relations || 0 }}</b></span>
+                  <span>公司 <b>{{ subjectsSummary.by_type.COMPANY || 0 }}</b></span>
+                  <span>矿山 <b>{{ subjectsSummary.by_type.MINE || 0 }}</b></span>
+                  <span>矿床 <b>{{ subjectsSummary.by_type.DEPOSIT || 0 }}</b></span>
+                  <span>设施 <b>{{ (subjectsSummary.by_type.PROCESSING_FACILITY || 0) + (subjectsSummary.by_type.CONVERSION_FACILITY || 0) + (subjectsSummary.by_type.FUEL_FABRICATION_FACILITY || 0) }}</b></span>
+                  <span>物流 <b>{{ subjectsSummary.by_type.LOGISTICS_NODE || 0 }}</b></span>
+                  <span>核电站 <b>{{ subjectsSummary.by_type.NUCLEAR_POWER_PLANT || 0 }}</b></span>
+                </div>
+                <div class="kc-subj-filter">
+                  <el-input v-model="subjectsFilter.keyword" size="small" placeholder="搜索主体..." clearable style="width:180px" @input="subjectsFilter.page=1" />
+                  <el-select v-model="subjectsFilter.type" size="small" clearable placeholder="全部类型" style="width:130px" @change="subjectsFilter.page=1">
+                    <el-option label="公司" value="COMPANY" /><el-option label="矿山" value="MINE" /><el-option label="矿床" value="DEPOSIT" />
+                    <el-option label="加工设施" value="PROCESSING_FACILITY" /><el-option label="转化设施" value="CONVERSION_FACILITY" />
+                    <el-option label="燃料制造" value="FUEL_FABRICATION_FACILITY" /><el-option label="港口" value="PORT" />
+                    <el-option label="边境口岸" value="BORDER_CROSSING" /><el-option label="物流节点" value="LOGISTICS_NODE" />
+                    <el-option label="核电站" value="NUCLEAR_POWER_PLANT" /><el-option label="运输基础设施" value="TRANSPORT_INFRASTRUCTURE" />
+                    <el-option label="供应网络" value="SUPPLY_NETWORK" />
+                  </el-select>
+                  <el-select v-model="subjectsFilter.country" size="small" clearable placeholder="全部国家" style="width:120px" @change="subjectsFilter.page=1">
+                    <el-option label="中国" value="CHN" /><el-option label="哈萨克斯坦" value="KAZ" /><el-option label="纳米比亚" value="NAM" />
+                    <el-option label="加拿大" value="CAN" /><el-option label="澳大利亚" value="AUS" /><el-option label="乌兹别克斯坦" value="UZB" />
+                    <el-option label="尼日尔" value="NER" /><el-option label="俄罗斯" value="RUS" />
+                  </el-select>
+                  <el-select v-model="subjectsFilter.status" size="small" clearable placeholder="全部状态" style="width:120px" @change="subjectsFilter.page=1">
+                    <el-option label="运营中" value="OPERATING" /><el-option label="已恢复" value="RECOVERED" /><el-option label="暂停" value="SUSPENDED" />
+                    <el-option label="中断" value="DISRUPTED" /><el-option label="未知" value="UNKNOWN" />
+                  </el-select>
+                  <el-button size="small" @click="loadSubjectsSummary(); loadSubjects()">刷新</el-button>
+                </div>
+                <div v-loading="subjectsLoading" class="kc-subj-list">
+                  <div v-for="s in subjectsPageSlice()" :key="s.subject_id" class="kc-sb-osint-card" @click="openSubjectDetail(s.subject_id)">
+                    <div class="kc-sb-osint-card-top">
+                      <span class="kc-sb-osint-dot" :style="{ background: '#2563eb' }" />
+                      <span class="kc-sb-osint-title">{{ s.canonical_name }}</span>
+                      <span class="kc-sb-osint-cat" :class="{ 'kcre-aggregate': String(s.aggregation_level).includes('AGGREGATE'), 'kcre-candidate': s.verification_status === 'CANDIDATE' }">{{ subjectVerifText(s.verification_status) }}</span>
+                    </div>
+                    <div class="kc-sb-osint-card-meta">
+                      <span class="kc-sb-osint-source">{{ subjectTypeName(s.subject_type) }}</span>
+                      <span class="kc-sb-osint-time">{{ s.country_id }} · {{ subjectStatusText(s.current_status && s.current_status.status) }}</span>
+                      <span class="kc-sb-osint-cat">证据 {{ s.evidence_count }} · 路线 {{ (s.related_route_ids || []).length }} · 事件 {{ (s.related_osint_event_ids || []).length }}</span>
+                    </div>
+                  </div>
+                  <el-empty v-if="!subjectsLoading && !subjectsPageSlice().length" description="暂无符合条件的主体" :image-size="60" />
+                </div>
+                <div class="kc-subj-pager" v-if="subjectsPageItems().length > subjectsFilter.pageSize">
+                  <el-pagination layout="prev, pager, next" :total="subjectsPageItems().length" :page-size="subjectsFilter.pageSize" :current-page="subjectsFilter.page" @current-change="p => { subjectsFilter.page = p }" small />
+                </div>
+              </div>
+
+              <!-- 主体详情抽屉 -->
+              <el-drawer v-model="subjectDetailVisible" size="44%" title="主体详情" destroy-on-close>
+                <div v-if="subjectDetail" class="kc-subj-detail">
+                  <h3 class="kc-subj-detail-title">{{ subjectDetail.canonical_name }}</h3>
+                  <p class="kc-subj-detail-meta">
+                    {{ subjectTypeName(subjectDetail.subject_type) }} · {{ subjectDetail.country_id }}
+                    · <span :class="subjectDetail.verification_status === 'CANDIDATE' ? 'kcre-candidate' : ''">{{ subjectVerifText(subjectDetail.verification_status) }}</span>
+                    <span v-if="String(subjectDetail.aggregation_level).includes('AGGREGATE')" class="kcre-aggregate-tag">聚合主体</span>
+                  </p>
+                  <table class="csd-mini">
+                    <tr v-if="subjectDetail.current_status && subjectDetail.current_status.status"><td>当前状态</td><td><b>{{ subjectStatusText(subjectDetail.current_status.status) }}</b> <span class="kc-subj-note" v-if="subjectDetail.current_status.as_of">as of {{ subjectDetail.current_status.as_of }}</span></td></tr>
+                    <tr v-if="subjectDetail.roles && subjectDetail.roles.length"><td>角色</td><td>{{ subjectDetail.roles.join('、') }}</td></tr>
+                    <tr v-if="subjectDetail.operator_company_ids && subjectDetail.operator_company_ids.length"><td>运营</td><td>{{ subjectDetail.operator_company_ids.join(' / ') }}</td></tr>
+                    <tr v-if="subjectDetail.owner_company_ids && subjectDetail.owner_company_ids.length"><td>拥有</td><td>{{ subjectDetail.owner_company_ids.join(' / ') }}</td></tr>
+                    <tr v-if="subjectDetail.related_route_ids && subjectDetail.related_route_ids.length"><td>关联路线</td><td>{{ subjectDetail.related_route_ids.join(' / ') }}</td></tr>
+                    <tr v-if="subjectDetail.runtime_node_ids && subjectDetail.runtime_node_ids.length"><td>态势节点</td><td>{{ subjectDetail.runtime_node_ids.slice(0, 4).join(' / ') }}</td></tr>
+                    <tr v-if="subjectDetail.evidence_ids && subjectDetail.evidence_ids.length"><td>证据</td><td>{{ subjectDetail.evidence_ids.length }} 条 · {{ (subjectDetail.source_refs || []).slice(0, 3).join(' / ') }}</td></tr>
+                  </table>
+                  <div class="kc-subj-sec" v-if="subjectDetailEvents.length">
+                    <h4>最近 OSINT 事件</h4>
+                    <div v-for="ev in subjectDetailEvents.slice(0, 5)" :key="ev.event_id" class="kc-sb-osint-card">
+                      <div class="kc-sb-osint-card-top">
+                        <span class="kc-sb-osint-alert" :class="ev.event_state === 'ACTIVE' ? 'kcre-active' : ''">{{ ev.event_state }}</span>
+                        <span class="kc-sb-osint-title">{{ ev.title }}</span>
+                      </div>
+                      <div class="kc-sb-osint-card-meta">
+                        <span class="kc-sb-osint-time">{{ ev.event_date }} · {{ ev.direction }} · {{ ev.event_type }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="kc-subj-sec" v-if="subjectDetailRelations.length">
+                    <h4>关联关系</h4>
+                    <div v-for="r in subjectDetailRelations.slice(0, 8)" :key="r.relation_id" class="kc-subj-rel">
+                      <span class="kc-subj-rel-type">{{ r.relation_type }}</span>
+                      <span class="kc-subj-rel-target">{{ r.related_subject_id }}</span>
+                    </div>
+                  </div>
+                </div>
+              </el-drawer>
+            </el-tab-pane>
           </el-tabs>
         </template>
 
-        <!-- 专家观点 -->
+        <!-- 专家观点(铀:真实观点库 + 右上角"知识图谱"同页切换真实动态本体图谱; 汽车:保持空逻辑 §60) -->
         <div v-else-if="activeLibrary === 'experts'" class="kc-experts-page">
-          <el-empty description="专家观点功能开发中" :image-size="120" />
+          <template v-if="!scenarioStore.isSupplyChain">
+            <UraniumExpertViewLibrary v-if="expertViewMode === 'list'" />
+            <div v-else class="kc-experts-graph-pane">
+              <KnowledgeGraph
+                embedded
+                initial-view="dynamic"
+                initial-window="t_2024"
+              />
+            </div>
+          </template>
+          <el-empty v-else description="专家观点功能开发中(汽车场景)" :image-size="120" />
+        </div>
+        <!-- 研究论文库(铀:K2-P1 真实论文;汽车:保持空 §60) -->
+        <div v-else-if="activeLibrary === 'papers_lib'" class="kc-paper-page">
+          <UraniumPaperLibrary v-if="!scenarioStore.isSupplyChain" />
+          <el-empty v-else description="研究论文库(汽车场景)" :image-size="120" />
         </div>
         <div v-else-if="activeLibrary === 'config'" class="kc-config-page">
           <div class="kc-config-placeholder">
@@ -332,6 +783,16 @@
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- 本体网络（事前页面：嵌入原本体网络界面 KnowledgeGraph / KnowledgeGraph_auto） -->
+        <div v-else-if="activeLibrary === 'ontology_network'" class="kc-ontology-network-page">
+          <KnowledgeGraphWrapper />
+        </div>
+
+        <!-- 模型库（事前页面：内容暂为空） -->
+        <div v-else-if="activeLibrary === 'model_library'" class="kc-model-library-page">
+          <el-empty description="暂无模型" :image-size="120" />
         </div>
 
         <!-- 专家观点库详情（暂时注释） -->
@@ -630,18 +1091,75 @@
       top="3.5vh"
       class="kc-dataset-dialog kc-resource-dialog"
       body-class="kc-dataset-dialog__body"
+      @open="fetchSidebarPapers(true)"
     >
       <template #header>
         <div class="kc-dialog-header">
           <span class="kc-dialog-dot kc-dialog-dot--close" @click="showPapersDialog = false"></span>
           <span class="kc-dialog-dot kc-dialog-dot--minimize"></span>
           <span class="kc-dialog-dot kc-dialog-dot--maximize"></span>
-          <span class="kc-dialog-title">专家文档库</span>
+          <span class="kc-dialog-title">研究论文库</span>
         </div>
       </template>
       <div class="kc-resource-dialog__content">
-        <!-- 研究论文功能暂不可用 -->
-        <el-empty description="暂无研究论文数据" :image-size="120" />
+        <div class="kc-resource-toolbar">
+          <el-input
+            v-model="sidebarPaperQuery"
+            placeholder="搜索论文..."
+            prefix-icon="Search"
+            size="small"
+            clearable
+            class="kc-resource-search"
+            @keyup.enter="handlePaperSearch"
+            @clear="handlePaperSearch"
+          />
+          <el-button size="small" type="primary" plain @click="showSideCrawlDialog = true">
+            <el-icon><Plus /></el-icon>
+            爬取
+          </el-button>
+          <el-button size="small" type="primary" @click="showPaperUploadDialog = true">
+            <el-icon><Upload /></el-icon>
+            上传
+          </el-button>
+        </div>
+        <div class="kc-sb-stats-row kc-resource-stats">
+          <div class="kc-sb-stat"><span class="kc-sb-stat__v">{{ sidebarPaperStats.total }}</span><span class="kc-sb-stat__l">总数</span></div>
+          <div class="kc-sb-stat"><span class="kc-sb-stat__v">{{ sidebarPaperStats.downloaded }}</span><span class="kc-sb-stat__l">已下载</span></div>
+          <div class="kc-sb-stat"><span class="kc-sb-stat__v">{{ sidebarPaperStats.keywordCount }}</span><span class="kc-sb-stat__l">关键词</span></div>
+        </div>
+        <div v-loading="loading.papers" class="kc-resource-list kc-resource-list--papers">
+          <div v-for="p in sidebarFilteredPapers" :key="p.name" class="kc-sb-paper-card">
+            <div class="kc-sb-paper-top">
+              <span class="kc-sb-paper-title">{{ p.title || p.name }}</span>
+            </div>
+            <div class="kc-sb-paper-meta">
+              <span v-if="p.authors?.length" class="kc-sb-paper-authors">{{ p.authors.slice(0,2).join(', ') }}{{ p.authors.length > 2 ? ' 等' : '' }}</span>
+              <span v-if="p.date" class="kc-sb-paper-date">{{ p.date }}</span>
+            </div>
+            <div class="kc-sb-paper-tags">
+              <el-tag v-for="kw in getPaperKeywords(p).slice(0,3)" :key="kw" size="small" class="kc-sb-tag">{{ kw }}</el-tag>
+              <el-tag v-for="cat in (p.categories || []).slice(0,2)" :key="cat" :type="getCategoryType(cat)" size="small" class="kc-sb-tag">{{ getCategoryLabel(cat) }}</el-tag>
+            </div>
+            <div class="kc-sb-paper-actions">
+              <el-tooltip content="下载PDF"><el-button link type="primary" size="small" @click="handleDownload(p)"><el-icon><Download /></el-icon></el-button></el-tooltip>
+              <el-tooltip content="AI拓展"><el-button link type="primary" size="small" @click="handleExpandPaper(p)"><el-icon><MagicStick /></el-icon></el-button></el-tooltip>
+              <el-popconfirm title="删除这篇论文?" @confirm="handleDeletePaper(p)"><template #reference><el-button link type="danger" size="small"><el-icon><Delete /></el-icon></el-button></template></el-popconfirm>
+            </div>
+          </div>
+          <div v-if="!sidebarFilteredPapers.length && !loading.papers" class="kc-sb-empty">
+            <el-empty description="暂无论文" :image-size="80" />
+          </div>
+        </div>
+        <el-pagination
+          v-if="paperPagination.total > paperPagination.pageSize"
+          class="kc-resource-pagination"
+          background
+          layout="prev, pager, next, total"
+          :current-page="paperPagination.page"
+          :page-size="paperPagination.pageSize"
+          :total="paperPagination.total"
+          @current-change="handlePaperPageChange"
+        />
       </div>
     </el-dialog>
 
@@ -664,82 +1182,40 @@
         </div>
       </template>
 
-      <!-- 一级标签：实时新闻 / 社交动态 / 官方情报 -->
+      <!-- 开源情报库：仅"实时新闻"标签，铀/汽车事件由顶部场景按钮切换 -->
       <el-tabs v-model="osintTab" @tab-change="onOsintTabChange">
         <!-- ===== 实时新闻 ===== -->
-        <el-tab-pane label="实时新闻" name="news">
-          <div class="kc-osint-tab-toolbar" style="display:flex;gap:8px;margin-bottom:8px;">
-            <el-input v-model="sidebarOsintKeyword" placeholder="搜索关键词..." prefix-icon="Search" size="small" clearable style="width:260px" @keyup.enter="fetchOsintByType('news')" />
-            <el-button size="small" :loading="sidebarOsintLoading" @click="fetchOsintByType('news')"><el-icon><RefreshRight /></el-icon> 刷新</el-button>
-            <el-button size="small" type="primary" @click="showOsintUploadDialog = true"><el-icon><Upload /></el-icon> 上传</el-button>
-            <el-button size="small" type="primary" plain @click="openOsintVisualPage"><el-icon><DataAnalysis /></el-icon> 可视化分析</el-button>
+        <!-- 开源情报(单一来源:真实 OSINT 事件 + 路线工件 + 用户上传) -->
+        <el-tab-pane label="开源情报" name="osint">
+          <div class="kc-osint-tab-toolbar" style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">
+            <el-input v-model="sidebarOsintKeyword" placeholder="搜索关键词..." prefix-icon="Search" size="small" clearable style="width:240px" />
+            <el-button size="small" :loading="routeEvidenceLoading" @click="loadRouteEvidence(); fetchOsintByType('news')"><el-icon><RefreshRight /></el-icon> 刷新</el-button>
+            <el-button size="small" type="primary" style="margin-left:auto;" @click="showOsintUploadDialog = true"><el-icon><Upload /></el-icon> 上传</el-button>
           </div>
-          <div class="kc-resource-list kc-resource-list--osint">
-            <div v-for="ev in newsFilteredEvents" :key="ev.id" :class="['kc-sb-osint-card', { 'kc-sb-osint-card--high': ev.alert }]" @click="toggleOsintDetail(ev)">
+
+          <div v-loading="routeEvidenceLoading" class="kc-resource-list kc-resource-list--osint">
+            <div v-for="ev in osintEventList" :key="ev.event_id || ev.id" class="kc-sb-osint-card" :class="{ 'kc-sb-osint-card--high': ev.alert }">
               <div class="kc-sb-osint-card-top">
                 <span class="kc-sb-osint-dot" :style="{ background: ev.color }" />
-                <span v-if="ev.alert" class="kc-sb-osint-alert">重要</span>
+                <span v-if="ev.stateLabel" class="kc-sb-osint-alert" :class="ev.stateActive ? 'kcre-active' : ''">{{ ev.stateLabel }}</span>
                 <span class="kc-sb-osint-title">{{ ev.title }}</span>
               </div>
+              <p v-if="ev.summary" class="kc-sb-osint-desc">{{ ev.summary }}</p>
               <div class="kc-sb-osint-card-meta">
-                <span class="kc-sb-osint-source">{{ ev.source }}</span>
-                <span class="kc-sb-osint-time">{{ ev.date }}</span>
-                <span class="kc-sb-osint-cat" :style="{ color: ev.color }">{{ ev.category }}</span>
+                <span class="kc-sb-osint-source">{{ ev.sourceLabel }}</span>
+                <span class="kc-sb-osint-time">{{ ev.dateLabel }}</span>
+                <span class="kc-sb-osint-cat" :class="ev.tone">{{ ev.categoryLabel }}</span>
               </div>
-              <transition name="sidebar-expand">
-                <div v-if="ev._expanded" class="kc-sb-osint-detail">
-                  <p v-if="ev._loading" class="kc-sb-osint-desc"><el-icon class="is-loading"><Loading /></el-icon> 加载中...</p>
-                  <p v-else class="kc-sb-osint-desc">{{ ev._detail || ev.description || ev.summary || '暂无内容' }}</p>
-                  <a v-if="ev._detailFull" :href="ev._detailFull" target="_blank" class="kc-sb-osint-link" style="display:none"></a>
-                  <a v-if="ev.url" :href="ev.url" target="_blank" class="kc-sb-osint-link"><el-icon :size="12"><Link /></el-icon> 查看原文</a>
-                </div>
-              </transition>
+              <div class="kcre-actions" v-if="ev.links && ev.links.length">
+                <a v-for="(l, li) in ev.links" :key="li" :href="l.url" target="_blank" rel="noopener" class="kc-sb-osint-link">
+                  <el-icon :size="12"><Link /></el-icon> {{ l.label }}
+                </a>
+              </div>
             </div>
-            <div v-if="!newsFilteredEvents.length" class="kc-sb-empty"><el-empty description="暂无实时新闻" :image-size="80" /></div>
+            <div v-if="!osintEventList.length" class="kc-sb-empty"><el-empty description="暂无开源情报" :image-size="80" /></div>
           </div>
         </el-tab-pane>
 
-        <!-- ===== 社交动态 ===== -->
-        <el-tab-pane label="社交动态" name="social">
-          <div class="kc-osint-tab-toolbar" style="display:flex;gap:8px;margin-bottom:8px;">
-            <el-input v-model="sidebarOsintKeyword" placeholder="搜索关键词..." prefix-icon="Search" size="small" clearable style="width:260px" @keyup.enter="fetchOsintByType('social')" />
-            <el-button size="small" :loading="sidebarOsintLoading" @click="fetchOsintByType('social')"><el-icon><RefreshRight /></el-icon> 刷新</el-button>
-          </div>
-          <div class="kc-resource-list kc-resource-list--osint">
-            <div v-for="ev in socialFilteredEvents" :key="ev.id" :class="['kc-sb-osint-card', { 'kc-sb-osint-card--high': ev.alert }]" @click="toggleOsintDetail(ev)">
-              <div class="kc-sb-osint-card-top">
-                <span class="kc-sb-osint-dot" :style="{ background: ev.color }" />
-                <span v-if="ev.alert" class="kc-sb-osint-alert">重要</span>
-                <span class="kc-sb-osint-title">{{ ev.title }}</span>
-              </div>
-              <div class="kc-sb-osint-card-meta">
-                <span class="kc-sb-osint-source">{{ ev.source }}</span>
-                <span class="kc-sb-osint-time">{{ ev.date }}</span>
-                <span class="kc-sb-osint-cat" :style="{ color: ev.color }">{{ ev.category }}</span>
-              </div>
-              <transition name="sidebar-expand">
-                <div v-if="ev._expanded" class="kc-sb-osint-detail">
-                  <p v-if="ev._loading" class="kc-sb-osint-desc"><el-icon class="is-loading"><Loading /></el-icon> 加载中...</p>
-                  <p v-else class="kc-sb-osint-desc">{{ ev._detail || ev.description || ev.summary || '暂无内容' }}</p>
-                  <a v-if="ev.url" :href="ev.url" target="_blank" class="kc-sb-osint-link"><el-icon :size="12"><Link /></el-icon> 查看原文</a>
-                </div>
-              </transition>
-            </div>
-            <div v-if="!socialFilteredEvents.length" class="kc-sb-empty"><el-empty description="暂无社交动态" :image-size="80" /></div>
-          </div>
-        </el-tab-pane>
-
-        <!-- ===== 官方情报 ===== -->
-        <el-tab-pane label="官方情报" name="official">
-          <el-tabs v-model="officialCategory">
-            <el-tab-pane label="军控" name="军控">
-              <KnowledgeGraphPanel category="军控" @graph-updated="onGraphUpdated" />
-            </el-tab-pane>
-            <el-tab-pane label="H政策" name="H政策">
-              <KnowledgeGraphPanel category="H政策" @graph-updated="onGraphUpdated" />
-            </el-tab-pane>
-          </el-tabs>
-        </el-tab-pane>
       </el-tabs>
     </el-dialog>
 
@@ -785,20 +1261,32 @@
     </el-dialog>
 
     <!-- OSINT Upload Dialog -->
-    <el-dialog v-model="showOsintUploadDialog" title="上传情报文档" width="420px" :append-to-body="true" destroy-on-close @closed="resetOsintUploadDialog">
-      <el-form label-width="60px">
+    <el-dialog v-model="showOsintUploadDialog" title="上传开源情报" width="480px" :append-to-body="true" destroy-on-close @closed="resetOsintUploadDialog">
+      <el-form label-width="78px">
         <el-form-item label="文件">
           <el-upload
             ref="osintUploadRef"
             :auto-upload="false"
             :limit="1"
-            accept=".pdf,.doc,.docx,.txt,.epub"
+            accept=".pdf,.doc,.docx,.txt,.epub,.md,.json,.csv,.xlsx,.png,.jpg,.jpeg"
           >
             <el-button size="small" type="primary">选择文件</el-button>
           </el-upload>
         </el-form-item>
-        <el-form-item label="名称">
-          <el-input v-model="osintUploadForm.name" placeholder="文档名称（可选）" size="small" />
+        <el-form-item label="标题">
+          <el-input v-model="osintUploadForm.title" placeholder="情报标题（可选，留空则用文件名）" size="small" />
+        </el-form-item>
+        <el-form-item label="来源">
+          <el-input v-model="osintUploadForm.source" placeholder="来源机构 / 媒体（可选）" size="small" />
+        </el-form-item>
+        <el-form-item label="原文链接">
+          <el-input v-model="osintUploadForm.url" placeholder="https://...（可选）" size="small" />
+        </el-form-item>
+        <el-form-item label="日期">
+          <el-input v-model="osintUploadForm.date" placeholder="YYYY-MM-DD（可选，默认今天）" size="small" />
+        </el-form-item>
+        <el-form-item label="摘要">
+          <el-input v-model="osintUploadForm.summary" type="textarea" :rows="3" placeholder="情报摘要 / 要点（可选）" size="small" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -826,7 +1314,8 @@
         </div>
       </template>
       <div class="kc-dataset-dialog__content">
-        <KnowledgeCreate standalone />
+        <UraniumKnowledgeLibrary v-if="datasetScenario === 'uranium'" key="uranium" />
+        <AutomotiveKnowledgeEmpty v-else key="automotive" />
       </div>
     </el-dialog>
 
@@ -844,9 +1333,19 @@ import {
 import * as echarts from 'echarts'
 import { getPapers, crawlPapers, uploadPaper, uploadOsint, deletePaper, downloadPaper, getPaperStats, addPaperKeyword, removePaperKeyword, getPaperKeywords as fetchPaperKeywords, expandPaper, categorizePaper, searchPapers } from '@/api/powerGame/papers.js'
 import KnowledgeIndex from './knowledge/KnowledgeIndex.vue'
+import UraniumKnowledgeLibrary from './knowledge/UraniumKnowledgeLibrary.vue'
+import AutomotiveKnowledgeEmpty from './knowledge/AutomotiveKnowledgeEmpty.vue'
+import UraniumExpertViewLibrary from './UraniumExpertViewLibrary.vue'
+import UraniumPaperLibrary from './UraniumPaperLibrary.vue'
+import AutomotiveLibraryView from './knowledge/AutomotiveLibraryView.vue'
+import AutomotiveOntologyNetwork from './knowledge/AutomotiveOntologyNetwork.vue'
 import KnowledgeCreate from './KnowledgeCreate.vue'
 import KnowledgeGraphPanel from '@/components/KnowledgeGraphPanel.vue'
-import { getOsintBySourceType, getOsintNewsDetail } from '@/api/powerGame/osintKnowledgeGraph'
+import KnowledgeGraphWrapper from './PreScene/KnowledgeGraphWrapper.vue'
+import KnowledgeGraph from './PreScene/KnowledgeGraph.vue'
+import { getScnetOsintEvents, getOsintNewsDetail } from '@/api/powerGame/osintKnowledgeGraph'
+import { getUraniumKnowledgeSummary, getChinaRouteEvidence, getSubjectsSummary, getSubjects, getSubjectDetail, getSubjectEvents, getSubjectRelations, getEnvironmentSummary, getEnvironmentDatasets, getEnvironmentDataset, getChinaCurrentSituation, getChinaTradeStructure, getRulesSummary, getRules, getRuleDetail, getUraniumModelSummary, getUraniumModels, getUraniumModel, runUraniumModel, getExpertViewsSummary, getUraniumPaperSummary } from '@/api/powerGame/uraniumKnowledge'
+import { getAutomotiveKnowledgeSummary } from '@/api/powerGame/automotiveKnowledge'
 import './KnowledgeCenter.css'
 
 const CATEGORY_LABELS = {
@@ -879,6 +1378,10 @@ import { useScenarioStore } from '@/stores/scenario'
 
 export default {
   name: 'NewKnowledgeCenter',
+  props: {
+    // 事前页面启用「知识建构 → 本体网络」入口，嵌入原本体网络界面
+    showOntologyNetwork: { type: Boolean, default: true },
+  },
   setup() {
     const scenarioStore = useScenarioStore()
     return { scenarioStore }
@@ -888,10 +1391,15 @@ export default {
     FolderOpened, Upload, Download, Delete, ArrowLeft,
     Coin, MagicStick, CollectionTag, Document, Plus,
     Setting, Connection, Loading, RefreshRight, Edit, Search, HelpFilled,
-    KnowledgeIndex, KnowledgeCreate, KnowledgeGraphPanel, Collection, Link, Clock, DataAnalysis,
+    KnowledgeIndex, KnowledgeCreate, KnowledgeGraphPanel, KnowledgeGraphWrapper, KnowledgeGraph, Collection, Link, Clock, DataAnalysis,
+    UraniumKnowledgeLibrary, AutomotiveKnowledgeEmpty, UraniumExpertViewLibrary, UraniumPaperLibrary,
+    AutomotiveLibraryView,
+    AutomotiveOntologyNetwork,
   },
   data() {
     return {
+      // 专家观点子页：'list' 观点列表 | 'graph' 真实动态知识图谱（右上角按钮同页切换）
+      expertViewMode: 'list',
       // Resource data
       showPapersDialog: false,
       showOsintDialog: false,
@@ -904,7 +1412,42 @@ export default {
       sidebarOsintEvents: [],
       sidebarOsintLastUpdate: '',
       sidebarOsintCategoryFilter: 'all',
-      osintTab: 'news',
+      osintTab: 'osint',
+      routeEvidence: { artifacts: [], real_events: [], route_packs: {} },
+      routeEvidenceLoading: false,
+      subjectsSummary: null,
+      subjectsList: { total: 0, items: [] },
+      allSubjects: [],
+      subjectsFilter: { type: '', country: '', status: '', keyword: '', page: 1, pageSize: 20 },
+      subjectsLoading: false,
+      subjectDetail: null,
+      subjectDetailEvents: [],
+      subjectDetailRelations: [],
+      subjectDetailVisible: false,
+      envSummary: null,
+      envDatasets: [],
+      envTab: 'resources',
+      envLoading: false,
+      envExpanded: '',
+      envRecords: [],
+      envExpandedLabel: '',
+      envExpandedTotal: 0,
+      envExpanding: false,
+      rulesSummary: null,
+      allRules: [],
+      rulesFilter: { group: '', keyword: '' },
+      ruleDetail: null,
+      ruleDetailVisible: false,
+      rulesLoading: false,
+      modelSummary: null,
+      allModels: [],
+      modelTab: 'SITUATION',
+      modelFilter: { keyword: '' },
+      modelDetail: null,
+      modelDetailVisible: false,
+      modelsLoading: false,
+      modelRunResult: null,
+      modelRunning: false,
       officialCategory: '军控',
       newsEvents: [],
       socialEvents: [],
@@ -917,40 +1460,13 @@ export default {
       showOsintUploadDialog: false,
       osintUploadLoading: false,
       osintUploadRef: null,
-      osintUploadForm: { name: '' },
+      osintUploadForm: { title: '', source: '', url: '', date: '', summary: '' },
       sidebarTabs: [
         { key: 'dataset', label: '专家文档库', icon: 'FolderOpened' },
         { key: 'osint', label: '开源情报库', icon: 'DataAnalysis' },
+        { key: 'papers', label: '研究论文库', icon: 'Reading' },
       ],
-      knowledgeSections: [
-        {
-          key: 'resources',
-          title: '知识资源',
-          desc: '汇聚专家文档与开源情报，提供可追溯的证据材料。',
-          items: [
-            { key: 'dataset', title: '专家文档库', desc: '沉淀专家报告、书籍和领域文档', icon: 'FolderOpened', theme: 'dataset', meta: 'Docs', action: 'dialog', dialog: 'dataset' },
-            { key: 'osint', title: '开源情报库', desc: '跟踪事件新闻与公开情报', icon: 'DataAnalysis', theme: 'osint', meta: 'OSINT', action: 'dialog', dialog: 'osint' },
-          ],
-        },
-        {
-          key: 'construct',
-          title: '知识建构',
-          desc: '将资料转化为观点、概念和关系，形成可解释的认知结构。',
-          items: [
-            { key: 'experts', title: '专家观点', desc: '抽取专家认知模型和观点网络', icon: 'Connection', theme: 'experts', meta: '观点图谱', action: 'library', library: 'experts' },
-          ],
-        },
-        {
-          key: 'assets',
-          title: '仿真资产',
-          desc: '面向实验与推演复用，组织主体、环境和规则资产。',
-          items: [
-            { key: 'subject', title: '主体库', desc: 'Agent 角色、组织与行为知识（按场景切换）', icon: 'UserFilled', theme: 'subject', meta: 'Agent', action: 'library', library: 'subject' },
-            { key: 'environment', title: '环境库', desc: '地理空间、场景条件与外部约束（按场景切换）', icon: 'MapLocation', theme: 'environment', meta: 'Scene', action: 'library', library: 'environment' },
-            { key: 'rules', title: '规则库', desc: '博弈规则、红线条件与行为约束（按场景切换）', icon: 'List', theme: 'rules', meta: 'Rules', action: 'library', library: 'rules' },
-          ],
-        },
-      ],
+      knowledgeSections: [], // 已改为 computed：knowledgeSections()（按 showOntologyNetwork 注入「本体网络」）
       sidebarOsintFilterOptions: [
         { key: 'all', label: '全部' },
         { key: '外交事件', label: '外交事件' },
@@ -959,6 +1475,7 @@ export default {
       ],
       activeLibrary: null,
       papersData: [],
+      paperPagination: { page: 1, pageSize: 10, total: 0 },
       viewMode: 'graph',
       datasetExpanded: false,
       showDatasetDialog: false,
@@ -1006,7 +1523,16 @@ export default {
       cognitiveMarkdownHtml: '',
       cognitiveChartInstance: null,
       expertOverviewStats: { models: 0, nodes: 0, loading: false },
+      expertViewsSummary: null,
+      paperSummary: null,
       expertStatsRequestId: 0,
+      //模型库数量统计，暂时先写死
+      modelLibraryCount: 12,
+      modelLibraryLoading: false,
+      enabledModelCount: 4,
+      modelTypeCount: 3,
+
+
 
       loading: { papers: false, dataset: false, stats: false },
       error: null,
@@ -1112,6 +1638,12 @@ export default {
         environment: { locations: 18 },
       },
 
+      uraniumSummary: { documents: { total: 0, verified: 0, with_local_file: 0 }, evidence: { total: 0 }, papers: { total: 0 }, sources: { total: 0 }, osint: { total: 0, verified: 0, mock: 0 } },
+      // AUTO-K1:汽车九库动态统计(domain=supply_chain)
+      automotiveSummary: null,
+      automotiveLoaded: false,
+      autoLibKey: '',
+      datasetScenario: 'uranium',
       dataset: {
         books: [
           { name: '古巴导弹危机分析报告.pdf', date: '2024-01-15', categories: ['场景设定'], status: 'finished' },
@@ -1206,6 +1738,12 @@ export default {
           },
           graphData: true,
         },
+        papers_lib: {
+          name: '研究论文库（铀）', desc: 'K2-P1 联网核验的铀供应链研究论文',
+          docCount: 0, chunkCount: 0, entityCount: 0, relationCount: 0,
+          enabled: true, keywords: ['uranium', 'supply', 'market', 'resources', 'China'],
+          graphData: false,
+        },
         rules_auto: {
           name: '规则库（汽车）', desc: '汽车供应链博弈规则、贸易壁垒与合规约束',
           docCount: 6, chunkCount: 110, entityCount: 42, relationCount: 78,
@@ -1237,9 +1775,90 @@ export default {
   },
 
   computed: {
+    // 知识库分区：资源 → 建构 → 资产（事前页面额外注入「本体网络」入口）
+    knowledgeSections() {
+      const sections = [
+        {
+          key: 'resources',
+          title: '知识资源',
+          desc: '汇聚专家文档与开源情报，提供可追溯的证据材料。',
+          items: [
+            { key: 'dataset', title: '专家文档库', desc: '沉淀专家报告、书籍和领域文档', icon: 'FolderOpened', theme: 'dataset', meta: 'Docs', action: 'dialog', dialog: 'dataset' },
+            { key: 'osint', title: '开源情报库', desc: '跟踪事件新闻与公开情报', icon: 'DataAnalysis', theme: 'osint', meta: 'OSINT', action: 'dialog', dialog: 'osint' },
+            { key: 'papers', title: '研究论文库', desc: '供应链相关研究论文', icon: 'Reading', theme: 'papers', meta: 'Verified', action: 'library', library: 'papers_lib' },
+          ],
+        },
+        {
+          key: 'construct',
+          title: '模型与知识建构',
+          desc: '将资料转化为观点、概念和关系，形成可解释的认知结构。',
+          items: [
+            { key: 'experts', title: '专家观点', desc: '抽取专家认知模型和观点网络', icon: 'Connection', theme: 'experts', meta: '观点图谱', action: 'library', library: 'experts' },
+          ],
+        },
+        {
+          key: 'assets',
+          title: '仿真资产',
+          desc: '面向实验与推演复用，组织主体、环境和规则资产。',
+          items: [
+            { key: 'subject', title: '主体库', desc: 'Agent 角色、组织与行为知识（按场景切换）', icon: 'UserFilled', theme: 'subject', meta: 'Agent', action: 'library', library: 'subject' },
+            { key: 'environment', title: '环境库', desc: '地理空间、场景条件与外部约束（按场景切换）', icon: 'MapLocation', theme: 'environment', meta: 'Scene', action: 'library', library: 'environment' },
+            { key: 'rules', title: '规则库', desc: '博弈规则、红线条件与行为约束（按场景切换）', icon: 'List', theme: 'rules', meta: 'Rules', action: 'library', library: 'rules' },
+          ],
+        },
+      ]
+      // 事前页面：在「专家观点」之后追加「本体网络」「模型库」，同一行展示
+      if (this.showOntologyNetwork) {
+        sections[1].items.push(
+          {
+            key: 'ontology_network', title: '本体网络', desc: '动态本体网络与 OWL 规则推理',
+            icon: 'Collection', theme: 'ontology_network', meta: 'Network',
+            action: 'library', library: 'ontology_network',
+          },
+          {
+            key: 'model', title: '模型库', desc: '决策/仿真模型资产，按场景切换',
+            icon: 'MagicStick', theme: 'model_library', meta: 'Model',
+            action: 'library', library: 'model_library',
+          },
+        )
+      }
+      return sections
+    },
     // 场景对应的 graph key：uranium → "uranium"，supply_chain → "supply_chain"
     scenarioGraphKey() {
       return this.scenarioStore.isSupplyChain ? 'supply_chain' : 'uranium'
+    },
+    // ── 知识库首页 · 领域切换（单一 canonical：scenarioStore 派生 uranium / automotive） ──
+    domainOptions() {
+      return [
+        { id: 'uranium', label: '铀' },
+        { id: 'automotive', label: '汽车' },
+      ]
+    },
+    domainId() {
+      return this.scenarioStore.isSupplyChain ? 'automotive' : 'uranium'
+    },
+    domainLabel() {
+      return this.domainId === 'automotive' ? '汽车' : '铀'
+    },
+    // 汽车领域下这些详情页会泄漏铀/演示数据 → 一律显示统一空态
+    automotiveEmptyDetail() {
+      if (!this.scenarioStore.isSupplyChain) return false
+      return ['environment_auto', 'rules_auto', 'model_library', 'ontology_network'].includes(this.activeLibrary)
+    },
+    autoEmptyLibName() {
+      const names = {
+        environment_auto: '环境库', rules_auto: '规则库',
+        model_library: '模型库', ontology_network: '本体网络',
+      }
+      return names[this.activeLibrary] || '知识库'
+    },
+    autoEmptyDesc() {
+      return `暂无汽车${this.autoEmptyLibName}数据`
+    },
+    // AUTO-K1:汽车库通用查看器
+    isAutoLibraryDetail() {
+      return this.activeLibrary === 'auto_lib'
     },
     // 按场景过滤的书籍（铀场景只显示铀相关，汽车场景显示汽车相关）
     scenarioBooks() {
@@ -1262,6 +1881,12 @@ export default {
     },
     currentLib() {
       if (!this.activeLibrary) return {}
+      if (this.activeLibrary === 'ontology_network') {
+        return { name: '本体网络', desc: '供应链动态本体网络 · 时间演化 / OWL 规则推理' }
+      }
+      if (this.activeLibrary === 'model_library') {
+        return { name: '模型库', desc: '决策 / 仿真模型资产库' }
+      }
       return this.libraries[this.activeLibrary] || {}
     },
     filteredBooks() {
@@ -1271,9 +1896,70 @@ export default {
       if (this.categoryFilter) list = list.filter(b => b.categories && b.categories.includes(this.categoryFilter))
       return list
     },
+    isSubjectLibrary() {
+      return ['subject_uranium', 'subject', 'subject_auto'].includes(this.activeLibrary)
+    },
+    isSubjectAutoLibrary() {
+      return this.activeLibrary === 'subject_auto'
+    },
+    isEnvironmentLibrary() {
+      return this.activeLibrary === 'environment_uranium' || this.activeLibrary === 'environment'
+    },
+    isRuleLibrary() {
+      return this.activeLibrary === 'rules_uranium' || this.activeLibrary === 'rules'
+    },
+    isModelLibrary() {
+      return this.activeLibrary === 'model_library'
+    },
+    isPaperLibrary() {
+      return this.activeLibrary === 'papers_lib'
+    },
     libraryStats() {
       const lib = this.currentLib
       if (!lib) return []
+      // 主体库:使用真实 K2-S1 summary
+      if ((this.activeLibrary === 'subject_uranium' || this.activeLibrary === 'subject') && this.subjectsSummary) {
+        const total = this.subjectsSummary.total || 0
+        const usable = this.subjectsSummary.usable || 0
+        const rel = this.subjectsSummary.relations || 0
+        return [
+          { label: '主体', value: total, pct: 100 },
+          { label: '已验证', value: usable, pct: total ? (usable / total) * 100 : 0 },
+          { label: '关系', value: rel, pct: 80 },
+        ]
+      }
+      // 环境库:真实 environment summary
+      if (this.isEnvironmentLibrary && this.envSummary) {
+        return [
+          { label: '数据集', value: this.envSummary.datasets_total || 0, pct: 100 },
+          { label: 'Canonical', value: this.envSummary.canonical_records || 0, pct: 80 },
+          { label: '最新年份', value: this.envSummary.latest_year || 0, pct: 60 },
+        ]
+      }
+      // 规则库:真实 rule summary
+      if (this.isRuleLibrary && this.rulesSummary) {
+        return [
+          { label: '规则', value: this.rulesSummary.rules_total || 0, pct: 100 },
+          { label: '生效', value: this.rulesSummary.runtime_effective_rules || 0, pct: 90 },
+          { label: '规则组', value: this.rulesSummary.rule_groups || 0, pct: 70 },
+        ]
+      }
+      // 模型库:真实 model summary
+      if (this.isModelLibrary && this.modelSummary) {
+        return [
+          { label: '态势', value: this.modelSummary.situation_models || 0, pct: 100 },
+          { label: '专业', value: this.modelSummary.professional_models || 0, pct: 70 },
+          { label: '算法', value: this.modelSummary.general_algorithms || 0, pct: 60 },
+        ]
+      }
+      // 研究论文库:K2-P1 真实论文 summary
+      if (this.isPaperLibrary && this.paperSummary) {
+        return [
+          { label: '论文', value: this.paperSummary.papers_total || 0, pct: 100 },
+          { label: 'PDF', value: this.paperSummary.pdf_available || 0, pct: 80 },
+          { label: '中国', value: this.paperSummary.china_related || 0, pct: 60 },
+        ]
+      }
       const maxVal = Math.max(lib.docCount || 1, lib.chunkCount || 1, lib.entityCount || 1, lib.relationCount || 1)
       return [
         { label: '文档', value: lib.docCount || 0, pct: ((lib.docCount || 0) / maxVal) * 100 },
@@ -1283,6 +1969,26 @@ export default {
       ]
     },
     resourceOverviewByKey() {
+      // 汽车领域：统计来自 automotive summary(动态真实);数据未就绪的库显示真实 0
+      const isAuto = this.scenarioStore.isSupplyChain
+      if (isAuto) {
+        const s = this.automotiveSummary || {}
+        const d = s.documents || {}, o = s.osint || {}, p = s.papers || {}
+        const v = s.expertViews || {}, ot = s.ontology || {}, md = s.models || {}
+        const sub = s.subjects || {}, env = s.environment || {}, r = s.rules || {}
+        const ld = !this.automotiveLoaded
+        return {
+          dataset: [{ label: '文档', value: d.total || 0, loading: ld }, { label: '已验证', value: d.verified || 0 }, { label: '证据', value: d.evidence || 0 }],
+          osint: [{ label: '情报', value: o.total || 0, loading: ld }, { label: '预警', value: o.active || 0 }, { label: '分类', value: o.categories || 0 }],
+          papers: [{ label: '论文', value: p.total || 0, loading: ld }, { label: 'PDF', value: p.pdf || 0 }, { label: '覆盖国家', value: p.countries || 0 }],
+          experts: [{ label: '观点', value: v.total || 0, loading: ld }, { label: '机构', value: v.organizations || 0 }, { label: '主题', value: v.topics || 0 }],
+          subject: [{ label: '主体', value: sub.total || 0, loading: ld }, { label: '已验证', value: sub.verified || 0 }, { label: '关系', value: sub.relations || 0 }],
+          environment: [{ label: '数据集', value: env.datasets || 0, loading: ld }, { label: '记录', value: env.records || 0 }, { label: '最新年份', value: env.latest_year || '—' }],
+          rules: [{ label: '规则', value: r.total || 0, loading: ld }, { label: '生效', value: r.active || 0 }, { label: '规则组', value: r.groups || 0 }],
+          model: [{ label: '模型', value: md.total || 0, loading: ld }, { label: '专业', value: md.professional || 0 }, { label: '算法', value: md.algorithms || 0 }],
+          ontology_network: [{ label: '类', value: ot.classes || 0, loading: ld }, { label: '关系', value: ot.relations || 0 }, { label: '约束', value: ot.constraints || 0 }],
+        }
+      }
       const paperLoading = this.loading.papers || this.loading.stats
       const datasetLoading = this.dataset.loading
       const osintLoading = this.sidebarOsintLoading
@@ -1302,34 +2008,94 @@ export default {
       }
 
       return {
-        papers: [
-          { label: '论文', value: 0, loading: false },
-          { label: '已下载', value: 0, loading: false },
-          { label: '关键词', value: 0, loading: false },
-        ],
-        osint: [
-          { label: '情报', value: osintEvents.length, loading: osintLoading },
-          { label: '预警', value: osintEvents.filter(item => item.alert).length, loading: osintLoading },
-          { label: '分类', value: new Set(osintEvents.map(item => item.category).filter(Boolean)).size, loading: osintLoading },
-        ],
+        papers: this.scenarioStore.isSupplyChain
+          ? [{ label: '论文', value: 0 }, { label: 'PDF', value: 0 }, { label: '中国', value: 0 }]
+          : (this.paperSummary
+              ? [
+                  { label: '论文', value: this.paperSummary.papers_total || 0 },
+                  { label: 'PDF', value: this.paperSummary.pdf_available || 0 },
+                  { label: '中国', value: this.paperSummary.china_related || 0 },
+                ]
+              : [{ label: '论文', value: 0, loading: true }, { label: 'PDF', value: 0 }, { label: '中国', value: 0 }]),
+        osint: (() => {
+          // 铀:口径与开源情报库一致 = 真实 OSINT 事件(路线证据 event_registry) + 用户上传
+          const reg = this.routeEvidence.event_registry || []
+          if (!reg.length) {
+            return [
+              { label: '情报', value: osintEvents.length, loading: osintLoading },
+              { label: '预警', value: osintEvents.filter(item => item.alert).length, loading: osintLoading },
+              { label: '分类', value: new Set(osintEvents.map(item => item.category).filter(Boolean)).size, loading: osintLoading },
+            ]
+          }
+          const uploads = (this.newsEvents || []).filter(e => e.origin === 'USER_UPLOAD').length
+          const active = reg.filter(e => e.event_state === 'ACTIVE' || e.event_state === 'ONGOING').length
+          return [
+            { label: '情报', value: reg.length + uploads, loading: this.routeEvidenceLoading },
+            { label: '预警', value: active, loading: this.routeEvidenceLoading },
+            { label: '分类', value: new Set(reg.map(e => e.event_type).filter(Boolean)).size, loading: this.routeEvidenceLoading },
+          ]
+        })(),
         dataset: [
-          { label: '文档', value: datasetBooks.length, loading: datasetLoading },
-          { label: '已解析', value: datasetBooks.filter(item => item.status === 'finished').length, loading: datasetLoading },
-          { label: '分类', value: new Set(datasetBooks.flatMap(item => item.categories || [])).size, loading: datasetLoading },
+          { label: '文档', value: this.scenarioStore.isSupplyChain ? 0 : this.uraniumSummary.documents.total, loading: datasetLoading },
+          { label: '已验证', value: this.scenarioStore.isSupplyChain ? 0 : this.uraniumSummary.documents.verified, loading: datasetLoading },
+          { label: '证据', value: this.scenarioStore.isSupplyChain ? 0 : this.uraniumSummary.evidence.total, loading: datasetLoading },
         ],
-        experts: [
-          { label: '文档', value: datasetBooks.length, loading: datasetLoading },
-          { label: '模型', value: this.expertOverviewStats.models, loading: expertLoading },
-          { label: '节点', value: this.expertOverviewStats.nodes, loading: expertLoading },
-        ],
-        ontology: [
+        experts: this.scenarioStore.isSupplyChain
+          ? [{ label: '观点', value: 0 }, { label: '机构', value: 0 }, { label: '主题', value: 0 }]
+          : (this.expertViewsSummary
+              ? [
+                  { label: '观点', value: this.expertViewsSummary.views_total || 0 },
+                  { label: '机构', value: this.expertViewsSummary.organizations_total || 0 },
+                  { label: '主题', value: this.expertViewsSummary.topics_total || 0 },
+                ]
+              : [{ label: '观点', value: 0, loading: true }, { label: '机构', value: 0 }, { label: '主题', value: 0 }]),
+        ontology_network: [
           { label: '实体', value: this.ontologyGraphData.nodes.length },
           { label: '关系', value: this.ontologyGraphData.links.length },
           { label: '规则', value: this.ontologyStats.decision.rules },
         ],
-        subject: libraryStats(this.scenarioStore.isSupplyChain ? 'subject_auto' : 'subject_uranium'),
-        environment: libraryStats(this.scenarioStore.isSupplyChain ? 'environment_auto' : 'environment_uranium'),
-        rules: libraryStats(this.scenarioStore.isSupplyChain ? 'rules_auto' : 'rules_uranium'),
+        model: this.modelSummary
+          ? [
+              { label: '态势', value: this.modelSummary.situation_models || 0 },
+              { label: '专业', value: this.modelSummary.professional_models || 0 },
+              { label: '算法', value: this.modelSummary.general_algorithms || 0 },
+            ]
+          : [
+              { label: '模型', value: this.modelLibraryCount || 0, loading: false },
+              { label: '已启用', value: this.enabledModelCount || 0, loading: this.modelLibraryLoading },
+              { label: '类型', value: this.modelTypeCount || 0, loading: this.modelLibraryLoading },
+            ],
+        subject: this.scenarioStore.isSupplyChain
+          ? [
+              { label: '主体', value: 0 },
+              { label: '已验证', value: 0 },
+              { label: '关系', value: 0 },
+            ]
+          : (this.subjectsSummary
+              ? [
+                  { label: '主体', value: this.subjectsSummary.total || 0 },
+                  { label: '已验证', value: this.subjectsSummary.usable || 0 },
+                  { label: '关系', value: this.subjectsSummary.relations || 0 },
+                ]
+              : libraryStats('subject_uranium')),
+        environment: this.scenarioStore.isSupplyChain
+          ? libraryStats('environment_auto')
+          : (this.envSummary
+              ? [
+                  { label: '数据集', value: this.envSummary.datasets_total || 0 },
+                  { label: 'Canonical', value: this.envSummary.canonical_records || 0 },
+                  { label: '最新年份', value: this.envSummary.latest_year || 0 },
+                ]
+              : libraryStats('environment_uranium')),
+        rules: this.scenarioStore.isSupplyChain
+          ? libraryStats('rules_auto')
+          : (this.rulesSummary
+              ? [
+                  { label: '规则', value: this.rulesSummary.rules_total || 0 },
+                  { label: '生效', value: this.rulesSummary.runtime_effective_rules || 0 },
+                  { label: '规则组', value: this.rulesSummary.rule_groups || 0 },
+                ]
+              : libraryStats('rules_uranium')),
       }
     },
     ontologyCategoryTags() {
@@ -1383,6 +2149,41 @@ export default {
     newsFilteredEvents() {
       return this.newsEvents || []
     },
+    // 开源情报库列表 = 真实 OSINT 事件(路线证据) + 用户上传,关键词本地过滤
+    osintEventList() {
+      const kw = String(this.sidebarOsintKeyword || '').trim().toLowerCase()
+      const rows = []
+      for (const ev of (this.routeEvidence.event_registry || [])) {
+        const st = String(ev.event_state || '')
+        rows.push({
+          event_id: ev.event_id,
+          title: ev.title || ev.event_id,
+          summary: ev.summary || '',
+          stateLabel: st,
+          stateActive: st === 'ACTIVE' || st === 'ONGOING',
+          alert: ev.severity_class === 'HIGH' || ev.severity === 'high' || st === 'ACTIVE',
+          color: ev.direction === 'NEGATIVE' ? '#dc2626' : ev.direction === 'POSITIVE' ? '#16a34a' : '#f59e0b',
+          tone: ev.direction === 'NEGATIVE' ? 'warn' : 'ok',
+          sourceLabel: ev.event_type || ev.primary_source || '',
+          dateLabel: `${ev.event_date || ''} · ${ev.direction || ''}`,
+          categoryLabel: (ev.affected_route_ids || []).map(this.routeName).join(' / ') || ev.country_id || '',
+          links: (ev.artifact_ids || []).slice(0, 2).map(a => ({ label: '查看原文', url: this.artifactUrl(a) })).filter(x => x.url),
+          _kw: `${ev.title || ''} ${ev.summary || ''} ${(ev.affected_route_ids || []).join(' ')} ${ev.event_type || ''}`.toLowerCase(),
+        })
+      }
+      for (const up of (this.newsEvents || []).filter(e => e.origin === 'USER_UPLOAD')) {
+        rows.push({
+          event_id: up.id, title: up.title, summary: up.description || '',
+          stateLabel: '用户上传', stateActive: false, alert: false,
+          color: '#6366f1', tone: 'ok',
+          sourceLabel: up.source || '用户上传', dateLabel: up.date || '',
+          categoryLabel: '用户上传',
+          links: up.url ? [{ label: '查看原文', url: up.url }] : [],
+          _kw: `${up.title || ''} ${up.description || ''} 用户上传`.toLowerCase(),
+        })
+      }
+      return kw ? rows.filter(r => r._kw.includes(kw)) : rows
+    },
     socialFilteredEvents() {
       return this.socialEvents || []
     },
@@ -1392,6 +2193,28 @@ export default {
     activeLibrary: {
       handler(val) {
         this.$nextTick(() => {
+          if (val === 'subject_uranium' || val === 'subject') {
+            this.viewMode = 'subjects'
+            this.loadSubjectsSummary()
+            this.loadSubjects()
+          }
+          if (val === 'subject_auto') {
+            // 汽车主体库:暂空,不放铀主体
+            this.viewMode = 'subjects'
+            this.allSubjects = []
+            this.subjectsList = { total: 0, items: [] }
+          }
+          if (val === 'environment_uranium' || val === 'environment') {
+            this.envTab = 'resources'
+            this.loadEnvironment()
+          }
+          if (val === 'rules_uranium' || val === 'rules') {
+            this.loadRules()
+          }
+          if (val === 'model_library') {
+            this.modelTab = 'SITUATION'
+            this.loadModels()
+          }
           if (val === 'experts' && !this.resourceCache.expertStatsLoaded && !this.expertOverviewStats.loading) {
             this.fetchExpertOverviewStats(this.scenarioBooks)
           }
@@ -1426,8 +2249,21 @@ export default {
   },
 
   mounted() {
+    // 知识库首页每次新进入默认铀领域（全局 scenarioStore 可能停在汽车，这里不沿用）
+    if (!this.activeLibrary && this.scenarioStore.isSupplyChain) {
+      this.scenarioStore.setScenario('uranium')
+    }
     this.fetchBookList()
     this.fetchSidebarOsint()
+    this.fetchUraniumSummary()
+    this.loadSubjectsSummary()  // K2-S1.2:主体库卡片统计
+    this.loadEnvironment()      // K2-E1:环境库卡片统计
+    this.loadRules()            // K2-R1:规则库卡片统计
+    this.loadModels()           // K2-M1:模型库卡片统计
+    this.loadExpertViewsSummary()  // K2-V1:专家观点卡片统计
+    this.loadPaperSummary()        // K2-P1:研究论文卡片统计
+    // 开源情报卡片口径 = 真实 OSINT 事件(路线证据);铀场景加载,汽车走 automotive 分支
+    if (!this.scenarioStore.isSupplyChain) { this.loadRouteEvidence(); this.fetchOsintByType('news') }
   },
 
   methods: {
@@ -1564,19 +2400,61 @@ export default {
       return keywordSet.size
     },
     // ===== Resource dialogs =====
+    // 领域切换：复用 scenarioStore(uranium / supply_chain)，不新增重复状态
+    setDomain(domainId) {
+      const target = domainId === 'automotive' ? 'supply_chain' : 'uranium'
+      if (this.scenarioStore.currentScenario === target) return
+      this.expertViewMode = 'list' // 切领域时复位专家观点子视图，避免残留铀图谱
+      this.scenarioStore.setScenario(target)
+      if (domainId === 'automotive') this.loadAutomotiveSummary()
+      else { this.loadRouteEvidence(); this.fetchOsintByType('news') }
+    },
+    async loadAutomotiveSummary() {
+      this.automotiveLoaded = false
+      try {
+        const res = await getAutomotiveKnowledgeSummary()
+        this.automotiveSummary = (res && res.data) || null
+      } catch (e) {
+        console.warn('汽车知识库 summary 加载失败', e)
+        this.automotiveSummary = null
+      } finally {
+        this.automotiveLoaded = true
+      }
+    },
+    openAutoLibrary(lib) {
+      this.autoLibKey = lib
+      this.activeLibrary = 'auto_lib'
+    },
     openKnowledgeEntry(item) {
       if (!item) return
+      // AUTO-K1:汽车领域 → 通用九库查看器(dataset/osint 卡也从对话框转为库页,统一走 automotive API)
+      if (this.scenarioStore.isSupplyChain) {
+        if (item.key === 'ontology_network') { this.activeLibrary = 'auto_ontology_net'; return }
+        const AUTO_LIB = {
+          dataset: 'documents', osint: 'osint', papers: 'papers', experts: 'expertViews',
+          subject: 'subjects', environment: 'environment', rules: 'rules',
+          model: 'models',
+        }
+        const lib = AUTO_LIB[item.key]
+        if (lib) { this.openAutoLibrary(lib) }
+        return
+      }
       if (item.action === 'dialog') {
         if (item.dialog === 'osint') {
           this.showOsintDialog = true
           this.switchSidebarTab('osint')
         } else if (item.dialog === 'dataset') {
+          this.datasetScenario = this.scenarioStore.isSupplyChain ? 'automotive' : 'uranium'
+          if (!this.scenarioStore.isSupplyChain) this.fetchUraniumSummary()
           this.showDatasetDialog = true
+        } else if (item.dialog === 'papers') {
+          this.showPapersDialog = true
+          this.switchSidebarTab('papers')
         }
         return
       }
       if (item.action === 'library' && item.library) {
-        // 主体库/环境库/规则库/本体编辑按场景自动切换
+        // 主体库/环境库/规则库/本体编辑按场景切换：点铀按钮显示铀内容，点汽车按钮显示汽车内容
         const scenarioSuffix = this.scenarioStore.isSupplyChain ? '_auto' : '_uranium'
         if (['subject', 'environment', 'rules', 'ontology'].includes(item.library)) {
           this.activeLibrary = item.library + scenarioSuffix
@@ -1585,14 +2463,37 @@ export default {
         } else if (item.library === 'ontology_auto') {
           this.activeLibrary = 'ontology_auto'
         } else {
+          // 打开任意库（含专家观点）时复位其子视图为默认
+          if (item.library === 'experts') this.expertViewMode = 'list'
           this.activeLibrary = item.library
         }
+      }
+    },
+    // 专家观点右上角：知识图谱 ⇄ 观点列表 同页切换
+    toggleExpertGraph() {
+      this.expertViewMode = this.expertViewMode === 'graph' ? 'list' : 'graph'
+    },
+    // 返回知识库首页：同时复位专家观点子视图为列表
+    backToKnowledgeHub() {
+      this.expertViewMode = 'list'
+      this.activeLibrary = null
+    },
+    async fetchUraniumSummary() {
+      if (this.scenarioStore.isSupplyChain) return  // automotive 不调用 uranium API
+      try {
+        const res = await getUraniumKnowledgeSummary()
+        if (res && res.data) this.uraniumSummary = res.data
+      } catch (e) {
+        this.uraniumSummary = { documents: { total: 0, verified: 0, with_local_file: 0 }, evidence: { total: 0 }, papers: { total: 0 }, sources: { total: 0 }, osint: { total: 0, verified: 0, mock: 0 } }
       }
     },
     switchSidebarTab(key) {
       this.sidebarTab = key
       if (key === 'osint') {
         this.fetchSidebarOsint()
+      }
+      if (key === 'papers') {
+        this.fetchSidebarPapers()
       }
       if (key === 'dataset') {
         // fetchBookList already called from mounted
@@ -1631,13 +2532,61 @@ export default {
         this.resourceCache.papersLoaded = true
       } finally {
         this.loading.papers = false
+        this.paperPagination.total = this.sidebarFilteredPapers.length
       }
       await this.refreshPaperKeywordStatsFromPapers()
     },
-    async onOsintDialogOpen() {
-      if (!this.resourceCache.osintLoaded) {
-        await this.fetchOsintByType('news')
+    handlePaperSearch() {
+      // sidebarFilteredPapers 是响应式 computed，输入即过滤；这里同步分页总数并回到第一页
+      this.paperPagination.total = this.sidebarFilteredPapers.length
+      this.paperPagination.page = 1
+    },
+    async handleDownload(p) {
+      const filename = p.name || p.filename || p.title
+      if (!filename) return
+      try {
+        const res = await downloadPaper(filename)
+        const blob = res instanceof Blob ? res : new Blob([res])
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = filename.includes('.') ? filename : `${filename}.pdf`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+      } catch (e) {
+        console.warn('下载论文失败:', e)
       }
+    },
+    async handleExpandPaper(p) {
+      const filename = p.name || p.filename || p.title
+      if (!filename) return
+      try {
+        await expandPaper(filename)
+        await this.fetchSidebarPapers(true)
+      } catch (e) {
+        console.warn('AI拓展论文失败:', e)
+      }
+    },
+    async handleDeletePaper(p) {
+      const filename = p.name || p.filename || p.title
+      if (!filename) return
+      try {
+        await deletePaper(filename)
+        await this.fetchSidebarPapers(true)
+      } catch (e) {
+        console.warn('删除论文失败:', e)
+      }
+    },
+    handlePaperPageChange(page) {
+      this.paperPagination.page = page
+    },
+    async onOsintDialogOpen() {
+      // 每次打开都按当前场景（铀/汽车）重新拉取，避免切换场景后数据是旧的
+      await this.fetchOsintByType('news')
+      // 路线证据(铀)现已并入实时新闻页;汽车场景不适用
+      if (!this.scenarioStore.isSupplyChain) this.loadRouteEvidence()
     },
     async onOsintTabChange(tab) {
       if (tab === 'news' && !this.newsEvents.length) {
@@ -1646,44 +2595,334 @@ export default {
         await this.fetchOsintByType('social')
       }
     },
+    async loadRouteEvidence() {
+      if (this.routeEvidenceLoading) return
+      this.routeEvidenceLoading = true
+      try {
+        const r = await getChinaRouteEvidence()
+        this.routeEvidence = (r && r.data) || { artifacts: [], real_events: [], route_packs: {} }
+      } catch (e) {
+        this.routeEvidence = { artifacts: [], real_events: [], route_packs: {} }
+      } finally {
+        this.routeEvidenceLoading = false
+      }
+    },
+    routeName(rid) {
+      const m = { kazakhstan: '哈萨克斯坦', namibia: '纳米比亚', canada: '加拿大', australia: '澳大利亚', uzbekistan: '乌兹别克斯坦', niger: '尼日尔', russia: '俄罗斯' }
+      return m[rid] || rid
+    },
+    routeArtifacts(rid) {
+      const arts = this.routeEvidence.artifacts || []
+      return arts.filter(a => (a.related_route_ids || []).includes(rid))
+    },
+    artifactUrl(artId) {
+      const arts = this.routeEvidence.artifacts || []
+      const a = arts.find(x => x.artifact_id === artId)
+      return (a && a.official_url) || ''
+    },
+    async loadSubjectsSummary() {
+      try {
+        const r = await getSubjectsSummary()
+        this.subjectsSummary = (r && r.data) || null
+      } catch (e) { this.subjectsSummary = null }
+    },
+    async loadSubjects() {
+      this.subjectsLoading = true
+      try {
+        // K2-S1.3:一次加载全部 68,前端本地筛选/分页(避免后端 filter 参数兼容问题)
+        const r = await getSubjects({ page: 1, page_size: 100 })
+        const data = (r && r.data) || { total: 0, items: [] }
+        this.allSubjects = data.items || []
+        this.subjectsList = { total: data.total || this.allSubjects.length, items: this.allSubjects }
+      } catch (e) { this.allSubjects = []; this.subjectsList = { total: 0, items: [] } } finally { this.subjectsLoading = false }
+    },
+    subjectsPageItems() {
+      const f = this.subjectsFilter
+      const kw = (f.keyword || '').trim().toLowerCase()
+      let list = this.allSubjects
+      if (f.type) list = list.filter(s => s.subject_type === f.type)
+      if (f.country) list = list.filter(s => s.country_id === f.country)
+      if (f.status) list = list.filter(s => (s.current_status || {}).status === f.status)
+      if (kw) list = list.filter(s =>
+        (s.canonical_name || '').toLowerCase().includes(kw) ||
+        (s.aliases || []).some(a => String(a).toLowerCase().includes(kw)))
+      this.subjectsFilter.page = Math.min(this.subjectsFilter.page, Math.max(1, Math.ceil(list.length / this.subjectsFilter.pageSize)))
+      return list
+    },
+    subjectsPageSlice() {
+      const list = this.subjectsPageItems()
+      const start = (this.subjectsFilter.page - 1) * this.subjectsFilter.pageSize
+      return list.slice(start, start + this.subjectsFilter.pageSize)
+    },
+    async openSubjectDetail(id) {
+      try {
+        const d = await getSubjectDetail(id)
+        this.subjectDetail = (d && d.data) || null
+        const ev = await getSubjectEvents(id)
+        this.subjectDetailEvents = ((ev && ev.data) || {}).items || []
+        const rel = await getSubjectRelations(id)
+        this.subjectDetailRelations = ((rel && rel.data) || {}).items || []
+        this.subjectDetailVisible = true
+      } catch (e) { this.subjectDetail = null }
+    },
+    subjectVerifText(v) {
+      const m = { VERIFIED_PUBLIC_ENTITY: '已验证', VERIFIED_PUBLIC_LOCATION: '已核验位置', EVIDENCE_BACKED_AGGREGATE: '聚合', CANDIDATE: '候选' }
+      return m[v] || v || '—'
+    },
+    async loadEnvironment() {
+      this.envLoading = true
+      try {
+        const s = await getEnvironmentSummary()
+        this.envSummary = (s && s.data) || null
+        const d = await getEnvironmentDatasets()
+        this.envDatasets = ((d && d.data) || {}).items || []
+      } catch (e) { this.envSummary = null; this.envDatasets = [] } finally { this.envLoading = false }
+    },
+    envDatasetMeta(cat) {
+      return this.envDatasets.find(d => d.category === cat) || null
+    },
+    async toggleEnvDataset(datasetId, label) {
+      if (this.envExpanded === datasetId) {
+        this.envExpanded = ''
+        this.envRecords = []
+        return
+      }
+      this.envExpanding = true
+      try {
+        const r = await getEnvironmentDataset(datasetId, { page: 1, page_size: 50 })
+        const d = (r && r.data) || null
+        this.envRecords = d ? d.items : []
+        this.envExpandedTotal = d ? d.total : 0
+        this.envExpandedLabel = label || (d && d.name) || datasetId
+        this.envExpanded = datasetId
+      } catch (e) { this.envRecords = []; this.envExpanded = '' } finally { this.envExpanding = false }
+    },
+    envCatLabel(cat) {
+      const m = { resources: '资源', production: '生产', requirements: '需求', capability: '产能' }
+      return m[cat] || cat
+    },
+    async loadRules() {
+      this.rulesLoading = true
+      try {
+        const s = await getRulesSummary()
+        this.rulesSummary = (s && s.data) || null
+        const r = await getRules({})
+        this.allRules = ((r && r.data) || {}).items || []
+      } catch (e) { this.rulesSummary = null; this.allRules = [] } finally { this.rulesLoading = false }
+    },
+    filteredRules() {
+      const f = this.rulesFilter
+      let list = this.allRules
+      if (f.group) list = list.filter(rr => rr.rule_group === f.group)
+      const kw = (f.keyword || '').trim().toLowerCase()
+      if (kw) list = list.filter(rr => (rr.rule_name + rr.label_zh + rr.description).toLowerCase().includes(kw))
+      return list
+    },
+    async openRuleDetail(id) {
+      try {
+        const r = await getRuleDetail(id)
+        this.ruleDetail = (r && r.data) || null
+        this.ruleDetailVisible = true
+      } catch (e) { this.ruleDetail = null }
+    },
+    ruleGroupLabel(g) {
+      const m = { EVENT_MAPPING: '事件映射', EVENT_STATE: '事件状态', EVENT_RISK: '事件风险', TIME_DECAY: '时间衰减', NETWORK_CRITICALITY: '网络关键性', NODE_RISK: '节点风险', EDGE_RISK: '边风险', ROUTE_RISK: '路线风险', RISK_LEVEL: '风险等级', CALIBRATION: '校准', DATA_GATE: '数据门禁', QUALITY_GUARD: '质量守卫', DEPENDENCY: '依赖' }
+      return m[g] || g
+    },
+    async loadModels() {
+      this.modelsLoading = true
+      try {
+        const s = await getUraniumModelSummary()
+        this.modelSummary = (s && s.data) || null
+        const r = await getUraniumModels({})
+        this.allModels = ((r && r.data) || {}).items || []
+      } catch (e) { this.modelSummary = null; this.allModels = [] } finally { this.modelsLoading = false }
+    },
+    async loadExpertViewsSummary() {
+      try {
+        const s = await getExpertViewsSummary()
+        this.expertViewsSummary = (s && s.data) || null
+      } catch (e) { this.expertViewsSummary = null }
+    },
+    async loadPaperSummary() {
+      try {
+        const s = await getUraniumPaperSummary()
+        this.paperSummary = (s && s.data) || null
+      } catch (e) { this.paperSummary = null }
+    },
+    filteredModels() {
+      const kw = (this.modelFilter.keyword || '').trim().toLowerCase()
+      let list = this.allModels.filter(m => m.model_category === this.modelTab)
+      if (kw) list = list.filter(m => (m.model_name + m.methodology + m.purpose).toLowerCase().includes(kw))
+      return list
+    },
+    async openModelDetail(id) {
+      try {
+        const r = await getUraniumModel(id)
+        this.modelDetail = (r && r.data) || null
+        this.modelDetailVisible = true
+      } catch (e) { this.modelDetail = null }
+    },
+    modelCategoryLabel(c) {
+      const m = { SITUATION: '态势模型', PROFESSIONAL: '专业模型', ALGORITHM: '通用算法' }
+      return m[c] || c
+    },
+    modelReadinessClass(v) {
+      const ok = ['READY', 'REAL_READY', 'DATA_READY', 'N/A']
+      const warn = ['PARTIAL', 'PARTIAL_REAL', 'DATA_PARTIAL', 'REAL_BASELINE_ASSUMED', 'DERIVED_REAL_DATA', 'READY_DERIVED', 'ESTIMATED']
+      return ok.includes(v) ? 'ok' : warn.includes(v) ? 'warn' : 'bad'
+    },
+    modelReadinessLabel(v) {
+      const m = {
+        REAL_READY: 'REAL READY', DATA_READY: 'REAL DATA BOUND', PARTIAL_REAL: 'PARTIAL REAL',
+        REAL_BASELINE_ASSUMED: 'REAL BASELINE / ASSUMED PARAMETER', NOT_READY: 'NOT READY',
+        INSUFFICIENT_HISTORY: 'INSUFFICIENT HISTORY', NOT_READY_FOR_SERIES: 'NOT READY (series too short)',
+        DEMO_ONLY: 'DEMO', 'N/A': 'N/A'
+      }
+      return m[v] || v
+    },
+    async runModel(m) {
+      this.modelRunning = true
+      this.modelRunResult = null
+      try {
+        const params = {}
+        if (m.model_category === 'ALGORITHM' && m.implementations && m.implementations.length) {
+          params.implementation = m.implementations[0]
+        }
+        const r = await runUraniumModel(m.model_id, params)
+        this.modelRunResult = (r && r.data) || null
+      } catch (e) {
+        this.modelRunResult = { error: (e && e.message) || '运行失败' }
+      } finally {
+        this.modelRunning = false
+      }
+    },
+    formatRunResult(res) {
+      const out = {}
+      if (res.implementation) out['实现'] = res.implementation
+      if (res.readiness) out['就绪'] = res.readiness
+      if (res.capacity_basis) out['容量基准'] = res.capacity_basis
+      if (res.unit) out['单位'] = res.unit
+      if (res.baseline_flow !== undefined && res.baseline_flow !== null) out['基线流量'] = res.baseline_flow
+      if (res.mode) out['模式'] = res.mode
+      if (res.scenario_type) out['场景类型'] = res.scenario_type
+      if (res.assumption_source) out['假设来源'] = res.assumption_source
+      if (res.error) out['错误'] = res.error
+      if (res.bottleneck_relative_score) out['瓶颈'] = res.bottleneck_relative_score
+      if (res.current_availability_loss !== undefined) out['当前可用性损失'] = res.current_availability_loss
+      if (res.missing_fields && res.missing_fields.length) out['缺失字段'] = res.missing_fields.join(', ')
+      if (res.result && typeof res.result === 'object') out['结果'] = res.result
+      return JSON.stringify(out, null, 2)
+    },
+    subjectTypeName(t) {
+      const m = { COMPANY: '公司', MINE: '矿山', DEPOSIT: '矿床', PROCESSING_FACILITY: '加工设施', CONVERSION_FACILITY: '转化设施', FUEL_FABRICATION_FACILITY: '燃料制造设施', PORT: '港口', BORDER_CROSSING: '口岸', RAIL_NODE: '铁路节点', LOGISTICS_NODE: '物流节点', NUCLEAR_POWER_PLANT: '核电站', SUPPLY_NETWORK: '供应网络', TRANSPORT_INFRASTRUCTURE: '运输基础设施', OTHER: '其他' }
+      return m[t] || t || '—'
+    },
+    subjectStatusText(s) {
+      const m = { ACTIVE: '运行中', OPERATING: '运营中', SUSPENDED: '暂停', DISRUPTED: '中断', RECOVERED: '已恢复', UNKNOWN: '未知' }
+      return m[s] || s || '—'
+    },
     onGraphUpdated(stats) {
       // 图谱更新回调
     },
     async toggleOsintDetail(ev) {
-      if (ev._expanded) {
-        ev._expanded = false
-        return
-      }
-      ev._expanded = true
-      if (ev._detail || !ev.id) return
-      ev._loading = true
-      try {
-        const res = await getOsintNewsDetail(ev.id)
-        if (res?.success && res.data) {
-          ev._detail = res.data.content || res.data.summary || '暂无内容'
-          ev._detailFull = res.data.content || ''
-        }
-      } catch (e) {
-        console.warn('Failed to load detail:', e)
-        ev._detail = '加载失败'
-      } finally {
-        ev._loading = false
-      }
-    },
+  if (ev._expanded) {
+    ev._expanded = false
+    return
+  }
+
+  ev._expanded = true
+
+  // 已经有详情，直接展示
+  if (ev._detail) return
+
+  // 列表数据里已经有摘要，先直接展示，避免显示“加载失败”
+  if (ev.description || ev.summary || ev.content) {
+    ev._detail = ev.description || ev.summary || ev.content
+    return
+  }
+
+  if (!ev.id) {
+    ev._detail = '暂无内容'
+    return
+  }
+
+  ev._loading = true
+
+  try {
+    const res = await getOsintNewsDetail(ev.id)
+
+    if (res?.success && res.data) {
+      ev._detail =
+        res.data.content ||
+        res.data.summary ||
+        ev.description ||
+        ev.summary ||
+        '暂无内容'
+
+      ev._detailFull = res.data.content || ''
+    } else {
+      ev._detail = ev.description || ev.summary || '暂无内容'
+    }
+  } catch (e) {
+    console.warn('Failed to load detail:', e)
+
+    // 不要直接写“加载失败”，优先回退到已有摘要
+    ev._detail = ev.description || ev.summary || ev.content || '暂无内容'
+  } finally {
+    ev._loading = false
+  }
+},
+
     async fetchOsintByType(sourceCategory) {
       this.sidebarOsintLoading = true
       try {
-        const res = await getOsintBySourceType(sourceCategory, this.sidebarOsintKeyword || undefined)
-        if (res?.success && res.data) {
-          const items = []
-          Object.entries(res.data).forEach(([keyword, events]) => {
-            if (Array.isArray(events)) {
-              events.forEach(item => items.push({ ...item, _keyword: keyword }))
-            }
-          })
-          const mapped = items.map((item, idx) => {
+        // 改为调用 SCnet 后端接口，按场景（铀/汽车）获取开源情报
+        const scenario = this.scenarioStore.isSupplyChain ? 'supply_chain' : 'uranium'
+        const res = await getScnetOsintEvents(scenario, this.sidebarOsintKeyword || undefined)
+        const events = Array.isArray(res?.data?.events) ? res.data.events : []
+        const mapped = events.map((item, idx) => {
+          const catMapping = { Economy: '经济影响', Military: '军事基地', Politics: '外交事件', General: '外交事件' }
+          const cat = catMapping[item.type] || item.type || item.category || '外交事件'
+          const colors = { '外交事件': '#6366f1', '军事基地': '#f43f5e', '经济影响': '#10b981' }
+          return {
+            id: item.id || `osint-${idx}`,
+            title: item.title || '-',
+            source: item.source || '-',
+            url: item.url || '',
+            date: (item.date || item.fullTime || item.time || '').split(' ')[0] || '-',
+            description: item.summary || item.description || item.snippet || '',
+            category: cat,
+            color: item.color || colors[cat] || '#6366f1',
+            alert: item.priority != null ? item.priority >= 80 : String(item.level || '').includes('高'),
+            origin: item.origin || 'CRAWLER',
+            _expanded: false,
+          }
+        })
+        if (sourceCategory === 'news') {
+          this.newsEvents = mapped
+        } else if (sourceCategory === 'social') {
+          this.socialEvents = mapped
+        }
+        this.sidebarOsintLastUpdate = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+        this.resourceCache.osintLoaded = true
+      } catch (e) {
+        console.warn(`OSINT ${sourceCategory} API failed:`, e)
+      }
+      this.sidebarOsintLoading = false
+    },
+    async fetchSidebarOsint(force = false) {
+      if (this.resourceCache.osintLoaded && !force) return
+      this.sidebarOsintLoading = true
+      try {
+        // 改为调用 SCnet 后端接口，按场景（铀/汽车）获取开源情报
+        const scenario = this.scenarioStore.isSupplyChain ? 'supply_chain' : 'uranium'
+        const res = await getScnetOsintEvents(scenario)
+        const allEvents = Array.isArray(res?.data?.events) ? res.data.events : []
+        if (allEvents.length) {
+          this.sidebarOsintEvents = allEvents.map((item, idx) => {
             const catMapping = { Economy: '经济影响', Military: '军事基地', Politics: '外交事件', General: '外交事件' }
-            const cat = catMapping[item.category] || item.category || '外交事件'
+            const cat = catMapping[item.type] || item.type || item.category || '外交事件'
             const colors = { '外交事件': '#6366f1', '军事基地': '#f43f5e', '经济影响': '#10b981' }
             return {
               id: item.id || `osint-${idx}`,
@@ -1693,62 +2932,13 @@ export default {
               date: (item.date || item.fullTime || item.time || '').split(' ')[0] || '-',
               description: item.summary || item.description || item.snippet || '',
               category: cat,
-              color: colors[cat] || '#6366f1',
-              alert: item.priority != null && item.priority >= 80,
+              color: item.color || colors[cat] || '#6366f1',
+              alert: item.priority != null ? item.priority >= 80 : String(item.level || '').includes('高'),
               _expanded: false,
             }
           })
-          if (sourceCategory === 'news') {
-            this.newsEvents = mapped
-          } else if (sourceCategory === 'social') {
-            this.socialEvents = mapped
-          }
           this.sidebarOsintLastUpdate = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
           this.resourceCache.osintLoaded = true
-        }
-      } catch (e) {
-        console.warn(`OSINT ${sourceCategory} API failed:`, e)
-      }
-      this.sidebarOsintLoading = false
-    },
-    async fetchSidebarOsint(force = false) {
-      if (this.resourceCache.osintLoaded && !force) return
-      this.sidebarOsintLoading = true
-      const request = (await import('@/utils/request.js')).default
-      try {
-        // Use same approach as OSINTConsole.vue openEventsDialog():
-        // GET /powerGame/osint/all_news → returns { keyword1: [...], keyword2: [...] }
-        const res = await request.get('/powerGame/osint/all_news')
-        if (res?.success && res.data) {
-          const allEvents = []
-          Object.entries(res.data).forEach(([keyword, events]) => {
-            if (Array.isArray(events)) {
-              events.forEach(item => allEvents.push({ ...item, _keyword: keyword }))
-            }
-          })
-          if (allEvents.length) {
-            this.sidebarOsintEvents = allEvents.map((item, idx) => {
-              const catMapping = { Economy: '经济影响', Military: '军事基地', Politics: '外交事件', General: '外交事件' }
-              const cat = catMapping[item.category] || item.category || '外交事件'
-              const colors = { '外交事件': '#6366f1', '军事基地': '#f43f5e', '经济影响': '#10b981' }
-              return {
-                id: item.id || `osint-${idx}`,
-                title: item.title || '-',
-                source: item.source || '-',
-                url: item.url || '',
-                date: (item.date || item.fullTime || item.time || '').split(' ')[0] || '-',
-                description: item.summary || item.description || item.snippet || '',
-                category: cat,
-                color: colors[cat] || '#6366f1',
-                alert: item.priority != null && item.priority >= 80,
-                _expanded: false,
-              }
-            })
-            this.sidebarOsintLastUpdate = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-            this.resourceCache.osintLoaded = true
-          } else {
-            this.fallbackSidebarOsint()
-          }
         } else {
           this.fallbackSidebarOsint()
         }
@@ -1812,7 +3002,7 @@ export default {
       this.$refs.paperUploadRef?.clearFiles()
     },
     resetOsintUploadDialog() {
-      this.osintUploadForm.name = ''
+      this.osintUploadForm = { title: '', source: '', url: '', date: '', summary: '' }
       this.$refs.osintUploadRef?.clearFiles()
     },
     async submitPaperUpload() {
@@ -1821,17 +3011,21 @@ export default {
     async submitOsintUpload() {
       const files = this.$refs.osintUploadRef?.uploadFiles || []
       const rawFile = files[0]?.raw
-      if (!rawFile) {
-        this.$message.warning('请先选择要上传的情报文件')
+      const f = this.osintUploadForm
+      if (!rawFile && !(f.title || f.summary || f.url)) {
+        this.$message.warning('请至少上传文件,或填写标题/摘要/原文链接')
         return
       }
       this.osintUploadLoading = true
       try {
-        const res = await uploadOsint(rawFile)
+        const res = await uploadOsint(rawFile || null, {
+          title: f.title, source: f.source, url: f.url, date: f.date, summary: f.summary,
+          scenario: this.scenarioStore.isSupplyChain ? 'supply_chain' : 'uranium',
+        })
         if (res?.success || Number(res?.code) === 200) {
           this.$message.success('开源情报上传成功')
           this.showOsintUploadDialog = false
-          await this.fetchSidebarOsint(true)
+          await this.fetchOsintByType('news')
         } else {
           this.$message.error(res?.message || '开源情报上传失败，请重试')
         }
@@ -1844,7 +3038,7 @@ export default {
     },
     // ===== Navigation =====
     getLibraryIcon(key) {
-      const icons = { subject: 'UserFilled', environment: 'MapLocation', rules: 'List', ontology: 'Collection' }
+      const icons = { subject: 'UserFilled', environment: 'MapLocation', rules: 'List', ontology: 'Collection', ontology_network: 'Collection', model_library: 'MagicStick' }
       return icons[key] || 'Document'
     },
     openLibrary(key) {
@@ -2935,6 +4129,38 @@ export default {
   border: 1px solid var(--kc-border-light);
 }
 
+/* ── 知识库首页：领域切换页头 ── */
+.kc-home-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; margin: 4px 0 16px; flex-wrap: wrap;
+}
+.kc-home-title { display: flex; align-items: baseline; flex-wrap: wrap; row-gap: 2px; }
+.kc-home-title__text { margin: 0; font-size: 20px; font-weight: 800; color: #0f172a; letter-spacing: 0.3px; }
+.kc-home-title__sub { margin-left: 10px; font-size: 12px; color: #94a3b8; font-weight: 500; }
+
+.kc-domain-switch {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px;
+  background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 999px;
+}
+.kc-domain-switch__btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: none; background: transparent; color: #64748b;
+  padding: 6px 16px; border-radius: 999px; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s ease; font-family: inherit;
+}
+.kc-domain-switch__btn:hover { color: #334155; }
+.kc-domain-switch__btn.is-active { background: #6366f1; color: #fff; box-shadow: 0 1px 4px rgba(99, 102, 241, 0.35); }
+.kc-domain-switch__dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.kc-domain-switch__dot.is-uranium { background: #6366f1; }
+.kc-domain-switch__dot.is-automotive { background: #10b981; }
+.kc-domain-switch__btn.is-active .kc-domain-switch__dot { background: #fff; }
+
+/* 汽车领域详情空态 */
+.kc-detail-empty {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 320px; padding: 24px;
+}
+
 .kc-level-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2942,7 +4168,7 @@ export default {
 }
 
 .kc-level-section--construct .kc-level-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .kc-level-card {
@@ -3096,6 +4322,8 @@ export default {
 .kc-level-card--subject { --kc-entry-accent: #6366f1; --kc-entry-bg: #eef2ff; }
 .kc-level-card--environment { --kc-entry-accent: #14b8a6; --kc-entry-bg: #f0fdfa; }
 .kc-level-card--rules { --kc-entry-accent: #f59e0b; --kc-entry-bg: #fffbeb; }
+.kc-level-card--ontology_network { --kc-entry-accent: #2563eb; --kc-entry-bg: #eff6ff; }
+.kc-level-card--model_library { --kc-entry-accent: #ea580c; --kc-entry-bg: #fff7ed; }
 
 /* ===== Cards Grid ===== */
 .kc-cards-grid {
@@ -3565,6 +4793,26 @@ export default {
   border: 1px dashed var(--kc-border);
   gap: 12px;
 }
+/* 专家观点右上角按钮（同页切换知识图谱，右对齐） */
+.kc-expert-graph-btn {
+  margin-left: auto;
+  border-radius: 10px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+/* 专家观点内嵌真实动态知识图谱（KnowledgeGraph.vue，embedded 模式） */
+.kc-experts-graph-pane {
+  height: calc(100vh - 210px);
+  min-height: 620px;
+  overflow: hidden;
+  border: 1px solid #e4e7ed;
+  border-radius: 12px;
+  background: #f5f7fa;
+}
+.kc-experts-graph-pane :deep(.ukg-container) {
+  height: 100% !important;
+  border-radius: 12px;
+}
 .cognitive-markdown {
   font-size: 14px; line-height: 1.7; color: var(--kc-text);
 }
@@ -3626,6 +4874,19 @@ export default {
 
 /* ===== Ontology Editor ===== */
 .kc-ontology-page { animation: kc-slideIn 0.3s ease;height:calc(100vh - 180px);overflow-y:auto;padding-right:4px; }
+
+/* 本体网络（事前页面嵌入 KnowledgeGraph） */
+.kc-ontology-network-page {
+  animation: kc-slideIn 0.3s ease;
+  height: calc(100vh - 180px);
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid #e4e7ed;
+  background: #f5f7fa;
+}
+.kc-ontology-network-page :deep(.ukg-container) {
+  height: 100% !important;
+}
 .kc-ontology-layout { display:flex;gap:18px;align-items:flex-start; }
 .kc-ontology-config { width:360px;min-width:320px;flex-shrink:0;background:var(--kc-surface);border:1px solid var(--kc-border);border-radius:var(--kc-radius-lg);overflow:hidden; }
 .kc-ontology-config-header { display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--kc-border-light);background:var(--kc-bg); }
@@ -3891,6 +5152,127 @@ export default {
   text-decoration: none;
 }
 .kc-sb-osint-link:hover { text-decoration: underline; }
+.kcre-sec { margin-bottom: 14px; }
+.kcre-sec-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.kcre-count {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(6, 182, 212, 0.1);
+  color: #06b6d4;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.kcre-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+}
+.kc-sb-osint-cat.warn { color: #b45309; font-weight: 700; }
+.kc-sb-osint-cat.ok { color: #15803d; font-weight: 700; }
+.kcre-active { color: #dc2626; background: rgba(220, 38, 38, 0.12); }
+.kc-subjects { display: flex; flex-direction: column; gap: 10px; }
+.kc-subj-summary { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: #64748b; }
+.kc-subj-summary b { color: #0f172a; }
+.kc-subj-filter { display: flex; gap: 8px; align-items: center; }
+.kc-subj-list { display: flex; flex-direction: column; gap: 8px; }
+.kc-subj-detail-title { margin: 0 0 4px; }
+.kc-subj-detail-meta { margin: 0 0 8px; color: #64748b; font-size: 12px; }
+.kc-subj-note { color: #94a3b8; font-size: 11px; margin-left: 6px; }
+.kc-subj-sec { margin-top: 14px; }
+.kc-subj-sec h4 { margin: 0 0 6px; font-size: 13px; font-weight: 800; }
+.kc-subj-pager { display: flex; justify-content: flex-end; margin-top: 8px; }
+.kc-subj-rel { display: flex; gap: 8px; padding: 4px 0; font-size: 12px; border-bottom: 1px dashed rgba(148,163,184,0.2); }
+.kc-subj-rel-type { color: #2563eb; font-weight: 700; min-width: 120px; }
+.kc-subj-rel-target { color: #334155; }
+.kcre-aggregate { color: #6d28d9; background: rgba(109, 40, 217, 0.1); }
+.kcre-aggregate-tag { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 6px; background: rgba(109, 40, 217, 0.1); color: #6d28d9; font-size: 11px; font-weight: 700; }
+.kcre-candidate { color: #b45309; background: rgba(245, 158, 11, 0.14); }
+.kc-env { display: flex; flex-direction: column; gap: 10px; }
+.kc-env-summary { display: flex; flex-wrap: wrap; gap: 12px; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,0.7); border: 1px solid rgba(148,163,184,0.2); font-size: 12.5px; color: #64748b; }
+.kc-env-summary b { color: #0f172a; }
+.kc-env-legacy { color: #94a3b8; }
+.kc-env-tabs :deep(.el-tabs__item) { font-size: 13px; }
+.kc-env-china { display: flex; flex-wrap: wrap; gap: 12px; }
+.kc-env-card { flex: 1 1 220px; padding: 14px; border-radius: 12px; background: #fff; border: 1px solid rgba(148,163,184,0.24); display: flex; flex-direction: column; gap: 6px; }
+.kc-env-label { font-size: 12px; color: #64748b; }
+.kc-env-big { font-size: 28px; line-height: 1.1; color: #2563eb; }
+.kc-env-tag { display: inline-block; align-self: flex-start; padding: 2px 8px; border-radius: 999px; background: rgba(245,158,11,0.14); color: #b45309; font-size: 11px; font-weight: 700; }
+.kc-env-note { color: #64748b; font-size: 12px; margin: 4px 0; }
+.kc-env-dataset { padding: 12px 14px; border-radius: 10px; background: #fff; border: 1px solid rgba(148,163,184,0.24); margin-bottom: 8px; cursor: pointer; }
+.kc-env-dataset:hover { border-color: #2563eb; }
+.kc-env-dataset-head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 800; }
+.kc-env-dataset-count { color: #2563eb; font-size: 11.5px; font-weight: 700; }
+.kc-env-dataset-meta { margin-top: 4px; color: #64748b; font-size: 11.5px; }
+.kc-env-dataset.is-expanded { border-color: #2563eb; }
+.kc-env-chev { font-style: normal; margin-left: 4px; color: #2563eb; }
+.kc-env-records { margin-top: 10px; }
+.kc-env-records-note { color: #64748b; font-size: 11.5px; margin-bottom: 6px; }
+.kc-rules { display: flex; flex-direction: column; gap: 10px; }
+.kc-rules-summary { display: flex; flex-wrap: wrap; gap: 12px; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,0.7); border: 1px solid rgba(148,163,184,0.2); font-size: 12.5px; color: #64748b; }
+.kc-rules-summary b { color: #0f172a; }
+.kc-rules-filter { display: flex; gap: 8px; align-items: center; }
+.kc-rules-list { display: flex; flex-direction: column; gap: 8px; }
+.kc-rule-card { padding: 12px 14px; border-radius: 10px; background: #fff; border: 1px solid rgba(148,163,184,0.24); cursor: pointer; }
+.kc-rule-card:hover { border-color: #2563eb; }
+.kc-rule-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.kc-rule-head b { font-size: 13.5px; }
+.kc-rule-group { padding: 1px 7px; border-radius: 999px; background: rgba(37,99,235,0.1); color: #2563eb; font-size: 10.5px; font-weight: 700; }
+.kc-rule-stage { color: #64748b; font-size: 11px; }
+.kc-rule-rt { padding: 1px 6px; border-radius: 6px; font-size: 10px; font-weight: 800; }
+.kc-rule-rt.ok { color: #15803d; background: rgba(22,163,74,0.12); }
+.kc-rule-rt.muted { color: #64748b; background: rgba(100,116,139,0.12); }
+.kc-rule-desc { margin: 6px 0 4px; color: #475569; font-size: 12px; line-height: 1.5; }
+.kc-rule-params { display: flex; flex-wrap: wrap; gap: 6px; }
+.kc-rule-param { padding: 2px 8px; border-radius: 6px; background: rgba(245,158,11,0.08); color: #92400e; font-size: 11px; }
+.kc-rule-detail-title { margin: 0 0 8px; }
+.kc-rule-detail-sec { margin-top: 10px; }
+.kc-rule-detail-sec h4 { margin: 0 0 4px; font-size: 13px; font-weight: 800; }
+.kc-rule-detail-sec p { margin: 0; color: #475569; font-size: 12.5px; line-height: 1.55; }
+.kc-rule-note { margin-top: 8px; color: #b45309; font-size: 11.5px; }
+.kc-models { display: flex; flex-direction: column; gap: 10px; }
+.kc-models-summary { display: flex; flex-wrap: wrap; gap: 12px; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,0.7); border: 1px solid rgba(148,163,184,0.2); font-size: 12.5px; color: #64748b; }
+.kc-models-summary b { color: #0f172a; }
+.kc-models-pipeline { padding: 8px 10px; border-radius: 8px; background: rgba(37,99,235,0.05); color: #1e40af; font-size: 12px; line-height: 1.6; margin-bottom: 6px; }
+.kc-models-filter { display: flex; gap: 8px; }
+.kc-models-list { display: flex; flex-direction: column; gap: 8px; }
+.kc-model-card { padding: 12px 14px; border-radius: 10px; background: #fff; border: 1px solid rgba(148,163,184,0.24); cursor: pointer; }
+.kc-model-card:hover { border-color: #2563eb; }
+.kc-model-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.kc-model-head b { font-size: 13.5px; }
+.kc-model-cat { padding: 1px 7px; border-radius: 999px; background: rgba(37,99,235,0.1); color: #2563eb; font-size: 10.5px; font-weight: 700; }
+.kc-model-method { color: #475569; font-size: 11.5px; }
+.kc-model-rt { padding: 1px 6px; border-radius: 6px; font-size: 10px; font-weight: 800; }
+.kc-model-rt.ok { color: #15803d; background: rgba(22,163,74,0.12); }
+.kc-model-rt.muted { color: #64748b; background: rgba(100,116,139,0.12); }
+.kc-model-desc { margin: 6px 0 4px; color: #475569; font-size: 12px; line-height: 1.5; }
+.kc-model-meta { display: flex; flex-wrap: wrap; gap: 10px; color: #64748b; font-size: 11.5px; }
+.kc-mr.ok { color: #15803d; }
+.kc-mr.warn { color: #b45309; }
+.kc-mr.bad { color: #dc2626; }
+.kc-model-detail-title { margin: 0 0 8px; }
+.kc-model-detail-sec { margin-top: 10px; }
+.kc-model-detail-sec h4 { margin: 0 0 4px; font-size: 13px; font-weight: 800; }
+.kc-model-detail-sec p { margin: 0; color: #475569; font-size: 12.5px; line-height: 1.55; }
+.kc-model-note { margin-top: 8px; color: #b45309; font-size: 11.5px; }
+.kc-model-run { margin-top: 12px; padding: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; }
+.kc-model-run-note { margin-left: 8px; color: #64748b; font-size: 11.5px; }
+.kc-model-run-result { margin-top: 10px; }
+.kc-model-run-result h4 { margin: 0 0 4px; font-size: 12.5px; font-weight: 800; }
+.kc-model-run-result pre { margin: 0; padding: 8px; background: #0f172a; color: #a5f3fc; font-size: 11.5px; line-height: 1.5; border-radius: 6px; overflow: auto; max-height: 260px; white-space: pre-wrap; word-break: break-all; }
+.kc-model-binding { margin: 4px 0; padding: 4px 0; border-bottom: 1px dashed #e2e8f0; }
+.kc-model-binding b { font-size: 12px; margin-right: 6px; }
+.kc-model-binding span { font-size: 11px; }
+.kc-model-binding p { margin: 2px 0 0; color: #64748b; font-size: 11.5px; }
+.kc-env-detail-head { display: flex; gap: 14px; margin-bottom: 8px; font-size: 12px; color: #64748b; }
+.kc-env-detail-head b { color: #0f172a; }
 .sidebar-expand-enter-active, .sidebar-expand-leave-active {
   transition: all 0.2s ease;
   overflow: hidden;

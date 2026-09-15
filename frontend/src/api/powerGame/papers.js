@@ -82,9 +82,10 @@ export function uploadDataset(file, bookName) {
 // ═══════════════════════════════════════════════
 //  OSINT upload — 上传情报文档/报告
 // ═══════════════════════════════════════════════
-/** 上传开源情报文件（使用原始 axios，避免 request 拦截器覆盖 Content-Type） */
-export function uploadOsint(file) {
+/** 上传开源情报(文件 + 元数据)。用原始 axios 保留 multipart Content-Type。 */
+export function uploadOsint(file, meta = {}) {
   const formData = new FormData()
-  formData.append('file', file)
-  return axios.post('/api/powerGame/osint/news_items', formData).then(r => r.data)
+  if (file) formData.append('file', file)
+  Object.entries(meta).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') formData.append(k, v) })
+  return axios.post('/api/SCnet/osint/upload', formData).then(r => r.data)
 }

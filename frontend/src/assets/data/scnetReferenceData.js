@@ -337,6 +337,7 @@ export const URANIUM_TRANSPORT_CORRIDORS = Object.freeze([
     product: '黄饼 U3O8',
     capacityLabel: '铁路+公路 · 约 15 kTU/年',
     riskLabel: '低风险（中哈陆路直连）',
+    risk_score: 0.24,
     summary: '哈萨克 ISL 矿区黄饼经中哈铁路口岸直运国内转化厂，是我国铀进口量最大的一条陆路通道。',
     color: '#f59e0b',
     waypoints: [
@@ -356,6 +357,7 @@ export const URANIUM_TRANSPORT_CORRIDORS = Object.freeze([
     product: '黄饼 U3O8',
     capacityLabel: '铁路 · 约 3 kTU/年',
     riskLabel: '制裁风险（转运受限）',
+    risk_score: 0.6,
     summary: 'Uranium One 运营的哈俄铁路通道，向俄罗斯转化 / 浓缩厂输送黄饼，受制裁与过境限制影响明显。',
     color: '#d97706',
     waypoints: [
@@ -374,6 +376,7 @@ export const URANIUM_TRANSPORT_CORRIDORS = Object.freeze([
     product: '黄饼 U3O8',
     capacityLabel: '公路 · 约 7 kTU/年',
     riskLabel: '低风险（加美陆界）',
+    risk_score: 0.2,
     summary: 'Cameco 主力路线，Athabasca 盆地黄饼经公路直运美国 Metropolis 转化厂，无需出海。',
     color: '#fb923c',
     waypoints: [
@@ -392,6 +395,7 @@ export const URANIUM_TRANSPORT_CORRIDORS = Object.freeze([
     product: '黄饼 U3O8',
     capacityLabel: '铁路 · 约 3.5 kTU/年',
     riskLabel: '低风险（对俄中稳定出口）',
+    risk_score: 0.28,
     summary: 'NMMC 出口通道，经中亚铁路网向俄罗斯与中国转化厂交付黄饼，是中亚第二大陆路来源。',
     color: '#ea580c',
     waypoints: [
@@ -410,6 +414,7 @@ export const URANIUM_TRANSPORT_CORRIDORS = Object.freeze([
     product: '黄饼 U3O8',
     capacityLabel: '散货海运 · 约 4 kTU/年',
     riskLabel: '港口设施与船期约束',
+    risk_score: 0.45,
     summary: 'Husab（中核控股）主力出口通道，黄饼在鲸湾港装船绕好望角运抵国内东部沿海接卸港。',
     color: '#2563eb',
     waypoints: [
@@ -430,6 +435,7 @@ export const URANIUM_TRANSPORT_CORRIDORS = Object.freeze([
     product: '黄饼 U3O8',
     capacityLabel: '集装箱海运 · 约 2 kTU/年',
     riskLabel: '低风险',
+    risk_score: 0.25,
     summary: 'Rössing 与 Langer Heinrich 的西向出口通道，走标准工业危险品集装箱，执行 IAEA SSR-6 运输规范。',
     color: '#0ea5e9',
     waypoints: [
@@ -449,6 +455,7 @@ export const URANIUM_TRANSPORT_CORRIDORS = Object.freeze([
     product: '黄饼 U3O8',
     capacityLabel: '集装箱海运 · 约 4 kTU/年',
     riskLabel: '州政策与出口许可限制',
+    risk_score: 0.4,
     summary: '铜铀伴生产量经阿德莱德、达尔文两港出口，合同分散在亚洲、欧洲与北美多个买家。',
     color: '#0f766e',
     waypoints: [
@@ -468,6 +475,7 @@ export const URANIUM_TRANSPORT_CORRIDORS = Object.freeze([
     product: '黄饼 U3O8',
     capacityLabel: '铁路+海运 · 约 3 kTU/年',
     riskLabel: '中转国政策 + 海运保险',
+    risk_score: 0.55,
     summary: '俄罗斯通道受限后，哈萨克黄饼改经跨里海走廊或中国—印度洋中转，运输周期与保险成本显著上升。',
     color: '#7c3aed',
     waypoints: [
@@ -488,6 +496,7 @@ export const URANIUM_TRANSPORT_CORRIDORS = Object.freeze([
     product: '黄饼 U3O8',
     capacityLabel: '铁路+海运 · 约 2 kTU/年',
     riskLabel: '海运低风险',
+    risk_score: 0.28,
     summary: '加拿大黄饼经铁路运抵蒙特利尔港装船，跨大西洋交付法国 Malvési 转化厂与英国浓缩厂。',
     color: '#6366f1',
     waypoints: [
@@ -507,6 +516,7 @@ export const URANIUM_TRANSPORT_CORRIDORS = Object.freeze([
     product: '黄饼 U3O8',
     capacityLabel: '公路+铁路+海运 · 约 2 kTU/年',
     riskLabel: '政变 + 贝宁过境 + 萨赫勒安全',
+    risk_score: 0.72,
     summary: 'Orano 主路线，黄饼经公路穿越萨赫勒到贝宁科托努港出海；2023 年政变后贝宁走廊成为全链最脆弱的一环。',
     color: '#a855f7',
     waypoints: [
@@ -528,6 +538,7 @@ export const URANIUM_TRANSPORT_CORRIDORS = Object.freeze([
     product: 'UF6 / 浓缩铀',
     capacityLabel: '铁路+海运 · 约 20 kTU/年',
     riskLabel: '制裁风险（西方拒收）',
+    risk_score: 0.65,
     summary: '全球最大的浓缩铀出口通道；西方制裁后运量向非西方市场转移，是供给集中度的主要来源。',
     color: '#8b5cf6',
     waypoints: [
@@ -542,6 +553,45 @@ export const URANIUM_TRANSPORT_CORRIDORS = Object.freeze([
 
 function safeArray(value) {
   return Array.isArray(value) ? value : []
+}
+
+/**
+ * 将 URANIUM_TRANSPORT_CORRIDORS 转换为事前态势研判图（SituationMap.vue）
+ * 需要的 routes 结构。
+ *
+ * - waypoints 为 [lng, lat]（ECharts geo 坐标顺序，源数据 wp() 存的是 lat, lng）
+ * - nodes 用于左侧"途经链路"逐节点展示
+ * - riskScore 取走廊 risk_score（0-1），供线路配色与风险排序
+ * - to 取最后一个航路点国家：非对华线路（哈→俄、尼日尔→法国等）不会被
+ *   SituationMap 强行拉回中国终点
+ */
+export function buildUraniumSituationRoutes() {
+  return URANIUM_TRANSPORT_CORRIDORS.map((corridor) => {
+    const waypoints = (corridor.waypoints || [])
+      .filter((point) => point && Number.isFinite(Number(point.lng)) && Number.isFinite(Number(point.lat)))
+      .map((point) => [Number(point.lng), Number(point.lat)])
+
+    const first = corridor.waypoints?.[0] || {}
+    const last = corridor.waypoints?.[corridor.waypoints.length - 1] || {}
+    const riskScore = Number(corridor.risk_score) || 0.3
+
+    return {
+      id: corridor.id,
+      shortName: corridor.shortName,
+      name: corridor.name,
+      from: first.country || first.label || '',
+      to: last.country || last.label || '中国',
+      riskScore,
+      color: corridor.color,
+      waypoints,
+      nodes: (corridor.waypoints || []).map((point) => ({
+        name: point.label || '',
+        type: point.type || 'hub',
+        riskScore,
+        reason: point.detail || corridor.riskLabel || ''
+      }))
+    }
+  })
 }
 
 function normalizeText(value) {

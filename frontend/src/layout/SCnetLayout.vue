@@ -190,9 +190,10 @@ import { useScenarioStore } from "@/stores/scenario";
 import { PHASE_EVENT, PHASE_STORAGE_KEY, ROUTE_TO_PHASE } from "@/constants/scnetPhase";
 
 const PRE_MAIN_MENU_ITEMS = Object.freeze([
-  { index: '/home/SCnet/situationAnalysis', label: '需求分析', icon: DataLine },
+  // 需求分析已从主流程移除(K2-FLOW):对话首页承担研判入口,页面/路由保留供直接访问
+  // { index: '/home/SCnet/situationAnalysis', label: '需求分析', icon: DataLine },
+  { index: '/home/SCnet/knowledgeGraph', label: '知识库', icon: Collection },
   { index: '/home/SCnet/openSourceIntelligence', label: '开源情报', icon: WarningFilled },
-  { index: '/home/SCnet/knowledgeGraph', label: '本体网络', icon: Collection }
 ])
 
 const PRE_ANALYSIS_MENU_ITEMS = Object.freeze([
@@ -201,7 +202,8 @@ const PRE_ANALYSIS_MENU_ITEMS = Object.freeze([
 ])
 
 const PRE_TAIL_MENU_ITEMS = Object.freeze([
-  { index: '/home/SCnet/reportGeneration', label: '报告生成', icon: Document }
+  // 报告生成已从主流程移除(K2-FLOW):对话结果内「导出PDF」替代;页面/路由保留供直接访问
+  // { index: '/home/SCnet/reportGeneration', label: '报告生成', icon: Document }
 ])
 
 const DURING_MAIN_MENU_ITEMS = Object.freeze([

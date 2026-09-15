@@ -544,14 +544,9 @@ const loadEvents = async () => {
     const payload = unwrapResponseData(json)
 
     if (Array.isArray(payload.events)) {
-      // 按场景过滤后端事件
-      const kw = isUranium.value
-        ? ['铀', '核', '矿', '反应堆', 'nuclear', 'uranium', 'mine', 'Kazakh', 'Niger', 'Namibia', 'Cameco', 'U3O8', 'ISL']
-        : ['汽车', '车', 'auto', '芯片', 'chip', '电池', 'battery', '锂', 'lithium', '新能源', 'EV', '电动', '零部件', '整车', '关税', '港口', '产能']
-      events.value = payload.events.filter(e => {
-        const t = (e.title + ' ' + (e.description || '') + ' ' + (e.type || '')).toLowerCase()
-        return kw.some(k => t.includes(k.toLowerCase()))
-      })
+      // 直接展示后端返回的 osint_events.json 事件，不再按场景关键词过滤
+      // （此前铀场景下会滤掉全部航运/汽车事件导致页面为空）
+      events.value = payload.events
     }
 
     // 补充场景事件

@@ -131,7 +131,7 @@ const routes = [
       {
         path: 'knowledgeGraph',
         name: 'SCnet_KnowledgeGraph',
-        component: () => import("../views/SCnet/PreScene/KnowledgeGraphWrapper.vue")
+        component: () => import("../views/SCnet/PreScene/PreKnowledgeGraph.vue")
       },
       {
         path: 'openSourceIntelligence',
