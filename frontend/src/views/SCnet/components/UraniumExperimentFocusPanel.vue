@@ -9,7 +9,7 @@
 
       <div class="focus-actions">
         <el-button size="small" link @click="emit('view-config')">查看全量配置</el-button>
-        <el-button size="small" type="primary" @click="emit('view-experiment')">查看推演</el-button>
+        <el-button size="small" type="primary" @click="emit('view-experiment')">加载实验</el-button>
       </div>
     </header>
 

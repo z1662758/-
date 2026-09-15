@@ -12,21 +12,6 @@
         </el-tag>
       </div>
       <div class="seb-actions">
-        <el-button type="primary" size="small" @click="onNavigate(SCNET_ROUTES.interface)">
-          <el-icon><Place /></el-icon>运行界面
-        </el-button>
-        <el-button type="warning" size="small" plain @click="onNavigate(SCNET_ROUTES.expAnalysisGameTheory)">
-          <el-icon><Grid /></el-icon>脆弱性分析
-        </el-button>
-        <el-button type="warning" size="small" plain @click="onNavigate(SCNET_ROUTES.expAnalysisDecisionTree)">
-          <el-icon><Promotion /></el-icon>对策分析
-        </el-button>
-        <el-button type="warning" size="small" plain @click="onNavigate(SCNET_ROUTES.expAnalysisScenario)">
-          <el-icon><TrendCharts /></el-icon>情景分析
-        </el-button>
-        <el-button type="success" size="small" @click="onNavigate(SCNET_ROUTES.EXreport)">
-          <el-icon><Document /></el-icon>实验报告
-        </el-button>
         <el-button text size="small" @click="emit('dismiss')">
           <el-icon><Close /></el-icon>
         </el-button>
@@ -36,8 +21,7 @@
 </template>
 
 <script setup>
-import { Aim, Close, Document, Grid, Place, Promotion, TrendCharts } from '@element-plus/icons-vue'
-import { SCNET_ROUTES } from '@/constants/scnetRoutes'
+import { Aim, Close } from '@element-plus/icons-vue'
 import './shared/midStage.css'
 
 defineProps({
@@ -45,7 +29,7 @@ defineProps({
   experimentId: { type: String, default: '' },
   sessionId: { type: String, default: '' },
 })
-const emit = defineEmits(['dismiss', 'navigate'])
+const emit = defineEmits(['dismiss'])
 
 function shortSession(sid) {
   const s = String(sid || '')
@@ -53,9 +37,6 @@ function shortSession(sid) {
   return `${s.slice(0, 6)}…${s.slice(-4)}`
 }
 
-function onNavigate(path) {
-  emit('navigate', path)
-}
 </script>
 
 <style scoped>

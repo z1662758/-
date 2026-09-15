@@ -46,7 +46,6 @@
       :experiment-id="selectedExperimentBanner.experimentId"
       :session-id="selectedExperimentBanner.sessionId"
       @dismiss="selectedExperimentBanner.visible = false"
-      @navigate="navigateFromBanner"
     />
 
     <section class="run-overview">
@@ -345,7 +344,7 @@
                     link
                     @click.stop="viewExperiment(row)"
                   >
-                    查看推演
+                    加载实验
                   </el-button>
                   <el-button
                     type="info"
@@ -603,11 +602,6 @@ const selectedExperimentBanner = reactive({
   sessionId: '',
   taskId: ''
 })
-
-function navigateFromBanner(path) {
-  selectedExperimentBanner.visible = false
-  router.push(path)
-}
 
 const recentQueuedTaskId = ref(localStorage.getItem('sc_recentQueuedTaskId') || '')
 
@@ -1485,7 +1479,7 @@ const viewExperiment = async (task) => {
       selectedExperimentBanner.taskId = task.task_id
       selectedExperimentBanner.visible = true
       ElMessage.success({
-        message: `已加载实验，请通过顶部入口选择查看界面`,
+        message: '已加载实验',
         duration: 2200
       })
     } else {
@@ -1559,10 +1553,9 @@ async function launchCurrentSession() {
     }
     ElNotification.success({
       title: '实验已生成',
-      message: '后端实验已完成，正在打开结果报告',
+      message: '后端实验已完成，可在左侧菜单进入态势推演、决策生成或报告生成',
       duration: 3000
     })
-    await router.push({ path: SCNET_ROUTES.EXreport, query: { experiment_id: experimentId } })
   } catch (error) {
     console.error('[ExperimentManager] launchCurrentSession 失败', error)
     ElMessage.error('启动实验失败: ' + (error?.message || '未知错误'))

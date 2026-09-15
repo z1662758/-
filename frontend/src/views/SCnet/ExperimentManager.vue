@@ -563,7 +563,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, h } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSupplyChainStore } from '@/stores/supplyChain'
-import { ElMessage, ElMessageBox, ElButton } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Warning } from '@element-plus/icons-vue'
 import { getExperimentProgress, stopExperiment } from '@/api/scenarioModeling'
 import { unwrapApiData, assertApiSuccess } from '@/utils/apiEnvelope'
@@ -1241,31 +1241,9 @@ const viewExperiment = async (task) => {
       lastViewedTaskId.value = task.task_id
       loadingMsg.close()
 
-      const goto = (path) => {
-        ElMessageBox.close()
-        router.push(path)
-      }
-
-      ElMessageBox({
-        title: '选择查看界面',
-        message: h('div', { style: 'text-align: center; padding: 8px 0;' }, [
-          h('div', {
-            style: 'display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; max-width: 520px;'
-          }, [
-            h(ElButton, { type: 'primary', onClick: () => goto('/home/SCnet/interface') }, () => '系统运行'),
-            h(ElButton, { type: 'warning', onClick: () => goto('/home/SCnet/expAnalysisGameTheory') }, () => '博弈论分析'),
-            h(ElButton, { type: 'warning', onClick: () => goto('/home/SCnet/expAnalysisDecisionTree') }, () => '对策分析'),
-            h(ElButton, { type: 'warning', onClick: () => goto('/home/SCnet/expAnalysisScenario') }, () => '情景分析'),
-            h(ElButton, { type: 'success', onClick: () => goto('/home/SCnet/EXreport') }, () => '实验报告')
-          ])
-        ]),
-        showConfirmButton: false,
-        showCancelButton: false,
-        closeOnClickModal: false,
-        closeOnPressEscape: true,
-        center: true
-      }).catch(() => {
-        ElMessage.info('实验已设置，可通过左侧菜单查看')
+      ElMessage.success({
+        message: '已加载实验，可通过左侧菜单进入推演、分析或报告页面',
+        duration: 2400
       })
     } else {
       loadingMsg.close()
