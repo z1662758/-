@@ -36,7 +36,7 @@
         <article class="decision-panel action-panel">
           <div class="panel-title">
             <span>01</span>
-            <div><strong>具体决策方法</strong><small>从推演结论落到执行动作</small></div>
+            <div><strong>具体决策方法</strong><small>执行动作</small></div>
           </div>
           <div class="action-timeline">
             <div v-for="(item, index) in actionRows" :key="item" class="action-row">

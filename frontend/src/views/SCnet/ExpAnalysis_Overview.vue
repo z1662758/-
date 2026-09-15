@@ -1,23 +1,12 @@
 <template>
   <div class="overview-page mid-stage-bg analysis-workspace">
-    <AnalysisLinkTabs active="report">
-      <template #right>
-        <span class="report-updated">更新于 {{ generatedAt }}</span>
-        <el-button :disabled="exportingPdf" @click="refreshReport">
-          <el-icon><Refresh /></el-icon>刷新结论
-        </el-button>
-        <el-button type="primary" :loading="exportingPdf" @click="exportPdf">
-          <el-icon><Download /></el-icon>生成 PDF
-        </el-button>
-      </template>
-    </AnalysisLinkTabs>
-
     <header class="report-toolbar glass-panel">
       <div class="report-heading">
         <span>REPORT</span>
         <div><h1>供应链决策报告</h1><p>汇总情景概率、节点脆弱性、对策效果与执行边界。</p></div>
       </div>
       <div class="report-actions">
+        <span class="report-updated">更新于 {{ generatedAt }}</span>
         <el-select
           v-if="!isAuto"
           v-model="selectedReportId"
@@ -28,6 +17,12 @@
         >
           <el-option v-for="item in history" :key="item.experiment_id" :label="experimentOptionLabel(item)" :value="item.experiment_id" />
         </el-select>
+        <el-button :disabled="exportingPdf" @click="refreshReport">
+          <el-icon><Refresh /></el-icon>刷新结论
+        </el-button>
+        <el-button type="primary" :loading="exportingPdf" @click="exportPdf">
+          <el-icon><Download /></el-icon>生成 PDF
+        </el-button>
       </div>
     </header>
 
@@ -196,7 +191,6 @@ import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
 import { buildUraniumReportViewModel } from '@/views/SCnet/adapters/uraniumMockAnalysisAdapter'
 import AnalysisPageHero from './components/shared/AnalysisPageHero.vue'
-import AnalysisLinkTabs from './components/shared/AnalysisLinkTabs.vue'
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
 import './components/shared/midStage.css'

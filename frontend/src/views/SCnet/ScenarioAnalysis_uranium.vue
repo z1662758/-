@@ -93,8 +93,8 @@
                       <div class="section-title">
                         <span>任务拆解</span>
                       </div>
-                      <div class="task-chips">
-                        <div v-for="(task, i) in msg.analysisData.subtasks" :key="i" class="task-chip">
+                      <div class="task-step-list">
+                        <div v-for="(task, i) in msg.analysisData.subtasks" :key="i" class="task-step-row">
                           <span class="chip-number">{{ i + 1 }}</span>
                           <div class="task-chip-main">
                             <span class="chip-text">{{ task.title || task.description || '' }}</span>
@@ -108,11 +108,9 @@
                       <div class="section-title">
                         <span>实体选择</span>
                       </div>
-                      <div class="var-group">
-                        <div class="var-tags">
-                          <span v-for="(entity, i) in getVisibleSelectedEntities(msg)" :key="i" class="var-tag entity">{{ entity }}</span>
-                          <span v-if="getSelectedEntities(msg).length > 6" class="var-tag more-tag">另有 {{ getSelectedEntities(msg).length - 6 }} 个</span>
-                        </div>
+                      <div class="entity-choice-list">
+                        <span v-for="(entity, i) in getVisibleSelectedEntities(msg)" :key="i">{{ entity }}</span>
+                        <span v-if="getSelectedEntities(msg).length > 6">另有 {{ getSelectedEntities(msg).length - 6 }} 个</span>
                       </div>
                     </div>
 
@@ -122,15 +120,21 @@
                       </div>
                       <div class="variable-groups">
                         <div class="var-group influence-group" v-if="msg.analysisData.influenceFactors?.length">
-                          <span class="var-label">影响因素 <b>{{ msg.analysisData.influenceFactors.length }}</b></span>
-                          <div class="var-tags">
-                            <span v-for="(f, i) in msg.analysisData.influenceFactors" :key="i" class="var-tag influence">{{ f }}</span>
+                          <div class="var-group-head">
+                            <span>影响因素</span>
+                            <b>{{ msg.analysisData.influenceFactors.length }}</b>
+                          </div>
+                          <div class="var-name-list">
+                            <span v-for="(f, i) in msg.analysisData.influenceFactors" :key="i">{{ f }}</span>
                           </div>
                         </div>
                         <div class="var-group response-group" v-if="msg.analysisData.responseVars?.length">
-                          <span class="var-label">响应变量 <b>{{ msg.analysisData.responseVars.length }}</b></span>
-                          <div class="var-tags">
-                            <span v-for="(v, i) in msg.analysisData.responseVars" :key="i" class="var-tag response">{{ v }}</span>
+                          <div class="var-group-head">
+                            <span>响应变量</span>
+                            <b>{{ msg.analysisData.responseVars.length }}</b>
+                          </div>
+                          <div class="var-name-list">
+                            <span v-for="(v, i) in msg.analysisData.responseVars" :key="i">{{ v }}</span>
                           </div>
                         </div>
                       </div>
@@ -229,149 +233,113 @@
                 v-if="tasks.length > 0"
                 class="experiment-design-summary"
               >
-                <div class="eds-section eds-overview">
-                  <div class="eds-overview-copy">
-                    <span class="eds-kicker">方案说明</span>
+                <section class="plan-overview">
+                  <div class="plan-overview-main">
+                    <span>实验方案</span>
                     <strong>{{ experimentDesign.userGoal || '围绕当前供应链目标生成可执行实验组合' }}</strong>
-                    <p>{{ experimentDesign.goalExplain || '系统将实体、影响因素和响应变量组合为候选实验，并通过模型评分与反馈更新筛选出优先方案。' }}</p>
+                    <p>{{ experimentDesign.goalExplain || '当前展示已生成的候选参数组合，用于说明方案意图和参数边界。' }}</p>
                   </div>
-                  <div class="eds-overview-stat"><b>{{ experimentDesign.paramRows.length || tasks.length }}</b><span>候选实验</span></div>
-                </div>
-
-                <div class="eds-section eds-design-logic">
-                  <div class="eds-section-title">方案生成框架</div>
-                  <div class="design-logic-grid">
-                    <div v-for="item in designLogicCards" :key="item.title">
-                      <span>{{ item.title }}</span>
-                      <strong>{{ item.value }}</strong>
-                      <p>{{ item.text }}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="eds-section eds-entity-preview">
-                  <div class="eds-section-title">实体图预览</div>
-                  <button type="button" class="entity-thumbnail entity-thumbnail-wide" @click="openEntityGraph" title="展开查看实体图">
-                    <div class="entity-thumb-canvas">
-                      <span
-                        v-for="(entity, i) in getGraphPreviewEntities()"
-                        :key="entity + i"
-                        class="entity-thumb-node"
-                        :class="'node-' + i"
-                      >{{ getEntityInitial(entity) }}</span>
-                      <span class="entity-thumb-line line-a"></span>
-                      <span class="entity-thumb-line line-b"></span>
-                      <span class="entity-thumb-line line-c"></span>
-                    </div>
-                    <div class="entity-thumb-copy">
-                      <strong>当前实验实体网络</strong>
-                      <span>{{ experimentDesign.entities.length || getGraphPreviewEntities().length }} 个核心实体，已按供应、制造、需求与调度关系组织。点击进入完整实体图页面。</span>
-                    </div>
-                    <span class="entity-thumb-action">展开查看</span>
-                  </button>
-                </div>
-
-                <div class="eds-section eds-vars">
-                  <div class="eds-vars-col" v-if="experimentDesign.entities.length">
-                    <div class="eds-col-title"><span>实体</span><b>{{ experimentDesign.entities.length }}</b></div>
-                    <ul class="eds-col-list">
-                      <li v-for="(item, i) in experimentDesign.entities" :key="'e' + i">{{ item }}</li>
-                    </ul>
-                  </div>
-                  <div class="eds-vars-arrow" v-if="experimentDesign.entities.length">
-                    <el-icon><Right /></el-icon>
-                  </div>
-                  <div class="eds-vars-col">
-                    <div class="eds-col-title"><span>影响因素</span><b>{{ experimentDesign.factors.length }}</b></div>
-                    <ul class="eds-col-list" v-if="experimentDesign.factors.length">
-                      <li v-for="(item, i) in experimentDesign.factors" :key="'f' + i">{{ item }}</li>
-                    </ul>
-                    <div v-else class="eds-col-empty">—</div>
-                  </div>
-                  <div class="eds-vars-arrow">
-                    <el-icon><Right /></el-icon>
-                  </div>
-                  <div class="eds-vars-col">
-                    <div class="eds-col-title"><span>响应变量</span><b>{{ experimentDesign.responses.length }}</b></div>
-                    <ul class="eds-col-list" v-if="experimentDesign.responses.length">
-                      <li v-for="(item, i) in experimentDesign.responses" :key="'r' + i">{{ item }}</li>
-                    </ul>
-                    <div v-else class="eds-col-empty">—</div>
-                  </div>
-                </div>
-
-                <div class="eds-section eds-method" v-if="experimentDesign.expMethod">
-                  <span class="eds-label">实验方法</span>
-                  <span class="eds-method-value">{{ experimentDesign.expMethod }}</span>
-                </div>
-
-                <div class="eds-section eds-selection">
-                  <div class="eds-section-title">算法如何筛选方案</div>
-                  <div class="selection-flow">
-                    <article v-for="(step, index) in selectionSteps" :key="step.title" class="selection-step">
-                      <span class="selection-index">{{ index + 1 }}</span>
-                      <div><strong>{{ step.title }}</strong><p>{{ step.detail }}</p></div>
+                  <div class="plan-overview-metrics">
+                    <article>
+                      <b>{{ experimentDesign.paramRows.length || tasks.length }}</b>
+                      <span>候选实验</span>
+                    </article>
+                    <article>
+                      <b>{{ experimentDesign.factors.length || 0 }}</b>
+                      <span>影响因素</span>
+                    </article>
+                    <article>
+                      <b>{{ experimentDesign.responses.length || 0 }}</b>
+                      <span>响应变量</span>
                     </article>
                   </div>
-                  <div class="bayesian-feedback">
-                    <span class="bayes-badge">Bayesian Feedback</span>
-                    <div>
-                      <strong>贝叶斯反馈怎样影响下一轮</strong>
-                      <p>把本轮推演观测到的成本、缺口、风险暴露和库存覆盖作为新证据，更新各候选方案的后验可信度；高收益且稳定的参数组合提高采样概率，表现不佳的组合降权，再生成下一轮候选。</p>
+                </section>
+
+                <section class="plan-workspace">
+                  <div class="plan-panel generated-plan-panel" v-if="generatedPlanRows.length">
+                    <div class="plan-panel-head">
+                      <div>
+                        <span>生成方案</span>
+                        <strong>根据参数组合生成 {{ generatedPlanRows.length }} 个候选方案</strong>
+                      </div>
+                    </div>
+                    <div class="generated-plan-list">
+                      <article v-for="row in generatedPlanRows" :key="row.name" class="generated-plan-card">
+                        <div class="generated-plan-meta" :class="'plan-meta-' + row.kind">
+                          <span>{{ row.name }}</span>
+                          <b>{{ row.status }}</b>
+                        </div>
+                        <div class="generated-plan-title">
+                          <div>
+                            <strong>{{ row.title }}</strong>
+                          </div>
+                        </div>
+                        <p class="generated-plan-desc">{{ row.focus }}</p>
+                        <div class="generated-param-grid">
+                          <div v-for="param in row.params" :key="param.label">
+                            <span>{{ param.label }}</span>
+                            <b>{{ param.value }}</b>
+                          </div>
+                        </div>
+                      </article>
                     </div>
                   </div>
-                  <div class="score-formula">
-                    <span>综合效用</span>
-                    <code>保供收益 + 韧性增益 − 成本惩罚 − 风险惩罚</code>
-                    <el-tag size="small" type="success" effect="dark">选择后验效用最高方案</el-tag>
+                </section>
+
+                <section class="plan-support-grid">
+                  <button type="button" class="entity-mini-panel" @click="openEntityGraph" title="展开查看实体图">
+                    <div class="entity-mini-head">
+                      <span>实体图缩略图</span>
+                      <strong>{{ experimentDesign.entities.length || getGraphPreviewEntities().length }} 个核心实体</strong>
+                    </div>
+                    <div class="entity-mini-body">
+                      <div class="entity-thumb-canvas">
+                        <span
+                          v-for="(entity, i) in getGraphPreviewEntities()"
+                          :key="entity + i"
+                          class="entity-thumb-node"
+                          :class="'node-' + i"
+                        >{{ getEntityInitial(entity) }}</span>
+                        <span class="entity-thumb-line line-a"></span>
+                        <span class="entity-thumb-line line-b"></span>
+                        <span class="entity-thumb-line line-c"></span>
+                      </div>
+                      <div>
+                        <span>已选实体</span>
+                        <p>{{ getGraphPreviewEntities().slice(0, 4).join('、') }}</p>
+                      </div>
+                    </div>
+                    <ul class="entity-mini-list">
+                      <li v-for="entity in getGraphPreviewEntities().slice(0, 4)" :key="entity">{{ entity }}</li>
+                    </ul>
+                  </button>
+
+                  <div class="plan-panel plan-variable-panel">
+                    <div class="plan-panel-head compact">
+                      <div>
+                        <span>变量链路</span>
+                        <strong>实体 - 因素 - 指标</strong>
+                      </div>
+                    </div>
+                    <div class="variable-lanes">
+                      <article v-if="experimentDesign.entities.length">
+                        <span>实体</span>
+                        <b>{{ experimentDesign.entities.length }}</b>
+                        <p>{{ experimentDesign.entities.slice(0, 3).join('、') }}</p>
+                      </article>
+                      <article>
+                        <span>影响因素</span>
+                        <b>{{ experimentDesign.factors.length }}</b>
+                        <p>{{ experimentDesign.factors.slice(0, 3).join('、') || '暂未识别' }}</p>
+                      </article>
+                      <article>
+                        <span>响应变量</span>
+                        <b>{{ experimentDesign.responses.length }}</b>
+                        <p>{{ experimentDesign.responses.slice(0, 3).join('、') || '暂未识别' }}</p>
+                      </article>
+                    </div>
                   </div>
-                </div>
-
-                <div class="eds-section eds-priority" v-if="planPriorityRows.length">
-                  <div class="eds-section-title">方案优先级排序</div>
-                  <el-table
-                    :data="planPriorityRows"
-                    size="small"
-                    border
-                    stripe
-                    class="eds-priority-table"
-                  >
-                    <el-table-column prop="rank" label="排序" width="66" align="center" />
-                    <el-table-column prop="name" label="候选方案" min-width="130" />
-                    <el-table-column prop="basis" label="筛选依据" min-width="210" />
-                    <el-table-column prop="status" label="状态" width="104" align="center">
-                      <template #default="{ row }">
-                        <el-tag :type="row.type" size="small" effect="plain">{{ row.status }}</el-tag>
-                      </template>
-                    </el-table-column>
-                  </el-table>
-                </div>
-
-                <div class="eds-section eds-params" v-if="experimentDesign.paramRows.length">
-                  <div class="eds-section-title">参数范围</div>
-                  <el-table
-                    :data="experimentDesign.paramRows"
-                    size="small"
-                    border
-                    stripe
-                    max-height="240"
-                    class="eds-params-table"
-                  >
-                    <el-table-column prop="index" label="序号" width="78" align="center" />
-                    <el-table-column
-                      v-for="(key, idx) in experimentDesign.factorKeys"
-                      :key="key"
-                      :prop="key"
-                      align="center"
-                    >
-                      <template #header>
-                        <el-tooltip :content="getParameterDisplayName(key, idx)" placement="top">
-                          <span>{{ getParameterDisplayName(key, idx) }}</span>
-                        </el-tooltip>
-                      </template>
-                    </el-table-column>
-                  </el-table>
-                </div>
+                </section>
 
                 <div class="eds-section eds-formula" v-if="experimentDesign.formulas.length">
                   <div class="eds-section-title">关键公式</div>
@@ -398,7 +366,7 @@
                     <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                   </svg>
                 </div>
-                <h3>等待实验方案</h3>
+                <h3>尚未生成实验方案</h3>
                 <p>完成左侧对话后，这里展示实验方案汇总</p>
               </div>
             </div>
@@ -420,13 +388,11 @@ import { SCNET_PHASE_SHORT_LABELS } from '@/constants/scnetStageMeta'
 import { getSnapshotById } from '@/views/SCnet/mock/snapshotIndex'
 import { URANIUM_REFERENCE_GRAPH } from '@/views/SCnet/mock/agentGraphMock'
 import { ElMessage } from 'element-plus'
-import { Right } from '@element-plus/icons-vue'
 
 export default {
   ...ScenarioModelingLogic,
   components: {
-    ...(ScenarioModelingLogic.components || {}),
-    Right
+    ...(ScenarioModelingLogic.components || {})
   },
   setup() {
     const store = useSupplyChainStore()
@@ -450,56 +416,46 @@ export default {
       }
       return '输入您的问题或反馈...'
     },
-    selectionSteps() {
-      return [
-        { title: '生成候选', detail: `按 ${this.experimentDesign.factors.length || 0} 个影响因素的参数范围组合实验点，覆盖成本、风险与保供取向。` },
-        { title: '模型推演', detail: '多智能体模型逐一运行候选方案，输出成本、供需缺口、风险暴露与库存覆盖。' },
-        { title: '多目标评分', detail: '先剔除违反供给与安全约束的方案，再按保供、韧性、成本和风险加权排序。' },
-        { title: '反馈收敛', detail: '将推演结果写回贝叶斯后验，重点探索高潜力参数区域，直到收益趋稳。' }
-      ]
-    },
-    designLogicCards() {
-      return [
-        {
-          title: '输入',
-          value: `${this.entityCount} 类实体`,
-          text: '结合供应、制造、需求和调度对象形成实验边界。'
-        },
-        {
-          title: '变量',
-          value: `${this.experimentDesign.factors.length || 0} 个因素`,
-          text: '把可调因素映射为候选实验参数范围。'
-        },
-        {
-          title: '输出',
-          value: `${this.experimentDesign.responses.length || 0} 个指标`,
-          text: '用响应变量评价方案成本、缺口、风险和韧性。'
-        }
-      ]
-    },
     entityCount() {
       const fallbackCount = URANIUM_REFERENCE_GRAPH.agents?.length || 0
       return this.experimentDesign.entities.length || fallbackCount
     },
-    planPriorityRows() {
+    generatedPlanRows() {
       const rows = this.experimentDesign.paramRows.length
         ? this.experimentDesign.paramRows
         : this.tasks.map((task, index) => ({ index: `方案 ${index + 1}`, task: task.title || task.description || '' }))
-      return rows.slice(0, 5).map((row, index) => {
+      return rows.slice(0, 4).map((row, index) => {
         const name = row.index || `方案 ${index + 1}`
-        const factor = this.experimentDesign.factors[index % Math.max(this.experimentDesign.factors.length, 1)] || '关键变量'
-        const response = this.experimentDesign.responses[index % Math.max(this.experimentDesign.responses.length, 1)] || '目标指标'
-        const statusMeta = index === 0
-          ? { status: '优选执行', type: 'success' }
-          : index === 1
-            ? { status: '备选保留', type: 'warning' }
-            : index < 4
-              ? { status: '继续观测', type: 'primary' }
-              : { status: '降权剔除', type: 'info' }
+        const title = [
+          '保供增强方案',
+          '成本对照方案',
+          '库存缓冲方案',
+          '边界压力方案'
+        ][index] || '补充验证方案'
+        const statusMeta = [
+          { status: '主方案', kind: 'main' },
+          { status: '对照', kind: 'compare' },
+          { status: '补充', kind: 'support' },
+          { status: '边界', kind: 'edge' }
+        ][index] || { status: '补充', kind: 'support' }
+        const params = this.experimentDesign.factorKeys.map((key, idx) => ({
+          label: this.getParameterDisplayName(key, idx),
+          value: row[key] ?? '-'
+        }))
+        const focus = [
+          '验证提高订货量后，服务水平是否明显改善。',
+          '验证较低投入下，成本变化是否可接受。',
+          '验证库存提高后，对提前期扰动的缓冲效果。',
+          '验证高压力参数下，系统是否仍满足基本约束。'
+        ][index] || '补充观察该参数组合对核心指标的影响。'
         return {
-          rank: index + 1,
           name,
-          basis: `${factor} 对 ${response} 的改善幅度更高，同时未触发供给和风险约束。`,
+          title,
+          description: params.length
+            ? `该方案使用第 ${index + 1} 组参数，作为实验运行页的输入组合。`
+            : (row.task || '该方案来自当前任务拆解结果。'),
+          params,
+          focus,
           ...statusMeta
         }
       })
@@ -521,7 +477,6 @@ export default {
       const expBlock = (r.exp_params && typeof r.exp_params === 'object')
         ? (r.exp_params.exp_params && typeof r.exp_params.exp_params === 'object' ? r.exp_params.exp_params : r.exp_params)
         : {}
-      const expMethod = this.sanitizeDisplayText(expBlock.exp_method || '')
       const paramsObj = (expBlock.params && typeof expBlock.params === 'object') ? expBlock.params : {}
       const factorKeys = Object.keys(paramsObj).filter(k => Array.isArray(paramsObj[k]) && paramsObj[k].length > 0)
       const rowCount = factorKeys.length ? Math.max(...factorKeys.map(k => paramsObj[k].length)) : 0
@@ -548,7 +503,6 @@ export default {
         factors,
         responses,
         entities,
-        expMethod,
         factorKeys,
         paramRows,
         formulas
@@ -828,6 +782,9 @@ export default {
 .conversation-panel :deep(.panel-header),
 .task-panel :deep(.panel-header) { padding: 14px 18px; }
 .conversation-panel :deep(.conversation-messages) { padding: 16px; gap: 14px; }
+.conversation-panel :deep(.conversation-messages) {
+  background: linear-gradient(180deg, rgba(248, 250, 252, .72), rgba(239, 246, 255, .42));
+}
 .conversation-panel :deep(.message-wrapper.system .message-bubble) { width: 100%; max-width: 100%; }
 .conversation-panel :deep(.message-avatar) { width: 34px; height: 34px; font-size: 16px; }
 .conversation-panel :deep(.conversation-input-area) { padding: 12px 16px; }
@@ -841,13 +798,633 @@ export default {
 .conversation-panel :deep(.understanding-section p) { margin: 0; color: #475569; font-size: 12px; line-height: 1.55; }
 .conversation-panel :deep(.task-chips) { gap: 6px; }
 .conversation-panel :deep(.task-chip) { padding: 8px 9px; gap: 7px; min-height: auto; }
+.conversation-panel :deep(.task-step-list) {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 7px;
+}
+.conversation-panel :deep(.task-step-row) {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  min-height: 46px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
 .conversation-panel :deep(.chip-number) { width: 18px; height: 18px; }
+.conversation-panel :deep(.task-step-row .chip-number) {
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 11px;
+}
 .conversation-panel :deep(.task-chip-main) { gap: 3px; }
+.conversation-panel :deep(.task-step-row .chip-text) {
+  color: #0f172a;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.conversation-panel :deep(.task-step-row .chip-desc) {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
 .conversation-panel :deep(.variables-section) { padding-top: 8px; }
-.conversation-panel :deep(.variable-groups) { gap: 7px; grid-template-columns: 1fr; }
-.conversation-panel :deep(.variable-groups .var-group) { padding: 8px; }
+.conversation-panel :deep(.entity-choice-list) {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+.conversation-panel :deep(.entity-choice-list span) {
+  display: block;
+  padding: 7px 9px;
+  border-radius: 7px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #0f172a;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.conversation-panel :deep(.variable-groups) {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+.conversation-panel :deep(.variable-groups .var-group) {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  padding: 9px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+.conversation-panel :deep(.var-group-head) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.conversation-panel :deep(.var-group-head span) {
+  color: #334155;
+  font-size: 12px;
+  font-weight: 800;
+}
+.conversation-panel :deep(.var-group-head b) {
+  min-width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 11px;
+}
+.conversation-panel :deep(.var-name-list) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.conversation-panel :deep(.var-name-list span) {
+  padding: 4px 7px;
+  border-radius: 6px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.25;
+}
 .conversation-panel :deep(.var-tags) { gap: 4px; }
 .conversation-panel :deep(.var-tag) { padding: 2px 8px; font-size: 11px; }
+.experiment-design-summary {
+  margin: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: #1f2937;
+}
+.plan-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #ffffff;
+}
+.plan-overview-main {
+  min-width: 0;
+}
+.plan-overview-main > span,
+.plan-panel-head span,
+.entity-mini-panel span,
+.variable-lanes span {
+  display: block;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+.plan-overview-main strong {
+  display: block;
+  margin-top: 5px;
+  color: #0f172a;
+  font-size: 18px;
+  line-height: 1.45;
+}
+.plan-overview-main p {
+  max-width: 760px;
+  margin: 7px 0 0;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.plan-overview-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.plan-overview-metrics article {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 76px;
+  padding: 10px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  text-align: center;
+}
+.plan-overview-metrics b {
+  color: #1d4ed8;
+  font-size: 24px;
+  line-height: 1;
+}
+.plan-overview-metrics span {
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+.plan-workspace {
+  display: block;
+}
+.plan-main-column {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.plan-panel,
+.entity-mini-panel,
+.experiment-design-summary .eds-section {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: none;
+}
+.plan-panel {
+  padding: 14px;
+}
+.plan-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.plan-panel-head.compact {
+  margin-bottom: 10px;
+}
+.plan-panel-head strong {
+  display: block;
+  margin-top: 4px;
+  color: #0f172a;
+  font-size: 15px;
+  line-height: 1.35;
+}
+.plan-panel-head em {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+.selection-rail {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f8fafc;
+}
+.selection-rail article {
+  position: relative;
+  min-width: 0;
+  padding: 12px;
+  background: #ffffff;
+}
+.selection-rail article + article {
+  border-left: 1px solid #e2e8f0;
+}
+.selection-rail article > span {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 900;
+}
+.selection-rail strong {
+  display: block;
+  margin-top: 10px;
+  color: #0f172a;
+  font-size: 13px;
+}
+.selection-rail b {
+  display: block;
+  margin-top: 4px;
+  color: #1d4ed8;
+  font-size: 16px;
+}
+.selection-rail p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.selection-rail article:nth-child(3) {
+  background: #f8fafc;
+}
+.selection-rail article:nth-child(3) > span {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+.selection-rail article:nth-child(4) {
+  background: #f8fafc;
+}
+.utility-strip {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+}
+.utility-copy {
+  min-width: 0;
+}
+.utility-copy span {
+  display: block;
+  color: #4338ca;
+  font-size: 11px;
+  font-weight: 900;
+}
+.utility-copy strong {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  color: #0f172a;
+  font-size: 14px;
+  line-height: 1.35;
+}
+.utility-copy p {
+  margin: 5px 0 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.utility-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #4338ca;
+  color: #ffffff;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+.generated-plan-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.generated-plan-card {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 86px minmax(140px, .75fr) minmax(220px, 1fr) minmax(280px, 1.15fr);
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+.generated-plan-card:first-child {
+  border-color: #bfdbfe;
+  background: linear-gradient(90deg, #eff6ff 0%, #ffffff 68%);
+}
+.generated-plan-meta {
+  min-height: 58px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border-left: 3px solid #94a3b8;
+}
+.generated-plan-meta span {
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+.generated-plan-meta b {
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.2;
+}
+.generated-plan-meta.plan-meta-main {
+  border-left-color: #2563eb;
+  background: #eff6ff;
+}
+.generated-plan-meta.plan-meta-compare {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+}
+.generated-plan-meta.plan-meta-support {
+  border-left-color: #6366f1;
+  background: #eef2ff;
+}
+.generated-plan-meta.plan-meta-edge {
+  border-left-color: #94a3b8;
+}
+.generated-plan-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 10px;
+}
+.generated-plan-title strong {
+  display: block;
+  color: #0f172a;
+  font-size: 14px;
+  line-height: 1.35;
+}
+.generated-plan-desc {
+  min-width: 0;
+  margin: 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.generated-param-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+.generated-param-grid div {
+  min-width: 0;
+  padding: 7px 8px;
+  border-radius: 7px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.generated-param-grid span {
+  display: block;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.generated-param-grid b {
+  display: block;
+  margin-top: 3px;
+  color: #0f172a;
+  font-size: 12px;
+  line-height: 1.25;
+}
+.ranked-plan-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ranked-plan-list article {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+.ranked-plan-list article.active {
+  border-color: #bfdbfe;
+  background: linear-gradient(90deg, #eff6ff 0%, #ffffff 62%);
+}
+.ranked-plan-list article.backup {
+  border-color: #fde68a;
+  background: linear-gradient(90deg, #fffbeb 0%, #ffffff 62%);
+}
+.ranked-plan-index {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #f1f5f9;
+}
+.ranked-plan-index b {
+  color: #0f172a;
+  font-size: 21px;
+  line-height: 1;
+}
+.ranked-plan-index span {
+  margin-top: 5px;
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 900;
+}
+.ranked-plan-body {
+  min-width: 0;
+}
+.ranked-plan-title,
+.ranked-plan-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ranked-plan-title strong {
+  min-width: 0;
+  color: #0f172a;
+  font-size: 14px;
+  line-height: 1.3;
+}
+.ranked-plan-body p {
+  margin: 5px 0 7px;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.ranked-plan-foot span {
+  min-width: 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.ranked-plan-foot b {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.plan-support-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.entity-mini-panel {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.entity-mini-panel:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, .08);
+}
+.entity-mini-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+}
+.entity-mini-head span,
+.entity-mini-body span {
+  display: block;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+.entity-mini-head strong {
+  color: #0f172a;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.entity-mini-body {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+}
+.entity-mini-panel .entity-thumb-canvas {
+  height: 82px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.entity-mini-panel p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.entity-mini-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.entity-mini-list li {
+  min-width: 0;
+  padding: 5px 7px;
+  border-radius: 6px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  font-size: 11px;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.variable-lanes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.variable-lanes article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.variable-lanes b {
+  grid-row: span 2;
+  align-self: center;
+  justify-self: end;
+  min-width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 12px;
+}
+.variable-lanes p {
+  min-width: 0;
+  margin: 0;
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plan-support-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 .entity-thumbnail {
   width: 100%;
   display: grid;
@@ -1019,22 +1596,22 @@ export default {
   background: #94a3b8;
 }
 .experiment-design-summary {
-  margin: 12px 14px 0;
+  margin: 14px;
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 12px;
   color: #1f2937;
 }
 .experiment-design-summary .eds-section {
   background: #ffffff;
-  border: 1px solid #dbeafe;
-  border-radius: 10px;
-  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 14px;
 }
 .experiment-design-summary .eds-section-title {
   font-size: 13px;
-  font-weight: 700;
-  color: #1e3a8a;
+  font-weight: 800;
+  color: #0f172a;
   margin-bottom: 8px;
 }
 .experiment-design-summary .eds-label {
@@ -1062,13 +1639,238 @@ export default {
 .bayes-badge { flex: 0 0 auto; padding: 4px 7px; border-radius: 5px; background: #f97316; color: #fff; font-size: 9px; font-weight: 800; letter-spacing: .04em; }
 .bayesian-feedback strong { display: block; color: #9a3412; font-size: 12px; }
 .bayesian-feedback p { margin: 3px 0 0; color: #7c2d12; font-size: 11px; line-height: 1.55; }
-.score-formula { display: flex; align-items: center; gap: 9px; margin-top: 8px; font-size: 11px; color: #475569; }
-.score-formula code { flex: 1; padding: 5px 8px; border-radius: 5px; background: #eef2ff; color: #4338ca; white-space: normal; }
+.utility-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px;
+  gap: 12px;
+  align-items: stretch;
+  margin-top: 9px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #bbf7d0;
+  background: linear-gradient(135deg, #f0fdf4, #ffffff);
+}
+.utility-main {
+  min-width: 0;
+}
+.utility-kicker {
+  display: inline-flex;
+  margin-bottom: 4px;
+  color: #15803d;
+  font-size: 11px;
+  font-weight: 800;
+}
+.utility-main strong {
+  display: block;
+  color: #0f172a;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.utility-equation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.utility-equation span {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.utility-equation .positive {
+  background: #dcfce7;
+  color: #166534;
+}
+.utility-equation .negative {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.utility-equation i {
+  color: #64748b;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 800;
+}
+.utility-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #16a34a;
+  color: #ffffff;
+}
+.utility-result b {
+  font-size: 22px;
+  line-height: 1;
+}
+.utility-result span {
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.screening-board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 9px;
+}
+.screening-board article {
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+.screening-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.screening-head em {
+  color: #94a3b8;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+.screening-head span {
+  display: inline-flex;
+  min-width: 42px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 15px;
+  font-weight: 800;
+}
+.screening-board strong {
+  display: block;
+  margin-top: 6px;
+  color: #1e3a8a;
+  font-size: 12px;
+}
+.screening-board p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
 .eds-priority-table {
   width: 100%;
 }
 .eds-priority-table :deep(.el-table__cell) {
   font-size: 12px;
+}
+.eds-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+}
+.eds-section-heading .eds-section-title {
+  margin-bottom: 3px;
+}
+.eds-section-heading p {
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.eds-section-heading > span {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 11px;
+  font-weight: 800;
+}
+.priority-card-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+.priority-card {
+  display: grid;
+  grid-template-columns: 66px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+.priority-card.priority-1 {
+  border-color: #86efac;
+  background: linear-gradient(135deg, #f0fdf4, #ffffff);
+}
+.priority-card.priority-2 {
+  border-color: #fde68a;
+  background: linear-gradient(135deg, #fffbeb, #ffffff);
+}
+.priority-rank {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #f1f5f9;
+}
+.priority-rank b {
+  color: #0f172a;
+  font-size: 22px;
+  line-height: 1;
+}
+.priority-rank span {
+  margin-top: 5px;
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 800;
+}
+.priority-content {
+  min-width: 0;
+}
+.priority-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.priority-title-row strong {
+  color: #0f172a;
+  font-size: 13px;
+}
+.priority-content p {
+  margin: 5px 0 7px;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.priority-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+.priority-meta span {
+  min-width: 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.priority-meta b {
+  padding: 4px 7px;
+  border-radius: 6px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .eds-goal {
@@ -1183,25 +1985,6 @@ export default {
   padding: 0 4px;
 }
 
-.eds-method {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-}
-.eds-method-value {
-  color: #d97706;
-  font-weight: 600;
-}
-
-.eds-params-table {
-  width: 100%;
-  overflow-x: auto;
-}
-.eds-params-table :deep(.el-table) {
-  font-size: 12px;
-}
-
 .eds-formula-list {
   display: flex;
   flex-direction: column;
@@ -1260,7 +2043,15 @@ export default {
 }
 
 @media (max-width: 1180px) {
+  .generated-plan-card {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+  .entity-mini-body {
+    grid-template-columns: 1fr;
+  }
   .selection-flow { grid-template-columns: 1fr 1fr; }
+  .screening-board { grid-template-columns: 1fr 1fr; }
   .selection-step::after { display: none; }
   .entity-thumbnail-wide { grid-template-columns: 120px minmax(0, 1fr); }
   .entity-thumb-action { grid-column: 2; justify-self: start; }
@@ -1281,5 +2072,6 @@ export default {
   .entity-thumbnail,
   .entity-thumbnail-wide { grid-template-columns: 1fr; }
   .entity-thumb-action { grid-column: auto; }
+  .screening-board { grid-template-columns: 1fr; }
 }
 </style>

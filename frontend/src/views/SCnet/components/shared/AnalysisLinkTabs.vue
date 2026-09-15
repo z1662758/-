@@ -31,7 +31,6 @@ import { computed, markRaw, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   DataAnalysis,
-  Document,
   Grid,
   Promotion,
   TrendCharts
@@ -43,7 +42,7 @@ const props = defineProps({
   active: {
     type: String,
     required: true,
-    validator: v => ['gameTheory', 'decisionTree', 'scenario', 'report'].includes(v)
+    validator: v => ['gameTheory', 'decisionTree', 'scenario'].includes(v)
   }
 })
 
@@ -52,8 +51,7 @@ const router = useRouter()
 const tabs = computed(() => [
   { value: 'scenario',     label: '情景分析', icon: markRaw(TrendCharts) },
   { value: 'gameTheory',   label: '脆弱性分析', icon: markRaw(Grid) },
-  { value: 'decisionTree', label: '对策分析', icon: markRaw(Promotion) },
-  { value: 'report',       label: '报告生成', icon: markRaw(Document) }
+  { value: 'decisionTree', label: '对策分析', icon: markRaw(Promotion) }
 ])
 
 const activeRef = ref(props.active)

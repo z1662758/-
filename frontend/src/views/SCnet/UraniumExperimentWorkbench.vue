@@ -1,15 +1,15 @@
 <template>
   <div class="uranium-workbench">
-    <nav class="workbench-switcher" aria-label="实验推演工作区">
+    <nav class="workbench-switcher" :class="{ standalone: activeView === 'decision' }" aria-label="实验推演工作区">
       <div class="switcher-copy">
         <span class="switcher-kicker">事中工作台</span>
         <strong>{{ activeViewMeta.title }}</strong>
         <span>{{ activeViewMeta.summary }}</span>
       </div>
 
-      <div class="switcher-tabs" role="tablist">
+      <div v-if="activeView !== 'decision'" class="switcher-tabs" role="tablist">
         <button
-          v-for="item in views"
+          v-for="item in workbenchViews"
           :key="item.value"
           type="button"
           role="tab"
@@ -47,7 +47,7 @@ defineOptions({ name: 'UraniumExperimentWorkbench' })
 const route = useRoute()
 const router = useRouter()
 
-const views = Object.freeze([
+const workbenchViews = Object.freeze([
   {
     value: 'run',
     label: '运行管理',
@@ -63,7 +63,10 @@ const views = Object.freeze([
     icon: DataAnalysis,
     title: '态势推演',
     summary: '查看年度供应链链路、压力窗口和实验输出指标。'
-  },
+  }
+])
+
+const standaloneViews = Object.freeze([
   {
     value: 'decision',
     label: '决策生成',
@@ -78,7 +81,9 @@ const routeDefault = computed(() => route.path.endsWith('/interface') ? 'simulat
 const activeView = computed(() => (
   ['run', 'simulation', 'decision'].includes(route.query.view) ? route.query.view : routeDefault.value
 ))
-const activeViewMeta = computed(() => views.find(item => item.value === activeView.value) || views[0])
+const activeViewMeta = computed(() => (
+  [...workbenchViews, ...standaloneViews].find(item => item.value === activeView.value) || workbenchViews[0]
+))
 
 function switchView(view) {
   if (view === activeView.value) return
@@ -107,6 +112,10 @@ function switchView(view) {
   background: rgba(255, 255, 255, 0.97);
   box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
   box-sizing: border-box;
+}
+
+.workbench-switcher.standalone {
+  grid-template-columns: 1fr;
 }
 
 .switcher-copy {

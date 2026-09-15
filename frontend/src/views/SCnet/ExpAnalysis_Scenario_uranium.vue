@@ -1,17 +1,6 @@
 <template>
   <div class="scenario-page mid-stage-bg scenario-console analysis-workspace">
-    <AnalysisLinkTabs active="scenario">
-      <template #right>
-        <el-button plain size="small" @click="navigateTo(SCNET_ROUTES.interface)">
-          <el-icon><Place /></el-icon>
-          <span>推演界面</span>
-        </el-button>
-        <el-button type="success" plain size="small" @click="navigateTo(SCNET_ROUTES.EXreport)">
-          <el-icon><Document /></el-icon>
-          <span>实验结果页</span>
-        </el-button>
-      </template>
-    </AnalysisLinkTabs>
+    <AnalysisLinkTabs active="scenario" />
 
     <el-empty
       v-if="!scenarioVm"
@@ -150,28 +139,6 @@
             </div>
 
             <template v-if="scenarioTab === 'overview'">
-              <section class="window-verdict-card">
-                <div class="window-verdict-main">
-                  <span>窗口结论</span>
-                  <strong>{{ activeWindow.stageLabel }}</strong>
-                  <p>{{ activeWindow.stageDetail }}</p>
-                </div>
-                <div class="window-verdict-meta">
-                  <div>
-                    <small>主通道</small>
-                    <strong>
-                      {{ activeWindow.routeRows[0]
-                        ? `${activeWindow.routeRows[0].supplier_name} → ${activeWindow.routeRows[0].manufacturer_name}`
-                        : '暂无主通道' }}
-                    </strong>
-                  </div>
-                  <div>
-                    <small>下一步</small>
-                    <strong>{{ activeWindow.nextStep }}</strong>
-                  </div>
-                </div>
-              </section>
-
               <div class="main-summary-grid">
                 <article
                   v-for="item in activeWindow.metricCards"
@@ -201,7 +168,7 @@
               </section>
 
               <section class="main-section">
-                <div class="section-title">窗口证据链</div>
+                <div class="section-title">扰动过程</div>
                 <div class="evidence-grid">
                   <article
                     v-for="item in activeWindow.steps"
@@ -216,7 +183,7 @@
                   </article>
                   <el-empty
                     v-if="!activeWindow.steps.length"
-                    description="当前窗口暂无证据链"
+                    description="当前窗口暂无扰动过程"
                     :image-size="70"
                   />
                 </div>
@@ -387,20 +354,16 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useRouter } from 'vue-router'
-import { Document, Place } from '@element-plus/icons-vue'
 import AnalysisLinkTabs from './components/shared/AnalysisLinkTabs.vue'
 import AnalysisPageHero from './components/shared/AnalysisPageHero.vue'
 import './components/shared/midStage.css'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
 import { formatUraniumMetricValue } from '@/utils/uraniumDuringAdapter'
-import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 import { buildUraniumScenarioViewModel } from '@/views/SCnet/adapters/uraniumMockAnalysisAdapter'
 
 const store = useUraniumDemoStore()
 const snapshotStore = useAnalysisSnapshotStore()
-const router = useRouter()
 const { history, selectedExperiment, selectedExperimentId } = storeToRefs(store)
 
 const activeWindowIndex = ref(0)
@@ -467,10 +430,6 @@ const scenarioConclusionCards = computed(() => {
   ]
 })
 const activeWindow = computed(() => scenarioVm.value?.yearWindows?.[activeWindowIndex.value] || null)
-
-function navigateTo(path) {
-  router.push(path)
-}
 
 function selectWindow(index) {
   activeWindowIndex.value = index
@@ -646,69 +605,6 @@ watch(activeWindowIndex, () => {
   color: #94a3b8;
   font-size: var(--mid-fs-label);
   line-height: 1.55;
-}
-
-.window-verdict-card {
-  display: grid;
-  grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.14fr);
-  gap: 10px;
-  margin-bottom: 14px;
-  padding: 10px 12px;
-  border: 1px solid #bfdbfe;
-  border-radius: var(--mid-radius-md);
-  background:
-    radial-gradient(circle at top right, rgba(59, 130, 246, 0.12), transparent 34%),
-    linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
-}
-
-.window-verdict-main,
-.window-verdict-meta {
-  min-width: 0;
-}
-
-.window-verdict-main > span,
-.window-verdict-meta small {
-  display: block;
-  color: #64748b;
-  font-size: var(--mid-fs-label);
-  font-weight: 800;
-  letter-spacing: 0.04em;
-}
-
-.window-verdict-main > strong {
-  display: block;
-  margin-top: 4px;
-  color: #1d4ed8;
-  font-size: var(--mid-fs-title);
-}
-
-.window-verdict-main p {
-  margin: 5px 0 0;
-  color: #475569;
-  font-size: var(--mid-fs-label);
-  line-height: var(--mid-lh-body);
-}
-
-.window-verdict-meta {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.window-verdict-meta > div {
-  padding: 8px 10px;
-  border: 1px solid rgba(191, 219, 254, 0.9);
-  border-radius: var(--mid-radius-sm);
-  background: rgba(255, 255, 255, 0.82);
-}
-
-.window-verdict-meta strong {
-  display: block;
-  margin-top: 4px;
-  color: #0f172a;
-  font-size: var(--mid-fs-label);
-  line-height: var(--mid-lh-body);
-  overflow-wrap: anywhere;
 }
 
 .scenario-brief-card {
@@ -1223,10 +1119,6 @@ watch(activeWindowIndex, () => {
   .scenario-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
-  .window-verdict-card {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 768px) {
@@ -1236,8 +1128,7 @@ watch(activeWindowIndex, () => {
   .evidence-grid,
   .factor-card-grid,
   .window-kpi-row,
-  .bridge-actions,
-  .window-verdict-meta {
+  .bridge-actions {
     grid-template-columns: 1fr;
   }
 }

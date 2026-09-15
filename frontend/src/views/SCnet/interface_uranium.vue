@@ -17,11 +17,6 @@
       :subtitle="headerSubtitle"
       :icon="Place"
     >
-      <template #center>
-        <div v-if="isUraniumMode" class="uranium-header-context">
-          <span>{{ uraniumActiveYearLabel }}</span>
-        </div>
-      </template>
       <template #right>
         <el-button
           v-if="isUraniumMode"
@@ -551,23 +546,6 @@ watch(uraniumStaticCorridorId, (next) => {
   flex-shrink: 0;
 }
 
-
-.uranium-header-context {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 10px;
-  border: 1px solid #dbe4f0;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.78);
-  color: #64748b;
-  font-size: 12px;
-}
-
-.uranium-header-context strong {
-  color: #0f172a;
-  font-size: 12px;
-}
 
 .main-content {
   flex: 1;

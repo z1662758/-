@@ -76,6 +76,14 @@
             <el-icon size="18"><component :is="item.icon" /></el-icon>
             <template #title>{{ item.label }}</template>
           </el-menu-item>
+          <el-menu-item
+            v-for="item in duringDecisionMenuItems"
+            :key="item.index"
+            :index="item.index"
+          >
+            <el-icon size="18"><component :is="item.icon" /></el-icon>
+            <template #title>{{ item.label }}</template>
+          </el-menu-item>
           <el-sub-menu index="during-analysis">
             <template #title>
               <el-icon size="18"><DataAnalysis/></el-icon>
@@ -159,15 +167,6 @@
       </div>
     </div>
 
-    <!-- 事中阶段：右侧悬浮流程步骤条（对齐学长 PowerGame 实现） -->
-    <EventPhaseStepper
-      v-if="showDuringFlowStepper"
-      :steps="duringSteps"
-      :current-key="duringCurrentKey"
-      :completed-predicate="isDuringStepCompleted"
-      @step-click="onDuringStepClick"
-    />
-
     <!-- 浮动切换按钮：转到对话模式 -->
     <el-tooltip content="切换到AI对话模式" placement="left" effect="dark">
       <button class="chat-toggle-float-btn" @click="$router.push('/chatHome')">
@@ -185,15 +184,9 @@ import {
   SwitchButton, TrendCharts, User, WarningFilled, ChatDotSquare, CircleCheck
 } from "@element-plus/icons-vue";
 import {ref, onMounted, onUnmounted, computed, watch} from "vue";
-import {useRoute, useRouter} from "vue-router";
+import {useRoute} from "vue-router";
 import {Files, Refresh} from "@element-plus/icons-vue";
 import AppHeader from "@/components/Header.vue";
-import EventPhaseStepper from "@/components/EventPhaseStepper.vue";
-import { useDuringFlowSteps, routeToStepKey } from "@/views/SCnet/composables/useDuringFlowSteps";
-import {
-  useDuringFlowSteps as useUraniumDuringFlowSteps,
-  routeToStepKey as uraniumRouteToStepKey
-} from "@/views/SCnet/composables/useDuringFlowSteps_uranium";
 import { useScenarioStore } from "@/stores/scenario";
 import { PHASE_EVENT, PHASE_STORAGE_KEY, ROUTE_TO_PHASE } from "@/constants/scnetPhase";
 
@@ -216,7 +209,10 @@ const PRE_TAIL_MENU_ITEMS = Object.freeze([
 
 const DURING_MAIN_MENU_ITEMS = Object.freeze([
   { path: 'scenario', key: 'scenario', label: '想定生成', icon: Edit },
-  { index: '/home/SCnet/experimentManager', label: '实验推演', icon: Monitor },
+  { index: '/home/SCnet/experimentManager', label: '实验推演', icon: Monitor }
+])
+
+const DURING_DECISION_MENU_ITEMS = Object.freeze([
   { path: 'decision', key: 'decision', label: '决策生成', icon: Promotion }
 ])
 
@@ -225,9 +221,9 @@ const DURING_TAIL_MENU_ITEMS = Object.freeze([
 ])
 
 const DURING_ANALYSIS_MENU_ITEMS = Object.freeze([
-  { index: '/home/SCnet/expAnalysisGameTheory', label: '博弈论分析', icon: Grid },
-  { index: '/home/SCnet/expAnalysisDecisionTree', label: '对策分析', icon: Promotion },
-  { index: '/home/SCnet/expAnalysisScenario', label: '情景分析', icon: TrendCharts }
+  { index: '/home/SCnet/expAnalysisScenario', label: '情景分析', icon: TrendCharts },
+  { index: '/home/SCnet/expAnalysisGameTheory', label: '脆弱性分析', icon: Grid },
+  { index: '/home/SCnet/expAnalysisDecisionTree', label: '对策分析', icon: Promotion }
 ])
 
 // 实验分析子菜单之前展示的主菜单项
@@ -254,14 +250,12 @@ export default {
     Monitor,
     Place,
     Edit,
-    EventPhaseStepper,
     Refresh, Files, DataAnalysis, DataLine, DocumentDelete, House, Aim, Box, Collection,
     Document, Notification, Operation, Postcard, Promotion, ScaleToOriginal, SearchIcon, Setting,
     Coin, PieChart, FolderOpened, Grid, SwitchButton, Orange, TrendCharts, User, AppHeader, WarningFilled, ChatDotSquare, CircleCheck
   },
   setup() {
     const route = useRoute()
-    const router = useRouter()
     const activeIndex = ref('1')
     const storedPhase = ref(localStorage.getItem(PHASE_STORAGE_KEY) || '')
 
@@ -285,51 +279,7 @@ export default {
     // 场景标签
     const scenarioLabel = computed(() => currentScenario.value === 'supply_chain' ? '🚗 汽车' : '☢️ 铀')
 
-    const { steps: autoDuringSteps, isStepCompleted: isAutoDuringStepCompleted } = useDuringFlowSteps()
-    const { steps: uraniumDuringSteps, isStepCompleted: isUraniumDuringStepCompleted } = useUraniumDuringFlowSteps()
     const isUraniumScenario = computed(() => currentScenario.value === 'uranium')
-
-    // 事中流程步骤条按场景分流：铀=智能对话/实体图/实验运行/推演界面，汽车=原 5 步
-    const duringSteps = computed(() => (
-      isUraniumScenario.value ? uraniumDuringSteps : autoDuringSteps
-    ))
-    const duringCurrentKey = computed(() => (
-      isUraniumScenario.value
-        ? uraniumRouteToStepKey(route.path)
-        : routeToStepKey(route.path, route.query || {})
-    ))
-    const isDuringStepCompleted = (stepKey) => (
-      isUraniumScenario.value
-        ? isUraniumDuringStepCompleted(stepKey)
-        : isAutoDuringStepCompleted(stepKey)
-    )
-    const AUTO_DURING_FLOW_PREFIXES = [
-      '/home/SCnet/scenarioModeling',
-      '/home/SCnet/agent-design-studio',
-      '/home/SCnet/agentSimulationStudio'
-    ]
-    // 步骤条是浮层，只在「流程编排」类页面显示（沿用本项目原有约定）；
-    // 实验运行 / 推演界面 版面很密，浮层会盖住内容，改由左侧菜单进入。
-    const URANIUM_DURING_FLOW_PREFIXES = [
-      '/home/SCnet/scenarioModeling',
-      '/home/SCnet/scenarioAnalysis',
-      '/home/SCnet/agent-design-studio',
-      '/home/SCnet/agentSimulationStudio'
-    ]
-    const showDuringFlowStepper = computed(() => {
-      const prefixes = isUraniumScenario.value ? URANIUM_DURING_FLOW_PREFIXES : AUTO_DURING_FLOW_PREFIXES
-      return currentPhase.value === 'during' && prefixes.some(prefix => route.path.startsWith(prefix))
-    })
-    const onDuringStepClick = (step) => {
-      if (!step) return
-      // 事中各页按 ?scenario= 分流，跳步时必须带上当前场景
-      const nextQuery = { ...(step.query || {}) }
-      if (route.query.scenario) nextQuery.scenario = route.query.scenario
-      const isSamePath = route.path === step.route
-      const sameQuery = isSamePath && JSON.stringify(route.query || {}) === JSON.stringify(nextQuery)
-      if (sameQuery) return
-      router.push({ path: step.route, query: nextQuery })
-    }
 
     const handleStorageChange = (event) => {
       if (event.key === PHASE_STORAGE_KEY) {
@@ -380,18 +330,17 @@ export default {
         ...item,
         index: `${item.index}?scenario=${currentScenario.value}`
       }))),
+      duringDecisionMenuItems: computed(() => DURING_DECISION_MENU_ITEMS.map((item) => ({
+        ...item,
+        index: `/home/SCnet/experimentManager?scenario=${currentScenario.value}&view=decision`
+      }))),
       duringTailMenuItems: computed(() => DURING_TAIL_MENU_ITEMS.map((item) => ({
         ...item,
         index: `${item.index}?scenario=${currentScenario.value}`
       }))),
       postMainMenuItems: POST_MAIN_MENU_ITEMS,
       postAnalysisMenuItems: POST_ANALYSIS_MENU_ITEMS,
-      postTailMenuItems: POST_TAIL_MENU_ITEMS,
-      duringSteps,
-      duringCurrentKey,
-      showDuringFlowStepper,
-      isDuringStepCompleted,
-      onDuringStepClick
+      postTailMenuItems: POST_TAIL_MENU_ITEMS
     }
   },
   data() {
