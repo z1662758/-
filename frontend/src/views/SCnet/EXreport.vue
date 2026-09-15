@@ -2,7 +2,7 @@
   <div class="post-report-page">
     <section class="report-head">
       <div>
-        <h1>实验报告</h1>
+        <h1>实验报告生成</h1>
         <p class="subtitle">基于事中仿真与反事实分析结果，汇总关键指标对比与因素总结。</p>
       </div>
       <div class="head-actions">
@@ -15,7 +15,7 @@
             <el-dropdown-menu>
               <el-dropdown-item command="html">HTML（.html）</el-dropdown-item>
               <el-dropdown-item command="txt">文本（.txt）</el-dropdown-item>
-              <el-dropdown-item command="pdf">PDF（打印保存）</el-dropdown-item>
+              <el-dropdown-item command="pdf">PDF 文件（.pdf）</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -100,7 +100,13 @@
               <h2>实验对比总览</h2>
               <p>汇总实验基本信息、关键参数与核心输出指标。</p>
             </div>
-            <span class="generated-at">生成时间：{{ generatedAt }}</span>
+            <div class="overview-head-actions">
+              <span class="generated-at">生成时间：{{ generatedAt }}</span>
+              <el-button v-if="experimentRows.length > OVERVIEW_DEFAULT_COUNT" text size="small" @click="overviewExpanded = !overviewExpanded">
+                <el-icon><component :is="overviewExpanded ? ArrowUp : ArrowDown" /></el-icon>
+                {{ overviewExpanded ? '收起，仅显示最优 3 家' : `展开全部 ${experimentRows.length} 家` }}
+              </el-button>
+            </div>
           </header>
 
           <div class="overview-table">
@@ -126,6 +132,29 @@
               </div>
             </article>
           </div>
+        </section>
+
+        <!-- 实验验证：通过一致性 / 离散度 / 收敛性校验实验结论可靠性 -->
+        <section class="report-section report-verification">
+          <header class="section-head compact">
+            <div>
+              <h2>实验验证</h2>
+              <p>基于多轮迭代结果的一致性、离散度与收敛性，校验实验结论的可靠性。</p>
+            </div>
+            <el-tag v-if="verificationSummary" :type="verificationSummary.reliabilityType" size="small" effect="light" round>
+              可靠性：{{ verificationSummary.reliability }}
+            </el-tag>
+          </header>
+          <div v-if="verificationSummary" class="verification-body">
+            <div class="verification-grid">
+              <div v-for="item in verificationItems" :key="item.label" class="verify-item">
+                <span class="verify-label">{{ item.label }}</span>
+                <strong class="verify-value" :class="item.tone">{{ item.value }}</strong>
+              </div>
+            </div>
+            <p class="verification-conclusion">{{ verificationSummary.conclusion }}</p>
+          </div>
+          <div v-else class="verification-empty">数据不足，暂无法完成实验可靠性验证</div>
         </section>
 
         <section class="comparison-grid">
@@ -258,10 +287,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, nextTick, onMounted, watch } from 'vue';
 import { ElButton, ElCard, ElIcon, ElTag, ElEmpty, ElMessage } from 'element-plus';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import {
   ArrowDown,
+  ArrowUp,
   Connection,
   DataAnalysis,
   Download,
@@ -494,9 +526,13 @@ const reportConclusion = computed(() => {
   return `本次实验共纳入 ${total} 组仿真（已完成 ${completed} 组），涉及 ${enterpriseCount} 家企业，平均订单完成率 ${avgCompletion}，综合得分 ${bestScore}。表现最优为「${best}」（第 ${bestIter} 轮），其完成率与净利润均领先于其他实验。建议以此参数配置为基准，在反事实实验中进一步验证策略鲁棒性。`
 })
 
-const MAX_OVERVIEW_ROWS = 5
+const OVERVIEW_DEFAULT_COUNT = 3
+const overviewExpanded = ref(false)
 const overviewRows = computed(() => {
-  return experimentRows.value.slice(0, MAX_OVERVIEW_ROWS).map((row) => ({
+  // 默认只保留综合得分最高的 3 家实验，可展开查看全部
+  const sorted = [...experimentRows.value].sort((a, b) => (b.rawScore || 0) - (a.rawScore || 0))
+  const shown = overviewExpanded.value ? sorted : sorted.slice(0, OVERVIEW_DEFAULT_COUNT)
+  return shown.map((row) => ({
     id: row.id,
     label: row.label,
     source: row.source,
@@ -511,6 +547,102 @@ const overviewRows = computed(() => {
       `得分 ${row.metricsMap.score}`
     ]
   }));
+});
+
+// ---- 实验验证：多轮迭代一致性 / 离散度 / 收敛性校验 ----
+const num = (v) => {
+  const n = typeof v === 'number' ? v : parseFloat(String(v ?? '').replace(/[¥,%\s]/g, ''));
+  return Number.isFinite(n) ? n : NaN;
+};
+
+const verificationSummary = computed(() => {
+  const rows = iterationTableRows.value;
+  if (!rows.length) return null;
+
+  const scores = rows.map(r => num(r.score)).filter(Number.isFinite);
+  const completions = rows.map(r => num(r.completionRate)).filter(Number.isFinite);
+  const profits = rows.map(r => num(r.profit)).filter(Number.isFinite);
+
+  // 变异系数 CV = 标准差 / 均值 × 100%，衡量结果离散程度
+  const cv = (arr) => {
+    if (arr.length < 2) return null;
+    const mean = arr.reduce((s, v) => s + v, 0) / arr.length;
+    if (!mean) return null;
+    const variance = arr.reduce((s, v) => s + (v - mean) ** 2, 0) / arr.length;
+    return (Math.sqrt(variance) / mean) * 100;
+  };
+
+  const completionCv = cv(completions);
+  const profitCv = cv(profits);
+  const scoreCv = cv(scores);
+
+  const total = rows.length;
+  const bestScore = scores.length ? Math.max(...scores) : 0;
+  const last = rows[rows.length - 1];
+  const lastScore = num(last?.score);
+  const convergeRatio = bestScore > 0 && Number.isFinite(lastScore) ? lastScore / bestScore : null;
+  const converged = convergeRatio != null && convergeRatio >= 0.95;
+
+  const enoughData = total >= 3 && completions.length >= 2 && scores.length >= 2;
+
+  // 完成率一致性评级
+  let consistencyLevel = '高';
+  if (completionCv != null && completionCv > 12) consistencyLevel = '低';
+  else if (completionCv != null && completionCv > 5) consistencyLevel = '中';
+
+  // 综合可靠性评级
+  let reliability = '高';
+  let reliabilityType = 'success';
+  if (!enoughData) { reliability = '低'; reliabilityType = 'danger'; }
+  else if (consistencyLevel !== '高' || !converged) { reliability = '中'; reliabilityType = 'warning'; }
+
+  const fmt = (v) => (v == null ? '--' : `${v.toFixed(1)}%`);
+
+  let conclusion;
+  if (!enoughData) {
+    conclusion = `当前仅有 ${total} 组实验数据（有效完成率 ${completions.length} 组、有效得分 ${scores.length} 组），样本量不足，结论稳定性无法确认，建议增加迭代轮次后再行验证。`;
+  } else {
+    const convText = converged
+      ? `末轮（第 ${last?.iteration ?? '--'} 轮）得分已稳定在最高水平附近，收敛性良好`
+      : `末轮得分仅为最高分的 ${(convergeRatio * 100).toFixed(0)}%，尚未完全收敛`;
+    conclusion = `共验证 ${total} 组实验：订单完成率变异系数 ${fmt(completionCv)}、净利润变异系数 ${fmt(profitCv)}、综合得分变异系数 ${fmt(scoreCv)}，${convText}。整体结果${
+      reliability === '高' ? '高度一致' : reliability === '中' ? '基本一致' : '波动较大'
+    }，${reliability === '低' ? '建议补充实验后再下结论' : '对比结论可作为后续反事实实验与策略决策的参考基线。'}`;
+  }
+
+  return {
+    total,
+    reliability,
+    reliabilityType,
+    completionCvText: fmt(completionCv),
+    profitCvText: fmt(profitCv),
+    scoreCvText: fmt(scoreCv),
+    converged,
+    lastIteration: last?.iteration ?? '--',
+    conclusion
+  };
+});
+
+const verificationItems = computed(() => {
+  const s = verificationSummary.value;
+  if (!s) return [];
+  const completionCvNum = parseFloat(s.completionCvText);
+  return [
+    { label: '验证实验数', value: `${s.total} 组`, tone: '' },
+    {
+      label: '完成率波动(CV)',
+      value: s.completionCvText,
+      tone: Number.isFinite(completionCvNum) ? (completionCvNum > 12 ? 'warn' : 'good') : ''
+    },
+    { label: '利润波动(CV)', value: s.profitCvText, tone: '' },
+    { label: '得分波动(CV)', value: s.scoreCvText, tone: '' },
+    { label: '收敛状态', value: s.converged ? '已收敛' : '未完全收敛', tone: s.converged ? 'good' : 'warn' },
+    {
+      label: '可靠性评级',
+      value: s.reliability,
+      tone: s.reliability === '高' ? 'good' : s.reliability === '中' ? 'warn' : 'danger'
+    }
+  ];
 });
 
 const parameterMatrixRows = computed(() => {
@@ -708,20 +840,14 @@ const exportReport = (format = 'html') => {
     return;
   }
 
+  if (format === 'pdf') {
+    exportReportPdf();
+    return;
+  }
+
   exporting.value = true;
 
   try {
-    if (format === 'pdf') {
-      const w = window.open('', '_blank');
-      if (!w) { ElMessage.warning('浏览器拦截了弹窗，请允许后重试'); exporting.value = false; return; }
-      w.document.open();
-      w.document.write(generateReportHtml(reportData.value));
-      w.document.close();
-      setTimeout(() => { w.print(); exporting.value = false; }, 500);
-      ElMessage.success('已打开PDF打印窗口，请选择"另存为PDF"保存');
-      return;
-    }
-
     const isHtml = format === 'html';
     const content = isHtml ? generateReportHtml(reportData.value) : generateReportText(reportData.value);
     const blob = new Blob([content], { type: isHtml ? 'text/html;charset=utf-8' : 'text/plain;charset=utf-8' });
@@ -741,7 +867,104 @@ const exportReport = (format = 'html') => {
     }
     ElMessage.error('导出报告失败');
   } finally {
-    if (format !== 'pdf') exporting.value = false;
+    exporting.value = false;
+  }
+};
+
+// 真正生成 PDF 文件：将报告 DOM 高清截图后按 A4 分页输出
+const exportReportPdf = async () => {
+  const el = reportContentRef.value;
+  if (!el) {
+    ElMessage.warning('报告内容尚未就绪，请稍后重试');
+    return;
+  }
+
+  exporting.value = true;
+  let restore = () => {};
+
+  try {
+    // 临时展开内部滚动区，确保超出视口的内容也能被完整捕获
+    const scrollEl = el.querySelector('.report-scroll');
+    if (scrollEl) {
+      const prev = {
+        el: { overflow: el.style.overflow, height: el.style.height, flex: el.style.flex },
+        scroll: {
+          overflow: scrollEl.style.overflow,
+          height: scrollEl.style.height,
+          flex: scrollEl.style.flex,
+          minHeight: scrollEl.style.minHeight
+        }
+      };
+      el.style.overflow = 'visible';
+      el.style.height = 'auto';
+      el.style.flex = '0 0 auto';
+      scrollEl.style.overflow = 'visible';
+      scrollEl.style.height = 'auto';
+      scrollEl.style.flex = '0 0 auto';
+      scrollEl.style.minHeight = '0';
+      restore = () => {
+        Object.assign(el.style, prev.el);
+        Object.assign(scrollEl.style, prev.scroll);
+      };
+    }
+
+    await nextTick();
+
+    const canvas = await html2canvas(el, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      windowWidth: document.documentElement.clientWidth
+    });
+
+    restore();
+    restore = () => {};
+
+    // A4 横向分页
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const margin = 28;
+    const contentW = pageW - margin * 2;
+    const contentH = pageH - margin * 2;
+
+    const imgW = canvas.width;
+    const imgH = canvas.height;
+    const scaleFactor = contentW / imgW;          // 像素 → pt
+    const sliceHpx = contentH / scaleFactor;      // 每页可容纳的像素高度
+    const overlapPx = 24;                          // 页间重叠，避免文字被截断
+
+    let renderedH = 0;
+    let pageIndex = 0;
+    while (renderedH < imgH) {
+      const startY = Math.max(0, renderedH - (pageIndex > 0 ? overlapPx : 0));
+      const curSliceH = Math.min(sliceHpx + (pageIndex > 0 ? overlapPx : 0), imgH - startY);
+
+      const sliceCanvas = document.createElement('canvas');
+      sliceCanvas.width = imgW;
+      sliceCanvas.height = curSliceH;
+      const ctx = sliceCanvas.getContext('2d');
+      ctx.drawImage(canvas, 0, startY, imgW, curSliceH, 0, 0, imgW, curSliceH);
+
+      if (pageIndex > 0) pdf.addPage();
+      pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 0.95), 'JPEG', margin, margin, contentW, curSliceH * scaleFactor);
+
+      renderedH += sliceHpx;
+      pageIndex++;
+    }
+
+    const safeName = String(reportData.value?.experiment_id || 'report').replace(/[\\/:*?"<>|]/g, '_');
+    pdf.save(`实验报告_${safeName}.pdf`);
+    ElMessage.success(`报告已导出为 PDF（共 ${pageIndex} 页）`);
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.error('[EXreport] PDF 导出失败:', error);
+    }
+    ElMessage.error('PDF 导出失败，请重试');
+  } finally {
+    restore();
+    exporting.value = false;
   }
 };
 
@@ -1095,6 +1318,86 @@ onMounted(() => {
   flex: 0 0 auto;
   color: #64748b;
   font-size: 12px;
+}
+
+.overview-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* ---- 实验验证 ---- */
+.report-verification {
+  border-left: 4px solid #10b981;
+  background: linear-gradient(135deg, #ecfdf5, #ffffff);
+}
+
+.report-verification .section-head {
+  padding: 10px 16px;
+  border-bottom: 1px solid #d1fae5;
+}
+
+.report-verification .section-head h2 {
+  color: #047857;
+}
+
+.verification-body {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.verification-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.verify-item {
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.verify-label {
+  display: block;
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.verify-value {
+  display: block;
+  margin-top: 3px;
+  font-size: 15px;
+  color: #0f172a;
+  font-weight: 800;
+}
+
+.verify-value.good { color: #059669; }
+.verify-value.warn { color: #d97706; }
+.verify-value.danger { color: #dc2626; }
+
+.verification-conclusion {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #d1fae5;
+  border-radius: 8px;
+  background: #f0fdf4;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #065f46;
+  font-weight: 600;
+}
+
+.verification-empty {
+  padding: 20px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13px;
 }
 
 .session-list,

@@ -172,6 +172,8 @@ import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
 import { buildUraniumReportViewModel } from '@/views/SCnet/adapters/uraniumMockAnalysisAdapter'
 import AnalysisPageHero from './components/shared/AnalysisPageHero.vue'
+import html2canvas from 'html2canvas'
+import { jsPDF } from 'jspdf'
 import './components/shared/midStage.css'
 
 const route = useRoute()
@@ -289,17 +291,52 @@ async function exportPdf() {
   if (!reportRef.value || exportingPdf.value) return
   exportingPdf.value = true
   try {
-    const { default: html2pdf } = await import('html2pdf.js')
     const scenarioName = isAuto.value ? '汽车供应链' : '铀供应链'
-    await html2pdf().set({
-      margin: [10, 10, 12, 10],
-      filename: `${scenarioName}决策分析报告.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-    }).from(reportRef.value).save()
-    ElMessage.success('PDF 报告已生成')
+
+    // 将报告 DOM 高清截图
+    const canvas = await html2canvas(reportRef.value, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      windowWidth: document.documentElement.clientWidth
+    })
+
+    // A4 横向分页输出（与 EXreport 导出逻辑保持一致）
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
+    const pageW = pdf.internal.pageSize.getWidth()
+    const pageH = pdf.internal.pageSize.getHeight()
+    const margin = 28
+    const contentW = pageW - margin * 2
+    const contentH = pageH - margin * 2
+
+    const imgW = canvas.width
+    const imgH = canvas.height
+    const scaleFactor = contentW / imgW
+    const sliceHpx = contentH / scaleFactor
+    const overlapPx = 24
+
+    let renderedH = 0
+    let pageIndex = 0
+    while (renderedH < imgH) {
+      const startY = Math.max(0, renderedH - (pageIndex > 0 ? overlapPx : 0))
+      const curSliceH = Math.min(sliceHpx + (pageIndex > 0 ? overlapPx : 0), imgH - startY)
+
+      const sliceCanvas = document.createElement('canvas')
+      sliceCanvas.width = imgW
+      sliceCanvas.height = curSliceH
+      const ctx = sliceCanvas.getContext('2d')
+      ctx.drawImage(canvas, 0, startY, imgW, curSliceH, 0, 0, imgW, curSliceH)
+
+      if (pageIndex > 0) pdf.addPage()
+      pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 0.95), 'JPEG', margin, margin, contentW, curSliceH * scaleFactor)
+
+      renderedH += sliceHpx
+      pageIndex++
+    }
+
+    pdf.save(`${scenarioName}决策分析报告.pdf`)
+    ElMessage.success(`PDF 报告已生成（共 ${pageIndex} 页）`)
   } catch (error) {
     console.error('[DecisionReport] PDF export failed:', error)
     ElMessage.error('PDF 生成失败，请稍后重试')

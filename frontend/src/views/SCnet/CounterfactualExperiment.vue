@@ -29,7 +29,7 @@
             <p class="eyebrow">Uranium Supply Chain</p>
             <h3>反事实实验控制区</h3>
           </div>
-          <span class="state-badge" :data-state="currentRunState.running ? 'running' : simState">{{ currentRunState.running ? 'RUNNING' : stateLabel }}</span>
+          <span v-if="stateLabel" class="state-badge" :data-state="stateLabel.toLowerCase()">{{ stateLabel }}</span>
         </header>
 
         <div class="panel-body stack">
@@ -436,6 +436,8 @@ const EMPTY_TEXT = '无内容，需导入实验报告'
 const simTotalSteps = ref(15)  // 动态：根据实际实验轮数设定
 const STORAGE_KEY = 'scnet_counterfactual_imported_reports'
 const POLLING_INTERVAL_MS = 5000
+// 提交到后端队列后，若轮询接口持续失败超过该时长，判定后端仿真不可用，自动回退到合成分析
+const POLL_FALLBACK_AFTER_MS = 60000
 
 const toFiniteNumber = (value, fallback = 0) => {
   const numberValue = Number(value)
@@ -454,13 +456,26 @@ const formatRange = (range) => Array.isArray(range) && range.length >= 2
   ? `${formatNumber(range[0])}-${formatNumber(range[1])}`
   : '--'
 
+/**
+ * 判断报告是否为铀供应链场景：
+ * 优先使用报告自带的 scenario 字段（后端 run.py 已写入），
+ * 其次按文件名/标题关键词兜底（兼容旧报告）。
+ */
+const detectUraniumReport = (report = {}) => {
+  const scenario = report?.scenario
+  if (scenario === 'uranium') return true
+  if (scenario === 'supply_chain' || scenario === 'automotive') return false
+  const source = String(report?.source || '').toLowerCase()
+  const title = String(report?.title || '').toLowerCase()
+  return source.includes('uranium') || title.includes('uranium')
+}
+
 const buildCounterfactualParameterControls = (report) => {
   const capacityRange = Array.isArray(report.parameters.factoryCapacityRange)
     ? report.parameters.factoryCapacityRange
     : [0, 0]
   // 检测场景 → 使用专用单位与描述
-  const reportSource = (report.source || '').toLowerCase()
-  const isUranium = reportSource.includes('uranium') || reportSource.includes('')
+  const isUranium = detectUraniumReport(report)
 
   return [
     {
@@ -518,8 +533,7 @@ const buildImportedReport = (report) => {
   const backlogRate = Math.max(0, 1 - completionRate)
   const capacityRange = formatRange(report.parameters.factoryCapacityRange)
   const adjustmentRatio = formatPercent(report.parameters.adjustmentRatio)
-  const reportSource = (report.source || '').toLowerCase()
-  const isUranium = reportSource.includes('uranium') || reportSource.includes('')
+  const isUranium = detectUraniumReport(report)
 
   const baseMetrics = isUranium ? [
     { label: '最佳轮次', value: `第 ${report.bestIteration} 轮` },
@@ -613,6 +627,7 @@ const normalizeUploadedReport = (payload, fileName) => {
 
   return {
     source: fileName,
+    scenario: payload?.scenario || null,
     title: `导入实验报告：${fileName}`,
     timestamp: payload?.timestamp ? String(payload.timestamp).replace('T', ' ').slice(0, 19) : '未知时间',
     totalIterations: toFiniteNumber(payload?.total_iterations ?? iterations.length, 1),
@@ -621,7 +636,7 @@ const normalizeUploadedReport = (payload, fileName) => {
     avgCompletionRate: normalizeRate(summary.avg_completion_rate ?? orderCompletionRate, orderCompletionRate),
     avgRobustness: normalizeRate(summary.avg_robustness ?? bestIteration?.feedback?.robustness, 0),
     goal: bestIteration?.goal || payload?.goal ||
-      ((payload?.system || fileName || '').toLowerCase().includes('uranium')
+      (payload?.scenario === 'uranium' || (payload?.system || fileName || '').toLowerCase().includes('uranium')
         ? '分析全球供应链网络演化规律，评估矿山产能、新矿投产策略对供应安全的影响'
         : '市场需求强度上升时，制造总产能需要如何调整，才能减少订单积压并保持完成率稳定'),
     parameters: {
@@ -684,8 +699,7 @@ const buildStoredParameterFallback = (experiment) => {
   const capacityValues = String(capacity?.current || '').match(/-?\d+(?:\.\d+)?/g) || []
   const adjustmentText = capacity?.reason || ''
   const adjustmentMatch = adjustmentText.match(/-?\d+(?:\.\d+)?%/)
-  const reportSource = (experiment?.report?.source || '').toLowerCase()
-  const isUranium = reportSource.includes('uranium') || reportSource.includes('')
+  const isUranium = detectUraniumReport(experiment?.report)
 
   return [
     {
@@ -943,10 +957,11 @@ const eventConfigs = [
 ]
 
 const stateLabel = computed(() => {
+  if (currentRunState.value.running) return 'RUNNING'
   if (simState.value === 'running') return 'RUNNING'
   if (simState.value === 'paused') return 'PAUSED'
   if (simState.value === 'preparing') return 'PREPARING'
-  return 'READY'
+  return ''
 })
 
 const simProgress = computed(() => Math.min(100, (simStep.value / Math.max(simTotalSteps.value, 1)) * 100))
@@ -984,6 +999,10 @@ const eventContext = computed(() => ({
 
 let timer = null
 let runPollingTimer = null
+// 轮询连续失败的起始时间戳；0 表示当前处于健康状态
+let pollFailStreakStartedAt = 0
+// 合成回退进行中标记，防止重叠轮询触发重复回退
+let syntheticFallbackInProgress = false
 
 const getActiveParameterValue = (key, fallback = 0) => {
   const parameter = activeCounterfactualParams.value.find((item) => item.key === key)
@@ -1008,10 +1027,9 @@ const buildCounterfactualParamOverrides = () => {
 
 const buildCounterfactualRunPayload = () => {
   const paramOverrides = buildCounterfactualParamOverrides()
-  // 检测是否为数据 → 自动切换 scenario
+  // 检测是否为铀场景 → 自动切换 scenario
   const reportSource = (activeCounterfactualExperiment.value?.report?.source || '').toLowerCase()
-  const reportTitle = (activeCounterfactualExperiment.value?.report?.title || '').toLowerCase()
-  const isUranium = reportSource.includes('uranium') || reportTitle.includes('uranium') || reportTitle.includes('')
+  const isUranium = detectUraniumReport(activeCounterfactualExperiment.value?.report)
   // 检测基线类型：network(28轮网络演化) vs resource(7轮资源评估)
   const isNetworkBaseline = reportSource.includes('uranium_network')
   const scenario = isUranium ? 'uranium' : 'supply_chain'
@@ -1140,8 +1158,7 @@ const runSyntheticCounterfactual = () => {
   const paramControls = report.counterfactualParameters || []
 
   // 检测场景 → 使用专用弹性系数
-  const reportSource = (report.source || '').toLowerCase()
-  const isUranium = reportSource.includes('uranium') || reportSource.includes('')
+  const isUranium = detectUraniumReport(report)
 
   // 计算参数变化比例
   const capacityParam = paramControls.find(p => p.key === 'factory_capacity_max')
@@ -1178,6 +1195,7 @@ const runSyntheticCounterfactual = () => {
   const syntheticScore = syntheticCompletion * 40 + Math.min(syntheticProfit / (isUranium ? 1000 : 100), 100) * 0.35 + 25
 
   const primaryResult = {
+    bestIteration: report.bestIteration,
     completionRate: roundNumber(syntheticCompletion, 4),
     backlogRate: roundNumber(syntheticBacklog, 4),
     overallScore: roundNumber(syntheticScore, 3),
@@ -1199,6 +1217,18 @@ const runSyntheticCounterfactual = () => {
 
   return { primary: primaryResult, secondary: secondaryResult }
 }
+
+/**
+ * 把合成反事实结果整理成与真实后端结果一致的展示结构：
+ * 主策略指标铺到顶层（供顶部指标卡直接读取），同时保留 primary/secondary 供策略对比。
+ */
+const buildSyntheticRunResult = (rs, synthetic) => ({
+  ...synthetic.primary,
+  primary: synthetic.primary,
+  secondary: synthetic.secondary,
+  taskId: rs.taskId,
+  completedAt: rs.completedAt
+})
 
 const startSim = async () => {
   if (!activeCounterfactualExperiment.value) {
@@ -1272,12 +1302,12 @@ const startSim = async () => {
 
       const synthetic = runSyntheticCounterfactual()
       if (synthetic) {
-        rs.results = synthetic
         rs.status = 'completed'
         rs.completedAt = new Date().toLocaleString()
         rs.message = '合成反事实分析完成（基于导入数据的参数敏感性推算）'
         rs.experimentId = `synthetic_${Date.now()}`
         rs.resultPath = '(合成分析 - 无后端仿真)'
+        rs.result = buildSyntheticRunResult(rs, synthetic)
         simState.value = 'idle'
         if (timer) clearInterval(timer)
         timer = null
@@ -1375,6 +1405,7 @@ const generateReport = () => {
 
 const startRunPolling = () => {
   stopRunPolling()
+  pollFailStreakStartedAt = 0  // 新一轮轮询从健康状态开始
   runPollingTimer = window.setInterval(pollRunTask, POLLING_INTERVAL_MS)
   pollRunTask()
 }
@@ -1386,11 +1417,60 @@ const stopRunPolling = () => {
   }
 }
 
+/**
+ * 后端仿真不可用 → 自动回退到“数据驱动的合成分析”模式：
+ * 停止轮询与进度模拟，基于导入报告参数推算一个合成结果，并铺到展示结构。
+ * @param {string} failReason 触发回退的原因描述，用于日志与报错展示
+ */
+const executeSyntheticFallback = async (failReason = '后端仿真不可用') => {
+  if (syntheticFallbackInProgress) return  // 防止重叠回退
+  syntheticFallbackInProgress = true
+  try {
+    const rs = getOrCreateRunState()
+    console.warn(`后端仿真不可用，自动切换到合成分析模式: ${failReason}`)
+    ElMessage.warning('后端仿真不可用，自动使用数据驱动的合成分析')
+    stopRunPolling()
+    stopLocalProgressTicker()
+
+    // 模拟运行进度
+    simState.value = 'running'
+    rs.status = 'running'
+    rs.message = '正在执行合成反事实分析...'
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    simStep.value = Math.floor(simTotalSteps.value * 0.7)
+
+    const synthetic = runSyntheticCounterfactual()
+    if (synthetic) {
+      rs.status = 'completed'
+      rs.completedAt = new Date().toLocaleString()
+      rs.message = '合成反事实分析完成（后端仿真不可用，基于导入数据推算）'
+      rs.experimentId = `synthetic_${Date.now()}`
+      rs.resultPath = '(合成分析)'
+      rs.result = buildSyntheticRunResult(rs, synthetic)
+      simState.value = 'idle'
+      simStep.value = simTotalSteps.value
+      rs.running = false
+      ElMessage.success('合成反事实分析完成！可查看对比结果')
+    } else {
+      rs.running = false
+      rs.status = 'failed'
+      rs.error = failReason || '后端仿真不可用'
+      rs.message = '后端仿真不可用，且合成反事实分析无法生成。'
+      simState.value = 'idle'
+      ElMessage.error(rs.message)
+    }
+  } finally {
+    syntheticFallbackInProgress = false
+  }
+}
+
 const pollRunTask = async () => {
   const rs = getOrCreateRunState()
   if (!rs.taskId) return
 
   try {
+    // 一次成功的轮询请求即视为健康，重置连续失败计时
+    pollFailStreakStartedAt = 0
     const history = unwrapApiData(await getQueueHistory(80)) || []
     const task = history.find((item) => item.task_id === rs.taskId)
     if (!task) {
@@ -1403,38 +1483,8 @@ const pollRunTask = async () => {
     rs.resultPath = task.result_path || rs.resultPath
 
     if (task.status === 'failed') {
-      // 后端仿真失败 → 自动回退到合成分析模式
-      console.warn('后端仿真任务失败，自动切换到合成分析模式:', task.error_message)
-      ElMessage.warning('后端仿真不可用，自动使用数据驱动的合成分析')
-      stopRunPolling()
-
-      // 模拟运行进度
-      rs.status = 'running'
-      rs.message = '正在执行合成反事实分析...'
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      simStep.value = Math.floor(simTotalSteps.value * 0.7)
-
-      const synthetic = runSyntheticCounterfactual()
-      if (synthetic) {
-        rs.results = synthetic
-        rs.status = 'completed'
-        rs.completedAt = new Date().toLocaleString()
-        rs.message = '合成反事实分析完成（后端仿真不可用，基于导入数据推算）'
-        rs.experimentId = `synthetic_${Date.now()}`
-        rs.resultPath = '(合成分析)'
-        simState.value = 'idle'
-        simStep.value = simTotalSteps.value
-        stopLocalProgressTicker()
-        rs.running = false
-        ElMessage.success('合成反事实分析完成！可查看对比结果')
-      } else {
-        rs.running = false
-        rs.error = task.error_message || '后端实验运行失败'
-        rs.message = '后端反事实实验异常中止，合成分析也无法生成。'
-        simState.value = 'idle'
-        stopLocalProgressTicker()
-        ElMessage.error(rs.message)
-      }
+      // 后端仿真任务失败 → 自动回退到合成分析模式
+      await executeSyntheticFallback(task.error_message || '后端反事实实验运行失败')
       return
     }
 
@@ -1458,7 +1508,20 @@ const pollRunTask = async () => {
 
     rs.message = `后端实验运行中：${taskStatusText(rs.status)}`
   } catch (error) {
-    rs.message = `轮询后端队列失败，稍后自动重试：${error?.message || '未知错误'}`
+    const now = Date.now()
+    if (!pollFailStreakStartedAt) pollFailStreakStartedAt = now
+    const failSeconds = Math.round((now - pollFailStreakStartedAt) / 1000)
+
+    // 连续轮询失败超过阈值 → 判定后端仿真不可用，自动切换合成分析
+    if (failSeconds * 1000 >= POLL_FALLBACK_AFTER_MS) {
+      pollFailStreakStartedAt = 0
+      const reason = `后端队列持续无响应 ${failSeconds} 秒：${error?.message || '未知错误'}`
+      rs.message = `后端轮询持续失败，判定后端仿真不可用，正在自动切换到合成分析...`
+      await executeSyntheticFallback(reason)
+      return
+    }
+
+    rs.message = `轮询后端队列失败（已持续 ${failSeconds} 秒），稍后自动重试：${error?.message || '未知错误'}`
   }
 }
 
@@ -1487,7 +1550,8 @@ const summarizeCounterfactualResult = (detail = {}) => {
   const completedOrders = toFiniteNumber(metrics.completed_orders)
   const backlog = Math.max(totalOrders - completedOrders, 0)
   // 检测场景
-  const isUranium = (detail.system || '').toLowerCase().includes('uranium') ||
+  const isUranium = detail.scenario === 'uranium' ||
+    (detail.system || '').toLowerCase().includes('uranium') ||
     (detail.timestamp || '').includes('uranium')
 
   return {

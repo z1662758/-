@@ -658,7 +658,23 @@ const loadDistributionData = async () => {
   }
 }
 
-// ---- ECharts 概率分布图渲染 ----
+// ---- ECharts 概率分布图渲染（平滑折线分布图） ----
+const hexToRgba = (hex, alpha) => {
+  const h = String(hex).replace('#', '')
+  const r = parseInt(h.substring(0, 2), 16)
+  const g = parseInt(h.substring(2, 4), 16)
+  const b = parseInt(h.substring(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+const areaGradient = (color) => ({
+  type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+  colorStops: [
+    { offset: 0, color: hexToRgba(color, 0.30) },
+    { offset: 1, color: hexToRgba(color, 0.02) }
+  ]
+})
+
 const renderDistributionChart = () => {
   const container = distChartRef.value
   if (!container) return
@@ -676,6 +692,12 @@ const renderDistributionChart = () => {
 
   const rows = selectedMetrics.length
   const colors = ['#3b82f6', '#22c55e']
+  // 布局：顶部为第一个图的指标名、底部为图例预留空间，并加大图与图之间的垂直间距，避免文字被遮挡
+  const TOP_SPACE = 5
+  const LEGEND_SPACE = 8
+  const ROW_GAP = rows <= 2 ? 9 : rows <= 4 ? 7 : 5
+  const usablePct = 100 - TOP_SPACE - LEGEND_SPACE
+  const rowHeightPct = Math.max(8, (usablePct - ROW_GAP * (rows - 1)) / rows)
 
   const gridItems = []
   const xAxes = []
@@ -684,11 +706,10 @@ const renderDistributionChart = () => {
 
   selectedMetrics.forEach((metricKey, idx) => {
     const opt = DIST_METRIC_OPTIONS.find(o => o.key === metricKey) || { label: metricKey, unit: '' }
-    const topPct = (idx / rows) * 100
-    const heightPct = (1 / rows) * 100 - 3
+    const topPct = TOP_SPACE + idx * (rowHeightPct + ROW_GAP)
 
     gridItems.push({
-      left: '12%', right: '5%', top: topPct + '%', height: heightPct + '%',
+      left: '13%', right: '6%', top: topPct + '%', height: rowHeightPct + '%',
       containLabel: true
     })
 
@@ -696,9 +717,12 @@ const renderDistributionChart = () => {
       gridIndex: idx,
       type: 'value',
       name: opt.unit || '',
+      nameGap: 14,
       nameTextStyle: { fontSize: 10, color: '#94a3b8' },
+      axisLine: { show: false },
+      axisTick: { show: false },
       axisLabel: { fontSize: 10, color: '#64748b' },
-      splitLine: { lineStyle: { color: '#f1f5f9' } }
+      splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } }
     })
 
     yAxes.push({
@@ -707,6 +731,8 @@ const renderDistributionChart = () => {
       name: opt.label,
       nameTextStyle: { fontSize: 11, fontWeight: 'bold', color: '#1e293b' },
       axisLabel: { fontSize: 10, color: '#64748b' },
+      axisLine: { show: false },
+      axisTick: { show: false },
       splitLine: { show: false }
     })
 
@@ -720,13 +746,13 @@ const renderDistributionChart = () => {
     const valuesA = getValues(iterA, metricKey)
     const valuesB = getValues(iterB, metricKey)
 
-    // 构建直方图数据
+    // 构建直方图分箱 → 作为折线的离散分布点（平滑曲线拟合分布形状）
     const buildHistogram = (values) => {
       if (!values.length) return []
       const min = Math.min(...values)
       const max = Math.max(...values)
       if (min === max) return [[min, values.length]]
-      const binCount = Math.min(10, Math.max(4, Math.ceil(values.length / 2)))
+      const binCount = Math.min(12, Math.max(6, Math.ceil(values.length / 1.5)))
       const binWidth = (max - min) / binCount
       const bins = Array(binCount).fill(0)
       values.forEach(v => {
@@ -741,16 +767,32 @@ const renderDistributionChart = () => {
 
     seriesItems.push(
       {
-        name: '实验 A', type: 'bar', xAxisIndex: idx, yAxisIndex: idx,
+        name: '实验 A', type: 'line', xAxisIndex: idx, yAxisIndex: idx,
         data: histA.map(([x, y]) => [x, y]),
-        barWidth: '40%', itemStyle: { color: colors[0], borderRadius: [3, 3, 0, 0], opacity: 0.75 },
-        label: { show: false }
+        smooth: 0.6,
+        symbol: 'circle', symbolSize: 6, showSymbol: true,
+        lineStyle: {
+          color: colors[0], width: 2.5,
+          shadowColor: hexToRgba(colors[0], 0.4), shadowBlur: 8, shadowOffsetY: 3
+        },
+        itemStyle: { color: colors[0], borderColor: '#fff', borderWidth: 1.5 },
+        areaStyle: { color: areaGradient(colors[0]) },
+        emphasis: { focus: 'series', scale: 1.3 },
+        z: 3
       },
       {
-        name: '实验 B', type: 'bar', xAxisIndex: idx, yAxisIndex: idx,
+        name: '实验 B', type: 'line', xAxisIndex: idx, yAxisIndex: idx,
         data: histB.map(([x, y]) => [x, y]),
-        barWidth: '40%', itemStyle: { color: colors[1], borderRadius: [3, 3, 0, 0], opacity: 0.75 },
-        label: { show: false }
+        smooth: 0.6,
+        symbol: 'diamond', symbolSize: 6, showSymbol: true,
+        lineStyle: {
+          color: colors[1], width: 2.5,
+          shadowColor: hexToRgba(colors[1], 0.4), shadowBlur: 8, shadowOffsetY: 3
+        },
+        itemStyle: { color: colors[1], borderColor: '#fff', borderWidth: 1.5 },
+        areaStyle: { color: areaGradient(colors[1]) },
+        emphasis: { focus: 'series', scale: 1.3 },
+        z: 3
       }
     )
   })
@@ -758,10 +800,15 @@ const renderDistributionChart = () => {
   distChartInstance.setOption({
     tooltip: {
       trigger: 'axis',
-      axisPointer: { type: 'shadow' },
+      axisPointer: { type: 'line', lineStyle: { color: '#94a3b8', type: 'dashed' } },
+      backgroundColor: 'rgba(255,255,255,0.97)',
+      borderColor: '#e2e8f0',
+      borderWidth: 1,
+      padding: [10, 14],
+      textStyle: { color: '#1e293b', fontSize: 12 },
       formatter: (params) => {
         const lines = params.map(p =>
-          `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:6px;"></span>${p.seriesName}: ${p.value?.[0]?.toFixed?.(3) || p.value?.[0] || '--'} → ${p.value?.[1] || 0} 次`
+          `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:6px;"></span>${p.seriesName}：<b>${p.value?.[0]?.toFixed?.(3) || p.value?.[0] || '--'}</b> → ${p.value?.[1] ?? 0} 次`
         )
         return lines.join('<br/>')
       }
@@ -770,7 +817,7 @@ const renderDistributionChart = () => {
       data: ['实验 A', '实验 B'],
       bottom: 0,
       textStyle: { fontSize: 11, color: '#64748b' },
-      itemWidth: 12, itemHeight: 12
+      itemWidth: 16, itemHeight: 4, itemGap: 24
     },
     grid: gridItems,
     xAxis: xAxes,
@@ -1104,26 +1151,32 @@ const buildLocalCases = async () => {
       .filter(Boolean)
 
     // 反事实案例：从所有实验的所有迭代中收集（不再只取最新实验）
-    const allCfCases = []
+    const rawCfCases = []
     details.forEach(({ meta, detail }) => {
       const iters = detail?.iterations || []
-      iters.forEach((iter, idx) => {
-        const cf = buildCaseFromIteration(iter, meta, allCfCases.length, 'CF')
-        if (cf) allCfCases.push(cf)
+      iters.forEach((iter) => {
+        const cf = buildCaseFromIteration(iter, meta, 0, 'CF')
+        if (cf) rawCfCases.push({ cf, meta, iter })
       })
     })
-    // 按韧性排序，最多保留 30 个
-    let counterfactualCases = allCfCases
+
+    // ---- 去重：仅剔除已在事中库展示过的同一（实验, 轮次），其余迭代全部保留 ----
+    // 此前按 experiment_id 整实验剔除，而事中库覆盖了全部实验，导致反事实库被清空、
+    // 只能落到 buildStaticCases('CF') 的 2 条静态兜底。这里改为按 (experiment_id, 轮次) 精确去重。
+    const duringKeys = new Set(duringCases.map((c) => {
+      const m = c.id?.match(/^exp-(.+?)-(\d+)$/)
+      return m ? `${m[1]}:${m[2]}` : null
+    }).filter(Boolean))
+    const cfDeduped = rawCfCases.filter(({ cf }) => {
+      const m = cf.id?.match(/^cf-(.+?)-(\d+)$/)
+      return m ? !duringKeys.has(`${m[1]}:${m[2]}`) : true
+    })
+
+    // 重新连续编号 + 按韧性排序，最多保留 30 个
+    let counterfactualCases = cfDeduped
+      .map(({ meta, iter }, idx) => buildCaseFromIteration(iter, meta, idx, 'CF'))
       .sort((a, b) => Number(b.resilience || 0) - Number(a.resilience || 0))
       .slice(0, 30)
-
-    // ---- 去重：反事实案例中排除已在事中案例出现的 experiment_id ----
-    const duringExpIds = new Set(duringCases.map(c => {
-      const m = c.id?.match(/^exp-(.+?)-\d+$/); return m ? m[1] : c.id
-    }).filter(Boolean))
-    counterfactualCases = counterfactualCases.filter(c => {
-      const m = c.id?.match(/^cf-(.+?)-\d+$/); return m ? !duringExpIds.has(m[1]) : true
-    })
 
     // ---- 事中案例内部去重（同 experiment_id 只保留最佳） ----
     const seenDuring = new Set()
@@ -1383,7 +1436,7 @@ onBeforeUnmount(() => { disposeDistChart(); disposeMetricsLineChart() })
 .dim-checkboxes { padding: 4px 8px; display: flex; flex-wrap: wrap; gap: 6px; }
 .cmp-empty-hint { text-align: center; color: #cbd5e1; font-size: 12px; padding: 12px 0; }
 
-.distribution-chart-container { width: 100%; height: 420px; margin: 8px 0; border: 1px solid #e2e8f0; border-radius: 10px; background: #fafbfc; }
+.distribution-chart-container { width: 100%; height: 470px; margin: 8px 0; border: 1px solid #e2e8f0; border-radius: 10px; background: #fafbfc; }
 
 .distribution-summary { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
 .dist-summary-card { padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; }
