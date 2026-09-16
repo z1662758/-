@@ -26,10 +26,6 @@
       </div>
     </header>
 
-    <nav class="report-anchor-nav glass-panel" aria-label="报告章节">
-      <a v-for="item in reportAnchors" :key="item.href" :href="item.href">{{ item.label }}</a>
-    </nav>
-
     <div ref="reportRef" class="pdf-report">
     <AnalysisPageHero
       eyebrow="决策结论报告"
@@ -150,9 +146,37 @@
           </div>
         </section>
 
+        <section id="report-screening" class="report-section glass-panel">
+          <div class="overview-section-head compact">
+            <div><span class="overview-kicker">09 · 方案筛选</span><h3>从初始集合到优选执行方案</h3></div>
+            <span class="section-meta">蒙特卡罗采样 / 贝叶斯反馈</span>
+          </div>
+          <div class="screening-layout">
+            <div class="screening-methods">
+              <article v-for="item in screeningMethodCards" :key="item.title" class="screening-method-card">
+                <span>{{ item.step }}</span>
+                <strong>{{ item.title }}</strong>
+                <p>{{ item.text }}</p>
+              </article>
+            </div>
+            <div class="screening-table">
+              <div class="screening-row screening-head">
+                <span>阶段</span><span>方案</span><span>排序</span><span>得分</span><span>处理结果</span>
+              </div>
+              <div v-for="item in screeningRows" :key="item.id" :class="['screening-row', { best: item.isBest }]">
+                <span><el-tag size="small" :type="item.tagType" effect="plain">{{ item.phase }}</el-tag></span>
+                <span><strong>{{ item.name }}</strong><small>{{ item.note || item.outcome }}</small></span>
+                <span>{{ item.rankText }}</span>
+                <span>{{ item.scoreText }}</span>
+                <span>{{ item.resultText }}</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section id="report-risks" class="report-detail-grid">
           <article class="report-section glass-panel">
-            <div class="overview-section-head compact"><div><span class="overview-kicker">09 · 结构韧性</span><h3>期末供应结构与集中度</h3></div></div>
+            <div class="overview-section-head compact"><div><span class="overview-kicker">10 · 结构韧性</span><h3>期末供应结构与集中度</h3></div></div>
             <div class="structure-grid">
               <div v-for="item in reportVm.structureSummaryCards" :key="item.label" class="structure-card">
                 <span>{{ item.label }}</span><strong>{{ item.value }}</strong><p>{{ item.detail }}</p>
@@ -160,7 +184,7 @@
             </div>
           </article>
           <article class="report-section glass-panel">
-            <div class="overview-section-head compact"><div><span class="overview-kicker">10 · 监测清单</span><h3>触发策略调整的风险信号</h3></div></div>
+            <div class="overview-section-head compact"><div><span class="overview-kicker">11 · 监测清单</span><h3>触发策略调整的风险信号</h3></div></div>
             <div class="alert-list">
               <div v-for="(item, index) in reportVm.alerts" :key="item" class="alert-row"><span>{{ index + 1 }}</span><p>{{ item }}</p></div>
               <el-empty v-if="!reportVm.alerts.length" description="当前实验没有新增风险告警" :image-size="54" />
@@ -169,7 +193,7 @@
         </section>
 
         <section id="report-conclusion" class="final-conclusion">
-          <span>11 · 综合决策</span>
+          <span>12 · 综合决策</span>
           <h2>{{ reportVm.decisionSummary.recommendedStrategy }}</h2>
           <p>{{ reportVm.decisionSummary.headline }}</p>
           <div><strong>适用场景</strong>{{ reportVm.decisionSummary.scenarioLabel }} · {{ reportVm.decisionSummary.timeLabel }} · {{ reportVm.decisionSummary.eventName }}</div>
@@ -201,14 +225,6 @@ const exportingPdf = ref(false)
 const generatedAt = ref(new Date().toLocaleString('zh-CN', { hour12: false }))
 const selectedReportId = ref('')
 const isAuto = computed(() => route.query.scenario === 'supply_chain')
-const reportAnchors = Object.freeze([
-  { label: '总体结论', href: '#report-summary' },
-  { label: '分析摘要', href: '#report-digest' },
-  { label: '执行计划', href: '#report-actions' },
-  { label: '压力窗口', href: '#report-windows' },
-  { label: '策略评估', href: '#report-strategies' },
-  { label: '综合决策', href: '#report-conclusion' }
-])
 const uraniumStore = useUraniumDemoStore()
 const snapshotStore = useAnalysisSnapshotStore()
 const { history, selectedExperiment, selectedExperimentId } = storeToRefs(uraniumStore)
@@ -312,6 +328,41 @@ const evidence = computed(() => reportVm.value?.analysisRecoveryCards?.slice(1).
   { title: '脆弱性分析', detail: '从节点依赖矩阵、结构替代能力和物流稳定性识别关键脆弱点。', icon: markRaw(Grid), tone: 'blue' },
   { title: '对策分析', detail: '对比不干预基线与调控路径，评估动作的时间、成本和改善效果。', icon: markRaw(Promotion), tone: 'orange' }
 ])
+const screeningMethodCards = computed(() => {
+  const candidateCount = reportVm.value?.decisionSummary?.candidateRows?.length || 0
+  const windowCount = reportVm.value?.focusWindowCards?.length || 0
+  return [
+    {
+      step: '01',
+      title: '初始方案集合',
+      text: `从推演结果、专家规则和候选对策树中抽取 ${candidateCount || '--'} 个方案，覆盖保供、库存、合同与通道调整。`
+    },
+    {
+      step: '02',
+      title: '蒙特卡罗优先级排序',
+      text: `围绕 ${windowCount || '--'} 个年度窗口反复采样供需波动、运输延迟和事件冲击，形成方案稳健性排序。`
+    },
+    {
+      step: '03',
+      title: '贝叶斯反馈剔除',
+      text: '根据最新风险、缺口和库存覆盖结果修正后验权重，优选执行高收益方案，剔除约束不足或改善有限的方案。'
+    }
+  ]
+})
+const screeningRows = computed(() => {
+  const rows = reportVm.value?.decisionSummary?.candidateRows || []
+  return rows.map((item, index) => ({
+    ...item,
+    phase: item.isBest ? '优选执行' : index === rows.length - 1 ? '剔除观察' : '备选保留',
+    tagType: item.isBest ? 'success' : index === rows.length - 1 ? 'danger' : 'warning',
+    rankText: `第 ${index + 1} 位`,
+    resultText: item.isBest
+      ? '进入综合决策和执行计划'
+      : index === rows.length - 1
+        ? '暂不执行，作为后续复盘样本'
+        : '保留为并行预案'
+  }))
+})
 
 function toneType(tone) {
   return ({ danger: 'danger', warning: 'warning', success: 'success' })[tone] || 'info'
@@ -416,32 +467,6 @@ async function exportPdf() {
 .report-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .experiment-select { width: 190px; }
 .report-updated { margin-right: 4px; color: #94a3b8; font-size: 10px; white-space: nowrap; }
-.report-anchor-nav {
-  position: sticky;
-  top: 46px;
-  z-index: 9;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0 8px 8px;
-  padding: 6px;
-  overflow-x: auto;
-  border-color: #dbe4ee;
-  background: rgba(255,255,255,.9);
-}
-.report-anchor-nav a {
-  flex: 0 0 auto;
-  padding: 5px 9px;
-  border-radius: 7px;
-  color: #475569;
-  font-size: 11px;
-  font-weight: 700;
-  text-decoration: none;
-}
-.report-anchor-nav a:hover {
-  background: #eff6ff;
-  color: #2563eb;
-}
 .pdf-report { width: 100%; padding: 0; background: transparent; box-sizing: border-box; }
 .overview-content { padding: 0 8px; }
 .overview-verdict { padding: 18px 20px; margin-top: 12px; }
@@ -502,6 +527,23 @@ h3 { margin: 5px 0 0; color: #0f172a; font-size: 17px; }
 .strategy-score { display: flex; flex-direction: column; align-items: flex-end; }
 .strategy-score strong { color: #2563eb !important; font-size: 15px !important; }
 .strategy-score span { color: #64748b; font-size: 10px; }
+.screening-layout { display: grid; grid-template-columns: .9fr 1.5fr; gap: 12px; align-items: start; }
+.screening-methods { display: grid; gap: 8px; }
+.screening-method-card { padding: 12px; border: 1px solid #e2e8f0; border-left: 3px solid #0ea5e9; border-radius: 8px; background: #f8fafc; }
+.screening-method-card span { color: #0ea5e9; font-size: 10px; font-weight: 800; }
+.screening-method-card strong { display: block; margin-top: 4px; color: #0f172a; font-size: 13px; }
+.screening-method-card p { margin: 5px 0 0; color: #64748b; font-size: 11px; line-height: 1.6; }
+.screening-table { overflow: hidden; border: 1px solid #e2e8f0; border-radius: 9px; }
+.screening-row { display: grid; grid-template-columns: 88px minmax(160px, 1fr) 72px 88px minmax(130px, .75fr); align-items: center; min-height: 44px; border-top: 1px solid #edf2f7; }
+.screening-row:first-child { border-top: 0; }
+.screening-row.best { background: #f0fdf4; }
+.screening-row > span { min-width: 0; padding: 8px 10px; color: #475569; font-size: 11px; line-height: 1.45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.screening-head { min-height: 34px; background: #f8fafc; }
+.screening-head > span { color: #64748b; font-size: 10px; font-weight: 800; }
+.screening-row strong,
+.screening-row small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.screening-row strong { color: #0f172a; font-size: 12px; }
+.screening-row small { margin-top: 2px; color: #94a3b8; font-size: 10px; }
 .report-detail-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 12px; }
 .structure-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 8px; }
 .structure-card { padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; }
@@ -521,18 +563,17 @@ h3 { margin: 5px 0 0; color: #0f172a; font-size: 17px; }
   .report-actions { flex-wrap: wrap; justify-content: flex-end; }
   .analysis-digest-grid { grid-template-columns: 1fr; }
   .overview-grid,
-  .report-detail-grid { grid-template-columns: 1fr; }
+  .report-detail-grid,
+  .screening-layout { grid-template-columns: 1fr; }
   .verdict-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .window-table { overflow-x: auto; }
+  .window-table,
+  .screening-table { overflow-x: auto; }
   .window-row { min-width: 820px; }
+  .screening-row { min-width: 760px; }
 }
 @media (max-width: 760px) {
   .overview-page { padding-inline: 4px; }
   .overview-content { padding-inline: 2px; }
-  .report-anchor-nav {
-    top: 42px;
-    margin-inline: 4px;
-  }
   .report-toolbar,
   .report-heading { align-items: stretch; flex-direction: column; }
   .report-actions { justify-content: flex-start; }
@@ -547,8 +588,7 @@ h3 { margin: 5px 0 0; color: #0f172a; font-size: 17px; }
 }
 @media print {
   .report-toolbar,
-  .analysis-link-tabs,
-  .report-anchor-nav { display: none; }
+  .analysis-link-tabs { display: none; }
   .overview-page { padding: 0; background: #fff; }
   .glass-panel { box-shadow: none !important; break-inside: avoid; }
   .analysis-digest-card,

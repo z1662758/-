@@ -197,10 +197,27 @@
             <div class="analysis-column-head">
               <span class="analysis-column-index">03</span>
               <div>
-                <h3>候选动作排序</h3>
-                <p>动作赛道、结果差异与推荐顺序，可直接定位到策略节点。</p>
+                <h3>方案优先级排序</h3>
+                <p>按评分保留优选、备选和剔除结果。</p>
               </div>
             </div>
+
+            <el-table
+              :data="strategyScreeningRows"
+              size="small"
+              stripe
+              class="strategy-screening-table"
+              empty-text="暂无方案排序"
+            >
+              <el-table-column prop="rankText" label="序" width="44" />
+              <el-table-column prop="name" label="方案" min-width="112" show-overflow-tooltip />
+              <el-table-column prop="scoreText" label="评分" width="70" />
+              <el-table-column prop="decision" label="状态" width="82">
+                <template #default="{ row }">
+                  <el-tag size="small" :type="row.tagType" effect="light">{{ row.decision }}</el-tag>
+                </template>
+              </el-table-column>
+            </el-table>
 
             <article class="dt-focus-card" :class="{ muted: !bestStrategy }">
               <div class="dt-focus-head">
@@ -575,19 +592,33 @@ const decisionHandoffCards = computed(() => [
   {
     label: '报告结论',
     value: bestStrategy.value?.name || '等待推荐动作',
-    detail: bestStrategy.value ? `将作为报告中的优先行动方案，得分 ${bestStrategy.value.score} 分。` : '策略评分完成后自动写入报告。'
+    detail: bestStrategy.value ? `得分 ${bestStrategy.value.score} 分，进入决策生成。` : '等待策略评分。'
   },
   {
     label: '证据范围',
     value: `${dependencyCards.value.length} 项依赖`,
-    detail: '报告会保留资源、主体、信息和审批约束，便于复核执行边界。'
+    detail: '资源、主体、信息和审批约束。'
   },
   {
     label: '对比基线',
     value: baselineMetrics.value ? `${baselineMetrics.value.score} 分` : '--',
-    detail: baselineMetrics.value ? `未干预缺口率 ${baselineMetrics.value.stockoutRate}%，用于衡量干预收益。` : '等待基线指标。'
+    detail: baselineMetrics.value ? `未干预缺口率 ${baselineMetrics.value.stockoutRate}%。` : '等待基线指标。'
   }
 ])
+const strategyScreeningRows = computed(() => {
+  const rows = decisionVm.value?.strategyDeck || []
+  return rows.map((item, index) => {
+    const isBest = item.isBest || index === 0
+    const isRejected = item.score < 62 || index > 3
+    return {
+      rankText: `${index + 1}`,
+      name: item.title || item.name,
+      scoreText: item.scoreText || `${item.score}分`,
+      decision: isBest ? '优选' : isRejected ? '剔除' : '备选',
+      tagType: isBest ? 'success' : isRejected ? 'danger' : 'warning'
+    }
+  })
+})
 const selectedStrategyId = computed(() => {
   const node = nodePanel.node
   if (!node || !strategyNodeIds.value.size) return ''
@@ -1566,6 +1597,12 @@ onBeforeUnmount(() => {
   font-size: 13px;
   line-height: 1.5;
   overflow-wrap: anywhere;
+}
+
+.strategy-screening-table {
+  margin-bottom: 10px;
+  border-radius: var(--mid-radius-sm);
+  overflow: hidden;
 }
 
 .sb-items { display: flex; flex-direction: column; gap: 10px; }

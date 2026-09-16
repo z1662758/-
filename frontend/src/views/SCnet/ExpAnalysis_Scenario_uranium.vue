@@ -31,7 +31,7 @@
           <div>
             <span>SCENARIO PORTFOLIO</span>
             <strong>情景方案池与概率分布（实验估计）</strong>
-            <p>将当前实验拆分为基准、扰动和极端情景，作为脆弱性与对策评估的统一输入。</p>
+            <p>按年度窗口归并三类情景，供后续节点脆弱性和对策树调用。</p>
           </div>
           <el-tag type="primary" effect="plain">{{ scenarioPlanCards.length }} 类情景</el-tag>
         </div>
@@ -43,6 +43,35 @@
             <small>{{ item.basis }}</small>
           </article>
         </div>
+      </section>
+
+      <section class="scenario-filter-panel glass-panel">
+        <div class="scenario-plan-head">
+          <div>
+            <span>PLAN SCREENING</span>
+            <strong>方案筛选</strong>
+            <p>概率来自蒙特卡罗抽样，排序随本轮推演结果更新。</p>
+          </div>
+          <el-tag type="success" effect="plain">优选 {{ preferredPlanRows.length }} / 剔除 {{ rejectedPlanRows.length }}</el-tag>
+        </div>
+        <el-table
+          :data="scenarioScreeningRows"
+          size="small"
+          stripe
+          class="scenario-screening-table"
+          empty-text="暂无方案筛选结果"
+        >
+          <el-table-column prop="rankText" label="序" width="56" />
+          <el-table-column prop="name" label="方案" min-width="130" show-overflow-tooltip />
+          <el-table-column prop="purpose" label="作用" min-width="220" show-overflow-tooltip />
+          <el-table-column prop="monteCarlo" label="概率" width="92" />
+          <el-table-column prop="bayes" label="反馈" min-width="118" show-overflow-tooltip />
+          <el-table-column prop="status" label="结果" width="92">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.statusType" effect="light">{{ row.status }}</el-tag>
+            </template>
+          </el-table-column>
+        </el-table>
       </section>
 
       <section class="scenario-conclusion-strip glass-panel">
@@ -396,9 +425,9 @@ const scenarioPlanCards = computed(() => {
   const disruption = Math.min(rawDisruption, 80 - extreme)
   const baseline = 100 - extreme - disruption
   return [
-    { label: '基准情景', probability: baseline, tone: 'baseline', color: '#2563eb', description: '主要供应国与现有航线按计划运行。', basis: '依据：历史年度窗口与当前库存基线' },
-    { label: '扰动情景', probability: disruption, tone: 'warning', color: '#f59e0b', description: '单一供应国或主通道发生局部中断。', basis: '依据：事前风险事件、节点暴露与运输延迟' },
-    { label: '极端情景', probability: extreme, tone: 'danger', color: '#ef4444', description: '多节点叠加失效，并伴随库存与替代航线承压。', basis: '依据：高风险窗口占比与缺口放大程度' }
+    { label: '基准情景', probability: baseline, tone: 'baseline', color: '#2563eb', description: '供应与运输按计划运行。', basis: '历史窗口 / 库存基线' },
+    { label: '扰动情景', probability: disruption, tone: 'warning', color: '#f59e0b', description: '单一供应国或主通道局部中断。', basis: '风险事件 / 节点暴露 / 延迟' },
+    { label: '极端情景', probability: extreme, tone: 'danger', color: '#ef4444', description: '多节点叠加失效，库存和替代航线同步承压。', basis: '高风险窗口 / 缺口放大' }
   ]
 })
 const scenarioConclusionCards = computed(() => {
@@ -430,6 +459,36 @@ const scenarioConclusionCards = computed(() => {
   ]
 })
 const activeWindow = computed(() => scenarioVm.value?.yearWindows?.[activeWindowIndex.value] || null)
+const scenarioScreeningRows = computed(() => {
+  const cards = scenarioPlanCards.value
+  const active = activeWindow.value
+  const riskText = active?.riskText || '当前风险'
+  const routeText = active?.routeRows?.[0]?.route_label || '主通道'
+  return cards
+    .map((item, index) => {
+      const keep = item.tone === 'danger' || item.tone === 'warning' || index === 0
+      const observeOnly = item.tone === 'baseline' && cards.some(row => row.tone === 'danger')
+      return {
+        rankText: `#${index + 1}`,
+        name: item.label,
+        purpose: item.tone === 'baseline'
+          ? '保留原采购节奏，作为未干预参照。'
+          : item.tone === 'warning'
+            ? `${routeText}绕行、补库、合同补位。`
+            : `${riskText}年份启用组合应急。`,
+        monteCarlo: `${item.probability}%`,
+        bayes: item.tone === 'danger' ? '上调' : item.tone === 'warning' ? '保留' : '校准',
+        status: observeOnly ? '参照' : keep ? '优选' : '剔除',
+        statusType: observeOnly ? 'info' : keep ? 'success' : 'danger'
+      }
+    })
+    .sort((left, right) => {
+      const order = { '优选': 0, '参照': 1, '剔除': 2 }
+      return order[left.status] - order[right.status]
+    })
+})
+const preferredPlanRows = computed(() => scenarioScreeningRows.value.filter(row => row.status === '优选'))
+const rejectedPlanRows = computed(() => scenarioScreeningRows.value.filter(row => row.status === '剔除'))
 
 function selectWindow(index) {
   activeWindowIndex.value = index
@@ -486,6 +545,17 @@ watch(activeWindowIndex, () => {
 .scenario-plan-grid small { color: #94a3b8; font-size: var(--mid-fs-micro); line-height: 1.4; }
 .scenario-plan-grid article.warning { border-color: #fde68a; background: #fffbeb; }
 .scenario-plan-grid article.danger { border-color: #fecaca; background: #fef2f2; }
+
+.scenario-filter-panel {
+  margin: 0 8px 10px;
+  padding: 12px;
+}
+
+.scenario-screening-table {
+  margin-top: 10px;
+  border-radius: var(--mid-radius-sm);
+  overflow: hidden;
+}
 
 .scenario-conclusion-strip {
   display: grid;

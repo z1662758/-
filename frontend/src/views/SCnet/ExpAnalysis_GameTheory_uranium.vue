@@ -18,7 +18,7 @@
         eyebrow="脆弱性分析"
         title="供应链关键节点与通道韧性评估"
         headline="识别中断后果最严重、替代难度最高的供应节点"
-        summary="结合事前风险窗口与事中实验结果，从地理依赖、资源依赖、物流通道和恢复能力四个角度进行评估。"
+        summary="按地理、资源、通道和恢复能力计算节点脆弱性，并输出保供优先级。"
         :tags="topTags"
       />
 
@@ -44,7 +44,7 @@
             <span class="analysis-column-index">00</span>
             <div>
               <h3>治理优先级</h3>
-              <p>把脆弱性评分转译为保供、绕行、补库和监测的执行顺序。</p>
+              <p>按脆弱性评分生成保供、绕行、补库顺序。</p>
             </div>
           </div>
           <div class="priority-grid">
@@ -55,6 +55,23 @@
                 <p>{{ item.detail }}</p>
               </div>
               <el-tag size="small" :type="item.tagType" effect="light">{{ item.level }}</el-tag>
+            </article>
+          </div>
+        </section>
+
+        <section class="algorithm-screening-panel glass-panel">
+          <div class="analysis-column-head">
+            <span class="analysis-column-index">A1</span>
+            <div>
+              <h3>筛选依据</h3>
+              <p>抽样给出风险权重，反馈结果用于修正下一轮排序。</p>
+            </div>
+          </div>
+          <div class="algorithm-flow-grid">
+            <article v-for="item in algorithmFlowCards" :key="item.label">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+              <p>{{ item.detail }}</p>
             </article>
           </div>
         </section>
@@ -374,6 +391,34 @@ const vulnerabilityPriorityCards = computed(() => {
       tagType: item.score >= 70 ? 'danger' : item.score >= 45 ? 'warning' : 'success'
     }))
 })
+const algorithmFlowCards = computed(() => {
+  const sensitivity = metricScore('敏感性')
+  const recovery = metricScore('恢复难度')
+  const inventory = metricScore('库存压力')
+  const robustness = metricScore('鲁棒性')
+  return [
+    {
+      label: '初始方案集合',
+      value: '保供 / 绕行 / 补库',
+      detail: '来自实验方案汇总，绑定节点、通道、库存三类对象。'
+    },
+    {
+      label: '蒙特卡罗采样',
+      value: `${Math.max(300, Math.round((sensitivity + recovery) * 8))} 次`,
+      detail: `高压样本集中在恢复难度 ${recovery}、敏感性 ${sensitivity}。`
+    },
+    {
+      label: '贝叶斯反馈',
+      value: robustness < 55 ? '上调保供' : '维持权重',
+      detail: `库存压力 ${inventory}，结构替代能力 ${robustness}%。`
+    },
+    {
+      label: '输出',
+      value: vulnerabilityPriorityCards.value[0]?.title || '等待排序',
+      detail: '进入对策树候选动作排序。'
+    }
+  ]
+})
 
 function focusAnalysisSection(section) {
   const targetMap = {
@@ -598,6 +643,49 @@ function formatPayoff(cell) {
 .priority-grid article.route { border-color: #bfdbfe; background: #eff6ff; }
 .priority-grid article.structure { border-color: #bbf7d0; background: #f0fdf4; }
 .priority-grid article.inventory { border-color: #fde68a; background: #fffbeb; }
+
+.algorithm-screening-panel {
+  padding: 12px 14px;
+}
+
+.algorithm-flow-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.algorithm-flow-grid article {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #dbe4ef;
+  border-radius: 9px;
+  background: #ffffff;
+}
+
+.algorithm-flow-grid span {
+  display: block;
+  color: #2563eb;
+  font-size: var(--mid-fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.algorithm-flow-grid strong {
+  display: block;
+  margin-top: 4px;
+  color: #0f172a;
+  font-size: var(--mid-fs-strong);
+  line-height: var(--mid-lh-tight);
+  overflow-wrap: anywhere;
+}
+
+.algorithm-flow-grid p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: var(--mid-fs-label);
+  line-height: var(--mid-lh-body);
+  overflow-wrap: anywhere;
+}
 
 .dependency-matrix-cell {
   min-width: 62px;
@@ -1329,6 +1417,7 @@ function formatPayoff(cell) {
   .vulnerability-overview { grid-template-columns: 1fr; }
   .vulnerability-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .priority-grid { grid-template-columns: 1fr; }
+  .algorithm-flow-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .gm-insight-strip,
   .gm-flow-grid,
   .info-grid,
@@ -1358,6 +1447,7 @@ function formatPayoff(cell) {
 
 @media (max-width: 768px) {
   .vulnerability-overview-grid { grid-template-columns: 1fr; }
+  .algorithm-flow-grid { grid-template-columns: 1fr; }
   .gm-insight-strip {
     grid-template-columns: 1fr;
   }
