@@ -266,7 +266,7 @@ const route = useRoute()
 const isUranium = computed(() => route.query.scenario === 'uranium')
 
 // ========== 后端接口 ==========
-const API_BASE = import.meta.env.VITE_OSINT_API_BASE || 'http://127.0.0.1:9091/SCnet/osint'
+const API_BASE = import.meta.env.VITE_OSINT_API_BASE || '/SCnet/osint'
 
 // 兼容你项目里的 ResponseFormatter.success(data=xxx)
 const unwrapResponseData = (json) => {
