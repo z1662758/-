@@ -120,6 +120,49 @@
               </div>
             </div>
 
+            <!-- 统计检验与综合评分（后端结算） -->
+            <div class="cmp-card cmp-card--stats" v-if="currentStrategy.id && selectedStrategy">
+              <div class="cmp-card-head">
+                <el-icon><DataAnalysis /></el-icon>
+                <span>统计检验与综合评分</span>
+                <span class="head-spacer"></span>
+                <el-tag size="small" type="info" round>{{ statsLoading ? '计算中' : 'Welch t 检验' }}</el-tag>
+              </div>
+              <div class="cmp-card-body">
+                <p v-if="comparisonHint" class="stats-hint">{{ comparisonHint }}</p>
+                <template v-else>
+                  <div class="score-row">
+                    <span class="score-chip score-chip--a">策略A 综合评分 {{ comparison?.strategy_a?.score ?? '--' }} · 第 {{ comparison?.strategy_a?.rank ?? '--' }} 名</span>
+                    <span class="score-chip score-chip--b">策略B 综合评分 {{ comparison?.strategy_b?.score ?? '--' }} · 第 {{ comparison?.strategy_b?.rank ?? '--' }} 名</span>
+                  </div>
+                  <p class="stats-note">{{ scoringSummary }}</p>
+                  <div class="strategy-compare-table stats-table">
+                    <div class="strategy-compare-header">
+                      <span class="sc-label-col">指标</span>
+                      <span class="sc-val-col sc-val--a">策略A 均值</span>
+                      <span class="sc-val-col sc-val--b">策略B 均值</span>
+                      <span class="sc-val-col">差值 / p / 效应量</span>
+                      <span class="sc-val-col">检验结论</span>
+                    </div>
+                    <div class="strategy-compare-row" v-for="row in comparisonStats" :key="row.key">
+                      <span class="sc-label-col">{{ row.label }}</span>
+                      <span class="sc-val-col sc-val--a">{{ formatStatValue(row.mean_a, row.kind) }}</span>
+                      <span class="sc-val-col sc-val--b">{{ formatStatValue(row.mean_b, row.kind) }}</span>
+                      <span class="sc-val-col">
+                        <template v-if="row.available">{{ formatSigned(row.mean_diff, row.kind) }} / p={{ formatPValue(row.p_value) }} / d={{ row.cohens_d }}</template>
+                        <template v-else>--</template>
+                      </span>
+                      <span class="sc-val-col">
+                        <el-tag v-if="row.available" size="small" :type="row.significant ? 'success' : 'info'" round>{{ row.significant ? (row.better === 'A' ? 'A 显著更优' : 'B 显著更优') : '无显著差异' }}</el-tag>
+                        <span v-else class="stats-muted">样本不足</span>
+                      </span>
+                    </div>
+                  </div>
+                  <p class="stats-note stats-note--muted">口径：以月度为观测单位的 Welch t 检验 + Cohen's d + Bonferroni 校正；仅当差异统计显著时才判定优劣，综合评分为组内相对排名分。</p>
+                </template>
+              </div>
+            </div>
+
             <!-- AB综合结论 -->
             <div class="cmp-card cmp-card--conclusion" v-if="currentStrategy.id && selectedStrategy">
               <div class="cmp-card-head"><el-icon><Setting /></el-icon><span>策略A vs 策略B · 综合结论</span></div>
@@ -150,15 +193,18 @@
               </div>
             </div>
 
-            <!-- 结构方程可视化：A vs B 因果路径对比 -->
+            <!-- 结构方程可视化：A vs B 路径系数对比（后端实测估计） -->
             <div class="sem-panel" v-if="currentStrategy.id && selectedStrategy">
               <div class="sem-head">
                 <el-icon><Promotion /></el-icon>
-                <span>策略因果路径对比</span>
+                <span>结构方程路径模型</span>
+                <el-tag size="small" :type="structuralModel?.available ? 'success' : 'info'" round>{{ structuralModel?.available ? '实测路径系数' : '结构示意' }}</el-tag>
                 <span class="sem-legend"><span class="sem-dot-a"></span>A</span>
                 <span class="sem-legend"><span class="sem-dot-b"></span>B</span>
               </div>
               <div ref="semChartRef" class="sem-chart"></div>
+              <p v-if="semCaption" class="sem-caption">{{ semCaption }}</p>
+              <p class="sem-caption sem-caption--muted">以月度为观测单位做标准化 OLS（需求压力（订单量）→ 协作强度 → 供应完成率），间接效应为 Sobel 检验；β 为标准化路径系数，属统计关联结构，不做因果识别。</p>
             </div>
 
           </div>
@@ -172,6 +218,7 @@
           <header class="panel-head">
             <el-icon><WarningFilled /></el-icon>
             <span>铀供应链异常事件列表</span>
+            <el-tag size="small" type="info" round>{{ anomaliesData?.method?.label || '稳健统计检测' }}</el-tag>
             <el-select v-model="severityFilter" placeholder="严重度" size="small" clearable style="width:110px;margin-left:auto">
               <el-option label="全部" value="" /><el-option label="高" value="high" /><el-option label="中" value="medium" /><el-option label="低" value="low" />
             </el-select>
@@ -188,6 +235,10 @@
                 <span v-if="a.month">第{{ a.month }}月</span>
                 <span v-if="a.iteration">迭代{{ a.iteration }}</span>
                 <span v-if="a.change_pct">变化 {{ a.change_pct }}%</span>
+                <span v-if="a.robust_z !== undefined && a.robust_z !== null">z={{ a.robust_z }}</span>
+                <span v-if="a.baseline !== undefined && a.baseline !== null">基线 {{ a.baseline }}{{ a.unit === '%' ? '%' : '' }}</span>
+                <span v-if="a.p_adjusted !== undefined && a.p_adjusted !== null">校正 p={{ formatPValue(a.p_adjusted) }}</span>
+                <span v-if="a.confidence">置信度 {{ confidenceLabel(a.confidence) }}</span>
               </div>
             </div>
           </div>
@@ -203,6 +254,17 @@
               <section class="detail-section"><h4>可能原因</h4><ul><li v-for="c in selectedDetail.analysis.possible_causes" :key="c">{{ c }}</li></ul></section>
               <section class="detail-section"><h4>影响范围</h4><p>{{ selectedDetail.analysis.impact_scope }}</p></section>
               <section class="detail-section"><h4>建议响应</h4><p>{{ selectedDetail.analysis.suggested_response }}</p></section>
+              <section class="detail-section" v-if="selectedDetail.statistical_evidence">
+                <h4>统计证据</h4>
+                <template v-if="selectedDetail.statistical_evidence.available">
+                  <p>{{ selectedDetail.statistical_evidence.interpretation }}</p>
+                  <ul>
+                    <li v-if="selectedDetail.statistical_evidence.quantile_confirmed">已同时通过分位数栅栏（Q1-3IQR / Q3+3IQR）确认</li>
+                    <li v-for="caveat in selectedDetail.statistical_evidence.caveats" :key="caveat">{{ caveat }}</li>
+                  </ul>
+                </template>
+                <p v-else>{{ selectedDetail.statistical_evidence.note }}</p>
+              </section>
               <section class="detail-section" v-if="selectedDetail.related_metrics && Object.keys(selectedDetail.related_metrics).length">
                 <h4>关联指标快照</h4>
                 <div class="metrics-grid"><div v-for="(val,key) in selectedDetail.related_metrics" :key="key" class="metric-item"><span class="metric-label">{{ key }}</span><span class="metric-value">{{ typeof val==='number'?val.toFixed(1):val }}</span></div></div>
@@ -235,6 +297,7 @@ const backendStrategies = ref([])
 const backendComparison = ref(null)
 const strategiesLoading = ref(false)
 const strategiesLoaded = ref(false)
+const currentExperimentId = ref('')
 
 // 将后端策略转换为前端策略库格式
 const mapBackendStrategyToFrontend = (s) => {
@@ -275,6 +338,7 @@ const loadStrategiesFromBackend = async () => {
     const latest = experiments[0]
     const experimentId = latest.experiment_id || latest.id
     if (!experimentId) return
+    currentExperimentId.value = experimentId
 
     // 加载策略库
     const stratRes = await getInterventionStrategies(experimentId)
@@ -397,6 +461,7 @@ const strategyResultFields = [
 const interventionConclusion = computed(() => {
   const a = currentStrategy, b = selectedStrategy
   if (!a.id || !b?.id) return '请选择两个策略进行对比'
+  if (comparison.value?.recommendation) return comparison.value.recommendation
   const aComp = parseFloat(a.expectedCompletionDelta) || 0
   const bComp = parseFloat(b?.expectedCompletionDelta) || 0
   const aRes = parseFloat(a.resilienceDelta) || 0
@@ -418,6 +483,98 @@ const strategyAllFields = [
 const currentStrategy = reactive({ ...strategyFolders[0].children[0] })
 const selectedStrategy = ref({ ...strategyFolders[0].children[1] })
 
+// ---- 后端统计对比：综合评分 / 显著性检验 / 路径模型 ----
+const statsLoading = ref(false)
+
+const comparison = computed(() => backendComparison.value?.comparison || null)
+const comparisonStats = computed(() => comparison.value?.statistics || [])
+const cohortScoring = computed(() => backendComparison.value?.cohort_scoring || null)
+const structuralModel = computed(() => comparison.value?.structural_model || null)
+const scoringSummary = computed(() => (
+  comparison.value?.scoring_summary || cohortScoring.value?.summary || ''
+))
+
+const formatPValue = (p) => {
+  if (p === null || p === undefined) return '--'
+  const value = Number(p)
+  if (!Number.isFinite(value)) return '--'
+  return value < 0.001 ? '<0.001' : value.toFixed(3)
+}
+
+const formatBeta = (beta) => {
+  if (beta === null || beta === undefined) return '--'
+  const value = Number(beta)
+  if (!Number.isFinite(value)) return '--'
+  return (value >= 0 ? '+' : '') + value.toFixed(2)
+}
+
+const formatStatValue = (value, kind) => {
+  if (value === null || value === undefined) return '--'
+  const num = Number(value)
+  if (!Number.isFinite(num)) return '--'
+  if (kind === 'rate') return (num * 100).toFixed(2) + '%'
+  return num.toLocaleString('zh-CN', { maximumFractionDigits: 1 })
+}
+
+const formatSigned = (value, kind) => {
+  if (value === null || value === undefined) return '--'
+  const num = Number(value)
+  if (!Number.isFinite(num)) return '--'
+  if (kind === 'rate') return (num >= 0 ? '+' : '') + (num * 100).toFixed(2) + 'pp'
+  return (num >= 0 ? '+' : '') + num.toFixed(1)
+}
+
+const confidenceLabel = (level) => ({ high: '高', medium: '中', low: '低' }[level] || '--')
+
+const semCaption = computed(() => {
+  const model = structuralModel.value
+  if (!model) return ''
+  const parts = []
+  for (const slot of ['strategy_a', 'strategy_b']) {
+    const est = model.estimates?.[slot]
+    if (!est) continue
+    const label = slot === 'strategy_a' ? '策略A' : '策略B'
+    if (!est.available) {
+      parts.push(`${label}：${est.reason || '无法估计'}`)
+    } else {
+      const r2 = (est.r2_completion === null || est.r2_completion === undefined)
+        ? '' : `，R²=${Number(est.r2_completion).toFixed(3)}`
+      parts.push(`${label}：${est.variant_label}，n=${est.n} 个月${r2}`)
+    }
+  }
+  return parts.join('；')
+})
+
+const comparisonHint = computed(() => {
+  if (comparison.value) return ''
+  if (!currentStrategy._backend?.id || !selectedStrategy.value?._backend?.id) {
+    return '当前选择包含本地基线策略（无实验数据），无法做统计检验；请选择从实验补充的策略。'
+  }
+  if (!currentExperimentId.value) return '尚未加载到实验ID，无法做统计检验。'
+  return statsLoading.value ? '正在计算统计检验与路径模型…' : '暂无可用的统计对比数据。'
+})
+
+const loadStrategyComparison = async () => {
+  const aId = currentStrategy._backend?.id
+  const bId = selectedStrategy.value?._backend?.id
+  if (!currentExperimentId.value || !aId || !bId || aId === bId) {
+    backendComparison.value = null
+    renderSEMChart()
+    return
+  }
+  statsLoading.value = true
+  try {
+    const res = await compareInterventions(currentExperimentId.value, aId, bId)
+    backendComparison.value = unwrapApiData(res) || null
+  } catch (e) {
+    console.warn('加载策略统计对比失败:', e)
+    backendComparison.value = null
+  } finally {
+    statsLoading.value = false
+    renderSEMChart()
+  }
+}
+
 // ---- 结构方程可视化 ----
 const semChartRef = ref(null)
 let semChartInstance = null
@@ -426,49 +583,86 @@ const buildSEMOption = () => {
   const a = currentStrategy; const b = selectedStrategy.value
   if (!a?.id || !b?.id) return null
   try {
-    const vaA = parseFloat(a.expectedCompletionDelta) || 10
-    const vaB = parseFloat(b.expectedCompletionDelta) || 10
-    const vcA = parseInt(a.collaborationDelta) || 15
-    const vcB = parseInt(b.collaborationDelta) || 15
     const colorA = '#3b82f6'; const colorB = '#22c55e'
+    const model = structuralModel.value
+    const nodes = []
+    const links = []
+
+    const shortName = (name) => (name || '').substring(0, 12)
+
+    const buildSide = (slot, strategy, est, color, baseY) => {
+      const envId = `env_${slot}`; const medId = `m_${slot}`; const outId = `o_${slot}`
+      const estimable = Boolean(est && est.available)
+      const mediation = estimable && est.variant === 'mediation'
+      const category = slot === 'strategy_a' ? 0 : 1
+      const r2 = (estimable && est.r2_completion !== null && est.r2_completion !== undefined)
+        ? `\nR²=${Number(est.r2_completion).toFixed(2)}` : ''
+
+      nodes.push({
+        id: envId, name: '需求压力', x: 110, y: baseY,
+        itemStyle: { color }, symbolSize: 16, category
+      })
+      nodes.push({
+        id: medId,
+        name: mediation ? '协作强度' : (estimable ? '协作强度\n(无波动)' : '协作强度\n(不可估计)'),
+        x: 292, y: baseY, symbolSize: mediation ? 12 : 10,
+        itemStyle: mediation ? { color } : { color: '#cbd5e1' }, category
+      })
+      nodes.push({ id: outId, name: `供应完成率${r2}`, x: 470, y: baseY, symbolSize: 14, category: 2 })
+
+      if (mediation) {
+        links.push({
+          source: envId, target: medId, lineStyle: { color, width: 2 },
+          label: { show: true, fontSize: 8, formatter: `a  β=${formatBeta(est.a?.beta)} (p=${formatPValue(est.a?.p_value)})` }
+        })
+        links.push({
+          source: medId, target: outId, lineStyle: { color, width: 2 },
+          label: { show: true, fontSize: 8, formatter: `b  β=${formatBeta(est.b?.beta)} (p=${formatPValue(est.b?.p_value)})` }
+        })
+        links.push({
+          source: envId, target: outId, lineStyle: { color, width: 1, type: 'dashed', curveness: 0.3 },
+          label: { show: true, fontSize: 8, formatter: `c' β=${formatBeta(est.direct?.beta)} (p=${formatPValue(est.direct?.p_value)})` }
+        })
+      } else if (estimable) {
+        links.push({
+          source: envId, target: outId, lineStyle: { color, width: 2, curveness: 0.12 },
+          label: { show: true, fontSize: 8, formatter: `总效应 β=${formatBeta(est.path?.beta)} (p=${formatPValue(est.path?.p_value)})` }
+        })
+        links.push({ source: envId, target: medId, lineStyle: { color: '#cbd5e1', width: 1, type: 'dashed' } })
+      } else {
+        links.push({ source: envId, target: medId, lineStyle: { color: '#cbd5e1', width: 1, type: 'dashed' } })
+        links.push({ source: medId, target: outId, lineStyle: { color: '#cbd5e1', width: 1, type: 'dashed' } })
+      }
+    }
+
+    buildSide('strategy_a', a, model?.estimates?.strategy_a, colorA, 44)
+    buildSide('strategy_b', b, model?.estimates?.strategy_b, colorB, 176)
+
     return {
-      tooltip: { formatter: function(p) { return p.dataType === 'node' ? p.name : p.data.source + ' -> ' + p.data.target } },
+      tooltip: {
+        formatter: function (p) {
+          if (p.dataType === 'node') return String(p.name).replace('\n', ' ')
+          return `${p.data.source} → ${p.data.target}`
+        }
+      },
+      graphic: [
+        { type: 'text', left: 6, top: 4, style: { text: '月度数路径模型：外生变量 → 中介变量 → 结果变量', fill: '#94a3b8', fontSize: 9 } },
+        { type: 'text', left: 6, top: 26, style: { text: `策略A：${shortName(a.name)}`, fill: colorA, fontSize: 10, fontWeight: 'bold' } },
+        { type: 'text', left: 6, top: 158, style: { text: `策略B：${shortName(b.name)}`, fill: colorB, fontSize: 10, fontWeight: 'bold' } }
+      ],
       series: [{
         type: 'graph', layout: 'none', roam: false, draggable: false,
         categories: [{ name: '策略A' }, { name: '策略B' }, { name: '结果指标' }],
-        data: [
-          { id: 'pA', name: (a.name||'').substring(0,10), x: 76, y: 36, itemStyle: { color: colorA }, symbolSize: 16, category: 0 },
-          { id: 'pB', name: (b.name||'').substring(0,10), x: 76, y: 196, itemStyle: { color: colorB }, symbolSize: 16, category: 1 },
-          { id: 'mA_cap', name: '产能'+String(vaA>15?'+30%':vaA>10?'+15%':vaA>5?'+10%':'基线'), x: 276, y: 16, symbolSize: 11, category: 0 },
-          { id: 'mA_col', name: '协作+'+String(vcA)+'次', x: 276, y: 56, symbolSize: 11, category: 0 },
-          { id: 'mB_cap', name: '产能'+String(vaB>15?'+30%':vaB>10?'+15%':vaB>5?'+10%':'基线'), x: 276, y: 176, symbolSize: 11, category: 1 },
-          { id: 'mB_col', name: '协作+'+String(vcB)+'次', x: 276, y: 216, symbolSize: 11, category: 1 },
-          { id: 'o_comp', name: '供应完成率', x: 476, y: 66, symbolSize: 14, category: 2 },
-          { id: 'o_res', name: '网络韧性', x: 476, y: 126, symbolSize: 14, category: 2 },
-          { id: 'o_profit', name: '总利润', x: 476, y: 186, symbolSize: 14, category: 2 },
-        ],
-        links: [
-          { source: 'pA', target: 'mA_cap', lineStyle: { color: colorA, width: 2 } },
-          { source: 'pA', target: 'mA_col', lineStyle: { color: colorA, width: 2 } },
-          { source: 'pB', target: 'mB_cap', lineStyle: { color: colorB, width: 2 } },
-          { source: 'pB', target: 'mB_col', lineStyle: { color: colorB, width: 2 } },
-          { source: 'mA_cap', target: 'o_comp', lineStyle: { color: colorA, width: 1.5, type: 'dashed' } },
-          { source: 'mA_col', target: 'o_comp', lineStyle: { color: colorA, width: 1.5 } },
-          { source: 'mA_col', target: 'o_res', lineStyle: { color: colorA, width: 1.5 } },
-          { source: 'mB_cap', target: 'o_comp', lineStyle: { color: colorB, width: 1.5, type: 'dashed' } },
-          { source: 'mB_col', target: 'o_comp', lineStyle: { color: colorB, width: 1.5 } },
-          { source: 'mB_col', target: 'o_res', lineStyle: { color: colorB, width: 1.5 } },
-          { source: 'o_comp', target: 'o_profit', lineStyle: { color: '#94a3b8', width: 1 } },
-          { source: 'o_res', target: 'o_profit', lineStyle: { color: '#94a3b8', width: 1 } },
-        ],
+        data: nodes,
+        links: links,
         label: { show: true, fontSize: 9, color: '#1e293b', fontWeight: 'bold' },
         edgeSymbol: ['none', 'arrow'], edgeSymbolSize: 7,
-        lineStyle: { curveness: 0.1, opacity: 0.7 }
+        lineStyle: { curveness: 0.1, opacity: 0.75 },
+        edgeLabel: { show: true, color: '#475569' }
       }]
     }
-  } catch(e) { console.warn('SEM build failed:', e); return null }
+  } catch (e) { console.warn('SEM build failed:', e); return null }
 }
-
 let _semTimer = null
 const renderSEMChart = () => {
   if (_semTimer) clearTimeout(_semTimer)
@@ -490,6 +684,7 @@ function selectStrategy(child) {
   if (activeStrategySlot.value === 'primary') { Object.assign(currentStrategy, child); clearRunOutputForSelectionChange() }
   else { selectedStrategy.value = child; clearRunOutputForSelectionChange() }
   renderSEMChart()
+  loadStrategyComparison()
 }
 const interventionProblem = '铀矿产能受限与核电需求增长背景下，如何选择最优干预策略以维持铀供应链供应安全和完成率稳定？'
 const interventionIterations = 15
@@ -1018,11 +1213,12 @@ const exportRunReport = (format = 'html') => {
   ElMessage.success('实际运行报告已导出为HTML')
 }
 
-onMounted(() => {
-  loadStrategiesFromBackend()
+onMounted(async () => {
+  await loadStrategiesFromBackend()
   loadAnomalies()
   // 初始渲染结构方程图
   setTimeout(() => renderSEMChart(), 600)
+  loadStrategyComparison()
 })
 
 onBeforeUnmount(() => {
@@ -1830,4 +2026,18 @@ function clearRunOutputForSelectionChange() {
 .metric-value { font-size: 14px; font-weight: 900; color: #0f172a; }
 .empty-hint, .detail-empty { padding: 30px 0; text-align: center; color: #94a3b8; font-size: 12px; font-weight: 600; }
 .detail-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 60px 0; }
+/* 统计对比与路径模型 */
+.stats-hint { font-size: 12px; color: #b45309; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 8px 10px; }
+.score-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.score-chip { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; }
+.score-chip--a { color: #1d4ed8; background: #eff6ff; border: 1px solid #bfdbfe; }
+.score-chip--b { color: #15803d; background: #f0fdf4; border: 1px solid #bbf7d0; }
+.stats-note { font-size: 11px; color: #475569; margin: 6px 0 4px; line-height: 1.6; }
+.stats-note--muted { color: #94a3b8; }
+.stats-muted { font-size: 11px; color: #94a3b8; }
+.stats-table .sc-label-col { width: 96px; }
+.stats-table .strategy-compare-row { gap: 4px; }
+.sem-caption { font-size: 11px; color: #475569; margin: 0; padding: 6px 10px 0; line-height: 1.6; }
+.sem-caption--muted { color: #94a3b8; padding-bottom: 8px; }
+
 </style>
