@@ -11,8 +11,12 @@
           <strong>{{ caseFolders[0].children.length + caseFolders[1].children.length }}</strong>
         </div>
         <div class="stat-item" v-if="caseA && caseB">
-          <span>相似度</span>
-          <strong>{{ comparison?.similarity?.overall_score || computeLocalSimilarity() }}%</strong>
+          <span>加权相似度</span>
+          <strong>{{ similarityScore != null ? similarityScore + '%' : computeLocalSimilarity() + '%' }}</strong>
+        </div>
+        <div class="stat-item" v-if="analysisReady">
+          <span>显著指标</span>
+          <strong>{{ significantRows.length }}/{{ metricRows.length }}</strong>
         </div>
         <el-button text size="small" :icon="Refresh" @click="loadAllCases" :loading="loading" />
       </div>
@@ -111,8 +115,15 @@
               <button class="tab-btn" :class="{ active: activeTab === 'metrics' }" @click="activeTab = 'metrics'">指标对比</button>
               <button class="tab-btn" :class="{ active: activeTab === 'deep' }" @click="activeTab = 'deep'">深度分析</button>
               <button class="tab-btn" :class="{ active: activeTab === 'distribution' }" @click="activeTab = 'distribution'">概率分布</button>
+              <button class="tab-btn" :class="{ active: activeTab === 'counterfactual' }" @click="activeTab = 'counterfactual'">反事实推演</button>
             </div>
             <div class="compare-head-actions">
+              <el-tooltip content="关闭时按报告全部轮次对比（每侧样本=轮次数，可做显著性检验）；开启后只对比案例所属的那一轮（样本=1，无法检验）" placement="bottom">
+                <label class="focus-toggle">
+                  <el-switch v-model="focusIteration" size="small" />
+                  <span>聚焦单轮次</span>
+                </label>
+              </el-tooltip>
               <el-dropdown trigger="click" @command="exportComparisonReport">
                 <el-button type="primary" plain size="small" :icon="Download" :disabled="!caseA || !caseB">
                   导出报告<el-icon class="el-icon--right"><ArrowDown /></el-icon>
@@ -188,9 +199,28 @@
                 <div class="cmp-card-head">
                   <el-icon><Setting /></el-icon>
                   <span>实验 A vs 实验 B · 综合结论</span>
+                  <span class="head-spacer"></span>
+                  <el-tag v-if="conclusionSource?.source === 'llm'" size="small" type="success" effect="dark" round>
+                    大模型生成{{ conclusionSource.model ? ' · ' + conclusionSource.model : '' }}
+                  </el-tag>
+                  <el-tag v-else-if="analysisReady" size="small" type="info" round>统计规则生成</el-tag>
                 </div>
                 <div class="cmp-card-body">
-                  <p class="conclusion-text">{{ generateLocalRecommendation() }}</p>
+                  <p class="conclusion-text">{{ conclusionText }}</p>
+                  <div class="verdict-strip" v-if="analysis?.verdict">
+                    <span class="verdict-item">
+                      判定：
+                      <b>{{ analysis.verdict.winner === '持平' ? '持平' : '实验 ' + analysis.verdict.winner + ' 占优' }}</b>
+                      <em>（{{ analysis.verdict.reason }}）</em>
+                    </span>
+                    <span class="verdict-item">显著指标 A {{ analysis.verdict.significant_a }} / B {{ analysis.verdict.significant_b }}</span>
+                    <span class="verdict-item">占优指标 A {{ analysis.verdict.wins_a }} / B {{ analysis.verdict.wins_b }}</span>
+                  </div>
+                  <el-alert
+                    v-if="analysisError"
+                    :title="analysisError"
+                    type="warning" :closable="false" show-icon class="analysis-alert"
+                  />
                 </div>
               </div>
 
@@ -206,64 +236,243 @@
               </div>
             </div>
 
-            <!-- ===== Tab 2: 深度分析（来自案例对比分析） ===== -->
+            <!-- ===== Tab 2: 深度分析 ===== -->
             <div v-else-if="activeTab === 'deep'" class="compare-content">
-              <!-- 基础信息对比表 -->
-              <section class="compare-section">
-                <h3><el-icon><DataLine /></el-icon>基础信息对比</h3>
-                <el-table :data="buildBasicComparison()" size="small" stripe>
-                  <el-table-column prop="dimension" label="维度" width="140" />
-                  <el-table-column prop="value_a" label="实验 A"><template #default="{ row }"><span class="val-a">{{ row.value_a }}</span></template></el-table-column>
-                  <el-table-column prop="value_b" label="实验 B"><template #default="{ row }"><span class="val-b">{{ row.value_b }}</span></template></el-table-column>
-                </el-table>
-              </section>
+              <div v-if="analysisLoading" class="compare-empty-inline">
+                <p>正在执行统计检验与归因分析...</p>
+              </div>
 
-              <!-- 关键指标对比表 -->
-              <section class="compare-section">
-                <h3><el-icon><TrendCharts /></el-icon>关键指标对比</h3>
-                <el-table :data="buildMetricsComparison()" size="small" stripe>
-                  <el-table-column prop="metric" label="指标" width="140" />
-                  <el-table-column prop="value_a" label="实验 A" />
-                  <el-table-column prop="value_b" label="实验 B" />
-                  <el-table-column prop="diff" label="差异">
-                    <template #default="{ row }">
-                      <span :style="{ color: row.diff.startsWith('+') ? '#22c55e' : row.diff.startsWith('-') ? '#ef4444' : '#64748b' }">{{ row.diff }}</span>
-                    </template>
-                  </el-table-column>
-                  <el-table-column prop="better" label="更优" width="80">
-                    <template #default="{ row }">
-                      <el-tag v-if="row.better === 'A'" type="primary" size="small" effect="light">A</el-tag>
-                      <el-tag v-else-if="row.better === 'B'" type="success" size="small" effect="light">B</el-tag>
-                      <span v-else>--</span>
-                    </template>
-                  </el-table-column>
-                </el-table>
-              </section>
-
-              <!-- 相似度分析 -->
-              <section class="compare-section">
-                <h3><el-icon><Odometer /></el-icon>相似度分析</h3>
-                <div class="similarity-card">
-                  <div class="similarity-main">
-                    <div class="similarity-score">
-                      <span class="score-number">{{ comparison.similarity?.overall_score || computeLocalSimilarity() }}%</span>
-                      <el-tag :type="getSimilarityLevelType()" effect="light" round>{{ getSimilarityLevelLabel() }}</el-tag>
+              <template v-else-if="analysisReady">
+                <!-- 数据溯源 -->
+                <section class="compare-section" v-if="provenance">
+                  <h3><el-icon><Collection /></el-icon>数据溯源</h3>
+                  <div class="provenance-bar">
+                    <div class="prov-item prov-item--a">
+                      <span class="prov-tag">A</span>
+                      <div class="prov-body">
+                        <b>{{ provenance.case_a?.experiment_id }}</b>
+                        <span>{{ provenance.case_a?.report }}</span>
+                        <span>系统 {{ provenance.case_a?.system || '--' }} · {{ provenance.case_a?.total_iterations }} 轮
+                          样本{{ provenance.case_a?.focus_iteration ? '（聚焦第 ' + provenance.case_a.focus_iteration + ' 轮）' : '' }}</span>
+                        <span class="prov-llm">大模型：{{ provenance.case_a?.llm_enabled ? '启用' : '关闭' }}</span>
+                      </div>
+                    </div>
+                    <div class="prov-item prov-item--b">
+                      <span class="prov-tag">B</span>
+                      <div class="prov-body">
+                        <b>{{ provenance.case_b?.experiment_id }}</b>
+                        <span>{{ provenance.case_b?.report }}</span>
+                        <span>系统 {{ provenance.case_b?.system || '--' }} · {{ provenance.case_b?.total_iterations }} 轮
+                          样本{{ provenance.case_b?.focus_iteration ? '（聚焦第 ' + provenance.case_b.focus_iteration + ' 轮）' : '' }}</span>
+                        <span class="prov-llm">大模型：{{ provenance.case_b?.llm_enabled ? '启用' : '关闭' }}</span>
+                      </div>
+                    </div>
+                    <div class="prov-meta">
+                      <span>样本点合计 <b>{{ provenance.sample_total }}</b></span>
+                      <span>生成于 {{ provenance.generated_at }}</span>
                     </div>
                   </div>
-                  <div class="similarity-dims">
-                    <div v-for="dim in localSimilarityDims" :key="dim.dimension" class="sim-dim-item">
-                      <span class="dim-label">{{ dim.dimension }}</span>
-                      <el-progress :percentage="dim.score" :stroke-width="8" :color="dim.score >= 75 ? '#22c55e' : dim.score >= 50 ? '#eab308' : '#94a3b8'" />
+                </section>
+
+                <!-- 可比性校验 -->
+                <section class="compare-section" v-if="comparabilityLevelMeta">
+                  <h3>
+                    <el-icon><Odometer /></el-icon>可比性校验
+                    <el-tag :type="comparabilityLevelMeta.type" size="small" effect="light" round class="h3-tag">{{ comparabilityLevelMeta.text }}</el-tag>
+                  </h3>
+                  <ul v-if="comparability.warnings.length" class="warning-list">
+                    <li v-for="(w, i) in comparability.warnings" :key="i">{{ w }}</li>
+                  </ul>
+                  <p v-else class="ok-hint">两组实验来自同一系统、同一大模型配置，指标口径一致，可直接比较。</p>
+                </section>
+
+                <!-- 统计显著性 -->
+                <section class="compare-section">
+                  <h3>
+                    <el-icon><DataAnalysis /></el-icon>统计显著性检验
+                    <el-tag size="small" effect="light" round class="h3-tag">Welch t 检验 · 双侧</el-tag>
+                  </h3>
+                  <p class="section-desc">
+                    对比口径：{{ focusIteration ? '仅案例所属轮次' : '报告全部轮次' }}。
+                    样本不足 2 时无法估计方差，检验结论会标为「样本不足」而不是给出伪显著性。
+                  </p>
+                  <el-table :data="metricRows" size="small" stripe class="significance-table">
+                    <el-table-column prop="label" label="指标" width="130" fixed />
+                    <el-table-column label="实验 A" width="110">
+                      <template #default="{ row }"><span class="val-a">{{ row.value_a_text }}</span></template>
+                    </el-table-column>
+                    <el-table-column label="实验 B" width="110">
+                      <template #default="{ row }"><span class="val-b">{{ row.value_b_text }}</span></template>
+                    </el-table-column>
+                    <el-table-column label="差异 Δ" width="130">
+                      <template #default="{ row }">
+                        <span :class="row.better === 'B' ? 'delta-up' : row.better === 'A' ? 'delta-down' : 'delta-flat'">{{ row.delta_text }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="标准化差异 Δ′" width="120" align="center">
+                      <template #default="{ row }">
+                        <span class="mono">{{ formatSigned(row.standardized_delta, 2, 'σ') }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="p 值" width="90" align="center">
+                      <template #default="{ row }"><span class="mono">{{ formatPValue(row.p_value) }}</span></template>
+                    </el-table-column>
+                    <el-table-column label="Cohen's d" width="100" align="center">
+                      <template #default="{ row }">
+                        <span class="mono">{{ row.cohens_d != null ? Number(row.cohens_d).toFixed(2) : '--' }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="效应量" width="80" align="center">
+                      <template #default="{ row }"><span class="mono">{{ effectSizeLabel(row.cohens_d) }}</span></template>
+                    </el-table-column>
+                    <el-table-column label="检验结论" width="110" align="center">
+                      <template #default="{ row }">
+                        <el-tag :type="significanceTag(row).type" size="small" effect="light">{{ significanceTag(row).text }}</el-tag>
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="占优" width="80" align="center">
+                      <template #default="{ row }">{{ betterLabel(row) }}</template>
+                    </el-table-column>
+                  </el-table>
+                  <p class="table-footnote">
+                    样本量：{{ metricRows.map(r => r.label + ' ' + r.sample_a + '/' + r.sample_b).join('，') }}（A/B）
+                  </p>
+                </section>
+
+                <!-- 差异归因 -->
+                <section class="compare-section" v-if="attributionItems.length">
+                  <h3>
+                    <el-icon><TrendCharts /></el-icon>差异归因
+                    <el-tag size="small" effect="light" round class="h3-tag">按标准化差异分配贡献度</el-tag>
+                  </h3>
+                  <div class="attribution-list">
+                    <div v-for="item in attributionItems" :key="item.key" class="attr-row">
+                      <span class="attr-label">{{ item.label }}</span>
+                      <el-progress
+                        :percentage="Math.min(100, item.contribution)"
+                        :stroke-width="12"
+                        :color="item.significant ? '#ef4444' : '#3b82f6'"
+                        :format="() => item.contribution.toFixed(1) + '%'"
+                      />
+                      <span class="attr-delta" :class="item.better === 'B' ? 'delta-up' : item.better === 'A' ? 'delta-down' : 'delta-flat'">{{ item.delta_text }}</span>
+                      <el-tag v-if="item.significant" type="danger" size="small" effect="light" class="attr-flag">显著</el-tag>
                     </div>
                   </div>
-                </div>
-              </section>
+                </section>
 
-              <!-- 综合推荐 -->
-              <section class="compare-section recommendation-section">
-                <h3><el-icon><Setting /></el-icon>综合推荐</h3>
-                <el-alert :title="generateLocalRecommendation()" type="info" :closable="false" show-icon />
-              </section>
+                <!-- 演化趋势 -->
+                <section class="compare-section" v-if="trendOptions.length">
+                  <h3>
+                    <el-icon><DataLine /></el-icon>逐轮演化趋势
+                    <el-select v-model="trendMetricKey" size="small" class="trend-select">
+                      <el-option v-for="opt in trendOptions" :key="opt.key" :label="opt.label" :value="opt.key" />
+                    </el-select>
+                  </h3>
+                  <div ref="trendChartRef" class="trend-chart"></div>
+                </section>
+
+                <!-- 加权相似度 -->
+                <section class="compare-section">
+                  <h3>
+                    <el-icon><Odometer /></el-icon>加权多维相似度
+                    <el-tag size="small" effect="light" round class="h3-tag">权重按指标重要度归一化</el-tag>
+                  </h3>
+                  <div class="similarity-card">
+                    <div class="similarity-main">
+                      <div class="similarity-score">
+                        <span class="score-number">{{ analysis.similarity.overall_score }}%</span>
+                        <el-tag :type="getSimilarityLevelType()" effect="light" round>{{ analysis.similarity.level }}</el-tag>
+                      </div>
+                      <div class="shape-block" v-if="shapeInfo">
+                        <div class="shape-title">演化形态相关性</div>
+                        <template v-if="shapeInfo.correlation != null">
+                          <div class="shape-value">{{ shapeInfo.correlation.toFixed(3) }}</div>
+                          <div class="shape-desc">
+                            {{ shapeInfo.metric_label }}逐轮曲线的 Pearson 相关系数，
+                            形态相似度 {{ shapeInfo.score }}%（共 {{ shapeInfo.points }} 个对齐轮次）
+                          </div>
+                        </template>
+                        <div v-else class="shape-desc">{{ shapeInfo.note }}</div>
+                      </div>
+                    </div>
+                    <div class="similarity-dims">
+                      <div v-for="dim in analysis.similarity.dimensions" :key="dim.key" class="sim-dim-item">
+                        <span class="dim-label">{{ dim.dimension }}<em class="dim-weight">权重 {{ (dim.weight * 100).toFixed(0) }}%</em></span>
+                        <el-progress :percentage="dim.score" :stroke-width="8" :color="dim.score >= 75 ? '#22c55e' : dim.score >= 50 ? '#eab308' : '#94a3b8'" />
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <!-- 基础信息对比表 -->
+                <section class="compare-section">
+                  <h3><el-icon><Document /></el-icon>基础信息对比</h3>
+                  <el-table :data="buildBasicComparison()" size="small" stripe>
+                    <el-table-column prop="dimension" label="维度" width="140" />
+                    <el-table-column prop="value_a" label="实验 A"><template #default="{ row }"><span class="val-a">{{ row.value_a }}</span></template></el-table-column>
+                    <el-table-column prop="value_b" label="实验 B"><template #default="{ row }"><span class="val-b">{{ row.value_b }}</span></template></el-table-column>
+                  </el-table>
+                </section>
+
+                <!-- 综合结论 -->
+                <section class="compare-section recommendation-section">
+                  <h3>
+                    <el-icon><Setting /></el-icon>综合结论
+                    <el-tag v-if="conclusionSource?.source === 'llm'" type="success" size="small" effect="dark" round class="h3-tag">
+                      大模型生成{{ conclusionSource.model ? ' · ' + conclusionSource.model : '' }}
+                    </el-tag>
+                    <el-tag v-else type="info" size="small" effect="light" round class="h3-tag">统计规则生成</el-tag>
+                  </h3>
+                  <el-alert :title="conclusionText" type="info" :closable="false" show-icon />
+                </section>
+              </template>
+
+              <!-- 后端不可用 → 本地降级 -->
+              <template v-else>
+                <el-alert
+                  title="后端深度分析接口不可用，以下为本地降级结果（不含显著性检验、归因与溯源）"
+                  type="warning" :closable="false" show-icon class="analysis-alert"
+                />
+                <section class="compare-section">
+                  <h3><el-icon><DataLine /></el-icon>基础信息对比</h3>
+                  <el-table :data="buildBasicComparison()" size="small" stripe>
+                    <el-table-column prop="dimension" label="维度" width="140" />
+                    <el-table-column prop="value_a" label="实验 A"><template #default="{ row }"><span class="val-a">{{ row.value_a }}</span></template></el-table-column>
+                    <el-table-column prop="value_b" label="实验 B"><template #default="{ row }"><span class="val-b">{{ row.value_b }}</span></template></el-table-column>
+                  </el-table>
+                </section>
+                <section class="compare-section">
+                  <h3><el-icon><TrendCharts /></el-icon>关键指标对比</h3>
+                  <el-table :data="buildMetricsComparison()" size="small" stripe>
+                    <el-table-column prop="metric" label="指标" width="140" />
+                    <el-table-column prop="value_a" label="实验 A" />
+                    <el-table-column prop="value_b" label="实验 B" />
+                    <el-table-column prop="diff" label="差异" />
+                    <el-table-column prop="better" label="更优" width="80" />
+                  </el-table>
+                </section>
+                <section class="compare-section">
+                  <h3><el-icon><Odometer /></el-icon>相似度（本地估算）</h3>
+                  <div class="similarity-card">
+                    <div class="similarity-main">
+                      <div class="similarity-score">
+                        <span class="score-number">{{ computeLocalSimilarity() }}%</span>
+                        <el-tag :type="getSimilarityLevelType()" effect="light" round>{{ getSimilarityLevelLabel() }}</el-tag>
+                      </div>
+                    </div>
+                    <div class="similarity-dims">
+                      <div v-for="dim in localSimilarityDims" :key="dim.dimension" class="sim-dim-item">
+                        <span class="dim-label">{{ dim.dimension }}</span>
+                        <el-progress :percentage="dim.score" :stroke-width="8" :color="dim.score >= 75 ? '#22c55e' : dim.score >= 50 ? '#eab308' : '#94a3b8'" />
+                      </div>
+                    </div>
+                  </div>
+                </section>
+                <section class="compare-section recommendation-section">
+                  <h3><el-icon><Setting /></el-icon>综合推荐</h3>
+                  <el-alert :title="generateLocalRecommendation()" type="info" :closable="false" show-icon />
+                </section>
+              </template>
             </div>
 
             <!-- ===== Tab 3: 概率分布 ===== -->
@@ -304,7 +513,105 @@
                 <p>正在加载概率分布数据...</p>
               </div>
               <div v-else class="compare-empty-inline">
-                <p>请先选择实验 A 和实验 B，然后切换到"概率分布"tab</p>
+                <p>未取到这两个实验的逐轮指标数据（后端 /distribution 接口无返回），因此不展示分布图，避免用模拟数据误导结论。</p>
+              </div>
+            </div>
+
+            <!-- ===== Tab 4: 反事实推演 ===== -->
+            <div v-else-if="activeTab === 'counterfactual'" class="compare-content">
+              <section class="compare-section">
+                <h3><el-icon><VideoPlay /></el-icon>反事实干预推演</h3>
+                <p class="section-desc">
+                  针对已完成的实验做「如果当时把某个变量调成另一个值会怎样」的干预推断。
+                  后端按 <b>后端仿真 → 数据驱动回归 → 启发式规则</b> 逐层回退，并标明实际生效的方法。
+                </p>
+                <div class="cf-form">
+                  <div class="cf-field">
+                    <label>干预对象</label>
+                    <el-radio-group v-model="cfTarget" size="small">
+                      <el-radio-button value="A" :disabled="!caseA">实验 A{{ caseA ? ' · ' + caseA.name : '' }}</el-radio-button>
+                      <el-radio-button value="B" :disabled="!caseB">实验 B{{ caseB ? ' · ' + caseB.name : '' }}</el-radio-button>
+                    </el-radio-group>
+                  </div>
+                  <div class="cf-field">
+                    <label>干预变量</label>
+                    <el-select v-model="cfForm.variable" size="small" style="width: 150px">
+                      <el-option v-for="v in CF_VARIABLE_OPTIONS" :key="v" :label="v" :value="v" />
+                    </el-select>
+                  </div>
+                  <div class="cf-field">
+                    <label>变化幅度</label>
+                    <el-select v-model="cfForm.change" size="small" style="width: 110px">
+                      <el-option v-for="c in CF_CHANGE_OPTIONS" :key="c" :label="c" :value="c" />
+                    </el-select>
+                  </div>
+                  <el-button type="primary" size="small" :icon="VideoPlay" :loading="cfLoading" @click="runCounterfactual">
+                    执行干预推断
+                  </el-button>
+                </div>
+                <p class="cf-target-hint" v-if="cfTargetCase">
+                  当前干预数据源：<b>{{ cfTargetCase.experimentId }}</b> 第 {{ cfTargetCase.iteration }} 轮
+                  （完成率 {{ cfTargetCase.completionRate }} · 净利润 {{ cfTargetCase.metrics?.total_net_profit }}）
+                </p>
+              </section>
+
+              <el-alert v-if="cfError" :title="cfError" type="error" :closable="false" show-icon class="analysis-alert" />
+
+              <template v-if="cfResult">
+                <section class="compare-section">
+                  <h3>
+                    <el-icon><DataAnalysis /></el-icon>推断结果
+                    <el-tag :type="cfMethodTag.type" size="small" effect="light" round class="h3-tag">{{ cfMethodTag.text }}</el-tag>
+                  </h3>
+                  <div class="cf-summary">{{ cfResult.summary }}</div>
+                  <div class="cf-intervention">
+                    <span class="cf-var">{{ cfResult.intervention?.variable }}</span>
+                    <span class="cf-arrow">{{ cfResult.intervention?.current_value }} → {{ cfResult.intervention?.new_value }}</span>
+                    <span class="cf-change">{{ cfResult.intervention?.change }}</span>
+                  </div>
+                  <el-table :data="cfResult.predictions || []" size="small" stripe class="significance-table">
+                    <el-table-column prop="target_variable" label="受影响指标" width="140" />
+                    <el-table-column v-if="cfHasNumericValues" label="基准 → 干预后" width="160">
+                      <template #default="{ row }">
+                        <span class="mono">{{ row.current_value }} → {{ row.predicted_value }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column prop="predicted_effect" label="预测变化" width="140">
+                      <template #default="{ row }">
+                        <span class="mono" :class="String(row.predicted_effect).startsWith('-') ? 'delta-down' : 'delta-up'">{{ row.predicted_effect }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="置信度" width="140">
+                      <template #default="{ row }">
+                        <el-progress :percentage="Math.round((row.confidence || 0) * 100)" :stroke-width="10"
+                          :color="row.confidence >= 0.75 ? '#22c55e' : row.confidence >= 0.55 ? '#eab308' : '#94a3b8'" />
+                      </template>
+                    </el-table-column>
+                    <el-table-column prop="rationale" label="推断依据" />
+                  </el-table>
+                  <p class="table-footnote">{{ cfResult.note }}</p>
+                </section>
+
+                <section class="compare-section" v-if="cfResult.fallback_chain?.length">
+                  <h3><el-icon><Collection /></el-icon>回退链路</h3>
+                  <div class="fallback-chain">
+                    <div v-for="(layer, i) in cfResult.fallback_chain" :key="i" class="fallback-item" :class="{ used: layer.used }">
+                      <span class="fallback-index">{{ layer.layer }}</span>
+                      <div class="fallback-body">
+                        <b>{{ layer.method }}</b>
+                        <span class="fallback-state" :class="layer.used ? 'state-used' : layer.available ? 'state-skip' : 'state-off'">
+                          {{ layer.used ? '已采用' : layer.available ? '可用未用' : '不可用' }}
+                        </span>
+                        <p>{{ layer.reason }}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <p class="table-footnote">数据源：{{ cfResult.experiment_id }}{{ cfResult.resolved_id?.iteration ? ' · 第 ' + cfResult.resolved_id.iteration + ' 轮' : '' }}</p>
+                </section>
+              </template>
+
+              <div v-else-if="!cfLoading && !cfError" class="compare-empty-inline">
+                <p>选择干预对象与变量后点击「执行干预推断」</p>
               </div>
             </div>
           </div>
@@ -362,7 +669,7 @@ import {
   FolderOpened, Odometer, Refresh, Setting, TrendCharts, VideoPlay
 } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
-import { getExperiments, getExperimentDetail, getCaseLibrary, compareCases, getExperimentDistribution } from '@/api/supplyChain'
+import { getExperiments, getExperimentDetail, getCaseLibrary, compareCases, getExperimentDistribution, postObserveCounterfactual } from '@/api/supplyChain'
 import { unwrapApiData } from '@/utils/apiEnvelope'
 
 // ---- 状态 ----
@@ -372,6 +679,23 @@ const activeTab = ref('metrics')
 const caseAId = ref(null)
 const caseBId = ref(null)
 const comparison = ref(null)
+// 后端深度分析（加权相似度 / 显著性检验 / 差异归因 / 演化趋势 / 结论 / 数据溯源）
+const analysis = ref(null)
+const resolvedIds = ref(null)
+const analysisLoading = ref(false)
+const analysisError = ref('')
+// 是否把对比聚焦到案例所属的那一轮（默认关闭：按报告全部轮次对比，才有足够样本做显著性检验）
+const focusIteration = ref(false)
+const trendChartRef = ref(null)
+let trendChartInstance = null
+
+// 反事实干预推演
+const cfForm = reactive({ variable: '产能水平', change: '+20%' })
+const cfResult = ref(null)
+const cfLoading = ref(false)
+const cfError = ref('')
+const CF_VARIABLE_OPTIONS = ['产能水平', '库存容量', '订单倍数', '协作频次']
+const CF_CHANGE_OPTIONS = ['-50%', '-30%', '-20%', '+10%', '+20%', '+30%', '+50%', '+100%']
 const caseFolders = reactive([
   { id: 'f1', label: '铀供应链事中实验', expanded: true, children: [] },
   { id: 'f2', label: '铀供应链反事实实验', expanded: true, children: [] }
@@ -561,6 +885,7 @@ const selectCaseForComparison = (child) => {
     caseAId.value = child.id
     caseBId.value = null
     comparison.value = null
+    resetAnalysis()
     ElMessage.info(`已选择实验 A: ${child.name}`)
   } else if (!caseBId.value && child.id !== caseAId.value) {
     caseBId.value = child.id
@@ -570,74 +895,31 @@ const selectCaseForComparison = (child) => {
     caseAId.value = child.id
     caseBId.value = null
     comparison.value = null
+    resetAnalysis()
     ElMessage.info(`已重新选择实验组: ${child.name}`)
   }
 }
 
-// ---- 概率分布数据获取 ----
-const fetchDistributionForCase = async (caseObj) => {
-  if (!caseObj?.id) return buildLocalDistribution(caseObj)
-  const parts = caseObj.id.split('-')
-  const expIdCandidate = parts.slice(1, -1).join('-') || parts[1]
-  if (!expIdCandidate || expIdCandidate.length < 6) return buildLocalDistribution(caseObj)
-
-  try {
-    const res = await getExperimentDistribution(expIdCandidate)
-    const data = unwrapApiData(res)
-    if (data && data.metrics_by_iteration?.length) return data
-    return buildLocalDistribution(caseObj)
-  } catch {
-    return buildLocalDistribution(caseObj)
-  }
+const resetAnalysis = () => {
+  analysis.value = null
+  resolvedIds.value = null
+  analysisError.value = ''
+  cfResult.value = null
+  cfError.value = ''
+  comparison.value = null
 }
 
-// 基于 case 的摘要数据模拟多条迭代分布（本地直方图用）
-const buildLocalDistribution = (caseObj) => {
-  if (!caseObj) return null
-  const compRate = Math.max(0.3, Math.min(0.99, parseNumeric(caseObj.completionRate) / 100 || 0.7))
-  const profit = parseNumeric(caseObj.resilience) * 80000 || 50000
-  const density = 0.015 + Math.random() * 0.01
-  const enterprises = 100 + Math.floor(Math.random() * 40)
-  const stability = Math.max(0.5, Math.min(1.0, parseNumeric(caseObj.resilience) || 0.7))
-  const capacity = 25000 + Math.floor(Math.random() * 20000)
-
-  // 基于摘要值模拟 8 条迭代数据（生成围绕均值的正态分布样数据）
-  const genVariation = (base, pct) => base * (0.85 + Math.random() * 0.3) * (0.9 + Math.random() * 0.2)
-  const iterations = Math.floor(4 + Math.random() * 12)
-  const metricsByIteration = []
-  for (let i = 1; i <= iterations; i++) {
-    metricsByIteration.push({
-      iteration: i, year: 2020 + i,
-      completion_rate: Math.round(Math.max(0.2, Math.min(0.99, compRate * (0.8 + Math.random() * 0.4))) * 10000) / 10000,
-      total_profit: Math.round(genVariation(profit, 0.3)),
-      network_density: Math.round(density * (0.85 + Math.random() * 0.3) * 10000) / 10000,
-      enterprise_count: Math.round(enterprises * (0.9 + Math.random() * 0.2)),
-      network_stability: Math.round(Math.max(0.4, Math.min(1.0, stability * (0.85 + Math.random() * 0.3))) * 10000) / 10000,
-      production_capacity_est: Math.round(capacity * (0.85 + Math.random() * 0.3)),
-      monthly_count: 12
-    })
-  }
-
-  const range = (vals, prec) => {
-    const v = vals.filter(x => x > 0)
-    if (!v.length) return { min: 0, max: 0, mean: 0, count: 0 }
-    return { min: Math.round(Math.min(...v) * Math.pow(10, prec)) / Math.pow(10, prec), max: Math.round(Math.max(...v) * Math.pow(10, prec)) / Math.pow(10, prec), mean: Math.round(v.reduce((s, x) => s + x, 0) / v.length * Math.pow(10, prec)) / Math.pow(10, prec), count: v.length }
-  }
-
-  return {
-    experiment_id: caseObj.id,
-    total_iterations: iterations,
-    metrics_by_iteration: metricsByIteration,
-    monthly_series: [],
-    metric_ranges: {
-      completion_rate: range(metricsByIteration.map(m => m.completion_rate), 3),
-      total_profit: range(metricsByIteration.map(m => m.total_profit), 1),
-      network_density: range(metricsByIteration.map(m => m.network_density), 3),
-      enterprise_count: range(metricsByIteration.map(m => m.enterprise_count), 1),
-      network_stability: range(metricsByIteration.map(m => m.network_stability), 3),
-      production_capacity_est: range(metricsByIteration.map(m => m.production_capacity_est), 1),
-    },
-    is_uranium: true
+// ---- 概率分布数据获取（只使用后端真实轮次数据，不做本地模拟） ----
+const fetchDistributionForCase = async (caseObj) => {
+  const expId = caseObj?.experimentId
+  if (!expId) return null
+  try {
+    const res = await getExperimentDistribution(expId)
+    const data = unwrapApiData(res)
+    if (data && data.metrics_by_iteration?.length) return data
+    return null
+  } catch {
+    return null
   }
 }
 
@@ -649,8 +931,8 @@ const loadDistributionData = async () => {
       fetchDistributionForCase(caseA.value),
       fetchDistributionForCase(caseB.value)
     ])
-    distributionDataA.value = a || buildLocalDistribution(caseA.value)
-    distributionDataB.value = b || buildLocalDistribution(caseB.value)
+    distributionDataA.value = a
+    distributionDataB.value = b
     await nextTick()
     renderDistributionChart()
   } finally {
@@ -911,6 +1193,9 @@ watch(activeTab, (val) => {
   if (val === 'metrics' && caseA.value && caseB.value) {
     nextTick(() => renderMetricsLineChart())
   }
+  if (val === 'deep' && analysis.value) {
+    nextTick(() => renderTrendChart())
+  }
   if (val === 'distribution') {
     if (caseA.value && caseB.value) {
       loadDistributionData()
@@ -925,12 +1210,202 @@ watch([caseA, caseB], ([a, b]) => {
   }
 })
 
-const runComparison = async () => {
-  if (!caseAId.value || !caseBId.value) return
-  loading.value = true
+// ================= 后端深度分析结果 =================
+const metricRows = computed(() => analysis.value?.metrics || [])
+const significantRows = computed(() => metricRows.value.filter(r => r.significant))
+const attributionItems = computed(() => analysis.value?.attribution || [])
+const comparability = computed(() => analysis.value?.comparability || null)
+const provenance = computed(() => analysis.value?.provenance || null)
+const shapeInfo = computed(() => analysis.value?.similarity?.shape || null)
+const similarityScore = computed(() =>
+  analysis.value?.similarity?.overall_score ?? comparison.value?.similarity?.overall_score ?? null)
+const conclusionText = computed(() => {
+  const c = analysis.value?.conclusion
+  if (c?.text) return c.text
+  return generateLocalRecommendation()
+})
+const conclusionSource = computed(() => analysis.value?.conclusion || null)
+const analysisReady = computed(() => !!analysis.value)
+
+// 效应量分级（Cohen 1988 惯例）
+const effectSizeLabel = (d) => {
+  const v = Math.abs(Number(d))
+  if (!Number.isFinite(v)) return '--'
+  if (v < 0.2) return '几乎无'
+  if (v < 0.5) return '小'
+  if (v < 0.8) return '中'
+  return '大'
+}
+
+const formatPValue = (p) => {
+  const v = Number(p)
+  if (!Number.isFinite(v)) return '--'
+  if (v < 0.001) return '< 0.001'
+  return v.toFixed(3)
+}
+
+const formatSigned = (v, digits = 1, suffix = '') => {
+  const n = Number(v)
+  if (!Number.isFinite(n)) return '--'
+  return `${n >= 0 ? '+' : ''}${n.toFixed(digits)}${suffix}`
+}
+
+const significanceTag = (row) => {
+  if (row.significant) return { type: 'success', text: row.verdict || '显著' }
+  if (row.verdict === '样本不足') return { type: 'info', text: '样本不足' }
+  return { type: 'info', text: row.verdict || '不显著' }
+}
+
+const betterLabel = (row) => (row.better === 'B' ? '实验 B' : row.better === 'A' ? '实验 A' : '持平')
+
+const comparabilityLevelMeta = computed(() => {
+  const level = comparability.value?.level
+  if (level === 'high') return { type: 'success', text: '可比性高' }
+  if (level === 'medium') return { type: 'warning', text: '可比性中等' }
+  if (level === 'low') return { type: 'error', text: '可比性低' }
+  return null
+})
+
+// ---- 演化趋势图 ----
+const trendMetricKey = ref('')
+const trendOptions = computed(() => (analysis.value?.trend || []).map(t => ({ key: t.key, label: t.label })))
+
+watch(trendOptions, (opts) => {
+  if (!opts.length) { trendMetricKey.value = ''; return }
+  if (!opts.some(o => o.key === trendMetricKey.value)) trendMetricKey.value = opts[0].key
+}, { immediate: true })
+
+watch(trendMetricKey, () => { nextTick(() => renderTrendChart()) })
+
+// 深度分析结果到达后，若正在看深度分析 tab 则立即渲染趋势图
+watch(analysis, (val) => {
+  if (val && activeTab.value === 'deep') nextTick(() => renderTrendChart())
+})
+
+// 切换"聚焦单轮次"后重新对比
+watch(focusIteration, () => {
+  if (caseA.value && caseB.value) runComparison()
+})
+
+const renderTrendChart = () => {
+  const container = trendChartRef.value
+  if (!container) return
+  if (trendChartInstance) { trendChartInstance.dispose(); trendChartInstance = null }
+  const trend = (analysis.value?.trend || []).find(t => t.key === trendMetricKey.value)
+  if (!trend) return
+  trendChartInstance = echarts.init(container)
+
+  const ptsA = trend.series_a || []
+  const ptsB = trend.series_b || []
+  const xs = Array.from(new Set([...ptsA, ...ptsB].map(p => p.iteration))).sort((x, y) => x - y)
+  const pick = (pts) => {
+    const map = new Map(pts.map(p => [p.iteration, p.value]))
+    return xs.map(x => (map.has(x) ? map.get(x) : null))
+  }
+  const isRate = trend.kind === 'rate'
+  const axisLabel = isRate ? { formatter: (v) => `${(v * 100).toFixed(0)}%` } : {}
+
+  trendChartInstance.setOption({
+    tooltip: {
+      trigger: 'axis',
+      valueFormatter: (v) => (v == null ? '--' : isRate ? `${(v * 100).toFixed(2)}%` : Number(v).toFixed(2))
+    },
+    legend: { data: ['实验 A', '实验 B'], bottom: 0, textStyle: { fontSize: 11, color: '#64748b' } },
+    grid: { left: 56, right: 20, top: 18, bottom: 40 },
+    xAxis: {
+      type: 'category',
+      data: xs.map(x => `第${x}轮`),
+      boundaryGap: false,
+      axisLabel: { fontSize: 10, color: '#94a3b8' },
+      axisTick: { show: false }
+    },
+    yAxis: {
+      type: 'value',
+      splitLine: { lineStyle: { color: '#f1f5f9' } },
+      axisLabel: { fontSize: 10, color: '#94a3b8', ...axisLabel }
+    },
+    series: [
+      {
+        name: '实验 A', type: 'line', data: pick(ptsA), smooth: true,
+        symbol: 'circle', symbolSize: 7, connectNulls: false,
+        lineStyle: { color: '#3b82f6', width: 2.5 }, itemStyle: { color: '#3b82f6' },
+        areaStyle: { color: 'rgba(59,130,246,0.10)' }
+      },
+      {
+        name: '实验 B', type: 'line', data: pick(ptsB), smooth: true,
+        symbol: 'diamond', symbolSize: 7, connectNulls: false,
+        lineStyle: { color: '#22c55e', width: 2.5 }, itemStyle: { color: '#22c55e' },
+        areaStyle: { color: 'rgba(34,197,94,0.10)' }
+      }
+    ]
+  })
+}
+
+const disposeTrendChart = () => {
+  if (trendChartInstance) { trendChartInstance.dispose(); trendChartInstance = null }
+}
+
+// ---- 反事实干预推断 ----
+const cfTarget = ref('A')
+const cfTargetCase = computed(() => (cfTarget.value === 'B' ? caseB.value : caseA.value))
+
+const runCounterfactual = async () => {
+  const target = cfTargetCase.value
+  if (!target) { ElMessage.warning('请先选择要干预的案例'); return }
+  cfLoading.value = true
+  cfError.value = ''
+  cfResult.value = null
   try {
-    const res = await compareCases(caseAId.value, caseBId.value)
+    const res = await postObserveCounterfactual(target.experimentId || target.id, {
+      iteration: target.iteration ?? null,
+      variable: cfForm.variable,
+      change: cfForm.change
+    })
     const data = unwrapApiData(res)
+    if (!data) { cfError.value = '后端未返回推断结果'; return }
+    cfResult.value = data
+  } catch (e) {
+    console.warn('反事实推断失败:', e)
+    cfError.value = '反事实推断接口不可用，请确认后端已启动'
+  } finally {
+    cfLoading.value = false
+  }
+}
+
+const cfMethodTag = computed(() => {
+  const m = cfResult.value?.analysis_method
+  if (m === 'backend_simulation') return { type: 'success', text: '后端仿真（实跑）' }
+  if (m === 'data_driven') return { type: 'warning', text: '数据驱动回归' }
+  if (m === 'heuristic') return { type: 'info', text: '启发式规则' }
+  return { type: 'info', text: '--' }
+})
+
+// 只有后端仿真层级会返回基准值与干预后的实际值
+const cfHasNumericValues = computed(() =>
+  (cfResult.value?.predictions || []).some(p => p.current_value != null && p.predicted_value != null))
+
+const runComparison = async () => {
+  const a = caseA.value
+  const b = caseB.value
+  if (!a || !b) return
+  analysisLoading.value = true
+  analysisError.value = ''
+  cfResult.value = null
+  cfError.value = ''
+  try {
+    // 传纯实验ID；默认对比报告全部轮次（每侧样本 = 轮次数），开启聚焦后才锁定到该案例所属轮次
+    const iterA = focusIteration.value ? (a.iteration ?? null) : null
+    const iterB = focusIteration.value ? (b.iteration ?? null) : null
+    const res = await compareCases(
+      a.experimentId || a.id,
+      b.experimentId || b.id,
+      { caseAIteration: iterA, caseBIteration: iterB, useLlm: true }
+    )
+    const data = unwrapApiData(res)
+    if (data?.analysis) {
+      analysis.value = data.analysis
+      resolvedIds.value = data.resolved_ids || null
+    }
     if (data?.comparison) {
       comparison.value = data.comparison
       ElMessage.success('实验对比完成')
@@ -938,10 +1413,12 @@ const runComparison = async () => {
     }
   } catch (e) {
     console.warn('后端案例对比接口不可用，使用本地对比:', e)
+    analysisError.value = '后端深度分析接口不可用，已降级为本地对比（无显著性检验与归因）'
+  } finally {
+    analysisLoading.value = false
   }
   // API 失败或返回空 → 构建本地对比数据
   buildLocalComparison()
-  loading.value = false
 }
 
 const buildLocalComparison = () => {
@@ -1100,8 +1577,12 @@ const buildCaseFromIteration = (iteration, experiment, index, prefix = 'Exp') =>
   const p = iteration?.task?.parameters || {}
   const m = iteration?.simulation_result?.metrics || {}
   const score = toNumber(iteration?.feedback?.overall_score)
+  const iterNo = Number(iteration?.iteration || index + 1)
   return {
-    id: `${prefix.toLowerCase()}-${experiment.experiment_id}-${iteration?.iteration || index + 1}`,
+    id: `${prefix.toLowerCase()}-${experiment.experiment_id}-${iterNo}`,
+    // 供后端 ID 规整使用：纯实验ID + 聚焦轮次
+    experimentId: experiment.experiment_id,
+    iteration: iterNo,
     name: `${prefix}${String(index + 1).padStart(2, '0')}`,
     completed: experiment.status === 'completed',
     completionRate: formatRate(m.order_completion_rate),
@@ -1112,6 +1593,15 @@ const buildCaseFromIteration = (iteration, experiment, index, prefix = 'Exp') =>
     demandLevel: `需求 ${Number(p.order_multiplier || 1).toFixed(2)}x`,
     capacityPlan: factoryCapacityText(p),
     intervention: interventionText(p),
+    metrics: {
+      order_completion_rate: toNumber(m.order_completion_rate),
+      level1_completion_rate: toNumber(m.level1_completion_rate),
+      level2_completion_rate: toNumber(m.level2_completion_rate),
+      total_net_profit: toNumber(m.total_net_profit),
+      final_enterprise_count: toNumber(m.final_enterprise_count),
+      production_capacity_est: toNumber(m.production_capacity_est),
+      network_stability: toNumber(m.network_stability)
+    },
     eventNodes: buildEventNodes(iteration)
   }
 }
@@ -1239,6 +1729,16 @@ const buildReportHtml = () => {
   const rows = [...buildBasicComparison(), ...buildMetricsComparison()]
   const tbody = rows.map(r => `<tr><th>${escapeHtml(r.dimension || r.metric)}</th><td>${escapeHtml(r.value_a)}</td><td>${escapeHtml(r.value_b)}</td>${r.diff ? `<td>${escapeHtml(r.diff)}</td>` : ''}</tr>`).join('')
   const events = (caseA.value?.eventNodes || defaultEventNodes).map(e => `<li><strong>${escapeHtml(e.title)}</strong><span>第 ${e.step} 轮</span><p>${escapeHtml(e.desc)}</p></li>`).join('')
+  const statsRows = metricRows.value.map(r => `<tr><th>${escapeHtml(r.label)}</th><td>${escapeHtml(r.value_a_text)}</td><td>${escapeHtml(r.value_b_text)}</td><td>${escapeHtml(r.delta_text)}</td><td>${escapeHtml(formatPValue(r.p_value))}</td><td>${escapeHtml(r.cohens_d != null ? Number(r.cohens_d).toFixed(2) : '--')}</td><td>${escapeHtml(r.verdict)}</td></tr>`).join('')
+  const statsBlock = statsRows
+    ? `<h2>统计显著性检验（Welch t 检验）</h2><table><thead><tr><th>指标</th><th>实验 A</th><th>实验 B</th><th>差异</th><th>p 值</th><th>Cohen's d</th><th>结论</th></tr></thead><tbody>${statsRows}</tbody></table>`
+    : ''
+  const attrBlock = attributionItems.value.length
+    ? `<h2>差异归因</h2><ul>${attributionItems.value.map(i => `<li>${escapeHtml(i.label)}：贡献度 ${i.contribution}%（${escapeHtml(i.delta_text)}${i.significant ? '，显著' : ''}）</li>`).join('')}</ul>`
+    : ''
+  const provBlock = provenance.value
+    ? `<h2>数据溯源</h2><ul><li>实验 A：${escapeHtml(provenance.value.case_a?.report)}（${provenance.value.case_a?.total_iterations} 轮，聚焦第 ${escapeHtml(String(provenance.value.case_a?.focus_iteration ?? '全部'))} 轮）</li><li>实验 B：${escapeHtml(provenance.value.case_b?.report)}（${provenance.value.case_b?.total_iterations} 轮，聚焦第 ${escapeHtml(String(provenance.value.case_b?.focus_iteration ?? '全部'))} 轮）</li><li>指标来源：${escapeHtml(provenance.value.metric_source)}</li></ul>`
+    : ''
 
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>铀供应链观察分析对比报告</title>
 <style>body{margin:0;padding:28px;color:#0f172a;font-family:"Microsoft YaHei",Arial,sans-serif;line-height:1.6;background:#f8fafc}
@@ -1249,8 +1749,10 @@ th{width:180px;background:#f1f5f9}thead th{background:#dbeafe;color:#1e40af}
 h2{margin:24px 0 10px;font-size:18px}li{margin-bottom:12px}li span{display:inline-block;margin-left:10px;color:#64748b;font-size:13px}li p{margin:4px 0 0;color:#334155}</style></head>
 <body><main><h1>铀供应链观察分析对比报告</h1><div class="meta">生成时间：${new Date().toLocaleString()}<br>实验 A: ${escapeHtml(caseA.value?.name||'--')}<br>实验 B: ${escapeHtml(caseB.value?.name||'--')}</div>
 <h2>实验对比</h2><table><thead><tr><th>对比项</th><th>实验 A</th><th>实验 B</th><th>差异</th></tr></thead><tbody>${tbody}</tbody></table>
-<h2>综合结论</h2>
-<h2>综合推荐</h2><p>${escapeHtml(generateLocalRecommendation())}</p></main></body></html>`
+${statsBlock}
+${attrBlock}
+${provBlock}
+<h2>综合结论</h2><p>${escapeHtml(conclusionText.value)}</p></main></body></html>`
 }
 
 const exportComparisonReport = (format) => {
@@ -1274,7 +1776,7 @@ const exportComparisonReport = (format) => {
 }
 
 onMounted(() => { loadAllCases() })
-onBeforeUnmount(() => { disposeDistChart(); disposeMetricsLineChart() })
+onBeforeUnmount(() => { disposeDistChart(); disposeMetricsLineChart(); disposeTrendChart() })
 </script>
 
 <style scoped>
@@ -1462,8 +1964,85 @@ onBeforeUnmount(() => { disposeDistChart(); disposeMetricsLineChart() })
 .cross-library-table { overflow-x: auto; }
 .sim-cell { font-size: 12px; font-weight: 800; }
 
+/* ---- 深度分析：溯源 / 显著性 / 归因 / 趋势 ---- */
+.h3-tag { margin-left: 4px; }
+.focus-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #475569; cursor: pointer; user-select: none; white-space: nowrap; }
+.compare-head-actions { display: flex; align-items: center; gap: 12px; }
+.analysis-alert { margin-bottom: 10px; }
+.section-desc { margin: 0 0 10px; font-size: 12px; line-height: 1.7; color: #64748b; }
+.table-footnote { margin: 8px 0 0; font-size: 11px; line-height: 1.6; color: #94a3b8; }
+.mono { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: 12px; }
+.delta-up { color: #16a34a; font-weight: 800; }
+.delta-down { color: #dc2626; font-weight: 800; }
+.delta-flat { color: #64748b; font-weight: 700; }
+
+.verdict-strip { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e2e8f0; }
+.verdict-item { font-size: 12px; color: #475569; }
+.verdict-item b { color: #0f172a; }
+.verdict-item em { font-style: normal; color: #94a3b8; }
+
+.provenance-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.prov-item { display: flex; gap: 10px; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fafbfc; }
+.prov-item--a { border-left: 3px solid #3867f2; }
+.prov-item--b { border-left: 3px solid #22c55e; }
+.prov-tag { flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; font-size: 11px; font-weight: 900; color: #fff; display: flex; align-items: center; justify-content: center; }
+.prov-item--a .prov-tag { background: #3867f2; }
+.prov-item--b .prov-tag { background: #22c55e; }
+.prov-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.prov-body b { font-size: 12px; color: #0f172a; }
+.prov-body span { font-size: 11px; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prov-llm { font-weight: 800; color: #9333ea !important; }
+.prov-meta { grid-column: 1 / -1; display: flex; gap: 18px; font-size: 11px; color: #94a3b8; padding: 2px 4px; }
+
+.warning-list { margin: 0; padding-left: 18px; }
+.warning-list li { font-size: 12px; line-height: 1.8; color: #b45309; }
+.ok-hint { margin: 0; font-size: 12px; color: #15803d; font-weight: 600; }
+
+.significance-table { font-size: 12px; }
+.attribution-list { display: flex; flex-direction: column; gap: 8px; }
+.attr-row { display: grid; grid-template-columns: 140px 1fr 110px 56px; align-items: center; gap: 12px; }
+.attr-label { font-size: 12px; font-weight: 700; color: #334155; text-align: right; }
+.attr-delta { font-size: 12px; font-weight: 800; text-align: right; }
+
+.trend-select { margin-left: auto; width: 170px; }
+.trend-chart { width: 100%; height: 300px; }
+
+.shape-block { margin-left: 24px; padding-left: 20px; border-left: 1px solid #e2e8f0; }
+.shape-title { font-size: 11px; font-weight: 800; color: #94a3b8; }
+.shape-value { font-size: 22px; font-weight: 900; color: #2563eb; line-height: 1.2; }
+.shape-desc { max-width: 260px; font-size: 11px; line-height: 1.6; color: #64748b; }
+.similarity-dims .sim-dim-item { grid-template-columns: 132px 1fr; }
+.dim-weight { display: block; font-style: normal; font-size: 10px; font-weight: 700; color: #a3aebd; }
+
+/* ---- 反事实推演 ---- */
+.cf-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; padding: 12px 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fafbfc; }
+.cf-field { display: flex; flex-direction: column; gap: 5px; }
+.cf-field label { font-size: 11px; font-weight: 800; color: #64748b; }
+.cf-target-hint { margin: 8px 0 0; font-size: 11px; color: #94a3b8; }
+.cf-target-hint b { color: #475569; }
+.cf-summary { padding: 10px 14px; margin-bottom: 10px; border-radius: 10px; background: #eff6ff; border: 1px solid #bfdbfe; font-size: 12px; line-height: 1.8; color: #1e3a8a; }
+.cf-intervention { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; font-size: 13px; }
+.cf-var { font-weight: 900; color: #0f172a; }
+.cf-arrow { font-weight: 800; color: #2563eb; }
+.cf-change { padding: 1px 8px; border-radius: 999px; background: #fef3c7; color: #92400e; font-size: 11px; font-weight: 800; }
+
+.fallback-chain { display: flex; flex-direction: column; gap: 8px; }
+.fallback-item { display: flex; gap: 10px; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; opacity: 0.62; }
+.fallback-item.used { opacity: 1; border-color: #86efac; background: #f0fdf4; }
+.fallback-index { flex-shrink: 0; width: 22px; height: 22px; border-radius: 6px; background: #e2e8f0; color: #475569; font-size: 11px; font-weight: 900; display: flex; align-items: center; justify-content: center; }
+.fallback-item.used .fallback-index { background: #22c55e; color: #fff; }
+.fallback-body { flex: 1; min-width: 0; }
+.fallback-body b { font-size: 12px; color: #0f172a; margin-right: 8px; }
+.fallback-state { font-size: 10px; font-weight: 800; padding: 1px 7px; border-radius: 999px; }
+.state-used { background: #dcfce7; color: #15803d; }
+.state-skip { background: #fef3c7; color: #92400e; }
+.state-off { background: #f1f5f9; color: #94a3b8; }
+.fallback-body p { margin: 4px 0 0; font-size: 11px; line-height: 1.6; color: #64748b; }
+
 @media (max-width: 1100px) {
   .observe-layout { grid-template-columns: 1fr; }
   .card-pair-row { grid-template-columns: 1fr; }
+  .provenance-bar, .attr-row { grid-template-columns: 1fr; }
+  .attr-label, .attr-delta { text-align: left; }
 }
 </style>
