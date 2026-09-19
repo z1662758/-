@@ -2,8 +2,9 @@
   <div class="scnet-counterfactual-cockpit">
     <section class="page-head">
       <div>
-        <h1>供应链反事实实验</h1>
-        <p class="subtitle">基于事中供应链仿真结果设定干预变量与产能方案，运行反事实实验并对比评估策略效果。支持矿山产能调整、新矿投产阈值、需求波动等供应链特有参数。</p>
+        <h1>{{ isUraniumScene ? '供应链反事实实验' : '汽车供应链反事实实验' }}</h1>
+        <p class="subtitle">{{ pageSubtitle }}</p>
+        <p class="knowledge-source-line" v-if="autoKnowledgeSourceText">{{ autoKnowledgeSourceText }}</p>
       </div>
       <div class="page-actions">
         <el-button type="primary" size="large" :icon="Upload" @click="triggerReportUpload">导入实验报告</el-button>
@@ -26,7 +27,7 @@
       <section class="control-panel panel-card panel-card--blue">
         <header class="panel-header">
           <div>
-            <p class="eyebrow">Uranium Supply Chain</p>
+            <p class="eyebrow">{{ sceneEyebrow }}</p>
             <h3>反事实实验控制区</h3>
           </div>
           <span v-if="stateLabel" class="state-badge" :data-state="stateLabel.toLowerCase()">{{ stateLabel }}</span>
@@ -45,7 +46,8 @@
           </div>
           <div class="counterfactual-target counterfactual-target--empty block" v-else>
             <strong>尚未选择反事实实验对象</strong>
-            <p>请先在右侧导入实验报告，或切换到已导入报告的事中实验。</p>
+            <p v-if="isUraniumScene">请先在右侧导入实验报告，或切换到已导入报告的事中实验。</p>
+            <p v-else>{{ autoBaselineLoading ? '正在从汽车知识库载入基线实验…' : '汽车供应链场景会自动载入知识库基线实验，也可手动导入实验报告。' }}</p>
           </div>
 
           <div class="control-params parameter-control-panel" v-if="activeCounterfactualExperiment">
@@ -168,6 +170,7 @@
               <div><strong>名称：</strong>{{ activeCounterfactualExperiment.label }}</div>
               <div><strong>干预变量：</strong>{{ activeCounterfactualExperiment.arguments.intervention }}</div>
               <div><strong>产能方案：</strong>{{ activeCounterfactualExperiment.arguments.capacityPlan }}</div>
+              <div v-if="autoBaselineMeta && !isUraniumScene"><strong>知识库基线：</strong>{{ autoBaselineMeta.filename }}（{{ autoBaselineMeta.iterations }} 轮）</div>
             </div>
           </div>
         </div>
@@ -326,7 +329,8 @@
           <div class="results-empty block" v-if="!currentRunState.result">
             <div class="results-empty-icon">📋</div>
             <strong>暂无实验结果</strong>
-            <p>请先导入实验报告，设置参数后点击「运行」开始反事实实验。</p>
+            <p v-if="isUraniumScene">请先导入实验报告，设置参数后点击「运行」开始反事实实验。</p>
+            <p v-else>先选择知识库基线实验对象，设置干预参数后点击「运行」开始反事实实验。</p>
           </div>
 
           <!-- 有结果时 -->
@@ -398,7 +402,7 @@
 
     <el-dialog
       v-model="eventDialogVisible"
-      title="供应链反事实事件决策"
+      :title="decisionDialogTitle"
       width="520px"
       top="8vh"
       :close-on-click-modal="false"
@@ -408,9 +412,7 @@
       <div class="decision-dialog">
         <p class="decision-desc">{{ eventContext.description }}</p>
         <el-radio-group v-model="pendingDecision" class="decision-options">
-          <el-radio-button label="扩大矿山产能" />
-          <el-radio-button label="加速新矿开发投产" />
-          <el-radio-button label="调整国际采购策略" />
+          <el-radio-button v-for="option in eventDecisionOptions" :key="option" :label="option" />
         </el-radio-group>
       </div>
       <template #footer>
@@ -422,22 +424,50 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, toRaw, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Upload } from '@element-plus/icons-vue'
 import { runExperiment } from '@/api/scenarioModeling'
 import { getQueueHistory } from '@/api/queue'
-import { getExperimentDetail, healthCheck } from '@/api/supplyChain'
+import {
+  getExperimentDetail,
+  getExperiments,
+  getParameterCatalog,
+  healthCheck
+} from '@/api/supplyChain'
+import { getAutomotiveKnowledgeSummary, getAutomotiveLibrary } from '@/api/powerGame/automotiveKnowledge'
+import { useScenarioStore } from '@/stores/scenario'
+import { SCENARIO_VALUES } from '@/constants/scnetScenario'
 import { unwrapApiData } from '@/utils/apiEnvelope'
 import { resolveExperimentIdFromTask } from '@/utils/scnetTaskUtils'
 
 const SIM_TOTAL_STEPS_DEFAULT = 15
 const EMPTY_TEXT = '无内容，需导入实验报告'
 const simTotalSteps = ref(15)  // 动态：根据实际实验轮数设定
+// 本地状态按场景分桶存放。旧版本只有一把 key：在汽车场景自动载入的知识库基线报告
+// 会被恢复进铀场景，而本页场景又由「当前报告」反推，于是出现「已切到铀供应链、
+// 页面却仍是汽车文案」。分桶后两个场景的状态互不可见。
 const STORAGE_KEY = 'scnet_counterfactual_imported_reports'
+const storageKeyFor = (scenario) => `${STORAGE_KEY}:${scenario}`
 const POLLING_INTERVAL_MS = 5000
 // 提交到后端队列后，若轮询接口持续失败超过该时长，判定后端仿真不可用，自动回退到合成分析
 const POLL_FALLBACK_AFTER_MS = 60000
+
+/**
+ * 深拷贝：Vue 的响应式代理（reactive proxy）不能被 structuredClone，
+ * 直接调用会抛 "could not be cloned"。这里先用 toRaw 取回原始对象；
+ * 若仍失败（例如嵌套了其它响应式对象），退化为 JSON 深拷贝
+ * —— 本页数据本来就要写进 localStorage，天然是 JSON 安全的。
+ */
+const deepClone = (value) => {
+  if (value === null || typeof value !== 'object') return value
+  try {
+    return structuredClone(toRaw(value))
+  } catch {
+    return JSON.parse(JSON.stringify(value))
+  }
+}
 
 const toFiniteNumber = (value, fallback = 0) => {
   const numberValue = Number(value)
@@ -470,12 +500,200 @@ const detectUraniumReport = (report = {}) => {
   return source.includes('uranium') || title.includes('uranium')
 }
 
-const buildCounterfactualParameterControls = (report) => {
+// ===== 场景选择（全局 store，与对话首页同一份选择）=====
+const scenarioStore = useScenarioStore()
+// 从对话首页/其它入口带 ?scenario= 跳进来时以 URL 为准，避免与首页选择不一致
+const route = useRoute()
+const routeScenario = String(route?.query?.scenario || '').trim()
+if ([SCENARIO_VALUES.URANIUM, SCENARIO_VALUES.SUPPLY_CHAIN].includes(routeScenario)) {
+  scenarioStore.setScenario(routeScenario)
+}
+
+// ===== 汽车供应链知识库数据源 =====
+// 依赖三处后端真实数据，不做任何前端造数：
+//   1. /SCnet/supplyChain/experiments、/experiment/<id>  —— 真实汽车供应链仿真实验（15 轮结果与汇总统计）
+//   2. /SCnet/supplyChain/parameter-catalog             —— 参数目录（源头 configs/agent_config.yaml）
+//   3. /SCnet/automotiveKnowledge/rules、/osint         —— 汽车知识库事件映射规则与 OSINT 事件
+const autoCatalog = ref(null)
+const autoKnowledge = ref(null)
+const autoEventRules = ref([])
+const autoOsintEvents = ref([])
+const autoExperiments = ref([])
+const autoBaselineMeta = ref(null)
+const autoBaselineLoading = ref(false)
+const autoBaselineError = ref('')
+
+// 场景只跟随全局选择（与对话首页同一份选择），不再由「当前报告」反推：
+// 报告属于哪个场景由分桶存储保证（见 storageKeyFor），报告自身的文案仍按报告自带
+// 场景渲染（buildImportedReport / applyReportToExperiment），两者不再互相污染。
+const activeScenario = computed(() => scenarioStore.currentScenario)
+const isUraniumScene = computed(() => activeScenario.value === SCENARIO_VALUES.URANIUM)
+
+const sceneEyebrow = computed(() => isUraniumScene.value ? 'Uranium Supply Chain' : 'Automotive Supply Chain')
+const decisionDialogTitle = computed(() => isUraniumScene.value ? '铀供应链反事实事件决策' : '汽车供应链反事实事件决策')
+const pageSubtitle = computed(() => isUraniumScene.value
+  ? '基于事中供应链仿真结果设定干预变量与产能方案，运行反事实实验并对比评估策略效果。支持矿山产能调整、新矿投产阈值、需求波动等参数。'
+  : '基于事中汽车供应链仿真结果设定干预变量与产能方案，运行反事实实验并对比评估策略效果。参数取值范围取自参数目录，事件决策取自汽车知识库规则库与 OSINT 事件库。')
+
+// 把参数目录（多来源：实体参数 / Planner 参数 / 系统参数 / 实验参数）合并成 key → 规格 的索引
+const parseCatalogRange = (range) => {
+  if (Array.isArray(range) && range.length >= 2) {
+    const lo = toFiniteNumber(range[0], null)
+    const hi = toFiniteNumber(range[1], null)
+    return lo !== null && hi !== null ? [lo, hi] : null
+  }
+  const match = String(range || '').match(/^\[?\s*(-?\d+(?:\.\d+)?)\s*[,\-~]\s*(-?\d+(?:\.\d+)?)\s*\]?$/)
+  return match ? [toFiniteNumber(match[1]), toFiniteNumber(match[2])] : null
+}
+
+const buildCatalogIndex = (catalog) => {
+  const index = new Map()
+  const put = (entry) => {
+    if (!entry || !entry.key) return
+    const prev = index.get(entry.key) || {}
+    const bounds = parseCatalogRange(entry.range)
+      || (Number.isFinite(entry.min) && Number.isFinite(entry.max) ? [entry.min, entry.max] : null)
+    index.set(entry.key, {
+      key: entry.key,
+      label: entry.displayName || entry.label || entry.name || prev.label || entry.key,
+      description: entry.description || prev.description || '',
+      unit: entry.unit || prev.unit || '',
+      min: Number.isFinite(entry.min) ? entry.min : (bounds ? bounds[0] : (prev.min ?? null)),
+      max: Number.isFinite(entry.max) ? entry.max : (bounds ? bounds[1] : (prev.max ?? null)),
+      step: Number.isFinite(entry.step) ? entry.step : (prev.step ?? null),
+      source: entry.source || prev.source || '',
+      default: entry.defaultValue !== undefined ? entry.defaultValue : (entry.default !== undefined ? entry.default : prev.default)
+    })
+  }
+  if (!catalog) return index
+  const agents = catalog?.agent_graph?.agents || catalog?.entities?.agents || []
+  agents.forEach((agent) => (agent.configurableParams || agent.configurable_params || []).forEach(put))
+  ;(catalog.system_parameters || []).forEach(put)
+  ;(catalog.exp_params?.params || []).forEach(put)
+  ;(catalog.planner_parameters || []).forEach(put)
+  Object.values(catalog.fishbone_templates || {}).forEach((group) => {
+    (Array.isArray(group) ? group : []).forEach(put)
+  })
+  return index
+}
+
+
+/**
+ * 汽车供应链反事实参数控件：取值来自参数目录（源头 configs/agent_config.yaml），
+ * 基线值优先用报告实际值，缺失时用目录默认值，保证每个数字都能溯源。
+ */
+// 展示名（口径固定，取值/区间/描述仍全部来自参数目录）
+const AUTO_CONTROL_LABELS = {
+  order_multiplier: '市场需求强度',
+  factory_capacity_min: '工厂产能下限',
+  factory_capacity_max: '工厂产能上限',
+  reproduction_threshold: '企业扩张触发阈值',
+  collaboration_radius: '工厂协作半径'
+}
+
+const AUTO_FACTOR_NAMES = {
+  order_multiplier: '市场需求强度',
+  factory_capacity_range: '工厂产能范围',
+  reproduction_threshold: '企业扩张触发阈值',
+  collaboration_radius: '工厂协作半径'
+}
+
+const buildAutoParameterControls = (report, catalog) => {
+  const index = buildCatalogIndex(catalog)
+  const params = report?.parameters || {}
+  const capacityRange = Array.isArray(params.factoryCapacityRange) ? params.factoryCapacityRange : []
+  const controls = []
+
+  const orderSpec = index.get('order_multiplier')
+  const capSpec = index.get('factory_capacity_range')
+  const thresholdSpec = index.get('reproduction_threshold')
+  const collabSpec = index.get('collaboration_radius')
+
+  if (orderSpec) {
+    controls.push({
+      key: 'order_multiplier',
+      label: AUTO_CONTROL_LABELS.order_multiplier,
+      value: roundNumber(toFiniteNumber(params.orderMultiplier, toFiniteNumber(orderSpec.default, 1)), 2),
+      current: roundNumber(toFiniteNumber(params.orderMultiplier, toFiniteNumber(orderSpec.default, 1)), 2),
+      unit: orderSpec.unit || '倍',
+      min: orderSpec.min,
+      max: orderSpec.max,
+      step: orderSpec.step ?? 0.01,
+      description: orderSpec.description || '订单生成率倍数，控制市场需求强度'
+    })
+  }
+
+  if (capSpec) {
+    const capDefault = Array.isArray(capSpec.default) ? capSpec.default : []
+    const capMin = capacityRange.length >= 1 ? toFiniteNumber(capacityRange[0], capDefault[0]) : toFiniteNumber(capDefault[0], null)
+    const capMax = capacityRange.length >= 2 ? toFiniteNumber(capacityRange[1], capDefault[1]) : toFiniteNumber(capDefault[1], null)
+    controls.push({
+      key: 'factory_capacity_min',
+      label: AUTO_CONTROL_LABELS.factory_capacity_min,
+      value: roundNumber(capMin, 2),
+      current: roundNumber(capMin, 2),
+      unit: '件/月',
+      min: capSpec.min,
+      max: capSpec.max,
+      step: capSpec.step ?? 1,
+      description: capSpec.description || '总厂下属工厂月产能范围下限'
+    })
+    controls.push({
+      key: 'factory_capacity_max',
+      label: AUTO_CONTROL_LABELS.factory_capacity_max,
+      value: roundNumber(capMax, 2),
+      current: roundNumber(capMax, 2),
+      unit: '件/月',
+      min: capSpec.min,
+      max: capSpec.max,
+      step: capSpec.step ?? 1,
+      description: capSpec.description || '总厂下属工厂月产能范围上限'
+    })
+  }
+
+  if (thresholdSpec) {
+    controls.push({
+      key: 'reproduction_threshold',
+      label: AUTO_CONTROL_LABELS.reproduction_threshold,
+      value: roundNumber(toFiniteNumber(params.reproductionThreshold, toFiniteNumber(thresholdSpec.default, 0)), 0),
+      current: roundNumber(toFiniteNumber(params.reproductionThreshold, toFiniteNumber(thresholdSpec.default, 0)), 0),
+      unit: thresholdSpec.unit || '',
+      min: thresholdSpec.min,
+      max: thresholdSpec.max,
+      step: thresholdSpec.step ?? 1,
+      description: thresholdSpec.description || '控制企业扩张触发门槛'
+    })
+  }
+
+  if (collabSpec) {
+    controls.push({
+      key: 'collaboration_radius',
+      label: AUTO_CONTROL_LABELS.collaboration_radius,
+      value: roundNumber(toFiniteNumber(params.collaborationRadius, toFiniteNumber(collabSpec.default, 0)), 0),
+      current: roundNumber(toFiniteNumber(params.collaborationRadius, toFiniteNumber(collabSpec.default, 0)), 0),
+      unit: collabSpec.unit || '',
+      min: collabSpec.min,
+      max: collabSpec.max,
+      step: collabSpec.step ?? 10,
+      description: collabSpec.description || '总厂调度可联动工厂的空间范围'
+    })
+  }
+
+  return controls
+}
+
+const buildCounterfactualParameterControls = (report, catalog = autoCatalog.value) => {
   const capacityRange = Array.isArray(report.parameters.factoryCapacityRange)
     ? report.parameters.factoryCapacityRange
     : [0, 0]
   // 检测场景 → 使用专用单位与描述
   const isUranium = detectUraniumReport(report)
+
+  // 汽车供应链：全部取值来自参数目录（真实 config 口径）
+  if (!isUranium && catalog) {
+    const controls = buildAutoParameterControls(report, catalog)
+    if (controls.length) return controls
+  }
 
   return [
     {
@@ -490,27 +708,27 @@ const buildCounterfactualParameterControls = (report) => {
     },
     {
       key: 'factory_capacity_min',
-      label: isUranium ? '矿山产能下限' : '制造总产能下限',
+      label: isUranium ? '矿山产能下限' : '工厂产能下限',
       value: roundNumber(capacityRange[0], 2),
-      unit: isUranium ? 'tU/年' : '单位',
+      unit: isUranium ? 'tU/年' : '件/月',
       min: 0,
       step: isUranium ? 100 : 0.01,
       description: isUranium ? '全球矿山年产能下限(吨/年)，对应已承诺矿山最低产出' : '制造能力区间的保底值'
     },
     {
       key: 'factory_capacity_max',
-      label: isUranium ? '矿山产能上限' : '制造总产能上限',
+      label: isUranium ? '矿山产能上限' : '工厂产能上限',
       value: roundNumber(capacityRange[1], 2),
-      unit: isUranium ? 'tU/年' : '单位',
+      unit: isUranium ? 'tU/年' : '件/月',
       min: 0,
       step: isUranium ? 100 : 0.01,
       description: isUranium ? '全球矿山年产能峰值上限(吨/年)，含计划与潜在矿山满产产能' : '制造能力区间的峰值上限'
     },
     {
       key: 'reproduction_threshold',
-      label: isUranium ? '新矿投产阈值' : '再生产触发阈值',
+      label: isUranium ? '新矿投产阈值' : '企业扩张触发阈值',
       value: roundNumber(report.parameters.reproductionThreshold, 0),
-      unit: isUranium ? 'tU/年' : '单位',
+      unit: isUranium ? 'tU/年' : '',
       min: 0,
       step: isUranium ? 50 : 10,
       description: isUranium ? '触发新矿山开发的最低供需缺口(吨/年)，影响Dasa/Wheeler River等新矿投产时机' : '影响产能扩张触发时点'
@@ -534,6 +752,7 @@ const buildImportedReport = (report) => {
   const capacityRange = formatRange(report.parameters.factoryCapacityRange)
   const adjustmentRatio = formatPercent(report.parameters.adjustmentRatio)
   const isUranium = detectUraniumReport(report)
+  const controls = buildCounterfactualParameterControls(report)
 
   const baseMetrics = isUranium ? [
     { label: '最佳轮次', value: `第 ${report.bestIteration} 轮` },
@@ -553,7 +772,7 @@ const buildImportedReport = (report) => {
 
   const baseBackground = isUranium
     ? `该报告来自 ${report.timestamp} 的 ${report.totalIterations} 轮供应链仿真。实验将需求强度设为 ${report.parameters.orderMultiplier.toFixed(2)}x（全球核电需求约 ${(report.parameters.orderMultiplier * 123860).toFixed(0)} tU/年），最佳轮次为第 ${report.bestIteration} 轮，订单完成率为 ${formatPercent(report.bestMetrics.orderCompletionRate)}，存在约 ${formatPercent(backlogRate)} 的供应缺口。反事实阶段需重点调整矿山产能区间与新矿投产阈值，评估不同扩产方案对供应安全的影响。`
-    : `该报告来自 ${report.timestamp} 的 ${report.totalIterations} 轮事中仿真。实验将市场需求强度设为 ${report.parameters.orderMultiplier.toFixed(2)}x，最佳轮次为第 ${report.bestIteration} 轮，但订单完成率仅 ${formatPercent(report.bestMetrics.orderCompletionRate)}，仍存在约 ${formatPercent(backlogRate)} 的订单积压，需要在反事实阶段重点调整制造总产能与产能响应阈值。`
+    : `该报告来自 ${report.timestamp} 的 ${report.totalIterations} 轮汽车供应链事中仿真（数据源：${report.source}）。实验将市场需求强度设为 ${report.parameters.orderMultiplier.toFixed(2)}x，最佳轮次为第 ${report.bestIteration} 轮，订单完成率 ${formatPercent(report.bestMetrics.orderCompletionRate)}，仍存在约 ${formatPercent(backlogRate)} 的订单积压，需要在反事实阶段重点调整工厂产能区间与企业扩张触发阈值。${report.knowledgeNote ? ' ' + report.knowledgeNote : ''}`
 
   const baseParamsToModify = isUranium ? [
     {
@@ -574,30 +793,16 @@ const buildImportedReport = (report) => {
       current: `${report.parameters.reproductionThreshold} tU/年`,
       reason: '该阈值决定新矿山项目（如Dasa、Wheeler River、Arrow）何时触发开发，是供应链中长期产能规划的关键变量。'
     }
-  ] : [
-    {
-      key: 'order_multiplier',
-      name: '市场需求强度',
-      current: `${report.parameters.orderMultiplier.toFixed(2)}x`,
-      reason: '作为反事实实验的外部压力输入，用于复现实验报告中的需求上升背景。'
-    },
-    {
-      key: 'factory_capacity_range',
-      name: '制造总产能区间',
-      current: capacityRange,
-      reason: `报告中主要调整参数为制造产能区间，调整幅度约 ${adjustmentRatio}，后续需要比较不同扩产方案对积压和完成率的影响。`
-    },
-    {
-      key: 'reproduction_threshold',
-      name: '再生产触发阈值',
-      current: `${report.parameters.reproductionThreshold}`,
-      reason: '该阈值会影响产能扩张触发时点，适合作为产能响应速度的辅助干预变量。'
-    }
-  ]
+  ] : controls.map((item) => ({
+    key: item.key,
+    name: item.label,
+    current: `${item.value}${item.unit ? ' ' + item.unit : ''}`,
+    reason: item.description || '来自参数目录的可干预参数。'
+  }))
 
   const baseSuggestion = isUranium
     ? '优先测试矿山总产能上调、新矿投产阈值前置、和分阶段扩产(短期ISL+中长期硬岩矿)三类方案，对比供应缺口率与网络稳定性。'
-    : '优先测试制造总产能上调、产能阈值前置和分阶段扩产三类方案，并对比订单积压率与完成率稳定性。'
+    : '优先测试工厂产能区间上调、企业扩张触发阈值前置、工厂协作半径扩大三类方案，并对比订单积压率与完成率稳定性。'
 
   return {
     source: report.source,
@@ -605,8 +810,20 @@ const buildImportedReport = (report) => {
     background: baseBackground,
     keyMetrics: baseMetrics,
     parametersToModify: baseParamsToModify,
-    counterfactualParameters: buildCounterfactualParameterControls(report),
-    suggestedCounterfactual: baseSuggestion
+    counterfactualParameters: controls,
+    suggestedCounterfactual: baseSuggestion,
+    // 透传真实基线字段：合成推算与页面溯源都要读这些值，不能再落到默认常量上
+    scenario: report.scenario,
+    timestamp: report.timestamp,
+    totalIterations: report.totalIterations,
+    bestIteration: report.bestIteration,
+    bestScore: report.bestScore,
+    avgCompletionRate: report.avgCompletionRate,
+    avgRobustness: report.avgRobustness,
+    goal: report.goal,
+    parameters: report.parameters,
+    bestMetrics: report.bestMetrics,
+    knowledgeNote: report.knowledgeNote || ''
   }
 }
 
@@ -757,7 +974,7 @@ const applyReportToExperiment = (experiment, rawReport) => {
   const backlogRate = 1 - rawReport.bestMetrics.orderCompletionRate
   experiment.hasReport = true
   experiment.report = report
-  const isUraniumReport = (rawReport.source || '').toLowerCase().includes('uranium')
+  const isUraniumReport = detectUraniumReport(rawReport)
   experiment.arguments = {
     name: experiment.label,
     baseExperiment: rawReport.source,
@@ -765,7 +982,7 @@ const applyReportToExperiment = (experiment, rawReport) => {
     intervention: isUraniumReport ? '待选择供应链干预策略' : '待选择反事实干预策略',
     capacityPlan: isUraniumReport
       ? `矿山产能区间 ${formatRange(rawReport.parameters.factoryCapacityRange)} tU/年`
-      : `制造总产能区间 ${formatRange(rawReport.parameters.factoryCapacityRange)}`,
+      : `工厂产能范围 ${Math.round(toFiniteNumber(rawReport.parameters.factoryCapacityRange?.[0]))}-${Math.round(toFiniteNumber(rawReport.parameters.factoryCapacityRange?.[1]))}`,
     demandLevel: `需求强度 ${rawReport.parameters.orderMultiplier.toFixed(2)}x`
   }
   experiment.status = {
@@ -781,6 +998,132 @@ const applyReportToExperiment = (experiment, rawReport) => {
   }
 }
 
+// ===== 汽车供应链知识库基线 =====
+// 事件触发轮次（与仿真进度条上的三处标记对应）
+const AUTO_EVENT_TRIGGER_STEPS = [4, 8, 12]
+
+const AUTO_RULE_TYPES = ['EVENT_MAPPING', 'EVENT_MAPPING_RULE']
+
+const pickAutomotiveExperiment = (list) => {
+  const automotive = (list || []).filter((item) => /汽车|automotive/i.test(String(item?.goal || '')))
+  if (!automotive.length) return null
+  return automotive
+    .slice()
+    .sort((a, b) => toFiniteNumber(b.feature_score) - toFiniteNumber(a.feature_score))[0]
+}
+
+/**
+ * 用「真实汽车供应链实验详情 + 参数目录」拼出反事实基线报告。
+ * 指标来自实验 summary（多轮汇总统计），参数基线来自参数目录默认值，
+ * 两者都是后端真实数据，不做任何前端造数。
+ */
+const buildAutomotiveBaseline = (meta, detail, catalog) => {
+  const normalized = normalizeUploadedReport(
+    { ...detail, scenario: SCENARIO_VALUES.SUPPLY_CHAIN },
+    meta.filename
+  )
+  normalized.scenario = SCENARIO_VALUES.SUPPLY_CHAIN
+  normalized.source = meta.filename
+  normalized.title = `汽车供应链实验报告：${meta.experiment_id}`
+
+  const index = buildCatalogIndex(catalog)
+  const capSpec = index.get('factory_capacity_range') || {}
+  const orderSpec = index.get('order_multiplier') || {}
+  const thresholdSpec = index.get('reproduction_threshold') || {}
+  const collabSpec = index.get('collaboration_radius') || {}
+
+  if (Array.isArray(capSpec.default)) {
+    normalized.parameters.factoryCapacityRange = [
+      toFiniteNumber(capSpec.default[0], normalized.parameters.factoryCapacityRange[0]),
+      toFiniteNumber(capSpec.default[1], normalized.parameters.factoryCapacityRange[1])
+    ]
+  }
+  if (orderSpec.default !== undefined) {
+    normalized.parameters.orderMultiplier = toFiniteNumber(orderSpec.default, normalized.parameters.orderMultiplier)
+  }
+  if (thresholdSpec.default !== undefined) {
+    normalized.parameters.reproductionThreshold = toFiniteNumber(thresholdSpec.default, normalized.parameters.reproductionThreshold)
+  }
+  normalized.parameters.collaborationRadius = collabSpec.default !== undefined
+    ? toFiniteNumber(collabSpec.default, null)
+    : null
+
+  normalized.knowledgeNote = `参数基线取自参数目录（源头 ${capSpec.source || 'configs/agent_config.yaml'}），指标取自该实验 ${toFiniteNumber(meta.iterations, normalized.totalIterations)} 轮仿真的汇总统计。`
+  return normalized
+}
+
+const loadAutomotiveKnowledge = async () => {
+  const [summary, rules, osint] = await Promise.all([
+    getAutomotiveKnowledgeSummary(),
+    getAutomotiveLibrary('rules'),
+    getAutomotiveLibrary('osint')
+  ])
+  autoKnowledge.value = unwrapApiData(summary) || null
+  const ruleItems = unwrapApiData(rules)?.items || []
+  autoEventRules.value = ruleItems.filter((item) => item?.enabled !== false)
+  autoOsintEvents.value = unwrapApiData(osint)?.items || []
+}
+
+/**
+ * 汽车供应链场景下自动装载真实基线：只在还没有汽车场景报告时执行一次，
+ * 已存在的铀场景报告不会被覆盖。
+ */
+const ensureAutomotiveBaseline = async () => {
+  if (!scenarioStore.isSupplyChain) return
+  if (experiments.value.some((item) => item.hasReport && !detectUraniumReport(item.report))) return
+  if (autoBaselineLoading.value) return
+  autoBaselineLoading.value = true
+  autoBaselineError.value = ''
+  try {
+    const [catalogResp, listResp] = await Promise.all([
+      getParameterCatalog(SCENARIO_VALUES.SUPPLY_CHAIN),
+      getExperiments()
+    ])
+    const catalog = unwrapApiData(catalogResp)
+    if (!catalog) throw new Error('参数目录不可用')
+    autoCatalog.value = catalog
+    autoExperiments.value = unwrapApiData(listResp) || []
+
+    const meta = pickAutomotiveExperiment(autoExperiments.value)
+    if (!meta) throw new Error('后端暂无可用的汽车供应链实验')
+
+    const detail = unwrapApiData(await getExperimentDetail(meta.experiment_id))
+    if (!detail?.summary) throw new Error('实验详情不完整')
+
+    const baseline = buildAutomotiveBaseline(meta, detail, catalog)
+    autoBaselineMeta.value = {
+      experimentId: meta.experiment_id,
+      filename: meta.filename,
+      goal: meta.goal,
+      iterations: meta.iterations,
+      timestamp: meta.timestamp
+    }
+
+    let target = experiments.value.find((item) => !item.hasReport)
+    if (!target) {
+      target = createEmptyExperiment(experiments.value.length + 1)
+      experiments.value.push(target)
+    }
+    applyReportToExperiment(target, baseline)
+    selectedExperimentId.value = target.id
+    applyCounterfactualObject(target)
+    simTotalSteps.value = toFiniteNumber(baseline.totalIterations, SIM_TOTAL_STEPS_DEFAULT)
+
+    try {
+      await loadAutomotiveKnowledge()
+    } catch (error) {
+      console.warn('汽车知识库规则/OSINT 加载失败:', error?.message)
+    }
+    ElMessage.success(`已载入汽车供应链基线：${meta.filename}（${meta.iterations} 轮）`)
+  } catch (error) {
+    autoBaselineError.value = error?.message || '汽车供应链基线加载失败'
+    console.warn('汽车供应链基线加载失败:', autoBaselineError.value)
+    ElMessage.warning(`汽车供应链基线加载失败：${autoBaselineError.value}`)
+  } finally {
+    autoBaselineLoading.value = false
+  }
+}
+
 const simState = ref('idle')
 const isConnected = ref(false)
 const simStep = ref(0)
@@ -789,7 +1132,7 @@ const eventDialogVisible = ref(false)
 const eventTriggered = ref(false)
 const eventResolved = ref(false)
 const lastEventDecision = ref('')
-const pendingDecision = ref('扩大矿山产能')
+const pendingDecision = ref('')
 const triggeredEventIds = ref(new Set())
 const selectedExperimentId = ref('exp01')
 const reportFileInput = ref(null)
@@ -869,20 +1212,65 @@ const normalizeStoredExperiments = (storedExperiments) => {
   return normalized
 }
 
-const persistCounterfactualState = () => {
+const persistCounterfactualState = (scenario = scenarioStore.currentScenario) => {
   if (typeof window === 'undefined') return
   const payload = {
     experiments: experiments.value,
     selectedExperimentId: selectedExperimentId.value,
     counterfactualParameters: counterfactualParameters.value
   }
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+  window.localStorage.setItem(storageKeyFor(scenario), JSON.stringify(payload))
 }
 
-const restoreCounterfactualState = () => {
+/**
+ * 一次性迁移：把旧的单一 key 按「每条报告自己的场景」拆进对应分桶，无报告的占位项丢弃。
+ * 迁移完删除旧 key，避免铀 / 汽车两个场景继续互相看到对方的报告。
+ */
+const migrateLegacyCounterfactualState = () => {
   if (typeof window === 'undefined') return
-  const savedState = window.localStorage.getItem(STORAGE_KEY)
-  if (!savedState) return
+  const legacy = window.localStorage.getItem(STORAGE_KEY)
+  if (!legacy) return
+  try {
+    const payload = JSON.parse(legacy)
+    const stored = Array.isArray(payload?.experiments) ? payload.experiments : []
+    const buckets = { [SCENARIO_VALUES.URANIUM]: [], [SCENARIO_VALUES.SUPPLY_CHAIN]: [] }
+    stored.forEach((item) => {
+      if (!item?.hasReport || !item?.report) return
+      const scenario = detectUraniumReport(item.report)
+        ? SCENARIO_VALUES.URANIUM
+        : SCENARIO_VALUES.SUPPLY_CHAIN
+      buckets[scenario].push(item)
+    })
+    Object.entries(buckets).forEach(([scenario, items]) => {
+      if (!items.length) return
+      const key = storageKeyFor(scenario)
+      // 已有分桶数据时不覆盖，避免迁移冲掉用户之后导入的报告
+      if (window.localStorage.getItem(key)) return
+      const selected = items.some((item) => item.id === payload?.selectedExperimentId)
+        ? payload.selectedExperimentId
+        : items[0].id
+      window.localStorage.setItem(key, JSON.stringify({
+        experiments: items,
+        selectedExperimentId: selected,
+        counterfactualParameters: payload?.counterfactualParameters || []
+      }))
+    })
+  } catch {
+    // 旧数据不可解析时直接丢弃，不影响新分桶
+  }
+  window.localStorage.removeItem(STORAGE_KEY)
+}
+
+const restoreCounterfactualState = (scenario = scenarioStore.currentScenario) => {
+  if (typeof window === 'undefined') return
+  const savedState = window.localStorage.getItem(storageKeyFor(scenario))
+  if (!savedState) {
+    // 该场景尚无本地状态：回到两个空实验，不能残留上一个场景的选项卡
+    experiments.value = normalizeStoredExperiments(null)
+    selectedExperimentId.value = experiments.value[0].id
+    counterfactualParameters.value = []
+    return
+  }
 
   try {
     const payload = JSON.parse(savedState)
@@ -910,11 +1298,12 @@ const restoreCounterfactualState = () => {
       applyCounterfactualObject(sel)
     }
   } catch {
-    window.localStorage.removeItem(STORAGE_KEY)
+    window.localStorage.removeItem(storageKeyFor(scenario))
   }
 }
 
-const presetOptions = {
+// ===== 预设下拉：铀场景沿用原口径，汽车场景全部由参数目录与真实实验生成 =====
+const URANIUM_PRESET_OPTIONS = {
   baseExperiments: [
     'multi_agent_report_uranium_network_20260702_173720.json (网络演化基线)',
     'multi_agent_report_uranium2024_20260702_172322.json (NEA/IAEA资源评估基线)',
@@ -950,11 +1339,124 @@ const presetOptions = {
   ]
 }
 
-const eventConfigs = [
+/**
+ * 汽车供应链预设下拉：文案里的每个参数名、区间、默认值都来自参数目录，
+ * 备选基线实验来自后端真实的汽车供应链实验列表。
+ */
+const buildAutoPresetOptions = (catalog, experimentList) => {
+  const index = buildCatalogIndex(catalog)
+  const spec = (key) => index.get(key) || {}
+  const rangeOf = (key) => {
+    const item = spec(key)
+    return Number.isFinite(item.min) && Number.isFinite(item.max) ? `${item.min}~${item.max}` : '参数目录区间'
+  }
+  const boundOf = (key, bound, fallback) => {
+    const value = spec(key)[bound]
+    return Number.isFinite(value) ? value : fallback
+  }
+  const defaultOf = (key) => {
+    const value = spec(key).default
+    return Array.isArray(value) ? value.join('~') : (value !== undefined ? value : '目录基线')
+  }
+
+  const capacityName = AUTO_FACTOR_NAMES.factory_capacity_range
+  const thresholdName = AUTO_FACTOR_NAMES.reproduction_threshold
+  const radiusName = AUTO_FACTOR_NAMES.collaboration_radius
+  const demandName = AUTO_FACTOR_NAMES.order_multiplier
+
+  const baseExperiments = (experimentList || [])
+    .filter((item) => /汽车|automotive/i.test(String(item?.goal || '')))
+    .slice(0, 6)
+    .map((item) => `${item.filename}（${item.iterations} 轮 · 特征分 ${item.feature_score}）`)
+
+  return {
+    baseExperiments: baseExperiments.length ? baseExperiments : ['（后端暂无汽车供应链实验列表）'],
+    goals: [
+      `${demandName}(${rangeOf('order_multiplier')})变化时，${capacityName}需要如何调整才能压降订单积压`,
+      `${thresholdName}与${radiusName}联动调整时，系统会先在哪个环节出现履约压力`,
+      `${capacityName}从 ${defaultOf('factory_capacity_range')} 上调后，订单完成率与系统净利润如何变化`,
+      `${radiusName}扩大后，协作活跃度提升是否真的能带来更高的订单完成率`
+    ],
+    interventions: [
+      '不干预，沿用参数目录基线',
+      `${capacityName}上调至目录上限 ${boundOf('factory_capacity_range', 'max', '上限')}`,
+      `${thresholdName}下调至目录下限 ${boundOf('reproduction_threshold', 'min', '下限')}（更早触发扩产）`,
+      `${radiusName}扩大至 ${boundOf('collaboration_radius', 'max', '上限')}（跨厂协作范围）`,
+      `${demandName}下调至 ${boundOf('order_multiplier', 'min', '下限')}（需求收缩情景）`
+    ],
+    capacityPlans: [
+      `维持目录基线产能区间 ${defaultOf('factory_capacity_range')}`,
+      `扩容至目录上限 ${boundOf('factory_capacity_range', 'max', '上限')}`,
+      `分阶段扩产：先保底 ${boundOf('factory_capacity_range', 'min', '下限')}，再按需爬坡`,
+      '优先提升瓶颈工厂产能，其余工厂维持不变'
+    ],
+    demands: [
+      `${demandName} ${boundOf('order_multiplier', 'min', '下限')}（收缩情景）`,
+      `${demandName} ${defaultOf('order_multiplier')}（目录基线）`,
+      `${demandName} ${boundOf('order_multiplier', 'max', '上限')}（增长情景）`
+    ]
+  }
+}
+
+const autoKnowledgeSourceText = computed(() => {
+  if (isUraniumScene.value) return ''
+  if (autoBaselineLoading.value) return '正在从 SCnet 后端载入汽车供应链基线实验…'
+  if (!autoBaselineMeta.value) return ''
+  const knowledge = autoKnowledge.value || {}
+  const parts = [
+    `知识库基线：${autoBaselineMeta.value.filename}（${autoBaselineMeta.value.iterations} 轮）`,
+    `参数目录 ${autoCatalog.value ? '已载入' : '未载入'}`
+  ]
+  if (knowledge.evidenceLayer) parts.push(`证据 ${knowledge.evidenceLayer.evidence}`)
+  if (knowledge.rules) parts.push(`规则 ${knowledge.rules.active}/${knowledge.rules.total}`)
+  if (knowledge.osint) parts.push(`OSINT 事件 ${knowledge.osint.active}`)
+  return parts.join(' · ')
+})
+
+const autoPresetOptions = computed(() => buildAutoPresetOptions(autoCatalog.value, autoExperiments.value))
+const presetOptions = computed(() => isUraniumScene.value ? URANIUM_PRESET_OPTIONS : autoPresetOptions.value)
+
+// ===== 事件配置：铀场景沿用原有扰动；汽车场景取自知识库规则库(EVENT_MAPPING)，备选为 OSINT 事件标题 =====
+const URANIUM_EVENT_CONFIGS = [
   { id: 'event1', name: '矿山停产/淹水', triggerStep: 4 },
   { id: 'event2', name: '价格剧烈波动', triggerStep: 8 },
   { id: 'event3', name: '地缘政治供应风险', triggerStep: 12 }
 ]
+
+const isEventMappingRule = (rule) => AUTO_RULE_TYPES.includes(rule?.rule_type) || AUTO_RULE_TYPES.includes(rule?.rule_category)
+
+const autoEventConfigs = computed(() => {
+  const rules = (autoEventRules.value || []).filter(isEventMappingRule)
+  const names = rules.map((rule) => rule.name_zh || rule.description).filter(Boolean)
+  const osintNames = (autoOsintEvents.value || []).map((event) => event.title).filter(Boolean)
+  const picked = names.length ? names : osintNames
+  return picked.slice(0, AUTO_EVENT_TRIGGER_STEPS.length).map((name, idx) => ({
+    id: `auto_event${idx + 1}`,
+    name: name.length > 28 ? name.slice(0, 28) + '…' : name,
+    triggerStep: AUTO_EVENT_TRIGGER_STEPS[idx],
+    ruleId: rules[idx]?.rule_id || ''
+  }))
+})
+
+const eventConfigs = computed(() => isUraniumScene.value ? URANIUM_EVENT_CONFIGS : autoEventConfigs.value)
+
+// ===== 事件决策选项：汽车场景由知识库规则库的处置动作(action/effect)生成 =====
+const URANIUM_DECISION_OPTIONS = ['扩大矿山产能', '加速新矿开发投产', '调整国际采购策略']
+
+const eventDecisionOptions = computed(() => {
+  if (isUraniumScene.value) return URANIUM_DECISION_OPTIONS
+  const ruleOptions = []
+  const enabled = (autoEventRules.value || []).filter(isEventMappingRule)
+  const active = eventConfigs.value.find((item) => !triggeredEventIds.value.has(item.id))
+  const matched = enabled.find((rule) => rule.rule_id && rule.rule_id === active?.ruleId)
+  const candidates = [matched, ...enabled].filter(Boolean)
+  candidates.forEach((rule) => {
+    const text = String(rule.action || rule.effect || '').trim()
+    if (text && !ruleOptions.includes(text)) ruleOptions.push(text)
+  })
+  // 最多 3 条知识库处置 + 1 条「不干预」对照项
+  return [...ruleOptions.slice(0, 3), '沿用基线参数（本次不干预）']
+})
 
 const stateLabel = computed(() => {
   if (currentRunState.value.running) return 'RUNNING'
@@ -986,15 +1488,21 @@ const currentRunState = computed(() => selectedExperiment.value?.runState || run
 const eventStatusLabel = computed(() => {
   if (eventResolved.value) return '已完成决策'
   if (eventTriggered.value) return '事件已触发，等待决策'
-  const nextEvent = eventConfigs.find((item) => !triggeredEventIds.value.has(item.id))
+  const nextEvent = eventConfigs.value.find((item) => !triggeredEventIds.value.has(item.id))
   return nextEvent ? '等待事件触发' : '所有事件已完成'
 })
 
 const lastEventDecisionLabel = computed(() => lastEventDecision.value || '')
+// 可选处置随场景/知识库规则变化时，同步默认为第一项
+watch(eventDecisionOptions, (options) => {
+  if (!options.includes(pendingDecision.value)) pendingDecision.value = options[0] || ''
+}, { immediate: true })
 
 const eventContext = computed(() => ({
-  title: '供应链反事实决策',
-  description: `当前实验「${selectedExperiment.value?.label || '--'}」进入供应链关键事件决策窗口。请基于矿山产能、新矿投产周期、国际市场价格等约束条件，选择最合适的干预策略。`
+  title: isUraniumScene.value ? '铀供应链反事实决策' : '汽车供应链反事实决策',
+  description: isUraniumScene.value
+    ? `当前实验「${selectedExperiment.value?.label || '--'}」进入供应链关键事件决策窗口。请基于矿山产能、新矿投产周期、国际市场价格等约束条件，选择最合适的干预策略。`
+    : `当前实验「${selectedExperiment.value?.label || '--'}」进入汽车供应链关键事件决策窗口。事件项与候选处置来自汽车知识库规则库(EVENT_MAPPING)与 OSINT 事件库，请结合工厂产能区间、企业扩张触发阈值与工厂协作半径的约束选择干预策略。`
 }))
 
 let timer = null
@@ -1039,6 +1547,9 @@ const buildCounterfactualRunPayload = () => {
     ? '分析全球供应链网络演化规律，评估资源分布、产量趋势与核电需求的供需平衡'
     : '基于NEA/IAEA Red Book数据评估全球资源、产量与核电需求，分析供应链供需平衡'
 
+  // 汽车场景：协作半径由后端 agent_node_configs 消费（run.py: manufacturer_collaboration_radius）
+  const collaborationRadius = getActiveParameterValue('collaboration_radius', null)
+
   return {
     scenario,
     data_dir: dataDir,
@@ -1052,7 +1563,7 @@ const buildCounterfactualRunPayload = () => {
     source_page: 'CounterfactualExperiment',
     user_goal: isUranium
       ? uraniumGoal
-      : (activeCounterfactualExperiment.value?.arguments?.goal || presetOptions.goals[0]),
+      : (activeCounterfactualExperiment.value?.arguments?.goal || presetOptions.value.goals[0]),
     baseline_report: activeCounterfactualExperiment.value?.report?.source || '',
     counterfactual_experiment_name: activeCounterfactualExperiment.value?.label || '',
     param_overrides: paramOverrides,
@@ -1069,16 +1580,27 @@ const buildCounterfactualRunPayload = () => {
       },
       manufacturing_corporation: {
         params: {
-          capacity_range: paramOverrides.factory_capacity_range
+          capacity_range: paramOverrides.factory_capacity_range,
+          ...(isUranium ? {} : { collaboration_radius: collaborationRadius })
         }
       }
     },
     scenario_context: {
       actual_problem: isUranium
         ? '矿山产能与新矿投产策略如何调整，以在需求波动和地缘政治风险下维持供应安全和完成率稳定'
-        : presetOptions.goals[0],
+        : presetOptions.value.goals[0],
       source_experiment: activeCounterfactualExperiment.value?.label || '',
       source_report: activeCounterfactualExperiment.value?.report?.source || '',
+      knowledge_baseline: autoBaselineMeta.value
+        ? {
+            experiment_id: autoBaselineMeta.value.experimentId,
+            filename: autoBaselineMeta.value.filename,
+            iterations: autoBaselineMeta.value.iterations
+          }
+        : null,
+      knowledge_rule_ids: eventConfigs.value
+        .filter((item) => item.ruleId)
+        .map((item) => item.ruleId),
       selected_parameters: activeCounterfactualParams.value.map((item) => ({
         key: item.key,
         label: item.label,
@@ -1147,7 +1669,13 @@ const connectSim = async () => {
 }
 
 /**
- * 基于导入报告数据的合成反事实结果生成（用于没有后端仿真模型的数据，如网络数据）
+ * 基于报告基线的参数敏感性推算（仅在后端仿真不可用时使用）。
+ *
+ * 与旧实现相比：
+ *   1. 去掉了 Math.random()，同样的参数必然得到同样的结果，可复现、可解释；
+ *   2. 汽车场景把「工厂协作半径」「企业扩张触发阈值」纳入弹性模型，
+ *      与后端 run.py 实际消费的 agent_node_configs 保持一致；
+ *   3. 所有基线值都来自报告真实统计（bestMetrics），不做兜底造数之外的任何臆测。
  */
 const runSyntheticCounterfactual = () => {
   const report = activeCounterfactualExperiment.value?.report
@@ -1156,63 +1684,79 @@ const runSyntheticCounterfactual = () => {
   const params = buildCounterfactualParamOverrides()
   const baseline = report.bestMetrics || {}
   const paramControls = report.counterfactualParameters || []
-
-  // 检测场景 → 使用专用弹性系数
   const isUranium = detectUraniumReport(report)
 
-  // 计算参数变化比例
-  const capacityParam = paramControls.find(p => p.key === 'factory_capacity_max')
-  const orderParam = paramControls.find(p => p.key === 'order_multiplier')
-  const thresholdParam = paramControls.find(p => p.key === 'reproduction_threshold')
+  const currentOf = (key) => {
+    const item = paramControls.find((p) => p.key === key)
+    return toFiniteNumber(item?.current ?? item?.value, NaN)
+  }
+  const ratioOf = (key, next) => {
+    const base = currentOf(key)
+    const value = toFiniteNumber(next, NaN)
+    if (!Number.isFinite(base) || base <= 0 || !Number.isFinite(value)) return 1
+    return value / base
+  }
 
-  const origCapacity = capacityParam?.current || 1
-  const newCapacity = params.factory_capacity_range?.[1] || origCapacity
-  const capacityRatio = origCapacity > 0 ? newCapacity / origCapacity : 1
+  // 参数变化比例（相对报告基线）
+  const capacityRatio = ratioOf('factory_capacity_max', params.factory_capacity_range?.[1])
+  const orderRatio = ratioOf('order_multiplier', params.order_multiplier)
+  const thresholdRatio = ratioOf('reproduction_threshold', params.reproduction_threshold)
+  const radiusRatio = ratioOf('collaboration_radius', getActiveParameterValue('collaboration_radius', NaN))
 
-  const origOrder = orderParam?.current || 1
-  const newOrder = params.order_multiplier || origOrder
-  const orderRatio = origOrder > 0 ? newOrder / origOrder : 1
+  const baselineCompletion = toFiniteNumber(baseline.orderCompletionRate, 0.7)
+  const baselineProfit = toFiniteNumber(baseline.totalNetProfit, 10000)
 
-  const origThreshold = thresholdParam?.current || 1000
-  const newThreshold = params.reproduction_threshold || origThreshold
-  const thresholdRatio = origThreshold > 0 ? newThreshold / origThreshold : 1
-
-  // 基于参数变化计算合成结果
-  const baselineCompletion = baseline.orderCompletionRate || 0.7
-  const baselineProfit = baseline.totalNetProfit || 10000
-
-  // 场景弹性系数：矿山产能对完成率影响更大（供应链产能刚性更强），新矿投产阈值有滞后效应
+  // 弹性系数：产能对完成率影响最大，需求上升压低完成率；
+  // 阈值降低 → 更早触发扩产；协作半径扩大 → 跨厂订单分担更充分。
   const capacityElasticity = isUranium ? 0.75 : 0.6
   const orderElasticity = isUranium ? 0.35 : 0.4
-  const thresholdEffect = isUranium ? (1 - thresholdRatio) * 0.15 : 0
+  const thresholdWeight = isUranium ? 0.15 : 0.12
+  const radiusWeight = isUranium ? 0 : 0.08
 
-  // 产能增加 → 完成率上升；需求增加 → 完成率下降；阈值降低 → 完成率上升（更多新矿进入）
-  const syntheticCompletion = Math.min(0.99, Math.max(0.15,
-    baselineCompletion * (1 + (capacityRatio - 1) * capacityElasticity - (orderRatio - 1) * orderElasticity + thresholdEffect)
+  const projectCompletion = ({ capacity, order, threshold, radius }) => Math.min(0.99, Math.max(0.05,
+    baselineCompletion * (1
+      + (capacity - 1) * capacityElasticity
+      - (order - 1) * orderElasticity
+      + (1 - threshold) * thresholdWeight
+      + (radius - 1) * radiusWeight)
   ))
-  const syntheticProfit = baselineProfit * capacityRatio * orderRatio * (0.85 + Math.random() * 0.3)
-  const syntheticBacklog = Math.max(0, 1 - syntheticCompletion)
-  const syntheticScore = syntheticCompletion * 40 + Math.min(syntheticProfit / (isUranium ? 1000 : 100), 100) * 0.35 + 25
+  const projectProfit = (completion, capacity) =>
+    baselineProfit * capacity * (completion / Math.max(baselineCompletion, 0.001))
+  const projectScore = (completion, profit) =>
+    completion * 40 + Math.min(profit / (isUranium ? 1000 : 100), 100) * 0.35 + 25
+
+  const primaryCompletion = projectCompletion({
+    capacity: capacityRatio,
+    order: orderRatio,
+    threshold: thresholdRatio,
+    radius: radiusRatio
+  })
+  const primaryProfit = projectProfit(primaryCompletion, capacityRatio)
 
   const primaryResult = {
     bestIteration: report.bestIteration,
-    completionRate: roundNumber(syntheticCompletion, 4),
-    backlogRate: roundNumber(syntheticBacklog, 4),
-    overallScore: roundNumber(syntheticScore, 3),
-    profit: roundNumber(syntheticProfit, 1),
-    completionChange: roundNumber((syntheticCompletion - baselineCompletion) / Math.max(baselineCompletion, 0.001) * 100, 1),
-    profitChange: roundNumber((syntheticProfit - baselineProfit) / Math.max(baselineProfit, 0.001) * 100, 1),
+    completionRate: roundNumber(primaryCompletion, 4),
+    backlogRate: roundNumber(Math.max(0, 1 - primaryCompletion), 4),
+    overallScore: roundNumber(projectScore(primaryCompletion, primaryProfit), 3),
+    profit: roundNumber(primaryProfit, 1),
+    completionChange: roundNumber((primaryCompletion - baselineCompletion) / Math.max(baselineCompletion, 0.001) * 100, 1),
+    profitChange: roundNumber((primaryProfit - baselineProfit) / Math.max(baselineProfit, 0.001) * 100, 1),
     isUranium
   }
 
-  // 二次策略结果
-  const secondaryCompletion = Math.min(0.99, syntheticCompletion * (0.88 + Math.random() * 0.22))
-  const secondaryProfit = syntheticProfit * (0.85 + Math.random() * 0.3)
+  // 次策略：保守方案 —— 产能只按一半幅度调整，协作半径维持基线
+  const secondaryCompletion = projectCompletion({
+    capacity: 1 + (capacityRatio - 1) * 0.5,
+    order: orderRatio,
+    threshold: thresholdRatio,
+    radius: 1
+  })
+  const secondaryProfit = projectProfit(secondaryCompletion, 1 + (capacityRatio - 1) * 0.5)
   const secondaryResult = {
     completionRate: roundNumber(secondaryCompletion, 4),
     backlogRate: roundNumber(Math.max(0, 1 - secondaryCompletion), 4),
     overallScore: roundNumber(secondaryCompletion * 35 + Math.min(secondaryProfit / (isUranium ? 1000 : 100), 100) * 0.35 + 30, 3),
-    profit: roundNumber(secondaryProfit, 1),
+    profit: roundNumber(secondaryProfit, 1)
   }
 
   return { primary: primaryResult, secondary: secondaryResult }
@@ -1243,7 +1787,9 @@ const startSim = async () => {
   const capMin = paramOverrides.factory_capacity_range?.[0] || 0
   const capMax = paramOverrides.factory_capacity_range?.[1] || 0
   if (capMin <= 0 && capMax <= 0) {
-    ElMessage.error('矿山产能参数不能全为 0，请先导入实验报告或手动设置产能上下限')
+    ElMessage.error(isUraniumScene.value
+      ? '矿山产能参数不能全为 0，请先导入实验报告或手动设置产能上下限'
+      : '工厂产能参数不能全为 0，请先载入汽车供应链基线或手动设置产能上下限')
     return
   }
   if (!paramOverrides.order_multiplier || paramOverrides.order_multiplier <= 0) {
@@ -1628,7 +2174,7 @@ const syncCounterfactualParameter = (parameter) => {
   const exp = selectedExperiment.value
   if (exp && exp.hasReport) {
     if (!exp.counterfactualParameters) {
-      exp.counterfactualParameters = structuredClone(activeCounterfactualParams.value)
+      exp.counterfactualParameters = deepClone(activeCounterfactualParams.value)
     }
     const target = exp.counterfactualParameters.find(p => p.key === parameter.key)
     if (target) {
@@ -1660,6 +2206,13 @@ const handleReportUpload = async (event) => {
     return
   }
 
+  const reportScenario = detectUraniumReport(normalizedReport)
+    ? SCENARIO_VALUES.URANIUM
+    : SCENARIO_VALUES.SUPPLY_CHAIN
+  if (reportScenario !== scenarioStore.currentScenario) {
+    ElMessage.warning(`该报告属于${reportScenario === SCENARIO_VALUES.URANIUM ? '铀' : '汽车'}供应链场景，当前页面是${isUraniumScene.value ? '铀' : '汽车'}供应链场景，报告的摘要文案会按报告自带场景显示`)
+  }
+
   const importedSlot = experiments.value.find((item) => item.report?.source === normalizedReport.source)
   if (importedSlot) {
     selectedExperimentId.value = importedSlot.id
@@ -1686,14 +2239,14 @@ const applyCounterfactualObject = (experiment) => {
   }
   // 将参数保存到该实验的独立副本中
   const parameters = experiment.report?.counterfactualParameters || []
-  experiment.counterfactualParameters = structuredClone(parameters)
+  experiment.counterfactualParameters = deepClone(parameters)
   counterfactualParameters.value = experiment.counterfactualParameters
   const demandParameter = experiment.counterfactualParameters.find((item) => item.key === 'order_multiplier')
   demandMultiplierInput.value = demandParameter ? demandParameter.value : 1
 }
 
 const forceTriggerEvent = () => {
-  const nextEvent = eventConfigs.find((item) => !triggeredEventIds.value.has(item.id))
+  const nextEvent = eventConfigs.value.find((item) => !triggeredEventIds.value.has(item.id))
   if (!nextEvent) return ElMessage.info('所有事件已完成')
   eventTriggered.value = true
   eventResolved.value = false
@@ -1710,11 +2263,11 @@ const confirmEventDecision = () => {
   lastEventDecision.value = pendingDecision.value
   eventResolved.value = true
   eventTriggered.value = false
-  const activeEvent = eventConfigs.find((item) => !triggeredEventIds.value.has(item.id))
+  const activeEvent = eventConfigs.value.find((item) => !triggeredEventIds.value.has(item.id))
   if (activeEvent) triggeredEventIds.value.add(activeEvent.id)
   eventDialogVisible.value = false
   if (selectedExperiment.value?.status) {
-    const isUranium = (selectedExperiment.value?.report?.source || '').toLowerCase().includes('uranium')
+    const isUranium = detectUraniumReport(selectedExperiment.value?.report)
     selectedExperiment.value.status.tagType = 'success'
     selectedExperiment.value.status.counterCompletion = isUranium ? '91.2%' : '84.2%'
     selectedExperiment.value.status.backlog = isUranium ? '-16.3%' : '-24.1%'
@@ -1747,7 +2300,7 @@ const createExperiment = () => {
 const duplicateExperiment = () => {
   if (!selectedExperiment.value) return
   if (!selectedExperiment.value.hasReport) return ElMessage.warning('当前事中实验无内容，无法复制')
-  const copy = structuredClone(selectedExperiment.value)
+  const copy = deepClone(selectedExperiment.value)
   copy.id = `exp${String(experiments.value.length + 1).padStart(2, '0')}`
   copy.label = `${copy.label}-副本`
   copy.arguments.name = copy.label
@@ -1798,8 +2351,23 @@ const removeExperiment = () => {
 }
 
 onMounted(() => {
+  migrateLegacyCounterfactualState()
   restoreCounterfactualState()
+  ensureAutomotiveBaseline()
 })
+
+// 首页切换场景后本页立即切到对应分桶：先把旧状态落盘到旧场景，再恢复目标场景。
+// 运行中的轮询与本地进度条属于上一个场景的实验，必须先停掉。
+watch(
+  () => scenarioStore.currentScenario,
+  (next, prev) => {
+    if (!next || next === prev) return
+    persistCounterfactualState(prev)
+    stopRunPolling()
+    stopLocalProgressTicker()
+    restoreCounterfactualState(next)
+  }
+)
 
 onBeforeUnmount(() => {
   stopLocalProgressTicker()
@@ -1824,6 +2392,12 @@ watch(
 </script>
 
 <style>
+.scnet-counterfactual-cockpit .page-head .knowledge-source-line {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #94a3b8;
+}
 .scnet-counterfactual-cockpit {
   --primary-color: #2563eb;
   --primary-hover: #1d4ed8;

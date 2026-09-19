@@ -94,7 +94,10 @@
                         </template>
                         <div class="chat-model-menu">
                           <button v-for="m in chatModels" :key="m.value" class="chat-model-item"
-                            :class="{ active: selectedModel === m.value }" @click="selectedModel = m.value">{{ m.label }}</button>
+                            :class="{ active: selectedModel === m.value }"
+                            :disabled="m.configured === false"
+                            :title="m.configured === false ? '后端未配置该 provider 的 API Key' : ''"
+                            @click="selectedModel = m.value">{{ m.configured === false ? m.label + '（未配置 Key）' : m.label }}</button>
                         </div>
                       </el-popover>
                     </div>
@@ -216,14 +219,18 @@
                   </el-popover>
                   <el-popover trigger="click" placement="top" :width="200" popper-class="chat-model-popover">
                     <template #reference>
-                      <button class="chat-composer-tag-btn" :disabled="isStreaming" title="选择模型">
+                      <button class="chat-composer-tag-btn" :class="{ 'is-unconfigured': currentModelOption && currentModelOption.configured === false }"
+                        :disabled="isStreaming" title="选择模型">
                         <el-icon :size="15"><Cpu /></el-icon>
                         <span>{{ currentModelLabel }}</span>
                       </button>
                     </template>
                     <div class="chat-model-menu">
                       <button v-for="m in chatModels" :key="m.value" class="chat-model-item"
-                        :class="{ active: selectedModel === m.value }" @click="selectedModel = m.value">{{ m.label }}</button>
+                        :class="{ active: selectedModel === m.value }"
+                        :disabled="m.configured === false"
+                        :title="m.configured === false ? '后端未配置该 provider 的 API Key' : ''"
+                        @click="selectedModel = m.value">{{ m.configured === false ? m.label + '（未配置 Key）' : m.label }}</button>
                     </div>
                   </el-popover>
                 </div>
@@ -244,7 +251,7 @@
     <!-- 右侧：Agent 研判执行面板 -->
     <aside v-if="execPanelVisible" class="chat-exec-panel">
       <div class="chat-exec-header">
-        <span class="chat-exec-title">事前态势研判 · Agent 执行</span>
+        <span class="chat-exec-title">{{ execPanelTitle }}</span>
         <button class="chat-exec-close" @click="execPanelVisible = false" title="收起">&times;</button>
       </div>
       <div class="chat-exec-body">
@@ -382,10 +389,12 @@ const EXEC_MODES = [
   { label: '规划模式', value: 'plan', icon: List, desc: '先规划再执行' },
   { label: 'Agent模式', value: 'agent', icon: Monitor, desc: '多智能体协作执行' },
 ]
+// 兜底模型列表：/api/agent/models 拉取失败时才用。
+// 真实列表由 loadAgentModels() 从后端覆盖，并带上 provider_id 与"是否已配置 Key"。
 const CHAT_MODELS = [
-  { label: 'Qwen-Turbo', value: 'qwen-turbo' },
-  { label: 'Qwen-Plus', value: 'qwen-plus' },
-  { label: 'Qwen-Max', value: 'qwen-max' },
+  { label: 'Qwen-Turbo', value: 'qwen::qwen-turbo', providerId: 'qwen', modelId: 'qwen-turbo', configured: true },
+  { label: 'Qwen-Plus', value: 'qwen::qwen-plus', providerId: 'qwen', modelId: 'qwen-plus', configured: true },
+  { label: 'Qwen-Max', value: 'qwen::qwen-max', providerId: 'qwen', modelId: 'qwen-max', configured: true },
 ]
 export default {
   name: 'ChatHome',
@@ -404,7 +413,9 @@ export default {
 
     const messages = ref([])
     const inputText = ref('')
-    const selectedModel = ref('qwen-turbo')
+    const selectedModel = ref('qwen::qwen-turbo')
+    // 模型选项（含 provider）由 loadAgentModels() 从后端覆盖
+    const chatModels = ref(CHAT_MODELS)
     const isStreaming = ref(false)
     const currentConversationId = ref('')
     const conversations = ref([])
@@ -424,6 +435,9 @@ export default {
     const execStatus = ref('')
     const execState = ref('idle') // idle | running | done | error
     const execSections = ref([])
+    // 本次 Agent 任务的分析阶段(pre/during/post):决定执行面板标题,
+    // 否则事后复盘时面板仍写着"事前态势研判"。
+    const runPhase = ref('pre')
     // K2-FLOW:分析完成状态(用于导出PDF/进入可视化)
     const analysisSuccess = ref(false)
     const lastAnalysisMsgId = ref('')
@@ -437,7 +451,18 @@ export default {
       return '导出 PDF'
     })
 
-    const currentModelLabel = computed(() => { const m = CHAT_MODELS.find(o => o.value === selectedModel.value); return m ? m.label : 'Qwen-Turbo' })
+    const currentModelOption = computed(() => chatModels.value.find(o => o.value === selectedModel.value) || null)
+    const currentModelLabel = computed(() => {
+      const m = currentModelOption.value
+      if (!m) return selectedModel.value || '未选择模型'
+      return m.configured === false ? `${m.label} · 未配置 Key` : m.label
+    })
+    const EXEC_PANEL_TITLES = {
+      pre: '事前态势研判 · Agent 执行',
+      during: '事中决策 · Agent 执行',
+      post: '事后复盘 · Agent 执行'
+    }
+    const execPanelTitle = computed(() => EXEC_PANEL_TITLES[runPhase.value] || EXEC_PANEL_TITLES.pre)
     const spinnerGlyph = computed(() => SPINNER_GLYPHS[spinnerGlyphIdx.value] || '✽')
     const modeIndex = computed(() => ({ auto: 0, pre: 1, during: 2, post: 3 }[currentMode.value] || 0))
     const inputPlaceholder = computed(() => PLACEHOLDERS[currentMode.value] || PLACEHOLDERS.auto)
@@ -774,6 +799,10 @@ export default {
       if (text) scenarioStore.setLastUserMessage(text)
       if ((!text && attachments.value.length === 0) || isStreaming.value) return
 
+      // 当前阶段透传给后端 Agent：事后复盘必须带 post，
+      // 否则后端按事前研判的提示词与工具集回答，答案与用户意图不符。
+      const currentAgentPhase = () => (['post', 'during'].includes(currentMode.value) ? currentMode.value : 'pre')
+
       // K3-CHAT-1:事前/智能识别/事后不再跳需求分析页,在对话首页内 Agent 研判。
       // 事中(during)流程保持兼容,仍走原想定生成页。
       const isDuring = currentMode.value === 'during'
@@ -788,7 +817,9 @@ export default {
           : currentMode.value === 'post'
             ? '📈 正在进入事后复盘（反事实实验）...'
             : '🔍 正在建立会话并进入态势分析...',
-        _streaming: true
+        _streaming: true,
+        // 占位文案不是答案：首个 text_delta 到达时丢弃，出错时也可被错误信息替换
+        _placeholder: true
       })
       isStreaming.value = true
       scrollToBottom()
@@ -811,8 +842,8 @@ export default {
         if (isDuring) {
           await enterDuringFlow(sid, text, sc)
         } else {
-          // 不跳页:在本对话页内运行 Agent 事前研判
-          await runAgentChat(text, sid)
+          // 不跳页:在本对话页内运行 Agent 研判
+          await runAgentChat(text, sid, currentAgentPhase())
         }
       } catch (e) {
         messages.value.pop()
@@ -825,19 +856,67 @@ export default {
     }
 
     // ── K3-CHAT-1:对话首页 Agent 事前研判 ──────
-    const runAgentChat = async (text, sid) => {
+    /**
+     * 模型选项来自后端 /api/agent/models，并带上「该 provider 是否已配置 Key」。
+     * 此前这里是写死的三个 Qwen 模型、且请求不带 provider_id —— 后端会回落到
+     * DEFAULT_PROVIDER(qwen)，所以 qwen 没 Key 时在界面上怎么换模型都救不回来。
+     */
+    const loadAgentModels = async () => {
+      try {
+        const res = await getAgentModels()
+        const payload = unwrapApiData(res) || {}
+        const providers = payload.providers || []
+        const options = []
+        providers.forEach((p) => {
+          const models = Array.isArray(p.models) ? p.models.filter(Boolean) : []
+          // 老后端没有该字段时不误判为"未配置"
+          const configured = p.api_key_configured !== false
+          models.forEach((m) => options.push({
+            value: `${p.provider_id}::${m}`,
+            providerId: p.provider_id,
+            modelId: m,
+            label: `${p.display_name || p.provider_id} · ${m}`,
+            configured
+          }))
+        })
+        if (!options.length) return
+        chatModels.value = options
+        // 默认选中:优先跟随后端生效的默认 provider(LLM_PROVIDER 环境变量),
+        // 其次任一已配置 Key 的 provider —— 前端不自己猜默认值,猜错就会在
+        // 没配 Key 的 provider 上开局,撞出"模型服务调用失败"。
+        const preferred = options.find((o) => o.providerId === payload.default_provider && o.configured)
+        const keep = options.find((o) => o.value === selectedModel.value && o.configured)
+        if (!keep) selectedModel.value = (preferred || options.find((o) => o.configured) || options[0]).value
+      } catch (e) {
+        console.warn('加载 agent 模型列表失败，使用兜底列表:', e?.message)
+      }
+    }
+
+    const runAgentChat = async (text, sid, phase = 'pre') => {
+      // lastMsg 必须先声明:下面"未配置 Key"的分支会提前 return 并写回错误气泡
+      const lastMsg = messages.value[messages.value.length - 1]
+      const chosen = currentModelOption.value
+      if (chosen && chosen.configured === false) {
+        execState.value = 'error'
+        execStatus.value = `${chosen.label} 未配置 API Key`
+        failAssistantMessage(lastMsg, `当前模型 ${chosen.label} 未在后端配置 API Key；请配置对应环境变量后重启后端，或在上方切换到已配置的模型`)
+        return
+      }
+      runPhase.value = phase
       execPanelVisible.value = true
       execTools.value = []; execSections.value = []
       execState.value = 'running'; execStatus.value = '正在启动 Agent 任务…'
       analysisSuccess.value = false; lastAnalysisMsgId.value = ''; pdfReady.value = false
-      const lastMsg = messages.value[messages.value.length - 1]
       try {
         const res = await startAgentChat({
           message: text,
           conversationId: sid,
-          modelId: selectedModel.value,
+          // provider 必须一起送：后端缺省会回落到 DEFAULT_PROVIDER(qwen)，
+          // 只换模型名换不掉 provider。
+          providerId: currentModelOption.value?.providerId || null,
+          modelId: currentModelOption.value?.modelId || selectedModel.value,
           mode: 'agent',
-          phase: 'pre',
+          phase,
         })
         const data = unwrapApiData(res) || res?.data || res || {}
         const taskId = data?.task_id
@@ -862,6 +941,27 @@ export default {
       }
     }
 
+    // 把错误原因写进对话气泡。旧实现用 `if (!lastMsg.content)` 判断，
+    // 而气泡里本来就有「正在进入事后复盘…」占位文案，导致失败原因被静默吞掉。
+    const failAssistantMessage = (msg, reason) => {
+      if (!msg) return
+      // 复用该气泡已记录的失败原因：complete 事件里 task.error 可能为 null，
+      // 直接用兜底文案会追加一行无信息的「Agent 执行出错」。
+      const effective = reason || msg._failReason || 'Agent 执行出错'
+      const text = `❌ ${effective}`
+      if (msg.content && msg.content.includes(text)) return // error / done / complete 都会触发，避免重复追加
+      if (msg._placeholder || !msg.content) {
+        msg.content = text
+        msg._placeholder = false
+      } else {
+        msg.content += `\n\n${text}`
+      }
+      msg._streaming = false
+      // 记在消息上：后续 done / complete 事件要据此判断本次研判是失败的
+      msg._failed = true
+      msg._failReason = reason || ''
+    }
+
     const handleAgentEvent = (ev, lastMsg) => {
       const type = ev.type
       if (type === 'status') {
@@ -875,7 +975,12 @@ export default {
         const t = execTools.value.find(x => x.call_id === ev.call_id)
         if (t) t.status = 'done'
       } else if (type === 'text_delta') {
-        if (lastMsg) { lastMsg.content += ev.content; scrollToBottom() }
+        if (lastMsg) {
+          // 首个增量到达即丢弃占位文案，否则「正在…」会一直挂在答案前面
+          if (lastMsg._placeholder) { lastMsg.content = ''; lastMsg._placeholder = false }
+          lastMsg.content += ev.content
+          scrollToBottom()
+        }
       } else if (type === 'section') {
         if (!execSections.value.includes(ev.section)) {
           execSections.value.push(ev.section)
@@ -884,16 +989,40 @@ export default {
       } else if (type === 'phase') {
         if (ev.phase === 'output') execStatus.value = '正在生成研判方案…'
       } else if (type === 'done') {
-        execState.value = 'done'; execStatus.value = '研判完成'
+        // 模型调用失败时后端仍会补发 done{reason:'llm_error'}，任务终态随之变成 completed，
+        // 只看 done/complete 会把失败显示成「研判完成」，这里用 reason 与消息失败标记兜住。
+        if (ev.reason === 'llm_error' || (lastMsg && lastMsg._failed)) {
+          execState.value = 'error'
+          execStatus.value = (lastMsg && lastMsg._failReason) || execStatus.value || '模型服务调用失败'
+          analysisSuccess.value = false
+          lastAnalysisMsgId.value = ''
+        } else {
+          execState.value = 'done'; execStatus.value = '研判完成'
+        }
       } else if (type === 'complete') {
-        execState.value = 'done'; execStatus.value = '研判完成'
+        // 后端在任务终态（含 error / cancelled）都会补发 complete，
+        // 不能一律当成研判成功：否则调用失败也显示「研判完成」并给出导出 PDF / 进入可视化入口。
+        const taskStatus = ev.task && ev.task.status
+        const taskError = (ev.task && ev.task.error) || ''
+        const runFailed = taskStatus === 'error' || !!(lastMsg && lastMsg._failed)
         if (agentStream) { try { agentStream.close() } catch {} ; agentStream = null }
         isStreaming.value = false
         if (lastMsg) lastMsg._streaming = false
-        // K2-FLOW:分析成功 → 展示导出PDF + 进入可视化
-        if (lastMsg && lastMsg.content) {
-          analysisSuccess.value = true
-          lastAnalysisMsgId.value = lastMsg.id
+        if (runFailed) {
+          execState.value = 'error'
+          execStatus.value = taskError || (lastMsg && lastMsg._failReason) || execStatus.value || '执行出错'
+          analysisSuccess.value = false; lastAnalysisMsgId.value = ''
+          failAssistantMessage(lastMsg, taskError)
+        } else if (taskStatus === 'cancelled') {
+          execState.value = 'done'; execStatus.value = '已取消'
+          analysisSuccess.value = false; lastAnalysisMsgId.value = ''
+        } else {
+          execState.value = 'done'; execStatus.value = '研判完成'
+          // K2-FLOW:只有真实流式内容才算研判成功（占位文案不算）
+          if (lastMsg && lastMsg.content && !lastMsg._placeholder) {
+            analysisSuccess.value = true
+            lastAnalysisMsgId.value = lastMsg.id
+          }
         }
         // Agent 完成:后台同步真实列表(title/updated_at/新会话);失败不影响当前列表
         setTimeout(() => { refreshHistorySilently() }, 600)
@@ -903,8 +1032,9 @@ export default {
         if (lastMsg) lastMsg._streaming = false
       } else if (type === 'error') {
         execState.value = 'error'; execStatus.value = ev.message || '执行出错'
-        analysisSuccess.value = false
-        if (lastMsg && !lastMsg.content) lastMsg.content = `❌ ${ev.message || 'Agent 执行出错'}`
+        analysisSuccess.value = false; lastAnalysisMsgId.value = ''
+        isStreaming.value = false
+        failAssistantMessage(lastMsg, ev.message)
       }
     }
 
@@ -967,13 +1097,26 @@ export default {
       }
     }
 
-    // ── K2-FLOW:进入可视化 → 态势研判(真实路由 /home/SCnet/situationJudge) ──
+    // ── K2-FLOW:进入可视化(按阶段分流) ──
+    // 此前不管什么阶段都跳到「态势研判」,而那是左侧「事前」分组里的页面:
+    // 事后复盘点进来就会出现"面包屑写着事后、内容全是事前全局态势"的错位。
+    // 与 total.vue 的 PHASE_ROUTES 保持同一套约定。
+    const VISUALIZATION_ROUTE_BY_PHASE = {
+      // 事前:态势研判(供应链网络地图 + 路线风险排行榜)
+      pre: '/home/SCnet/situationJudge',
+      // 事后:事后分组里的第一个页面「反事实实验」,与 total.vue 事后入口一致
+      post: SCNET_ROUTES.counterfactualExperiment
+    }
+
     const goVisualization = () => {
+      const phase = runPhase.value === 'post' ? 'post' : 'pre'
       const query = { from_chat: '1' }
       if (activeRun.value && activeRun.value.conversation_id) {
         query.session_id = activeRun.value.conversation_id
       }
-      router.push({ path: '/home/SCnet/situationJudge', query })
+      // 反事实实验按 ?scenario= 切铀/汽车,不带就会落回默认场景
+      if (phase === 'post') query.scenario = scenarioStore.currentScenario || 'uranium'
+      router.push({ path: VISUALIZATION_ROUTE_BY_PHASE[phase], query })
     }
 
     const toolDisplayName = (t) => TOOL_DISPLAY_NAMES[t] || t
@@ -997,6 +1140,7 @@ export default {
       return false
     }
     onMounted(async () => {
+      loadAgentModels()
       fetchConversations()
       applyModeFromRoute(route.query?.mode)
       // 模式入口(事中)不自动恢复历史,避免覆盖 ?mode=during 流程
@@ -1022,11 +1166,11 @@ export default {
       historyLoading, historyError, historyLoaded, retryHistory,
       sidebarCollapsed, currentMode, modeIndex, execMode, attachments,
       debugThinking, debugThinkingVisible, spinnerGlyph,
-      currentModelLabel, currentExecMode, inputPlaceholder,
-      modeOptions: MODE_OPTIONS, chatModels: CHAT_MODELS, EXEC_MODES,
+      currentModelLabel, currentModelOption, currentExecMode, inputPlaceholder,
+      modeOptions: MODE_OPTIONS, chatModels, EXEC_MODES,
       scenarioOptions: SCENARIO_OPTIONS, selectScenario,
       presetQuestions, presetTitle, applyPreset, phaseShortLabels: PHASE_SHORT_LABELS,
-      execPanelVisible, activeRun, execTools, execStatus, execState, execSections,
+      execPanelVisible, execPanelTitle, activeRun, execTools, execStatus, execState, execSections,
       analysisSuccess, lastAnalysisMsgId, pdfGenerating, pdfReady, pdfStateText,
       SECTION_ORDER, SECTION_LABELS, RESULT_CARDS,
       toolDisplayName, isSectionDone,
@@ -1268,6 +1412,9 @@ export default {
 .chat-model-item { width: 100%; padding: 8px 10px; border: none; border-radius: 6px; background: none; cursor: pointer; text-align: left; font-size: 13px; color: #4b5563; }
 .chat-model-item:hover { background: #f3f4f6; }
 .chat-model-item.active { background: #eef2ff; color: #4f46e5; font-weight: 600; }
+.chat-model-item:disabled { opacity: 0.5; cursor: not-allowed; }
+.chat-model-item:disabled:hover { background: none; }
+.chat-composer-tag-btn.is-unconfigured { color: #dc2626; border-color: #fecaca; background: #fef2f2; }
 
 .chat-send-btn { width: 34px; height: 34px; border: none; border-radius: 10px; background: #2563eb; color: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s; }
 .chat-send-btn:hover:not(:disabled) { background: #1d4ed8; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(37,99,235,0.3); }

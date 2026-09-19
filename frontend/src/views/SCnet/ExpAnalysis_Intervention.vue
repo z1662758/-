@@ -149,12 +149,15 @@
                       <span class="sc-val-col sc-val--a">{{ formatStatValue(row.mean_a, row.kind) }}</span>
                       <span class="sc-val-col sc-val--b">{{ formatStatValue(row.mean_b, row.kind) }}</span>
                       <span class="sc-val-col">
-                        <template v-if="row.available">{{ formatSigned(row.mean_diff, row.kind) }} / p={{ formatPValue(row.p_value) }} / d={{ row.cohens_d }}</template>
+                        <template v-if="row.available">
+                          {{ formatSigned(row.mean_diff, row.kind) }} / p={{ formatPValue(row.p_value) }}
+                          <br />d={{ row.cohens_d }}<span v-if="row.effect_note" class="stats-muted">（{{ row.effect_note }}）</span>
+                        </template>
                         <template v-else>--</template>
                       </span>
                       <span class="sc-val-col">
                         <el-tag v-if="row.available" size="small" :type="row.significant ? 'success' : 'info'" round>{{ row.significant ? (row.better === 'A' ? 'A 显著更优' : 'B 显著更优') : '无显著差异' }}</el-tag>
-                        <span v-else class="stats-muted">样本不足</span>
+                        <span v-else class="stats-muted">{{ row.unavailable_reason || '无法检验' }}</span>
                       </span>
                     </div>
                   </div>
@@ -199,12 +202,20 @@
                 <el-icon><Promotion /></el-icon>
                 <span>结构方程路径模型</span>
                 <el-tag size="small" :type="structuralModel?.available ? 'success' : 'info'" round>{{ structuralModel?.available ? '实测路径系数' : '结构示意' }}</el-tag>
-                <span class="sem-legend"><span class="sem-dot-a"></span>A</span>
-                <span class="sem-legend"><span class="sem-dot-b"></span>B</span>
+                <el-tooltip placement="top" effect="dark" :show-after="120">
+                  <template #content>
+                    <div class="sem-help-pop">
+                      以月度为观测单位做标准化 OLS：<br />
+                      需求压力（订单量）→ 协作强度 → 供应完成率<br />
+                      a、b 为两条中介路径系数，c′ 为控制协作强度后的直接效应，c 为总效应（c = c′ + a×b），间接效应用 Sobel 检验。<br />
+                      显著性：* p&lt;0.05，** p&lt;0.01，*** p&lt;0.001；灰色虚线表示该路径不显著。<br />
+                      β 为标准化路径系数，属统计关联结构，不做因果识别。
+                    </div>
+                  </template>
+                  <el-icon class="sem-help"><QuestionFilled /></el-icon>
+                </el-tooltip>
               </div>
               <div ref="semChartRef" class="sem-chart"></div>
-              <p v-if="semCaption" class="sem-caption">{{ semCaption }}</p>
-              <p class="sem-caption sem-caption--muted">以月度为观测单位做标准化 OLS（需求压力（订单量）→ 协作强度 → 供应完成率），间接效应为 Sobel 检验；β 为标准化路径系数，属统计关联结构，不做因果识别。</p>
             </div>
 
           </div>
@@ -217,7 +228,7 @@
         <div class="anomaly-list-panel">
           <header class="panel-head">
             <el-icon><WarningFilled /></el-icon>
-            <span>铀供应链异常事件列表</span>
+            <span>{{ sceneText.anomalyListTitle }}</span>
             <el-tag size="small" type="info" round>{{ anomaliesData?.method?.label || '稳健统计检测' }}</el-tag>
             <el-select v-model="severityFilter" placeholder="严重度" size="small" clearable style="width:110px;margin-left:auto">
               <el-option label="全部" value="" /><el-option label="高" value="high" /><el-option label="中" value="medium" /><el-option label="低" value="low" />
@@ -225,21 +236,10 @@
           </header>
           <div class="panel-body">
             <div v-if="filteredAnomalies.length === 0" class="empty-hint">暂无检测到的异常事件</div>
-            <div v-for="(a, idx) in filteredAnomalies" :key="idx" class="anomaly-item" :class="{ active: selectedAnomalyIndex === a._originalIndex }" @click="selectAnomaly(a._originalIndex)">
-              <div class="anomaly-head">
-                <el-tag :type="a.severity==='high'?'danger':a.severity==='medium'?'warning':'info'" size="small" effect="dark" round>{{ a.severity==='high'?'高':a.severity==='medium'?'中':'低' }}</el-tag>
-                <span class="anomaly-type">{{ typeLabel(a.type) }}</span>
-              </div>
-              <p class="anomaly-desc">{{ a.description }}</p>
-              <div class="anomaly-meta">
-                <span v-if="a.month">第{{ a.month }}月</span>
-                <span v-if="a.iteration">迭代{{ a.iteration }}</span>
-                <span v-if="a.change_pct">变化 {{ a.change_pct }}%</span>
-                <span v-if="a.robust_z !== undefined && a.robust_z !== null">z={{ a.robust_z }}</span>
-                <span v-if="a.baseline !== undefined && a.baseline !== null">基线 {{ a.baseline }}{{ a.unit === '%' ? '%' : '' }}</span>
-                <span v-if="a.p_adjusted !== undefined && a.p_adjusted !== null">校正 p={{ formatPValue(a.p_adjusted) }}</span>
-                <span v-if="a.confidence">置信度 {{ confidenceLabel(a.confidence) }}</span>
-              </div>
+            <div v-for="(a, idx) in filteredAnomalies" :key="idx" class="anomaly-item" :class="{ active: selectedAnomalyIndex === a._originalIndex }" :title="a.description" @click="selectAnomaly(a._originalIndex)">
+              <el-tag :type="a.severity==='high'?'danger':a.severity==='medium'?'warning':'info'" size="small" effect="dark" round>{{ a.severity==='high'?'高':a.severity==='medium'?'中':'低' }}</el-tag>
+              <span class="anomaly-type">{{ typeLabel(a.type) }}</span>
+              <span v-if="a.month" class="anomaly-month">第{{ a.month }}月</span>
             </div>
           </div>
         </div>
@@ -282,15 +282,20 @@
 import { computed, onBeforeUnmount, onMounted, ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
-  ArrowDown, ArrowRight, Collection, DataAnalysis, DataLine, Document, Download, Folder,
-  FolderOpened, Odometer, Promotion, Refresh, Setting, TrendCharts, VideoPlay, WarningFilled
+  ArrowDown, ArrowRight, DataAnalysis, DataLine, Document, Download, Folder,
+  FolderOpened, Promotion, QuestionFilled, Setting, TrendCharts, VideoPlay, WarningFilled
 } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import { runExperiment } from '@/api/scenarioModeling'
 import { getQueueHistory } from '@/api/queue'
-import { getExperimentDetail, getInterventionStrategies, compareInterventions, getAnomalies, getAnomalyDetail, getExperiments } from '@/api/supplyChain'
+import { getExperimentDetail, getInterventionStrategies, compareInterventions, getAnomalies, getAnomalyDetail } from '@/api/supplyChain'
 import { unwrapApiData } from '@/utils/apiEnvelope'
 import { resolveExperimentIdFromTask } from '@/utils/scnetTaskUtils'
+import { useSupplyChainScenario } from '@/composables/useSupplyChainScenario'
+
+// ---- 场景（铀供应链 / 汽车供应链）：与对话首页共用同一份选择 ----
+// ?scenario= 进入时以 URL 为准；策略名/目标/指标单位等口径统一走 sceneText
+const { scenarioStore, isUraniumScene, sceneText, loadScenarioExperiments } = useSupplyChainScenario()
 
 // 后端加载的策略数据
 const backendStrategies = ref([])
@@ -300,23 +305,63 @@ const strategiesLoaded = ref(false)
 const currentExperimentId = ref('')
 
 // 将后端策略转换为前端策略库格式
+// 策略核心参数：直接取后端返回的真实干预参数，不做二次加工
+const formatStrategyParams = (params = {}) => {
+  const parts = []
+  const range = params.factory_capacity_range
+  if (Array.isArray(range) && range.length >= 2 && (Number(range[0]) > 0 || Number(range[1]) > 0)) {
+    parts.push(`产能 ${Number(range[0]).toFixed(0)}-${Number(range[1]).toFixed(0)}`)
+  }
+  const threshold = Number(params.reproduction_threshold)
+  if (Number.isFinite(threshold) && threshold > 0) parts.push(`阈值 ${threshold.toFixed(0)}`)
+  const orderMultiplier = Number(params.order_multiplier)
+  if (Number.isFinite(orderMultiplier)) parts.push(`订单 ${orderMultiplier.toFixed(2)}x`)
+  const adjustment = Number(params.adjustment_ratio)
+  if (Number.isFinite(adjustment)) parts.push(`调整 ${(adjustment * 100).toFixed(1)}%`)
+  return parts.length ? parts.join(' | ') : '--'
+}
+
 const mapBackendStrategyToFrontend = (s) => {
-  const typeMap = {
-    capacity_expansion: '产能扩张', collaboration: '采购策略', emergency_response: '应急响应',
-    inventory_management: '库存缓冲', pricing_strategy: '价格策略', supplier_selection: '供应链优化'
-  }
-  const targetMap = {
-    capacity_expansion: '全球铀矿产能', collaboration: '铀贸易网络', emergency_response: '替代供应来源',
-    inventory_management: '战略铀储备', pricing_strategy: '铀市场价格', supplier_selection: '铀供应链节点'
-  }
+  // 类型 / 目标命名按场景取：铀侧保留原有措辞，汽车侧对齐工厂产能与协作网络
+  const typeMap = isUraniumScene.value
+    ? {
+        capacity_expansion: '产能扩张', collaboration: '采购策略', emergency_response: '应急响应',
+        inventory_management: '库存缓冲', pricing_strategy: '价格策略', supplier_selection: '供应链优化'
+      }
+    : {
+        capacity_expansion: '产能扩张', collaboration: '协作网络', emergency_response: '应急响应',
+        inventory_management: '库存管理', pricing_strategy: '价格策略', supplier_selection: '供应商选择'
+      }
+  const targetMap = isUraniumScene.value
+    ? {
+        capacity_expansion: '全球铀矿产能', collaboration: '铀贸易网络', emergency_response: '替代供应来源',
+        inventory_management: '战略铀储备', pricing_strategy: '铀市场价格', supplier_selection: '铀供应链节点'
+      }
+    : {
+        capacity_expansion: '总厂下属工厂产能', collaboration: '工厂协作网络', emergency_response: '替代供应来源',
+        inventory_management: '库存与缓冲能力', pricing_strategy: '市场定价', supplier_selection: '供应链节点'
+      }
+  // 注意：Number(null) === 0，必须先判空再取数，否则缺失指标会被当成 0 参与展示
+  const rawCompletion = s.outcomes?.completion_rate
+  const hasCompletion = rawCompletion !== null && rawCompletion !== undefined && Number.isFinite(Number(rawCompletion))
+  const completionRate = hasCompletion ? Number(rawCompletion) : null
+  const completionDelta = hasCompletion ? completionRate * 100 - 50 : null
+  const rawDensity = s.outcomes?.network_density
+  const hasDensity = rawDensity !== null && rawDensity !== undefined && Number.isFinite(Number(rawDensity))
+  const networkDensity = hasDensity ? Number(rawDensity) : null
   return {
     id: s.id, name: s.name,
-    target: targetMap[s.type] || '铀供应链全网络', phase: '事中',
-    expectedCompletionDelta: `+${((s.outcomes?.completion_rate || 0.7) * 100 - 50).toFixed(1)}pp`,
-    backlogImprovement: `${((1 - (s.outcomes?.completion_rate || 0.7)) * 100).toFixed(1)}%`,
+    target: targetMap[s.type] || sceneText.value.strategyNetwork, phase: '事中',
+    desc: formatStrategyParams(s.params),
+    expectedCompletionDelta: hasCompletion
+      ? `${completionDelta >= 0 ? '+' : ''}${completionDelta.toFixed(1)}pp`
+      : '--',
+    backlogImprovement: hasCompletion ? `${((1 - completionRate) * 100).toFixed(1)}%` : '--',
     collaborationDelta: `+${s.params?.final_collaborations || 0} 次`,
-    resilienceDelta: `+${((s.outcomes?.network_density || 0.3) * 1.0).toFixed(2)}`,
-    type: typeMap[s.type] || '基准策略', scope: (s.id && s.id.includes('bottleneck')) ? '定向瓶颈' : '全局铀供应链',
+    // 网络密度为 null 时如实显示 --，不再回退到虚构的默认值
+    resilienceDelta: networkDensity === null ? '--' : `+${networkDensity.toFixed(2)}`,
+    type: typeMap[s.type] || '基准策略',
+    scope: (s.id && s.id.includes('bottleneck')) ? '定向瓶颈' : sceneText.value.strategyGlobalScope,
     mechanism: s.type === 'capacity_expansion' ? '阶梯扩产' : s.type === 'emergency_response' ? '启动替代产能' : s.type === 'inventory_management' ? '战略储备缓冲' : s.type === 'pricing_strategy' ? '长期合约锁价' : '多源供应',
     trigger: s.has_extreme_scenario ? '极端事件' : (s.outcomes?.completion_rate < 0.5 ? '完成率<50%' : '基准策略'),
     _backend: s
@@ -327,13 +372,9 @@ const mapBackendStrategyToFrontend = (s) => {
 const loadStrategiesFromBackend = async () => {
   strategiesLoading.value = true
   try {
-    const expRes = await getExperimentDetail
-    // 先获取实验列表
-    const { getExperiments } = await import('@/api/supplyChain')
-    const listRes = await getExperiments()
-    const experiments = unwrapApiData(listRes) || []
-
-    if (!experiments || experiments.length === 0) return
+    // 只取当前场景（铀 / 汽车）的最新实验：策略库按 experiment_id 提供
+    const experiments = await loadScenarioExperiments()
+    if (!experiments.length) return
 
     const latest = experiments[0]
     const experimentId = latest.experiment_id || latest.id
@@ -371,6 +412,12 @@ const loadStrategiesFromBackend = async () => {
           const exists = strategyFolders.find(sf => sf.label === f.label)
           if (!exists) strategyFolders.push(f)
         })
+        // 汽车场景没有本地种子策略：载入后端策略库后自动选中前两条，便于直接对比
+        if (!currentStrategy.id) {
+          const flattenStrategies = strategyFolders.flatMap(folder => folder.children)
+          if (flattenStrategies[0]) Object.assign(currentStrategy, flattenStrategies[0])
+          if (flattenStrategies[1]) selectedStrategy.value = flattenStrategies[1]
+        }
         strategiesLoaded.value = true
         ElMessage.success(`已从实验 ${experimentId} 补充 ${stratData.total_strategies} 条干预策略`)
       }
@@ -382,43 +429,47 @@ const loadStrategiesFromBackend = async () => {
   }
 }
 
-// ---- 铀供应链干预策略库 ----
-const strategyFolders = reactive([
-  {
-    id: 'cat_market', label: '干预策略', expanded: true,
-    children: [
-      { id: 'mkt_hedge',        name: '长期合约锁价', desc: '速率0.06 | 完成率+4pp | $55/lb',             target: '铀市场价格', phase: '事前', expectedCompletionDelta: '+4.2pp', backlogImprovement: '-5.8%', collaborationDelta: '+3次', resilienceDelta: '+0.15', type: '价格策略', mechanism: '长期合约锁定5-10年价格', trigger: '铀价>$80/lb' },
-      { id: 'mkt_slow_adjust',  name: '稳健保守',    desc: '速率0.04 | 完成率+2pp | 保守',            target: '全供应链', phase: '事后', expectedCompletionDelta: '+2.0pp', backlogImprovement: '-3.0%', collaborationDelta: '+1次', resilienceDelta: '+0.05', type: '稳健策略', mechanism: '低调整速率+储备缓冲', trigger: '市场不确定' }
-    ]
-  }
-])
+// ---- 干预策略库 ----
+// 铀场景保留原有带标注的本地策略；汽车场景不使用本地种子
+//（原有种子含铀价等与汽车无关的语义），直接采用后端 /intervention-strategies
+// 返回的真实策略库（15 条，均带实测参数与结果）
+const uraniumStrategySeeds = [
+  { id: 'mkt_hedge',        name: '长期合约锁价', desc: '速率0.06 | 完成率+4pp | $55/lb',             target: '铀市场价格', phase: '事前', expectedCompletionDelta: '+4.2pp', backlogImprovement: '-5.8%', collaborationDelta: '+3次', resilienceDelta: '+0.15', type: '价格策略', mechanism: '长期合约锁定5-10年价格', trigger: '铀价>$80/lb' },
+  { id: 'mkt_slow_adjust',  name: '稳健保守',    desc: '速率0.04 | 完成率+2pp | 保守',            target: '全供应链', phase: '事后', expectedCompletionDelta: '+2.0pp', backlogImprovement: '-3.0%', collaborationDelta: '+1次', resilienceDelta: '+0.05', type: '稳健策略', mechanism: '低调整速率+储备缓冲', trigger: '市场不确定' }
+]
+// 汽车场景先留空：等后端策略库载入后按其真实类型分组（当前后端返回 15 条产能扩张策略）
+const buildStrategySeeds = () => (isUraniumScene.value
+  ? [{ id: 'cat_market', label: '干预策略', expanded: true, children: uraniumStrategySeeds }]
+  : [])
+const strategyFolders = reactive(buildStrategySeeds())
 
 // ---- 异常分析状态 ----
 const anomaliesData = ref(null)
 const severityFilter = ref('')
 const selectedAnomalyIndex = ref(null)
 const selectedDetail = ref(null)
-const typeLabels = { order_drop: '铀需求骤降', completion_change: '供应完成率异常', enterprise_change: '矿山/企业变动', extreme_event: '铀供应链极端事件', network_disruption: '协作网络中断' }
-const typeLabel = (t) => typeLabels[t] || t
+// 异常类型名称：铀侧保留原有措辞，汽车侧改为工厂 / 订单口径
+const URANIUM_TYPE_LABELS = { order_drop: '铀需求骤降', completion_change: '供应完成率异常', enterprise_change: '矿山/企业变动', extreme_event: '铀供应链极端事件', network_disruption: '协作网络中断' }
+const AUTOMOTIVE_TYPE_LABELS = { order_drop: '市场需求骤降', completion_change: '订单完成率异常', enterprise_change: '工厂/企业变动', extreme_event: '汽车供应链极端事件', network_disruption: '协作网络中断' }
+const typeLabels = computed(() => (isUraniumScene.value ? URANIUM_TYPE_LABELS : AUTOMOTIVE_TYPE_LABELS))
+const typeLabel = (t) => typeLabels.value[t] || t
 const anomalyCount = computed(() => anomaliesData.value?.summary?.total_anomalies || 0)
 const highSeverityCount = computed(() => anomaliesData.value?.summary?.by_severity?.high || 0)
-const overviewCards = computed(() => {
-  const s = anomaliesData.value?.summary || {}; const types = s.by_type || []; const topType = types[0]
-  return [
-    { label: '异常总数', value: s.total_anomalies || 0, icon: WarningFilled },
-    { label: '主要类型', value: topType ? `${topType.label} (${topType.count})` : '--', icon: TrendCharts },
-    { label: '涉及月份', value: anomaliesData.value?.timeline?.length || 0, icon: Odometer },
-    { label: '高严重度', value: highSeverityCount.value, icon: DataLine }
-  ]
-})
 const allAnomalies = computed(() => (anomaliesData.value?.anomalies || []).map((a, i) => ({ ...a, _originalIndex: i })))
 const filteredAnomalies = computed(() => severityFilter.value ? allAnomalies.value.filter(a => a.severity === severityFilter.value) : allAnomalies.value)
 
+// 异常检测数据挂在实验上：按当前场景取最新实验，并与策略库共用同一个 experiment_id
+const resolveScenarioExperimentId = async () => {
+  if (currentExperimentId.value) return currentExperimentId.value
+  const experiments = await loadScenarioExperiments()
+  const latest = experiments[0]
+  const experimentId = latest ? (latest.experiment_id || latest.id) : ''
+  if (experimentId) currentExperimentId.value = experimentId
+  return experimentId
+}
 const loadAnomalies = async () => {
   try {
-    const listRes = await getExperiments(); const experiments = unwrapApiData(listRes) || []
-    if (!experiments?.length) return
-    const latest = experiments[0]; const experimentId = latest.experiment_id || latest.id
+    const experimentId = await resolveScenarioExperimentId()
     if (!experimentId) return
     const res = await getAnomalies(experimentId); const data = unwrapApiData(res)
     if (data) anomaliesData.value = data
@@ -427,8 +478,7 @@ const loadAnomalies = async () => {
 const selectAnomaly = async (index) => {
   selectedAnomalyIndex.value = index
   try {
-    const listRes = await getExperiments(); const experiments = unwrapApiData(listRes) || []
-    const latest = experiments[0]; const experimentId = latest.experiment_id || latest.id
+    const experimentId = await resolveScenarioExperimentId()
     if (!experimentId) return
     const res = await getAnomalyDetail(experimentId, index); const data = unwrapApiData(res)
     if (data?.detail) selectedDetail.value = data.detail
@@ -436,7 +486,6 @@ const selectAnomaly = async (index) => {
 }
 
 const activeStrategySlot = ref('secondary')
-const showRuntime = ref(false)
 
 const strategyInfoFields = [
   { key: 'name', label: '策略' },
@@ -445,21 +494,8 @@ const strategyInfoFields = [
   { key: 'trigger', label: '触发' }
 ]
 
-const strategyParamFields = [
-  { key: 'name', label: '策略' },
-  { key: 'desc', label: '核心参数' },
-  { key: 'mechanism', label: '机制' }
-]
-
-const strategyResultFields = [
-  { key: 'expectedCompletionDelta', label: '预期完成率变化' },
-  { key: 'backlogImprovement', label: '预期供应缺口改善' },
-  { key: 'collaborationDelta', label: '预期协作增量' },
-  { key: 'resilienceDelta', label: '预期韧性提升' }
-]
-
 const interventionConclusion = computed(() => {
-  const a = currentStrategy, b = selectedStrategy
+  const a = currentStrategy, b = selectedStrategy.value
   if (!a.id || !b?.id) return '请选择两个策略进行对比'
   if (comparison.value?.recommendation) return comparison.value.recommendation
   const aComp = parseFloat(a.expectedCompletionDelta) || 0
@@ -480,8 +516,8 @@ const strategyAllFields = [
   { key: 'resilienceDelta', label: '韧性' }
 ]
 
-const currentStrategy = reactive({ ...strategyFolders[0].children[0] })
-const selectedStrategy = ref({ ...strategyFolders[0].children[1] })
+const currentStrategy = reactive({ ...(strategyFolders[0]?.children?.[0] || {}) })
+const selectedStrategy = ref(strategyFolders[0]?.children?.[1] ? { ...strategyFolders[0].children[1] } : null)
 
 // ---- 后端统计对比：综合评分 / 显著性检验 / 路径模型 ----
 const statsLoading = ref(false)
@@ -524,26 +560,6 @@ const formatSigned = (value, kind) => {
   return (num >= 0 ? '+' : '') + num.toFixed(1)
 }
 
-const confidenceLabel = (level) => ({ high: '高', medium: '中', low: '低' }[level] || '--')
-
-const semCaption = computed(() => {
-  const model = structuralModel.value
-  if (!model) return ''
-  const parts = []
-  for (const slot of ['strategy_a', 'strategy_b']) {
-    const est = model.estimates?.[slot]
-    if (!est) continue
-    const label = slot === 'strategy_a' ? '策略A' : '策略B'
-    if (!est.available) {
-      parts.push(`${label}：${est.reason || '无法估计'}`)
-    } else {
-      const r2 = (est.r2_completion === null || est.r2_completion === undefined)
-        ? '' : `，R²=${Number(est.r2_completion).toFixed(3)}`
-      parts.push(`${label}：${est.variant_label}，n=${est.n} 个月${r2}`)
-    }
-  }
-  return parts.join('；')
-})
 
 const comparisonHint = computed(() => {
   if (comparison.value) return ''
@@ -578,104 +594,287 @@ const loadStrategyComparison = async () => {
 // ---- 结构方程可视化 ----
 const semChartRef = ref(null)
 let semChartInstance = null
+const SEM_HEIGHT = 360
 
-const buildSEMOption = () => {
-  const a = currentStrategy; const b = selectedStrategy.value
-  if (!a?.id || !b?.id) return null
+const formatStars = (p) => {
+  if (p === null || p === undefined) return ''
+  const v = Number(p)
+  if (!Number.isFinite(v)) return ''
+  if (v < 0.001) return '***'
+  if (v < 0.01) return '**'
+  if (v < 0.05) return '*'
+  return ''
+}
+const isSignificant = (p) => {
+  if (p === null || p === undefined) return false
+  const v = Number(p)
+  return Number.isFinite(v) && v < 0.05
+}
+const semStat = (node) => {
+  const est = node || {}
+  return {
+    beta: formatBeta(est.beta),
+    se: est.se === null || est.se === undefined ? '--' : Number(est.se).toFixed(3),
+    p: formatPValue(est.p_value),
+    sig: isSignificant(est.p_value) ? '是' : '否'
+  }
+}
+const semTipText = (value) => String(value)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+const semTipRows = (rows) => rows
+  .filter((row) => row && row[1] !== null && row[1] !== undefined && row[1] !== '')
+  .map((row) => '<div style="display:flex;justify-content:space-between;gap:18px;line-height:1.85">'
+    + '<span style="color:#64748b">' + semTipText(row[0]) + '</span>'
+    + '<b style="color:#0f172a">' + semTipText(row[1]) + '</b></div>')
+  .join('')
+const semTipBlock = (title, color, rows) =>
+  '<div style="font-weight:800;margin-bottom:5px;color:' + color + '">' + title + '</div>' + semTipRows(rows)
+
+// 结构方程路径图：A/B 两侧各画一条"需求压力 → 协作强度 → 供应完成率"路径。
+// 注意：ECharts graph(layout:'none') 会按 0.8*min(W/spanX, H/spanY) 等比缩放并把节点
+// 包围盒居中，且节点符号尺寸/字号是字面 px、不参与该缩放。这里用 4 个隐形锚点把
+// spanX/spanY 钉死在 0.8W/0.8H，使缩放系数恰好为 1，于是节点坐标 = 画布像素坐标。
+const buildSEMOption = (width, height) => {
+  const strategyA = currentStrategy
+  const strategyB = selectedStrategy.value
+  if (!strategyA?.id || !strategyB?.id) return null
   try {
-    const colorA = '#3b82f6'; const colorB = '#22c55e'
+    const W = Math.max(Number(width) || semChartRef.value?.clientWidth || 700, 380)
+    const H = Math.max(Number(height) || SEM_HEIGHT, 240)
     const model = structuralModel.value
+    const colorA = '#2563eb'
+    const colorB = '#059669'
+    const BW = Math.max(78, Math.min(112, Math.round(W * 0.152)))
+    const edgeFont = W < 560 ? 11 : 12
+    const ox = 0.1 * W
+    const oy = 0.1 * H
+    const colX = [ox + BW / 2, W / 2, W - ox - BW / 2]
+    const bandTop = [24, 196]
+    const bandH = 132
+    const rowY = [bandTop[0] + 68, bandTop[1] + 68]
     const nodes = []
     const links = []
+    const graphics = []
 
-    const shortName = (name) => (name || '').substring(0, 12)
+    const pushAnchor = (vx, vy) => nodes.push({
+      id: `anchor_${vx}_${vy}`, name: '', x: vx, y: vy,
+      symbolSize: 0, label: { show: false }, itemStyle: { opacity: 0 }
+    })
+    pushAnchor(0, 0)
+    pushAnchor(0.8 * W, 0)
+    pushAnchor(0, 0.8 * H)
+    pushAnchor(0.8 * W, 0.8 * H)
 
-    const buildSide = (slot, strategy, est, color, baseY) => {
-      const envId = `env_${slot}`; const medId = `m_${slot}`; const outId = `o_${slot}`
-      const estimable = Boolean(est && est.available)
-      const mediation = estimable && est.variant === 'mediation'
-      const category = slot === 'strategy_a' ? 0 : 1
-      const r2 = (estimable && est.r2_completion !== null && est.r2_completion !== undefined)
-        ? `\nR²=${Number(est.r2_completion).toFixed(2)}` : ''
-
+    const pushNode = (id, cx, cy, title, sub, border, dim, tip) => {
       nodes.push({
-        id: envId, name: '需求压力', x: 110, y: baseY,
-        itemStyle: { color }, symbolSize: 16, category
+        id, name: title, x: cx - ox, y: cy - oy,
+        symbol: 'roundRect', symbolSize: [BW, 50],
+        itemStyle: {
+          color: '#ffffff',
+          borderColor: dim ? '#cbd5e1' : border,
+          borderWidth: dim ? 1.2 : 1.8,
+          borderRadius: 10,
+          shadowBlur: dim ? 0 : 6,
+          shadowColor: 'rgba(15,23,42,0.10)',
+          shadowOffsetY: 1
+        },
+        label: {
+          show: true,
+          formatter: sub ? `{t|${title}}\n{s|${sub}}` : `{t|${title}}`,
+          rich: {
+            t: { fontSize: 12, fontWeight: 'bold', lineHeight: 17, align: 'center', color: dim ? '#94a3b8' : '#0f172a' },
+            s: { fontSize: 10, lineHeight: 14, align: 'center', color: dim ? '#b6bfcc' : '#7c8798' }
+          }
+        },
+        _tipHtml: tip
       })
-      nodes.push({
-        id: medId,
-        name: mediation ? '协作强度' : (estimable ? '协作强度\n(无波动)' : '协作强度\n(不可估计)'),
-        x: 292, y: baseY, symbolSize: mediation ? 12 : 10,
-        itemStyle: mediation ? { color } : { color: '#cbd5e1' }, category
+    }
+
+    const pushLink = (source, target, opt) => {
+      links.push({
+        source, target,
+        symbol: ['none', 'arrow'],
+        symbolSize: opt.active ? 8 : 6,
+        lineStyle: {
+          color: opt.active ? opt.color : '#cbd5e1',
+          width: opt.active ? opt.width : 1.4,
+          type: opt.active ? 'solid' : 'dashed',
+          curveness: opt.curveness || 0,
+          opacity: opt.active ? 0.92 : 0.85
+        },
+        label: {
+          show: Boolean(opt.text),
+          formatter: opt.text,
+          fontSize: edgeFont, fontWeight: 700,
+          color: opt.active ? '#0f172a' : '#9aa5b4',
+          backgroundColor: 'rgba(255,255,255,0.97)',
+          borderColor: opt.active ? opt.color : '#e2e8f0',
+          borderWidth: 1, borderRadius: 6, padding: [3, 6],
+          shadowBlur: 3, shadowColor: 'rgba(15,23,42,0.10)'
+        },
+        _tipHtml: opt.tip
       })
-      nodes.push({ id: outId, name: `供应完成率${r2}`, x: 470, y: baseY, symbolSize: 14, category: 2 })
+    }
+
+    const buildSide = (slot, strategy, color, idx) => {
+      const est = model?.estimates?.[slot] || null
+      const y = rowY[idx]
+      const top = bandTop[idx]
+      const tag = idx === 0 ? 'A' : 'B'
+      const available = Boolean(est && est.available)
+      const mediation = available && est.variant === 'mediation'
+      const r2 = available && est.r2_completion !== null && est.r2_completion !== undefined
+        ? Number(est.r2_completion) : null
+      const reason = !available
+        ? (est?.reason || '无可用月度数据')
+        : (est.degraded && est.degrade_reason ? est.degrade_reason : '')
+      const meta = available
+        ? [`n = ${est.n} 个月`, mediation ? '中介路径' : '单路径']
+        : [reason]
+
+      graphics.push({
+        type: 'rect', z: 1, silent: true,
+        shape: { x: 6, y: top, width: W - 12, height: bandH, r: 12 },
+        style: {
+          fill: idx === 0 ? '#f7faff' : '#f6fbf8',
+          stroke: idx === 0 ? '#dbeafe' : '#d5f0e1',
+          lineWidth: 1
+        }
+      })
+      graphics.push({
+        type: 'text', z: 2, silent: true, left: 20, top: top + 12,
+        style: { text: `策略${tag} · ${strategy.name || tag}`, fill: color, fontSize: 12, fontWeight: 'bold' }
+      })
+      graphics.push({
+        type: 'text', z: 2, silent: true, right: 20, top: top + 13,
+        style: { text: meta.join('　｜　'), fill: '#94a3b8', fontSize: 11 }
+      })
+
+      const head = semTipBlock(`策略${tag} · ${strategy.name || tag}`, color, [
+        ['模型', mediation ? '中介路径（需求压力 → 协作强度 → 供应完成率）' : (available ? '单路径（需求压力 → 供应完成率）' : '不可估计')],
+        ['观测单位', available ? `${est.n} 个月（月度标准化 OLS）` : '--'],
+        ['结果变量 R²', r2 === null ? '--' : r2.toFixed(3)],
+        ['说明', reason]
+      ])
+
+      pushNode(slot + '_env', colX[0], y, '需求压力', '外生变量', color, !available,
+        head + semTipBlock('需求压力（外生变量）', color,
+          [['指标口径', '月订单量 total_orders'], ['处理', '标准化为 z 分数']]))
+      pushNode(slot + '_med', colX[1], y, '协作强度',
+        mediation ? '中介变量' : (available ? '无波动' : '不可估计'), color, !mediation,
+        head + semTipBlock('协作强度（中介变量）', color,
+          [['指标口径', '月协作次数 collaboration_count'], ['可估计', mediation ? '是' : '否（月度序列无波动）']]))
+      pushNode(slot + '_out', colX[2], y, '供应完成率', r2 === null ? '' : `R² = ${r2.toFixed(2)}`, color, !available,
+        head + semTipBlock('供应完成率（结果变量）', color,
+          [['指标口径', '完工订单 / 订单总量'], ['模型 R²', r2 === null ? '--' : r2.toFixed(3)]]))
+
+      const linkTip = (title, stat, extra) => head + semTipBlock(title, color,
+        [['标准化系数 β', stat.beta], ['标准误 SE', stat.se], ['p 值', stat.p], ['显著（α=0.05）', stat.sig]]
+          .concat(extra || []))
 
       if (mediation) {
-        links.push({
-          source: envId, target: medId, lineStyle: { color, width: 2 },
-          label: { show: true, fontSize: 8, formatter: `a  β=${formatBeta(est.a?.beta)} (p=${formatPValue(est.a?.p_value)})` }
+        const pathA = semStat(est.a)
+        const pathB = semStat(est.b)
+        const pathC = semStat(est.direct)
+        const indirect = est.indirect
+        const indirectRows = indirect
+          ? [['间接效应 a×b', formatBeta(indirect.indirect_effect)],
+             ['Sobel z', Number(indirect.z).toFixed(3)],
+             ['Sobel p', formatPValue(indirect.p_value) + (indirect.significant ? '（显著）' : '（不显著）')]]
+          : [['间接效应 a×b', formatBeta(Number(est.a?.beta || 0) * Number(est.b?.beta || 0))],
+             ['Sobel 检验', '不适用（间接效应方差退化，路径系数为 0）']]
+        const width = (beta) => 1.8 + 2.2 * Math.min(1, Math.abs(Number(beta) || 0))
+
+        pushLink(slot + '_env', slot + '_med', {
+          active: isSignificant(est.a?.p_value), color,
+          width: width(est.a?.beta),
+          text: `β=${pathA.beta}${formatStars(est.a?.p_value)}`,
+          tip: linkTip('路径 a：需求压力 → 协作强度', pathA)
         })
-        links.push({
-          source: medId, target: outId, lineStyle: { color, width: 2 },
-          label: { show: true, fontSize: 8, formatter: `b  β=${formatBeta(est.b?.beta)} (p=${formatPValue(est.b?.p_value)})` }
+        pushLink(slot + '_med', slot + '_out', {
+          active: isSignificant(est.b?.p_value), color,
+          width: width(est.b?.beta),
+          text: `β=${pathB.beta}${formatStars(est.b?.p_value)}`,
+          tip: linkTip('路径 b：协作强度 → 供应完成率', pathB)
         })
-        links.push({
-          source: envId, target: outId, lineStyle: { color, width: 1, type: 'dashed', curveness: 0.3 },
-          label: { show: true, fontSize: 8, formatter: `c' β=${formatBeta(est.direct?.beta)} (p=${formatPValue(est.direct?.p_value)})` }
+        pushLink(slot + '_env', slot + '_out', {
+          active: isSignificant(est.direct?.p_value), color, curveness: 0.16,
+          width: 1.6 + 2.0 * Math.min(1, Math.abs(Number(est.direct?.beta) || 0)),
+          text: `c′=${pathC.beta}${formatStars(est.direct?.p_value)}`,
+          tip: linkTip('直接效应 c′：需求压力 → 供应完成率（已控制协作强度）', pathC,
+            indirectRows.concat([['总效应 c', formatBeta(est.total?.beta)]])
+              .concat([['分解', 'c = c′ + a×b']]))
         })
-      } else if (estimable) {
-        links.push({
-          source: envId, target: outId, lineStyle: { color, width: 2, curveness: 0.12 },
-          label: { show: true, fontSize: 8, formatter: `总效应 β=${formatBeta(est.path?.beta)} (p=${formatPValue(est.path?.p_value)})` }
+      } else if (available) {
+        const total = semStat(est.path)
+        pushLink(slot + '_env', slot + '_out', {
+          active: isSignificant(est.path?.p_value), color, curveness: 0.16,
+          width: 1.8 + 2.2 * Math.min(1, Math.abs(Number(est.path?.beta) || 0)),
+          text: `β=${total.beta}${formatStars(est.path?.p_value)}`,
+          tip: linkTip('总效应 c：需求压力 → 供应完成率', total,
+            [['降级原因', est.degrade_reason || '协作强度月度序列无波动，中介路径不可估计']])
         })
-        links.push({ source: envId, target: medId, lineStyle: { color: '#cbd5e1', width: 1, type: 'dashed' } })
+        const skeletonTip = head + semTipBlock('中介路径（不可估计）', color, [['原因', reason]])
+        pushLink(slot + '_env', slot + '_med', { active: false, color, text: '', tip: skeletonTip })
+        pushLink(slot + '_med', slot + '_out', { active: false, color, text: '', tip: skeletonTip })
       } else {
-        links.push({ source: envId, target: medId, lineStyle: { color: '#cbd5e1', width: 1, type: 'dashed' } })
-        links.push({ source: medId, target: outId, lineStyle: { color: '#cbd5e1', width: 1, type: 'dashed' } })
+        const skeletonTip = head + semTipBlock('中介路径（不可估计）', color, [['原因', reason]])
+        pushLink(slot + '_env', slot + '_med', { active: false, color, text: '', tip: skeletonTip })
+        pushLink(slot + '_med', slot + '_out', { active: false, color, text: '', tip: skeletonTip })
       }
     }
 
-    buildSide('strategy_a', a, model?.estimates?.strategy_a, colorA, 44)
-    buildSide('strategy_b', b, model?.estimates?.strategy_b, colorB, 176)
+    buildSide('strategy_a', strategyA, colorA, 0)
+    buildSide('strategy_b', strategyB, colorB, 1)
 
     return {
+      animation: false,
       tooltip: {
-        formatter: function (p) {
-          if (p.dataType === 'node') return String(p.name).replace('\n', ' ')
-          return `${p.data.source} → ${p.data.target}`
-        }
+        trigger: 'item', confine: true,
+        backgroundColor: 'rgba(255,255,255,0.98)',
+        borderColor: '#e2e8f0', borderWidth: 1, padding: [9, 11],
+        textStyle: { color: '#0f172a', fontSize: 12 },
+        extraCssText: 'box-shadow:0 8px 24px rgba(15,23,42,0.14);border-radius:9px;',
+        formatter: (p) => (p && p.data && p.data._tipHtml) || ''
       },
-      graphic: [
-        { type: 'text', left: 6, top: 4, style: { text: '月度数路径模型：外生变量 → 中介变量 → 结果变量', fill: '#94a3b8', fontSize: 9 } },
-        { type: 'text', left: 6, top: 26, style: { text: `策略A：${shortName(a.name)}`, fill: colorA, fontSize: 10, fontWeight: 'bold' } },
-        { type: 'text', left: 6, top: 158, style: { text: `策略B：${shortName(b.name)}`, fill: colorB, fontSize: 10, fontWeight: 'bold' } }
-      ],
+      graphic: graphics,
       series: [{
         type: 'graph', layout: 'none', roam: false, draggable: false,
-        categories: [{ name: '策略A' }, { name: '策略B' }, { name: '结果指标' }],
-        data: nodes,
-        links: links,
-        label: { show: true, fontSize: 9, color: '#1e293b', fontWeight: 'bold' },
-        edgeSymbol: ['none', 'arrow'], edgeSymbolSize: 7,
-        lineStyle: { curveness: 0.1, opacity: 0.75 },
-        edgeLabel: { show: true, color: '#475569' }
+        data: nodes, links: links,
+        edgeSymbol: ['none', 'arrow'], edgeSymbolSize: 8,
+        emphasis: { focus: 'none', scale: false },
+        z: 5
       }]
     }
   } catch (e) { console.warn('SEM build failed:', e); return null }
 }
+
 let _semTimer = null
 const renderSEMChart = () => {
   if (_semTimer) clearTimeout(_semTimer)
   _semTimer = setTimeout(function() {
     try {
-      if (!semChartRef.value) return
+      const el = semChartRef.value
+      if (!el) return
       if (semChartInstance) { semChartInstance.dispose(); semChartInstance = null }
-      var opt = buildSEMOption()
-      if (!opt) return
-      semChartInstance = echarts.init(semChartRef.value)
-      semChartInstance.setOption(opt)
-    } catch(e) { console.warn('SEM render failed:', e) }
+      const option = buildSEMOption(el.clientWidth, el.clientHeight)
+      if (!option) return
+      semChartInstance = echarts.init(el)
+      semChartInstance.setOption(option)
+    } catch (e) { console.warn('SEM render failed:', e) }
   }, 300)
+}
+
+let _semResizeHandler = null
+const bindSEMResize = () => {
+  if (_semResizeHandler) return
+  _semResizeHandler = () => renderSEMChart()
+  window.addEventListener('resize', _semResizeHandler)
+}
+const unbindSEMResize = () => {
+  if (!_semResizeHandler) return
+  window.removeEventListener('resize', _semResizeHandler)
+  _semResizeHandler = null
 }
 
 // 选策略时触发渲染
@@ -686,7 +885,10 @@ function selectStrategy(child) {
   renderSEMChart()
   loadStrategyComparison()
 }
-const interventionProblem = '铀矿产能受限与核电需求增长背景下，如何选择最优干预策略以维持铀供应链供应安全和完成率稳定？'
+// 干预问题：按场景表述，直接作为后端实验的 user_goal
+const interventionProblem = computed(() => (isUraniumScene.value
+  ? '铀矿产能受限与核电需求增长背景下，如何选择最优干预策略以维持铀供应链供应安全和完成率稳定？'
+  : '汽车供应链工厂产能与库存受限、市场需求波动背景下，如何选择最优干预策略以维持订单完成率与协作网络稳定？'))
 const interventionIterations = 15
 const pollingIntervalMs = 5000
 
@@ -788,20 +990,110 @@ const runComparisonRows = computed(() => {
 let runPollingTimer = null
 
 const baseRunPayload = () => ({
-  scenario: 'uranium',
-  data_dir: 'E:/tju_1/processed',
-  iterations: 7,
+  // 场景随全局选择走：此前固定提交 uranium，导致汽车场景也在跑铀仿真
+  scenario: scenarioStore.currentScenario,
+  // 铀场景使用预处理好的本地数据目录；汽车场景由后端按场景自带数据源
+  data_dir: isUraniumScene.value ? 'E:/tju_1/processed' : null,
+  // 铀场景沿用 7 轮；汽车场景与知识库汽车实验一致（15 轮 x 21 步）
+  iterations: isUraniumScene.value ? 7 : 15,
   model: 'qwen',
   planner_strategy: 'native',
   use_decompose: false,
   enable_llm: false,
   llm_enabled: false,
-  user_goal: interventionProblem,
+  user_goal: interventionProblem.value,
   phase: 'post',
   source_page: 'ExpAnalysis_Intervention'
 })
 
+// ---- 汽车供应链干预参数构造 ----
+// 口径来源：/parameter-catalog?scenario=supply_chain
+//   factory_capacity_range = 工厂产能范围（默认 [250, 400]，区间 [30, 800]）
+//   reproduction_threshold  = 供应保障能力（默认 400，区间 [400, 800]）
+//   order_multiplier        = 市场需求强度（默认 1.0，区间 [0.1, 3]）
+//   collaboration_radius    = 工厂协作范围（默认 1800，区间 [300, 3000]）
+// 后端策略自带实测参数时按实测值回放（夹回目录区间），本地种子策略按语义做定向偏移
+const AUTOMOTIVE_CATALOG = {
+  order_multiplier: { min: 0.1, max: 3, baseline: 1.0 },
+  factory_capacity_range: { min: 30, max: 800, baseline: [250, 400] },
+  reproduction_threshold: { min: 400, max: 800, baseline: 400 },
+  collaboration_radius: { min: 300, max: 3000, baseline: 1800 }
+}
+const AUTOMOTIVE_SEED_PRESETS = {
+  cap_global_30: { capacityFactor: 1.3 },
+  cap_isl_priority: { capacityFactor: 1.2, reproduction_threshold: 600 },
+  cap_lower_threshold: { capacityFactor: 1.1 },
+  proc_diversify: { collaboration_radius: 3000 },
+  proc_stockpile: { reproduction_threshold: 600 },
+  emer_niger: { capacityFactor: 0.85 },
+  emer_kazakh: { capacityFactor: 0.8, reproduction_threshold: 600 },
+  mkt_hedge: { order_multiplier: 0.9 },
+  mkt_slow_adjust: { order_multiplier: 0.85 }
+}
+const clampToCatalog = (key, value) => {
+  const bound = AUTOMOTIVE_CATALOG[key]
+  const num = Number(value)
+  if (!bound || !Number.isFinite(num)) return value
+  return Math.min(bound.max, Math.max(bound.min, num))
+}
+const automotiveRuntimeConfig = (strategy = {}) => {
+  const backendParams = strategy?._backend?.params || {}
+  const preset = AUTOMOTIVE_SEED_PRESETS[strategy?.id] || {}
+  const capacityFactor = preset.capacityFactor ?? 1
+  const recordedCapacity = Array.isArray(backendParams.factory_capacity_range)
+    && backendParams.factory_capacity_range.some((value) => Number(value) > 0)
+    ? backendParams.factory_capacity_range
+    : AUTOMOTIVE_CATALOG.factory_capacity_range.baseline.map((value) => value * capacityFactor)
+  const orderMultiplier = backendParams.order_multiplier ?? preset.order_multiplier
+    ?? AUTOMOTIVE_CATALOG.order_multiplier.baseline
+  const threshold = backendParams.reproduction_threshold ?? preset.reproduction_threshold
+    ?? AUTOMOTIVE_CATALOG.reproduction_threshold.baseline
+  const collaborationRadius = backendParams.manufacturer_collaboration_radius
+    ?? preset.collaboration_radius ?? AUTOMOTIVE_CATALOG.collaboration_radius.baseline
+  return {
+    paramOverrides: {
+      order_multiplier: clampToCatalog('order_multiplier', orderMultiplier),
+      factory_capacity_range: [
+        clampToCatalog('factory_capacity_range', recordedCapacity[0]),
+        clampToCatalog('factory_capacity_range', recordedCapacity[1])
+      ],
+      reproduction_threshold: clampToCatalog('reproduction_threshold', threshold),
+      collaboration_radius: clampToCatalog('collaboration_radius', collaborationRadius),
+      adjustment_ratio: Number.isFinite(Number(backendParams.adjustment_ratio))
+        ? Number(backendParams.adjustment_ratio)
+        : 0.08
+    }
+  }
+}
+
+// 干预参数的展示口径：铀侧沿用原标签与 tU/年 单位；
+// 汽车侧取参数目录命名（市场需求强度 / 工厂产能范围 / 供应保障能力 / 工厂协作范围）
+const buildSelectedParameterContext = (overrides = {}) => {
+  const capacity = Array.isArray(overrides.factory_capacity_range) ? overrides.factory_capacity_range : []
+  if (isUraniumScene.value) {
+    return [
+      { key: 'order_multiplier', label: '铀需求强度', value: overrides.order_multiplier || 1.0, unit: '倍' },
+      { key: 'factory_capacity_min', label: '铀矿产能下限', value: capacity[0], unit: 'tU/年' },
+      { key: 'factory_capacity_max', label: '铀矿产能上限', value: capacity[1], unit: 'tU/年' },
+      { key: 'reproduction_threshold', label: '新矿投产阈值', value: overrides.reproduction_threshold || 6000, unit: 'tU/年' },
+      { key: 'adjustment_ratio', label: '产能爬坡速率', value: overrides.adjustment_ratio || 0.08, unit: '比例' }
+    ]
+  }
+  const rows = [
+    { key: 'order_multiplier', label: '市场需求强度', value: overrides.order_multiplier || 1.0, unit: '倍' },
+    { key: 'factory_capacity_min', label: '工厂产能下限', value: capacity[0], unit: '' },
+    { key: 'factory_capacity_max', label: '工厂产能上限', value: capacity[1], unit: '' },
+    { key: 'reproduction_threshold', label: '供应保障能力', value: overrides.reproduction_threshold, unit: '' }
+  ]
+  if (Number.isFinite(Number(overrides.collaboration_radius))) {
+    rows.push({ key: 'collaboration_radius', label: '工厂协作范围', value: overrides.collaboration_radius, unit: '' })
+  }
+  return rows
+}
+
 const strategyRuntimeConfig = (strategy = {}) => {
+  // 汽车场景：使用参数目录口径的工厂参数
+  if (!isUraniumScene.value) return automotiveRuntimeConfig(strategy)
   const baseline = { order_multiplier: 1.0, factory_capacity_range: [42000, 78000], reproduction_threshold: 6000, adjustment_ratio: 0.08 }
   const defaultAgent = { factory: { params: { capacity_range: [42000, 78000] } }, manufacturing_corporation: { params: { capacity_range: [42000, 78000] } } }
   const configs = {
@@ -858,19 +1150,21 @@ const buildInterventionRunPayload = (slotKey, strategy) => {
     },
     agent_node_configs: {
       factory: { params: { capacity_range: runtimeConfig.paramOverrides.factory_capacity_range } },
-      manufacturing_corporation: { params: { capacity_range: runtimeConfig.paramOverrides.factory_capacity_range } }
+      manufacturing_corporation: {
+        params: {
+          capacity_range: runtimeConfig.paramOverrides.factory_capacity_range,
+          // 汽车场景：协作半径由后端 agent_node_configs 消费
+          //（run.py: manufacturer_collaboration_radius）
+          ...(isUraniumScene.value ? {} : { collaboration_radius: runtimeConfig.paramOverrides.collaboration_radius })
+        }
+      }
     },
     scenario_context: {
-      actual_problem: interventionProblem,
+      actual_problem: interventionProblem.value,
+      scenario: scenarioStore.currentScenario,
       selected_strategy: strategy.name,
       strategy_slot: slotKey === 'primary' ? '策略A' : '策略B',
-      selected_parameters: [
-        { key: 'order_multiplier', label: '铀需求强度', value: runtimeConfig.paramOverrides.order_multiplier || 1.0, unit: '倍' },
-        { key: 'factory_capacity_min', label: '铀矿产能下限', value: runtimeConfig.paramOverrides.factory_capacity_range[0], unit: 'tU/年' },
-        { key: 'factory_capacity_max', label: '铀矿产能上限', value: runtimeConfig.paramOverrides.factory_capacity_range[1], unit: 'tU/年' },
-        { key: 'reproduction_threshold', label: '新矿投产阈值', value: runtimeConfig.paramOverrides.reproduction_threshold || 6000, unit: 'tU/年' },
-        { key: 'adjustment_ratio', label: '产能爬坡速率', value: runtimeConfig.paramOverrides.adjustment_ratio || 0.08, unit: '比例' }
-      ]
+      selected_parameters: buildSelectedParameterContext(runtimeConfig.paramOverrides)
     }
   }
 }
@@ -1081,35 +1375,14 @@ const taskStatusText = (status) => {
   return textMap[status] || '未提交'
 }
 
-const taskStatusType = (status) => {
-  const typeMap = {
-    queued: 'info',
-    pending: 'info',
-    running: 'warning',
-    completed: 'success',
-    failed: 'danger',
-    cancelled: 'info'
-  }
-  return typeMap[status] || 'info'
-}
-
-const isBetterRunValue = (row, slotKey) => {
-  if (!row.direction) return false
-  const left = Number(row.rawPrimary)
-  const right = Number(row.rawSecondary)
-  if (!Number.isFinite(left) || !Number.isFinite(right) || left === right) return false
-  if (row.direction === 'lower') {
-    return slotKey === 'primary' ? left < right : right < left
-  }
-  return slotKey === 'primary' ? left > right : right > left
-}
+const runReportTitle = () => `${sceneText.value.systemLabel}干预策略实际运行报告`
 
 const buildRunReportText = () => {
   const lines = [
-    '干预策略实际运行报告',
+    runReportTitle(),
     `生成时间：${new Date().toLocaleString()}`,
-    `实验问题：${interventionProblem}`,
-    `基础实验：${interventionIterations}轮 / native planner / supply_chain`,
+    `实验问题：${interventionProblem.value}`,
+    `基础实验：${interventionIterations}轮 / native planner / ${scenarioStore.currentScenario}`,
     '',
     `策略A：${currentStrategy.name}`,
     `策略B：${selectedStrategy.value?.name || '--'}`,
@@ -1140,7 +1413,7 @@ const buildRunReportHtml = () => {
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <title>干预策略实际运行报告</title>
+  <title>${runReportTitle()}</title>
   <style>
     body { margin: 0; padding: 28px; color: #0f172a; font-family: "Microsoft YaHei", Arial, sans-serif; line-height: 1.6; background: #f8fafc; }
     main { max-width: 980px; margin: 0 auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 28px; }
@@ -1155,9 +1428,9 @@ const buildRunReportHtml = () => {
 </head>
 <body>
   <main>
-    <h1>干预策略实际运行报告</h1>
+    <h1>${runReportTitle()}</h1>
     <div class="meta">生成时间：${new Date().toLocaleString()}；基础实验：${interventionIterations}轮</div>
-    <div class="problem">${escapeHtml(interventionProblem)}</div>
+    <div class="problem">${escapeHtml(interventionProblem.value)}</div>
     <p><strong>策略A：</strong>${escapeHtml(currentStrategy.name)}</p>
     <p><strong>策略B：</strong>${escapeHtml(selectedStrategy.value?.name)}</p>
     <table>
@@ -1189,7 +1462,7 @@ const exportRunReport = (format = 'html') => {
 
   const safeName = `${currentStrategy.name}_vs_${selectedStrategy.value?.name || '策略B'}`.replace(/[\\/:*?"<>|]/g, '_')
   if (format === 'txt') {
-    downloadRunFile(buildRunReportText(), `干预策略实际运行报告_${safeName}.txt`, 'text/plain;charset=utf-8')
+    downloadRunFile(buildRunReportText(), `${runReportTitle()}_${safeName}.txt`, 'text/plain;charset=utf-8')
     ElMessage.success('实际运行报告已导出为TXT')
     return
   }
@@ -1209,26 +1482,38 @@ const exportRunReport = (format = 'html') => {
     return
   }
 
-  downloadRunFile(buildRunReportHtml(), `干预策略实际运行报告_${safeName}.html`, 'text/html;charset=utf-8')
+  downloadRunFile(buildRunReportHtml(), `${runReportTitle()}_${safeName}.html`, 'text/html;charset=utf-8')
   ElMessage.success('实际运行报告已导出为HTML')
 }
+
+// 场景在本页内切换（首页切换后回到本页）时，重建策略库并重新加载策略与异常
+watch(isUraniumScene, async () => {
+  strategyFolders.splice(0, strategyFolders.length, ...buildStrategySeeds())
+  Object.keys(currentStrategy).forEach(key => delete currentStrategy[key])
+  selectedStrategy.value = null
+  strategiesLoaded.value = false
+  anomaliesData.value = null
+  selectedDetail.value = null
+  selectedAnomalyIndex.value = null
+  currentExperimentId.value = ''
+  await loadStrategiesFromBackend()
+  loadAnomalies()
+})
 
 onMounted(async () => {
   await loadStrategiesFromBackend()
   loadAnomalies()
   // 初始渲染结构方程图
   setTimeout(() => renderSEMChart(), 600)
+  bindSEMResize()
   loadStrategyComparison()
 })
 
 onBeforeUnmount(() => {
   stopRunPolling()
+  unbindSEMResize()
   if (semChartInstance) { semChartInstance.dispose(); semChartInstance = null }
 })
-
-function setActiveStrategySlot(slot) {
-  activeStrategySlot.value = slot
-}
 
 function isStrategySelected(strategyId) {
   return currentStrategy.id === strategyId || selectedStrategy.value?.id === strategyId
@@ -1758,13 +2043,13 @@ function clearRunOutputForSelectionChange() {
 
 /* ---- 实际运行模块 ---- */
 /* ---- 结构方程图 ---- */
-.sem-panel { margin-top: 14px; border: 1px solid #ddd6fe; border-radius: 8px; background: #fff; overflow: hidden; }
+.sem-panel { margin-top: 14px; border: 1px solid #ddd6fe; border-radius: 10px; background: #fff; overflow: hidden; }
 .sem-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #ede9fe; background: linear-gradient(90deg, #faf5ff, #fff); font-size: 13px; font-weight: 800; color: #5b21b6; }
 .sem-head .el-icon { color: #7c3aed; }
-.sem-legend { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: #64748b; }
-.sem-dot-a { width: 10px; height: 10px; border-radius: 50%; background: #3b82f6; display: inline-block; }
-.sem-dot-b { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; display: inline-block; }
-.sem-chart { width: 100%; height: 200px; }
+.sem-help { margin-left: auto; color: #a78bfa; cursor: help; font-size: 15px; }
+.sem-help:hover { color: #7c3aed; }
+.sem-help-pop { max-width: 320px; line-height: 1.75; font-size: 12px; }
+.sem-chart { width: 100%; height: 360px; }
 
 .cmp-card--conclusion { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; border-top: 3px solid #6366f1; margin-bottom: 8px; }
 .cmp-card--conclusion .cmp-card-head { background: linear-gradient(180deg, #eef2ff, #fafbfc); border-bottom: 1px solid #eef2f7; padding: 8px 12px; font-size: 12px; font-weight: 800; display: flex; align-items: center; gap: 6px; color: #4338ca; }
@@ -2008,13 +2293,11 @@ function clearRunOutputForSelectionChange() {
 .anomaly-detail-panel .panel-head { border-top: 3px solid #f59e0b; }
 .panel-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #eef2f7; font-weight: 800; font-size: 13px; flex-shrink: 0; background: #fafbfc; }
 .panel-body { flex: 1; overflow-y: auto; padding: 6px; }
-.anomaly-item { padding: 10px; margin: 2px 0; border: 1px solid #eef2f7; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+.anomaly-item { display: flex; align-items: center; gap: 8px; padding: 9px 10px; margin: 2px 0; border: 1px solid #eef2f7; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
 .anomaly-item:hover { border-color: #fca5a5; background: #fffafa; }
 .anomaly-item.active { border-color: #ef4444; background: #fef2f2; border-left: 3px solid #ef4444; }
-.anomaly-head { display: flex; align-items: center; gap: 8px; }
 .anomaly-type { font-size: 12px; font-weight: 800; color: #0f172a; }
-.anomaly-desc { margin: 6px 0; font-size: 11px; color: #64748b; line-height: 1.5; }
-.anomaly-meta { display: flex; gap: 10px; font-size: 11px; color: #94a3b8; font-weight: 600; }
+.anomaly-month { margin-left: auto; font-size: 12px; color: #94a3b8; font-weight: 600; }
 .detail-body { padding: 14px; overflow-y: auto; }
 .detail-section { margin-bottom: 12px; }
 .detail-section h4 { margin: 0 0 6px; font-size: 13px; font-weight: 800; color: #0f172a; }
@@ -2037,7 +2320,5 @@ function clearRunOutputForSelectionChange() {
 .stats-muted { font-size: 11px; color: #94a3b8; }
 .stats-table .sc-label-col { width: 96px; }
 .stats-table .strategy-compare-row { gap: 4px; }
-.sem-caption { font-size: 11px; color: #475569; margin: 0; padding: 6px 10px 0; line-height: 1.6; }
-.sem-caption--muted { color: #94a3b8; padding-bottom: 8px; }
 
 </style>

@@ -1,4 +1,4 @@
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import {
   SCENARIO_STORAGE_KEY, SCENARIO_EVENT,
@@ -6,22 +6,24 @@ import {
 } from '@/constants/scnetScenario'
 
 export const useScenarioStore = defineStore('scenario', () => {
-  // 一次性迁移：早期版本可能因 URL 参数 / 对话自动识别把场景误写为 supply_chain 并持久化，
-  // 当前部署以铀场景为准，这里只做一次性清理（重置回默认铀），不影响后续 setScenario 的动态切换。
-  const SCENARIO_RESET_FLAG = 'scnet_scenario_reset_v1'
-  if (!localStorage.getItem(SCENARIO_RESET_FLAG)) {
-    localStorage.removeItem(SCENARIO_STORAGE_KEY)
-    localStorage.setItem(SCENARIO_RESET_FLAG, '1')
+  // 一次性迁移：历史版本曾把场景锁死在铀供应链（scnet_scenario_reset_v1），
+  // 当前部署以汽车供应链为默认场景，这里把旧选择一次性归位到汽车场景；
+  // 之后用户在首页的手动切换照常生效，不再被覆盖。
+  const SCENARIO_DEFAULT_FLAG = 'scnet_scenario_default_auto_v1'
+  if (!localStorage.getItem(SCENARIO_DEFAULT_FLAG)) {
+    localStorage.removeItem('scnet_scenario_reset_v1')
+    localStorage.setItem(SCENARIO_STORAGE_KEY, SCENARIO_VALUES.SUPPLY_CHAIN)
+    localStorage.setItem(SCENARIO_DEFAULT_FLAG, '1')
   }
 
-  // 从 localStorage 读取初始值，默认铀供应链
+  // 从 localStorage 读取初始值，默认汽车供应链
   const currentScenario = ref(
-    localStorage.getItem(SCENARIO_STORAGE_KEY) || SCENARIO_VALUES.URANIUM
+    localStorage.getItem(SCENARIO_STORAGE_KEY) || SCENARIO_VALUES.SUPPLY_CHAIN
   )
 
   // 中文标签
   const label = computed(() =>
-    SCENARIO_LABELS[currentScenario.value] || '铀供应链'
+    SCENARIO_LABELS[currentScenario.value] || '汽车供应链'
   )
 
   // 便捷判断
