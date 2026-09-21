@@ -1,9 +1,6 @@
 /**
  * Scenario Modeling API
- * 场景建模核心API - 需求分析、实验设计、智能体配置
- *
- * @author SGM-MSE Team
- * @date 2026-01-17
+ * 对齐 sgm-cmse-master/tofront/app.py 当前注册的 Flask 路由。
  */
 
 import request from '@/utils/request'
@@ -27,31 +24,6 @@ function normalizeScenarioContext(ctx) {
   return Object.keys(out).length > 0 ? out : null
 }
 
-/**
- * 流式需求分析 (SSE) — 对应后端 POST /api/v1/requirement/analyze/stream
- *
- * 一次性串完 RAObserver → RAAgent → ADAgent → ADObserver, 期间按阶段实时推送事件,
- * 避免 4 段 LLM 链路阻塞代理触发 502。
- *
- * 事件 (与 core.ra.pipeline.run_full_stream 输出一致):
- *   { type: 'info',         content, session_id, phase }
- *   { type: 'stage_start',  stage: 'ra_observer' | 'ra_agent' | 'ad_agent' | 'ad_observer' }
- *   { type: 'stage_end',    stage, payload: { judgement | exp_plan | agent_design | agent_observation } }
- *   { type: 'error',        stage, message }
- *   { type: 'done',         payload: { stage, ok, judgement, exp_plan, agent_design, agent_observation, session_id, phase } }
- *
- * @param {object} args
- * @param {string} args.req - 用户需求文本 (必填)
- * @param {string|null} [args.sessionId] - 想定会话 ID; 不传由后端生成 (但当前后端是 echo, 仍需前端管理)
- * @param {string|null} [args.phase] - pre | during | post
- * @param {boolean} [args.designAgents=true] - 是否一并跑 ADAgent + ADObserver
- * @param {string|null} [args.modelName] - LLM model_name
- * @param {object|null} [args.context] - 场景上下文 (本版本默认 null)
- * @param {(ev: object) => void} args.onEvent - 单事件回调
- * @param {(err: Error) => void} [args.onError]
- * @param {() => void} [args.onClose]
- * @returns {{ close(): void }} - 调用 close() 中止 SSE
- */
 export function streamAnalyzeRequirement({
   req,
   sessionId = null,
@@ -63,70 +35,29 @@ export function streamAnalyzeRequirement({
   onError,
   onClose,
 }) {
-  const controller = new AbortController()
-  const body = { req, design_agents: designAgents }
-  if (sessionId) body.session_id = sessionId
-  if (phase) body.phase = phase
-  if (modelName) body.model_name = modelName
-  const ctx = normalizeScenarioContext(context)
-  if (ctx) body.context = ctx
-
-  fetch('/api/v1/requirement/analyze/stream', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-    body: JSON.stringify(body),
-    signal: controller.signal,
-  })
-    .then(async (resp) => {
-      if (!resp.ok || !resp.body) {
-        const text = await resp.text().catch(() => '')
-        throw new Error(`HTTP ${resp.status}: ${text || 'no body'}`)
-      }
-      const reader = resp.body.getReader()
-      const decoder = new TextDecoder('utf-8')
-      let buffer = ''
-      while (true) {
-        const { value, done } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        let idx
-        while ((idx = buffer.indexOf('\n\n')) !== -1) {
-          const chunk = buffer.slice(0, idx)
-          buffer = buffer.slice(idx + 2)
-          const line = chunk.split('\n').find((l) => l.startsWith('data: '))
-          if (!line) continue
-          const raw = line.slice(6).trim()
-          if (!raw) continue
-          try {
-            const ev = JSON.parse(raw)
-            if (typeof onEvent === 'function') onEvent(ev)
-          } catch (e) {
-            if (typeof onError === 'function') onError(e)
-          }
-        }
+  let closed = false
+  Promise.resolve()
+    .then(() => {
+      if (closed) return null
+      if (typeof onEvent === 'function') onEvent({ type: 'stage_start', stage: 'ra_agent' })
+      return analyzeRequirement(req, sessionId, phase, context, { designAgents }, modelName)
+    })
+    .then((payload) => {
+      if (closed || !payload) return
+      const data = payload?.data || {}
+      if (typeof onEvent === 'function') {
+        onEvent({ type: 'stage_end', stage: 'ra_agent', payload: data })
+        onEvent({ type: 'done', payload: data })
       }
       if (typeof onClose === 'function') onClose()
     })
     .catch((err) => {
-      if (err && err.name === 'AbortError') return
-      if (typeof onError === 'function') onError(err)
+      if (!closed && typeof onError === 'function') onError(err)
     })
 
-  return { close: () => controller.abort() }
+  return { close: () => { closed = true } }
 }
 
-/**
- * 需求判断 - 分析需求是否包含完整的实验要素（目标、变量、对象）
- *
- * 端点已迁移到 `/api/v1/requirement/judge`（MACE 三段式 RAObserver）。
- * 响应体保持 { success, data, message } 不变；data 字段为
- * { flag, goal, variable, object, reason, session_id, phase }。
- *
- * @param {string} requirement - 用户需求文本
- * @param {string|null} sessionId - 可选的会话 ID
- * @param {string|null} phase - pre / during / post
- * @param {object|null} scenarioContext - 场景上下文
- */
 export function judgeRequirement(requirement, sessionId = null, phase = null, scenarioContext = null, modelName = null) {
   const data = { req: requirement }
   if (sessionId) data.session_id = sessionId
@@ -136,50 +67,29 @@ export function judgeRequirement(requirement, sessionId = null, phase = null, sc
   if (ctx) data.context = ctx
 
   return request({
-    url: '/v1/requirement/judge',
+    url: '/reqJudgement',
     method: 'post',
     timeout: 300000,
     data
   })
 }
 
-/**
- * 阶段识别 - 供 total 首页入口先判断 pre / during / post
- *
- * 端点 `/api/v1/requirement/detect-phase` 会优先走 LLM，
- * 不可用时退回后端规则分类。
- *
- * @param {string} requirement - 用户需求文本
- * @param {string|null} sessionId - 可选的会话 ID
- * @param {string|null} modelName - 可选模型名
- * @param {string|null} fileName - 可选补充文件名
- */
 export function detectRequirementPhase(requirement, sessionId = null, modelName = null, fileName = null) {
-  const data = { req: requirement }
-  if (sessionId) data.session_id = sessionId
-  if (modelName) data.model_name = modelName
-  if (fileName) data.file_name = fileName
-
-  return request({
-    url: '/v1/requirement/detect-phase',
-    method: 'post',
-    timeout: 300000,
-    data
+  const text = String(requirement || '')
+  let phase = 'during'
+  if (/预测|趋势|事前|预警|风险识别|态势研判/.test(text)) phase = 'pre'
+  if (/复盘|事后|评估|归因|报告|总结/.test(text)) phase = 'post'
+  return Promise.resolve({
+    success: true,
+    data: {
+      phase,
+      session_id: sessionId,
+      model_name: modelName || '',
+      file_name: fileName || ''
+    }
   })
 }
 
-/**
- * 需求分析（三段式）- 跑 RAObserver → RAAgent → ADAgent + ADObserver。
- *
- * 端点已迁移到 `/api/v1/requirement/analyze`。data 字段包含
- * { stage, ok, judgement, exp_plan, agent_design, agent_observation, retries, warnings, phase, session_id }。
- *
- * @param {string} requirement
- * @param {string} sessionId
- * @param {string|null} phase
- * @param {object|null} scenarioContext
- * @param {object} [options] - { designAgents: true } 控制是否一并执行 ADAgent
- */
 export function analyzeRequirement(requirement, sessionId, phase = null, scenarioContext = null, options = {}, modelName = null) {
   const data = {
     req: requirement,
@@ -191,10 +101,34 @@ export function analyzeRequirement(requirement, sessionId, phase = null, scenari
   const ctx = normalizeScenarioContext(scenarioContext)
   if (ctx) data.context = ctx
   return request({
-    url: '/v1/requirement/analyze',
+    url: '/reqAnalysis',
     method: 'post',
     timeout: 600000,
     data
+  }).then((payload) => {
+    const body = payload?.data && typeof payload.data === 'object' ? payload.data : {}
+    const content = body.content && typeof body.content === 'object' ? body.content : {}
+    const normalizedData = {
+      ...body,
+      stage: body.stage || 'analyze',
+      ok: body.ok !== false,
+      judgement: body.judgement || {
+        flag: 1,
+        goal: content?.goal_decomposition?.user_goal || content?.goal?.description || requirement,
+        variable: content?.influence_factor || [],
+        object: content?.goal_decomposition?.object || '',
+        phase
+      },
+      exp_plan: body.exp_plan || content,
+      content,
+      session_id: body.session_id || sessionId,
+      phase: body.phase || phase,
+      warnings: Array.isArray(body.warnings) ? body.warnings : []
+    }
+    return {
+      ...payload,
+      data: normalizedData
+    }
   })
 }
 
@@ -205,7 +139,7 @@ export function analyzeRequirement(requirement, sessionId, phase = null, scenari
  */
 export function modifyExperiment(proposal, data) {
   return request({
-    url: '/v1/experiment-design/modify',
+    url: '/ExpModification',
     method: 'post',
     data: {
       proposal,
@@ -216,51 +150,37 @@ export function modifyExperiment(proposal, data) {
   })
 }
 
-/**
- * 配置智能体（ADAgent）。端点迁移到 `/api/v1/experiment-design/agents`。
- *
- * 兼容旧版调用方式：仍然接受 sessionId + config 两个参数。新版 config 推荐字段:
- *   { req, exp_plan, phase?, context?, model_name? }
- *
- * 旧字段 (tasks/apiResult) 在 Phase B 完成后会停止使用; 本调用现在会优先取 exp_plan，
- * 否则把 apiResult 作为兜底 exp_plan 传递, 由后端 ADAgent 决定如何兼容。
- */
 export function setAgents(sessionId, config) {
   const payload = {
     session_id: sessionId,
     req: config.req,
-    exp_plan: config.exp_plan || config.apiResult || {},
+    tasks: Array.isArray(config.tasks) ? config.tasks : [],
+    apiResult: config.apiResult || config.exp_plan || {},
   }
   if (config.phase) payload.phase = config.phase
+  if (config.exp_plan) payload.exp_plan = config.exp_plan
   if (config.context) payload.context = config.context
   if (config.experiment_id) payload.experiment_id = config.experiment_id
   if (config.model_name) payload.model_name = config.model_name
 
   return request({
-    url: '/v1/experiment-design/agents',
+    url: '/SCnet/setAgents',
     method: 'post',
     timeout: 300000,
     data: payload
   })
 }
 
-/**
- * 重新生成智能体（ADAgent.agent_regenerate）。新端点。
- * @param {object} config - { req, exp_plan, agent_list, error_reason, phase?, context? }
- */
 export function regenerateAgents(config) {
-  return request({
-    url: '/v1/experiment-design/agents/regenerate',
-    method: 'post',
-    data: {
-      req: config.req,
-      exp_plan: config.exp_plan || {},
-      agent_list: config.agent_list || [],
-      error_reason: config.error_reason || '',
-      phase: config.phase || null,
-      context: config.context || null,
-      session_id: config.session_id || null,
-    }
+  return setAgents(config.session_id || '', {
+    req: config.req,
+    tasks: config.tasks || [],
+    apiResult: config.apiResult || config.exp_plan || {},
+    exp_plan: config.exp_plan || config.apiResult || {},
+    phase: config.phase || null,
+    context: config.context || null,
+    agent_list: config.agent_list || [],
+    error_reason: config.error_reason || '',
   })
 }
 

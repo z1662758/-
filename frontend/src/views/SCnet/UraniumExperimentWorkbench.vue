@@ -29,6 +29,7 @@
     <main class="workbench-content">
       <ExperimentManager v-if="activeView === 'run'" />
       <SimulationInterface v-else-if="activeView === 'simulation'" />
+      <BullwhipAnalysis v-else-if="activeView === 'bullwhip'" />
       <DecisionGeneration v-else />
     </main>
   </div>
@@ -41,6 +42,7 @@ import { DataAnalysis, Monitor, Promotion } from '@element-plus/icons-vue'
 import ExperimentManager from './ExperimentManager_uranium.vue'
 import SimulationInterface from './interface_uranium.vue'
 import DecisionGeneration from './DecisionGeneration_uranium.vue'
+import BullwhipAnalysis from '@/components/SupplyChain/BullwhipAnalysis.vue'
 
 defineOptions({ name: 'UraniumExperimentWorkbench' })
 
@@ -63,6 +65,14 @@ const workbenchViews = Object.freeze([
     icon: DataAnalysis,
     title: '态势推演',
     summary: '查看年度供应链链路、压力窗口和实验输出指标。'
+  },
+  {
+    value: 'bullwhip',
+    label: '牛鞭效应',
+    description: '需求冲击、订货放大',
+    icon: DataAnalysis,
+    title: '牛鞭效应实验',
+    summary: '观察铀需求波动沿贸易、转化和供给节点的传导与放大。'
   }
 ])
 
@@ -79,7 +89,7 @@ const standaloneViews = Object.freeze([
 
 const routeDefault = computed(() => route.path.endsWith('/interface') ? 'simulation' : 'run')
 const activeView = computed(() => (
-  ['run', 'simulation', 'decision'].includes(route.query.view) ? route.query.view : routeDefault.value
+  ['run', 'simulation', 'bullwhip', 'decision'].includes(route.query.view) ? route.query.view : routeDefault.value
 ))
 const activeViewMeta = computed(() => (
   [...workbenchViews, ...standaloneViews].find(item => item.value === activeView.value) || workbenchViews[0]
@@ -107,7 +117,7 @@ function switchView(view) {
   grid-template-columns: minmax(220px, .8fr) minmax(390px, 1.2fr);
   align-items: center;
   gap: 14px;
-  padding: 10px 18px;
+  padding: 8px 14px;
   border-bottom: 1px solid #dce4ee;
   background: rgba(255, 255, 255, 0.97);
   box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
@@ -126,7 +136,7 @@ function switchView(view) {
   column-gap: 9px;
 }
 
-.switcher-copy strong { color: #0f172a; font-size: 18px; line-height: 1.25; }
+.switcher-copy strong { color: #0f172a; font-size: 16px; line-height: 1.25; }
 .switcher-copy > span:last-child {
   grid-column: 1 / -1;
   margin-top: 3px;
@@ -139,6 +149,8 @@ function switchView(view) {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+  width: min(100%, 610px);
+  justify-self: end;
   padding: 4px;
   border: 1px solid #dce4ee;
   border-radius: 12px;
@@ -149,7 +161,7 @@ function switchView(view) {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 7px 12px;
+  padding: 6px 10px;
   border: 0;
   border-radius: 9px;
   background: transparent;
@@ -179,11 +191,13 @@ function switchView(view) {
     gap: 8px;
   }
   .switcher-copy > span:last-child { display: none; }
-  .switcher-tabs { width: 100%; box-sizing: border-box; }
+  .switcher-tabs { width: 100%; max-width: none; box-sizing: border-box; }
 }
 
 @media (max-width: 560px) {
-  .switcher-tabs { grid-template-columns: 1fr 1fr; }
+  .switcher-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+  .switcher-tabs button { padding: 7px 6px; gap: 5px; }
+  .switcher-tabs .el-icon { font-size: 16px; }
   .switcher-tabs small { display: none; }
 }
 </style>

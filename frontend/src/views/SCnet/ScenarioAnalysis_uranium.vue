@@ -290,7 +290,7 @@
                   <button type="button" class="entity-mini-panel" @click="openEntityGraph" title="展开查看实体图">
                     <div class="entity-mini-head">
                       <span>实体图缩略图</span>
-                      <strong>{{ experimentDesign.entities.length || getGraphPreviewEntities().length }} 个核心实体</strong>
+                      <strong>{{ getSelectedEntities().length }} 个核心实体</strong>
                     </div>
                     <div class="entity-mini-body">
                       <div class="entity-thumb-canvas">
@@ -386,7 +386,7 @@ import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 import { readScnetPhase } from '@/constants/scnetPhase'
 import { SCNET_PHASE_SHORT_LABELS } from '@/constants/scnetStageMeta'
 import { getSnapshotById } from '@/views/SCnet/mock/snapshotIndex'
-import { URANIUM_REFERENCE_GRAPH } from '@/views/SCnet/mock/agentGraphMock'
+import { AGENT_GRAPH_SNAPSHOTS, URANIUM_REFERENCE_GRAPH } from '@/views/SCnet/mock/agentGraphMock'
 import { ElMessage } from 'element-plus'
 
 export default {
@@ -527,9 +527,7 @@ export default {
         result?.selected_entities,
         result?.entities,
         goal?.selected_entities,
-        goal?.entities,
-        goal?.object,
-        result?.object
+        goal?.entities
       ]
       const names = direct.flatMap((value) => {
         if (Array.isArray(value)) return this.toDisplayNameList(value)
@@ -541,37 +539,17 @@ export default {
 
       return []
     },
-    getSelectedEntities(msg = {}) {
-      const explicit = Array.isArray(msg?.analysisData?.selectedEntities)
-        ? msg.analysisData.selectedEntities.filter(Boolean)
-        : []
-      if (explicit.length) return explicit
-
-      const currentSessionId = this.store?.currentSessionId || this.sessionId || ''
-      const candidates = [
-        {
-          payload: this.store?.setAgentsResult,
-          sessionId: this.store?.setAgentsResultSessionId
-        },
-        {
-          payload: this.store?.agentDesignPayload,
-          sessionId: this.store?.agentDesignPayloadSessionId
-        }
-      ]
-      for (const candidate of candidates) {
-        if (!candidate.payload || (currentSessionId && candidate.sessionId && candidate.sessionId !== currentSessionId)) continue
-        const agents = Array.isArray(candidate.payload?.agents) ? candidate.payload.agents : []
-        const names = agents.map((agent) => this.sanitizeDisplayText(
-          agent?.name || agent?.displayName || agent?.label || agent?.entity_name || ''
-        )).filter(Boolean)
-        if (names.length) return Array.from(new Set(names))
-      }
-      const requirementObject = this.store?.scenarioRequirementMeta?.object
-      if (Array.isArray(requirementObject)) return this.toDisplayNameList(requirementObject)
-      if (typeof requirementObject === 'string' && requirementObject.trim()) {
-        return requirementObject.split(/[、,，;；]/).map(item => this.sanitizeDisplayText(item)).filter(Boolean)
-      }
-      return []
+    getAgentGraphEntityNames() {
+      const snapshot = this.snapshotStore?.getActiveSnapshot?.()
+      const snapshotAgents = AGENT_GRAPH_SNAPSHOTS[snapshot?.agentGraphId]?.agents || []
+      const snapshotNames = snapshotAgents.map((agent) => this.sanitizeDisplayText(agent?.name || '')).filter(Boolean)
+      if (snapshotNames.length) return Array.from(new Set(snapshotNames))
+      return (URANIUM_REFERENCE_GRAPH.agents || []).map(agent => agent.name).filter(Boolean)
+    },
+    getSelectedEntities() {
+      const graphEntities = this.getAgentGraphEntityNames()
+      if (graphEntities.length) return graphEntities
+      return (URANIUM_REFERENCE_GRAPH.agents || []).map(agent => agent.name).filter(Boolean)
     },
     getVisibleSelectedEntities(msg = {}) {
       return this.getSelectedEntities(msg).slice(0, 6)
@@ -1315,13 +1293,17 @@ export default {
   flex-direction: column;
   gap: 10px;
   padding: 12px;
+  border: 2px solid #93c5fd;
+  background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, .1);
   text-align: left;
   cursor: pointer;
-  transition: border-color .18s ease, box-shadow .18s ease;
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
 }
 .entity-mini-panel:hover {
-  border-color: #93c5fd;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, .08);
+  border-color: #2563eb;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, .18);
+  transform: translateY(-1px);
 }
 .entity-mini-head {
   display: flex;
@@ -1333,9 +1315,14 @@ export default {
 .entity-mini-head span,
 .entity-mini-body span {
   display: block;
-  color: #64748b;
+  color: #475569;
   font-size: 11px;
   font-weight: 800;
+}
+.entity-mini-head > span {
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 900;
 }
 .entity-mini-head strong {
   color: #0f172a;
@@ -1351,8 +1338,14 @@ export default {
 }
 .entity-mini-panel .entity-thumb-canvas {
   height: 82px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  border: 2px solid #bfdbfe;
+}
+.entity-mini-panel .entity-thumb-node {
+  border-width: 2px;
+}
+.entity-mini-panel .entity-thumb-line {
+  height: 3px;
 }
 .entity-mini-panel p {
   margin: 5px 0 0;
