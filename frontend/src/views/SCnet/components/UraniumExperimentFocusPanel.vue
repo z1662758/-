@@ -9,6 +9,7 @@
 
       <div class="focus-actions">
         <el-button size="small" link @click="emit('view-config')">查看全量配置</el-button>
+        <el-button v-if="canValidate" size="small" type="success" plain @click="emit('validate-case')">案例验证</el-button>
         <el-button size="small" type="primary" @click="emit('view-experiment')">加载实验</el-button>
       </div>
     </header>
@@ -53,10 +54,15 @@ const props = defineProps({
   rows: {
     type: Array,
     default: () => []
+  },
+  /** 已完成的铀实验可直接进入案例验证（案例分析挂在运行管理之下） */
+  canValidate: {
+    type: Boolean,
+    default: false
   }
 })
 
-const emit = defineEmits(['view-config', 'view-experiment'])
+const emit = defineEmits(['view-config', 'view-experiment', 'validate-case'])
 
 const chartRef = ref(null)
 let chartInstance = null

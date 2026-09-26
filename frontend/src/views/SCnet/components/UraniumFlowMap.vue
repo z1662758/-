@@ -52,9 +52,22 @@
       <div v-if="yearRows.length" class="year-slider">
         <div class="timeline-heading">
           <span>年度推演</span>
+          <!-- 参考 MACE 事中页的推演控制：上一年 / 播放 / 下一年，支持 ← → 空格 -->
+          <div class="timeline-controls" title="快捷键：← → 切换年份，空格 播放/暂停">
+            <button type="button" class="timeline-btn" :disabled="yearIndex <= 0" @click="stepYear(-1)" aria-label="上一年">
+              <el-icon><DArrowLeft /></el-icon>
+            </button>
+            <button type="button" class="timeline-btn play" :class="{ playing }" :disabled="yearRows.length < 2" @click="togglePlay" :aria-label="playing ? '暂停' : '播放'">
+              <el-icon><VideoPause v-if="playing" /><VideoPlay v-else /></el-icon>
+              <span>{{ playing ? '暂停' : '播放' }}</span>
+            </button>
+            <button type="button" class="timeline-btn" :disabled="yearIndex >= yearRows.length - 1" @click="stepYear(1)" aria-label="下一年">
+              <el-icon><DArrowRight /></el-icon>
+            </button>
+          </div>
           <strong>{{ activeYearLabel }}</strong>
         </div>
-        <el-slider v-model="yearIndex" :min="0" :max="yearRows.length - 1" :marks="yearMarks" />
+        <el-slider v-model="yearIndex" :min="0" :max="yearRows.length - 1" :marks="yearMarks" @input="stopPlay" />
       </div>
 
       <div class="legend-panel">
@@ -79,7 +92,7 @@ import * as echarts from 'echarts/core'
 import { LinesChart, ScatterChart } from 'echarts/charts'
 import { GeoComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
-import { Loading } from '@element-plus/icons-vue'
+import { Loading, DArrowLeft, DArrowRight, VideoPause, VideoPlay } from '@element-plus/icons-vue'
 import { ensureEchartsWorldMap } from '@/utils/ensureEchartsWorldMap'
 import {
   URANIUM_TRANSPORT_CORRIDORS,
@@ -203,6 +216,42 @@ const yearRows = computed(() => (
     : buildUraniumTimelineRows(props.experiment)
 ))
 const activeYear = computed(() => yearRows.value[yearIndex.value] || null)
+
+// ── 年度播放控制（参考 MACE 事中推演的 play/step 交互） ──
+const PLAY_INTERVAL_MS = 1600
+const playing = ref(false)
+let playTimer = null
+
+function stepYear(delta) {
+  const max = yearRows.value.length - 1
+  const next = Math.min(max, Math.max(0, yearIndex.value + delta))
+  if (next !== yearIndex.value) yearIndex.value = next
+}
+function stopPlay() {
+  if (playTimer) clearInterval(playTimer)
+  playTimer = null
+  playing.value = false
+}
+function startPlay() {
+  if (yearRows.value.length < 2) return
+  if (yearIndex.value >= yearRows.value.length - 1) yearIndex.value = 0
+  playing.value = true
+  playTimer = setInterval(() => {
+    if (yearIndex.value >= yearRows.value.length - 1) { stopPlay(); return }
+    yearIndex.value += 1
+  }, PLAY_INTERVAL_MS)
+}
+function togglePlay() {
+  if (playing.value) stopPlay()
+  else startPlay()
+}
+function onTimelineKeydown(event) {
+  const tag = String(event.target?.tagName || '').toLowerCase()
+  if (['input', 'textarea', 'select'].includes(tag) || event.target?.isContentEditable) return
+  if (event.key === 'ArrowLeft') { stopPlay(); stepYear(-1); event.preventDefault() }
+  else if (event.key === 'ArrowRight') { stopPlay(); stepYear(1); event.preventDefault() }
+  else if (event.key === ' ' && yearRows.value.length > 1) { togglePlay(); event.preventDefault() }
+}
 const selectedStaticCorridorId = computed({
   get() {
     return String(props.selectedStaticCorridorId || localStaticCorridorId.value || '').trim()
@@ -796,6 +845,7 @@ watch(renderKey, () => {
 onMounted(() => {
   scheduleRender()
   window.addEventListener('resize', resizeChart)
+  window.addEventListener('keydown', onTimelineKeydown)
   if (typeof ResizeObserver !== 'undefined' && chartRef.value) {
     resizeObserver = new ResizeObserver(resizeChart)
     resizeObserver.observe(chartRef.value)
@@ -804,6 +854,8 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', resizeChart)
+  window.removeEventListener('keydown', onTimelineKeydown)
+  stopPlay()
   resizeObserver?.disconnect()
   resizeObserver = null
   if (renderFrame !== null) {
@@ -838,6 +890,7 @@ onBeforeUnmount(() => {
 
 .map-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -855,7 +908,7 @@ onBeforeUnmount(() => {
 }
 
 .toolbar-left {
-  flex: 1;
+  flex: 1 0 160px;
   min-width: 0;
   flex-direction: column;
   align-items: flex-start;
@@ -863,12 +916,13 @@ onBeforeUnmount(() => {
 }
 
 .toolbar-right {
-  flex-shrink: 0;
+  flex: 1 1 360px;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
 
 .toolbar-title {
+  white-space: nowrap;
   font-size: 15px;
   font-weight: 800;
   color: #0f172a;
@@ -974,6 +1028,38 @@ onBeforeUnmount(() => {
 .timeline-heading strong {
   color: #1e293b;
   font-size: 11px;
+}
+
+.timeline-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.timeline-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 22px;
+  min-width: 22px;
+  padding: 0 6px;
+  border: 1px solid #dbe4f0;
+  border-radius: 999px;
+  background: #fff;
+  color: #475569;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all .16s ease;
+}
+.timeline-btn:hover:not(:disabled) { color: #2563eb; border-color: #93c5fd; background: #eff6ff; }
+.timeline-btn:disabled { opacity: .45; cursor: not-allowed; }
+.timeline-btn.play { padding: 0 9px; font-weight: 700; }
+.timeline-btn.play.playing {
+  color: #fff;
+  border-color: transparent;
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, .3);
 }
 
 .year-slider :deep(.el-slider) {

@@ -154,7 +154,7 @@
                         <span class="completion-task-text">{{ task.title || task.description || '' }}</span>
                       </div>
                     </div>
-                    <div class="completion-hint">可继续在下方输入框迭代调整，或前往「实体图」查看方案。</div>
+                    <div class="completion-hint">可继续在下方输入框迭代调整，或前往「实体建模」查看方案。</div>
                   </div>
                 </div>
               </div>
@@ -352,11 +352,6 @@
                   </div>
                 </div>
 
-                <div class="eds-next">
-                  <el-button type="primary" round :disabled="isProcessing" @click="goToNextPage">
-                    下一步：查看实体图
-                  </el-button>
-                </div>
               </div>
 
               <!-- 空状态：尚未生成方案 -->
@@ -369,6 +364,11 @@
                 <h3>尚未生成实验方案</h3>
                 <p>完成左侧对话后，这里展示实验方案汇总</p>
               </div>
+            </div>
+            <div v-if="tasks.length" class="scenario-actions">
+              <el-button type="primary" round :disabled="isProcessing" @click="goToNextPage">
+                下一步：实体建模
+              </el-button>
             </div>
           </div>
         </div>
@@ -388,6 +388,8 @@ import { SCNET_PHASE_SHORT_LABELS } from '@/constants/scnetStageMeta'
 import { getSnapshotById } from '@/views/SCnet/mock/snapshotIndex'
 import { AGENT_GRAPH_SNAPSHOTS, URANIUM_REFERENCE_GRAPH } from '@/views/SCnet/mock/agentGraphMock'
 import { ElMessage } from 'element-plus'
+import { buildUraniumScenarioPlan } from './mock/uraniumScenarioPlan'
+import { useUraniumDuringStore } from '@/stores/scnet/useUraniumDuringStore'
 
 export default {
   ...ScenarioModelingLogic,
@@ -397,11 +399,13 @@ export default {
   setup() {
     const store = useSupplyChainStore()
     const snapshotStore = useAnalysisSnapshotStore()
+    const uraniumStore = useUraniumDuringStore()
     const { chatHistory, goalDecompositionLog, loading, scenarioContext } = storeToRefs(store)
 
     return {
       store,
       snapshotStore,
+      uraniumStore,
       chatHistory,
       goalDecompositionLog,
       storeLoading: loading,
@@ -521,6 +525,38 @@ export default {
   },
   methods: {
     ...ScenarioModelingLogic.methods,
+    pushMessage(message) {
+      if (String(this.sessionId).startsWith('during-session-')) {
+        this.historyConversations.push(message)
+        return
+      }
+      return ScenarioModelingLogic.methods.pushMessage.call(this, message)
+    },
+    async callReqAnalysis() {
+      if (!String(this.sessionId).startsWith('during-session-')) return ScenarioModelingLogic.methods.callReqAnalysis.call(this)
+      try {
+        const apiResult = buildUraniumScenarioPlan(this.inputMessage, this.uraniumStore.draft)
+        this.store.commitStepResult('goal-input', {
+          sessionId: this.sessionId, userGoal: this.inputMessage, apiResult,
+          requirementMeta: { analysis_phase: 'during', raw_input: this.inputMessage, is_legal: true },
+          agentDesignPayload: JSON.parse(JSON.stringify(URANIUM_REFERENCE_GRAPH)),
+          tasks: apiResult.goal_decomposition.subtasks.map(task => task.title),
+        })
+        this.subtasksData = apiResult.goal_decomposition.subtasks.map((task, index) => this.normalizeSubtaskPayload(task, index))
+        this.hydrateFromApiResult(apiResult, { userGoal: this.inputMessage })
+        this.agentDesignSynced = true
+        this.agentDesignSyncError = ''
+      } finally { this.isProcessing = false }
+    },
+    submitFeedback() {
+      if (!String(this.sessionId).startsWith('during-session-')) return ScenarioModelingLogic.methods.submitFeedback.call(this)
+      const feedback = this.feedbackInput.trim()
+      if (!feedback || this.isProcessing) return
+      this.inputMessage = `${this.store.scenarioUserGoal}\n补充要求：${feedback}`
+      this.feedbackInput = ''
+      this.isProcessing = true
+      this.callReqAnalysis()
+    },
     extractSelectedEntities(result = {}) {
       const goal = result?.goal_decomposition || {}
       const direct = [
@@ -622,7 +658,7 @@ export default {
       this.currentResult = {
         agent_type: 'SUMMARY',
         title: '实验方案生成完成',
-        description: '已加载实验方案汇总。点击「下一步」查看完整实体图，或在下方输入框继续迭代。',
+        description: '已加载实验方案汇总。点击「下一步」进入实体建模，或在下方输入框继续迭代。',
         emoji: '🎉'
       }
       this.editingContent = this.currentResult
@@ -677,6 +713,7 @@ export default {
       this.sessionId = sid
       this.inputMessage = userGoal
       this.isRequirementLegal = !!this.store?.scenarioRequirementMeta?.is_legal
+      if (String(sid).startsWith('during-session-')) this.agentDesignSynced = true
       this.selectedPhase = this.store?.scenarioRequirementMeta?.analysis_phase || this.selectedPhase
       this.subtasksData = (apiResult?.goal_decomposition?.subtasks || []).map((task, idx) =>
         this.normalizeSubtaskPayload(task, idx)
@@ -735,6 +772,14 @@ export default {
     // 3) 否则尝试从 store 恢复（刷新场景）
     if (this.bootstrapFromStore()) return
 
+    // 3b) 会话已建立、需求已写入，但还没有拆解结果：
+    //     典型情况是从「建模设定」经右侧流程栏 / 左侧菜单进入本页，而不是点「下一步」带 fresh=1。
+    //     这时不应把用户踢回对话入口，直接发起首轮分析即可。
+    if (this.store?.currentSessionId && this.store?.scenarioUserGoal) {
+      await this.runFreshAnalysis()
+      return
+    }
+
     // 4) 兜底：店里也没有数据，回到事中流程入口
     ElMessage.warning('请先通过事中流程写入会话或加载历史快照')
     this.$router.replace(SCNET_ROUTES.duringEntry)
@@ -750,6 +795,18 @@ export default {
 <style scoped src="./Css/ScenarioModeling.css"></style>
 
 <style scoped>
+
+.scenario-modeling-root { height: 100%; min-height: 0; overflow: hidden; container: scenario / inline-size; }
+.scenario-modeling-container { min-height: 0; padding: 8px; }
+.main-content { display: grid; grid-template-columns: minmax(300px, .38fr) minmax(0, .62fr); }
+.main-content > .conversation-panel,
+.main-content > .task-panel { width: auto; min-width: 0; min-height: 0; }
+.panel-header, .conversation-input-area { flex-shrink: 0; }
+.scenario-actions { flex-shrink: 0; display: flex; justify-content: flex-end; padding: 12px 68px 12px 16px; border-top: 1px solid #e2e8f0; background: #fff; }
+@container scenario (max-width: 760px) {
+  .scenario-modeling-container { overflow-y: auto; }
+  .main-content { flex: none; grid-template-columns: minmax(0, 1fr); grid-template-rows: 600px 700px; }
+}
 
 /* —— 实验设计概览面板 —— */
 .task-panel {

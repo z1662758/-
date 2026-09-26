@@ -20,6 +20,15 @@
 
     <div class="chat-main" :class="[sidebarCollapsed ? 'chat-main-shrink' : 'chat-main-expand', execPanelVisible ? 'has-exec' : '']">
 
+      <section v-if="duringExperimentId && currentMode === 'during' && scenarioStore.currentScenario === 'uranium'" class="chat-expert-context">
+        <div>
+          <strong>关联专家实验 · {{ duringExperimentId }}</strong>
+          <p>建模参数、年度指标与决策依据已关联，可直接围绕当前实验提问</p>
+        </div>
+        <button :disabled="isStreaming" @click="openExpertExperiment">查看专家页面</button>
+        <button :disabled="isStreaming" @click="startIndependentDuring">新建推演需求</button>
+      </section>
+
       <!-- ====== Welcome ====== -->
       <template v-if="messages.length === 0 && !isStreaming">
         <div class="chat-welcome-wrap">
@@ -150,8 +159,14 @@
                     <span class="chat-result-card-check">{{ isSectionDone(card.key) ? '✓' : '…' }}</span>
                   </div>
                 </div>
-                <div v-if="msg.content" class="chat-msg-bubble" v-html="renderMarkdown(msg.content)"></div>
+                <div v-if="msg.content" class="chat-msg-bubble" :class="{ 'is-streaming': msg._streaming }" v-html="renderMarkdown(msg.content)"></div>
+                <div v-if="msg._error" class="chat-msg-error">
+                  <span>本次研判未完成</span>
+                  <button type="button" :disabled="isStreaming" @click="retryMessage(msg)">重试</button>
+                </div>
                 <div v-if="msg.role === 'assistant'" class="chat-disclaimer">本回答由 AI 生成，内容仅供参考</div>
+                <div v-if="msg._completedDuration" class="chat-completed-line">&#10047; 耗时 {{ formatDuration(msg._completedDuration) }}</div>
+                <UraniumExpertEvidence v-if="msg._expertEvidence" :evidence="msg._expertEvidence" @open="openEvidenceDetail" />
                 <!-- K2-FLOW:本次研判结果操作区 -->
                 <div v-if="analysisSuccess && msg.id === lastAnalysisMsgId" class="chat-analysis-actions">
                   <button class="chat-pdf-btn" :disabled="pdfGenerating" @click="exportPdf">
@@ -160,18 +175,20 @@
                 </div>
               </div>
             </div>
-            <div v-if="isStreaming" class="chat-spinner">
+            <div v-if="isStreaming" class="chat-spinner" :style="{ '--spinner-color': spinnerColor }">
               <span class="chat-spinner-glyph">{{ spinnerGlyph }}</span>
-              <span class="chat-spinner-verb">推演中&hellip;</span>
+              <span class="chat-spinner-verb">{{ spinnerVerb }}&hellip;</span>
+              <span class="chat-spinner-timer">{{ formatDuration(streamElapsed) }}</span>
+              <span v-if="execState === 'running' && execStatus" class="chat-spinner-info">&middot; {{ execStatus }}</span>
             </div>
           </div>
-          <!-- K2-FLOW:分析成功后进入可视化 -->
-          <div v-if="analysisSuccess" class="chat-visualize-zone">
-            <button class="chat-visualize-btn" @click="goVisualization">
-              <span>进入可视化界面</span>
-              <b class="chat-visualize-arrow">&rarr;</b>
-            </button>
-          </div>
+        </div>
+        <!-- 操作入口固定在输入区上方，长回答完成后仍然可见。 -->
+        <div v-if="analysisSuccess" class="chat-visualize-zone">
+          <button class="chat-visualize-btn" @click="goVisualization">
+            <span>{{ activeDuringPlan ? '查看建模设定' : '进入可视化界面' }}</span>
+            <b class="chat-visualize-arrow">&rarr;</b>
+          </button>
         </div>
         <div class="chat-input-area">
           <div class="chat-input-wrapper">
@@ -244,7 +261,7 @@
     <!-- 右侧：Agent 研判执行面板 -->
     <aside v-if="execPanelVisible" class="chat-exec-panel">
       <div class="chat-exec-header">
-        <span class="chat-exec-title">事前态势研判 · Agent 执行</span>
+        <span class="chat-exec-title">{{ activeRun?.kind === 'requirement' ? '事中需求分析' : activeRun?.phase === 'during' ? '事中实验解读' : '事前态势研判' }} · Agent 执行</span>
         <button class="chat-exec-close" @click="execPanelVisible = false" title="收起">&times;</button>
       </div>
       <div class="chat-exec-body">
@@ -256,13 +273,52 @@
           <span class="chat-exec-status-dot" :class="execState"></span>
           <span>{{ execStatus }}</span>
         </div>
+        <nav v-if="activeRun?.phase === 'during'" class="chat-exec-tabs" aria-label="实验解读面板">
+          <button v-for="tab in [{ id: 'steps', label: '步骤' }, { id: 'parameters', label: '参数' }, { id: 'result', label: '结果' }]" :key="tab.id" :class="{ active: execActiveTab === tab.id }" @click="execActiveTab = tab.id">{{ tab.label }}</button>
+        </nav>
+        <template v-if="activeRun?.phase !== 'during' || execActiveTab === 'steps'">
         <div class="chat-exec-sections">
           <span v-for="s in SECTION_ORDER" :key="s" class="chat-exec-section-chip"
             :class="{ active: execSections.includes(s) }">
             {{ SECTION_LABELS[s] }}
           </span>
         </div>
-        <div class="chat-exec-tools">
+        </template>
+        <div v-else-if="execActiveTab === 'parameters'" class="chat-exec-parameters">
+          <template v-if="activeEvidence">
+            <strong>{{ activeEvidence.name }}</strong>
+            <dl>
+              <div><dt>实验窗口</dt><dd>{{ activeEvidence.results[0].data.plan.start_year }}–{{ activeEvidence.results[0].data.plan.end_year }}</dd></div>
+              <div><dt>迭代轮数</dt><dd>{{ activeEvidence.results[0].data.plan.optimization_iterations ?? '—' }}</dd></div>
+              <div><dt>事件强度</dt><dd>{{ activeEvidence.results[0].data.plan.event_severity_multiplier ?? 1 }}</dd></div>
+              <div><dt>供给方</dt><dd>{{ activeEvidence.results[0].data.scenario_context.supplier_count ?? '—' }}</dd></div>
+              <div><dt>制造方</dt><dd>{{ activeEvidence.results[0].data.scenario_context.manufacturer_count ?? '—' }}</dd></div>
+            </dl>
+          </template>
+          <template v-else-if="activeDuringPlan">
+            <strong>待确认的建模参数</strong>
+            <dl>
+              <div><dt>推演窗口</dt><dd>{{ activeDuringPlan.plan.exp_params.params.start_year }}–{{ activeDuringPlan.plan.exp_params.params.end_year }}</dd></div>
+              <div><dt>迭代轮数</dt><dd>{{ activeDuringPlan.plan.exp_params.params.optimization_iterations }}</dd></div>
+              <div><dt>事件强度</dt><dd>{{ activeDuringPlan.plan.exp_params.params.event_severity_multiplier }}</dd></div>
+            </dl>
+          </template>
+          <p v-else>读取实验后，将在这里显示本次分析使用的参数。</p>
+        </div>
+        <div v-else class="chat-exec-parameters">
+          <template v-if="activeEvidence && analysisSuccess">
+            <strong>实验解读已完成</strong>
+            <p>已关联 {{ activeEvidence.results.length }} 项结果依据，可返回专家模式核对年度链路与指标。</p>
+            <button class="chat-visualize-btn" @click="openEvidenceDetail(activeEvidence.detail)">查看对应实验 →</button>
+          </template>
+          <template v-else-if="activeDuringPlan && analysisSuccess">
+            <strong>需求分析已完成</strong>
+            <p>可继续补充需求，或进入建模设定核对角色与参数。</p>
+            <button class="chat-visualize-btn" @click="goVisualization">查看建模设定 →</button>
+          </template>
+          <p v-else>分析完成后可查看结果与对应实验。</p>
+        </div>
+        <div v-if="activeRun?.phase !== 'during' || execActiveTab === 'steps'" class="chat-exec-tools">
           <div v-for="t in execTools" :key="t.call_id" class="chat-exec-tool" :class="t.status">
             <span class="chat-exec-tool-dot"></span>
             <span class="chat-exec-tool-name">{{ toolDisplayName(t.tool) }}</span>
@@ -316,9 +372,15 @@ import {
 } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import ChatSidebar from './ChatSidebar.vue'
+import UraniumExpertEvidence from './components/UraniumExpertEvidence.vue'
 import logoUrl from '@/assets/images/logo.png'
 import { useScenarioStore } from '@/stores/scenario'
 import { useScnetScenarioStore } from '@/stores/scnet/useScenarioStore'
+import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
+import { useUraniumDuringStore } from '@/stores/scnet/useUraniumDuringStore'
+import { URANIUM_EXPERT_SKILLS } from '@/utils/uraniumExpertSkills'
+import { streamUraniumExpertChat, streamUraniumRequirementChat } from './mock/uraniumExpertChat'
+import { readUraniumConversations, saveUraniumConversation, removeUraniumConversation } from '@/utils/uraniumChatHistory'
 import { SCENARIO_VALUES, SCENARIO_LABELS } from '@/constants/scnetScenario'
 import { getPresetQuestions, PHASE_SHORT_LABELS } from '@/constants/scnetPresetQuestions'
 import { writeScnetPhase } from '@/constants/scnetPhase'
@@ -328,6 +390,9 @@ import { getSessions, getSessionDetail, createSession, addChatMessage } from '@/
 import { startAgentChat, streamAgentTask, cancelAgentTask, getAgentModels, getAgentConversations, getAgentConversation, markConversationPdf } from '@/api/scnet/chatAgent'
 
 const SPINNER_GLYPHS = ['✽', '✢', '✦', '✧']
+// 参考 MACE 对话页：推演中的动词随机轮换，配合阶段色流光
+const SPINNER_VERBS = ['推演中', '演算中', '筹划中', '编排中', '调度中', '聚合中', '稽核中', '厘定中', '甄别中', '穷理中', '索隐中', '探赜中']
+const PHASE_COLORS = { auto: '#4d6beb', pre: '#0ea5e9', during: '#f97316', post: '#8b5cf6' }
 
 // 三部分 section(§74)
 const SECTION_ORDER = ['一', '二', '三']
@@ -335,6 +400,7 @@ const SECTION_LABELS = { 一: '① 事实梳理', 二: '② 风险评估', 三: 
 
 // 工具 → 展示名 / 执行状态文案(§67-68)
 const TOOL_DISPLAY_NAMES = {
+  ...Object.fromEntries(URANIUM_EXPERT_SKILLS.map(skill => [skill.id, skill.label])),
   skill: '加载研判技能',
   uranium_supply_overview: '供应概览',
   uranium_route_network: '路线网络',
@@ -389,13 +455,17 @@ const CHAT_MODELS = [
 ]
 export default {
   name: 'ChatHome',
-  components: { ChatSidebar, Switch, Cpu, Position, MagicStick, TrendCharts, Aim, DataAnalysis, Link, Document, View, ChatDotRound, List, Monitor },
+  components: { ChatSidebar, UraniumExpertEvidence, Switch, Cpu, Position, MagicStick, TrendCharts, Aim, DataAnalysis, Link, Document, View, ChatDotRound, List, Monitor },
   setup() {
     const router = useRouter()
     const route = useRoute()
     const scenarioStore = useScenarioStore()
     // 事中流程用的是 SCnet 场景建模 store（与全局的「铀/汽车」场景选择 store 不是同一个）
     const scnetScenarioStore = useScnetScenarioStore()
+    const demoStore = useUraniumDemoStore()
+    const uraniumStore = useUraniumDuringStore()
+    const duringExperimentId = computed(() => String(route.query.experiment_id || '').trim())
+    let requestVersion = 0
     const msgContainer = ref(null)
     const welcomeTextarea = ref(null)
     const chatTextarea = ref(null)
@@ -415,6 +485,10 @@ export default {
     const debugThinkingVisible = ref(false)
     const debugThinking = ref('')
     const spinnerGlyphIdx = ref(0)
+    const spinnerVerb = ref(SPINNER_VERBS[0])
+    const streamElapsed = ref(0)
+    let streamStartedAt = 0
+    let elapsedTimer = null
     let abortController = null
     let glyphTimer = null
     // K3-CHAT-1:Agent 执行面板状态
@@ -424,6 +498,13 @@ export default {
     const execStatus = ref('')
     const execState = ref('idle') // idle | running | done | error
     const execSections = ref([])
+    const execActiveTab = ref('steps')
+    const activeEvidence = computed(() => messages.value.at(-1)?._expertEvidence || null)
+    const activeDuringPlan = computed(() => messages.value.find(item => item.id === lastAnalysisMsgId.value)?._duringPlan || null)
+    const sectionLabels = computed(() => activeRun.value?.phase === 'during'
+      ? activeRun.value?.kind === 'requirement' ? { 一: '① 需求理解', 二: '② 建模安排', 三: '③ 下一步' } : { 一: '① 实验概况', 二: '② 年度指标', 三: '③ 决策建议' } : SECTION_LABELS)
+    const resultCards = computed(() => activeRun.value?.phase === 'during'
+      ? activeRun.value?.kind === 'requirement' ? [{ key: '一', label: '需求理解' }, { key: '二', label: '建模安排' }, { key: '三', label: '下一步' }] : [{ key: '一', label: '实验概况' }, { key: '二', label: '年度指标' }, { key: '三', label: '决策建议' }] : RESULT_CARDS)
     // K2-FLOW:分析完成状态(用于导出PDF/进入可视化)
     const analysisSuccess = ref(false)
     const lastAnalysisMsgId = ref('')
@@ -439,14 +520,47 @@ export default {
 
     const currentModelLabel = computed(() => { const m = CHAT_MODELS.find(o => o.value === selectedModel.value); return m ? m.label : 'Qwen-Turbo' })
     const spinnerGlyph = computed(() => SPINNER_GLYPHS[spinnerGlyphIdx.value] || '✽')
+    const spinnerColor = computed(() => PHASE_COLORS[currentMode.value] || PHASE_COLORS.auto)
+    const formatDuration = (s) => {
+      const sec = Math.max(0, Math.floor(Number(s) || 0))
+      if (sec < 60) return sec + 's'
+      return Math.floor(sec / 60) + 'm ' + (sec % 60) + 's'
+    }
+    const startStreamTimers = () => {
+      stopStreamTimers()
+      streamStartedAt = Date.now()
+      streamElapsed.value = 0
+      spinnerVerb.value = SPINNER_VERBS[Math.floor(Math.random() * SPINNER_VERBS.length)]
+      glyphTimer = setInterval(() => { spinnerGlyphIdx.value = (spinnerGlyphIdx.value + 1) % SPINNER_GLYPHS.length }, 180)
+      elapsedTimer = setInterval(() => {
+        streamElapsed.value = Math.floor((Date.now() - streamStartedAt) / 1000)
+        if (streamElapsed.value > 0 && streamElapsed.value % 6 === 0) {
+          spinnerVerb.value = SPINNER_VERBS[Math.floor(Math.random() * SPINNER_VERBS.length)]
+        }
+      }, 1000)
+    }
+    const stopStreamTimers = () => {
+      clearInterval(glyphTimer); glyphTimer = null
+      clearInterval(elapsedTimer); elapsedTimer = null
+    }
+    const streamDurationSeconds = () => (streamStartedAt ? Math.max(1, Math.round((Date.now() - streamStartedAt) / 1000)) : 0)
     const modeIndex = computed(() => ({ auto: 0, pre: 1, during: 2, post: 3 }[currentMode.value] || 0))
     const inputPlaceholder = computed(() => PLACEHOLDERS[currentMode.value] || PLACEHOLDERS.auto)
     const currentExecMode = computed(() => EXEC_MODES.find(m => m.value === execMode.value) || EXEC_MODES[0])
 
     const goToMainPage = () => router.push('/home')
+    const openExpertExperiment = () => router.push({ path: SCNET_ROUTES.experimentManager, query: {
+      scenario: 'uranium', view: 'simulation', experiment_id: duringExperimentId.value,
+    } })
+    const openEvidenceDetail = (location) => router.push(location)
+    const startIndependentDuring = () => {
+      startNewConversation()
+      router.replace({ path: SCNET_ROUTES.chatHome, query: { mode: 'during', scenario: 'uranium' } })
+    }
     // 阶段与左侧菜单/流程步骤条共用 localStorage，选模式时同步写入，
     // 免得停在事前页却看到事中菜单（反之亦然）。
     const selectMode = (mode) => {
+      if (isStreaming.value) return
       currentMode.value = mode
       if (mode === 'pre' || mode === 'during' || mode === 'post') writeScnetPhase(mode)
     }
@@ -454,10 +568,15 @@ export default {
       const next = String(mode || '').trim()
       if (['pre', 'during', 'post'].includes(next)) selectMode(next)
     }
-    const selectScenario = (value) => scenarioStore.setScenario(value)
+    const selectScenario = (value) => { if (!isStreaming.value) scenarioStore.setScenario(value) }
 
     // 预设问题：跟随当前场景与阶段；智能识别模式下三阶段混排并标注阶段
-    const presetQuestions = computed(() => getPresetQuestions(scenarioStore.currentScenario, currentMode.value))
+    const presetQuestions = computed(() => currentMode.value === 'during' && duringExperimentId.value ? [
+      { title: '定位保供缺口', icon: '📊', text: '当前实验哪一年需求缺口最大，应该怎样调整库存？', phase: 'during' },
+      { title: '解读采购成本', icon: '📈', text: '当前实验的采购成本和价格如何变化？', phase: 'during' },
+      { title: '追踪事件影响', icon: '🔎', text: '哪些事件对应主要风险窗口？请结合年度指标分析。', phase: 'during' },
+      { title: '梳理决策依据', icon: '💡', text: '请汇总当前实验的决策建议及对应依据。', phase: 'during' },
+    ] : getPresetQuestions(scenarioStore.currentScenario, currentMode.value))
     const presetTitle = computed(() => {
       const modeLabel = currentMode.value === 'auto' ? '' : (MODE_OPTIONS.find(o => o.value === currentMode.value)?.label || '')
       return `${scenarioStore.label}${modeLabel ? ' · ' + modeLabel : ''} · 试试这样问`
@@ -516,6 +635,13 @@ export default {
 
     const fetchConversations = async () => {
       const requestId = ++historyRequestSeq
+      if (currentMode.value === 'during') {
+        conversations.value = readUraniumConversations()
+        historyLoaded.value = true
+        historyError.value = false
+        historyLoading.value = false
+        return conversations.value
+      }
       const oldCount = conversations.value.length
       console.log(`[History Fetch Start] rid=${requestId} currentCount=${oldCount} t=${Date.now()}`)
       historyLoading.value = true
@@ -600,6 +726,7 @@ export default {
     }
     const retryHistory = () => refreshHistorySilently()
     const startNewConversation = () => {
+      abortStream()
       messages.value = []; currentConversationId.value = ''; inputText.value = ''; isStreaming.value = false
       attachments.value = []; debugThinking.value = ''
       execPanelVisible.value = false; activeRun.value = null
@@ -638,6 +765,26 @@ export default {
     }
 
     const loadConversation = async (convId) => {
+      abortStream()
+      const saved = readUraniumConversations().find(item => item.id === convId)
+      if (saved) {
+        currentConversationId.value = saved.id
+        persistActiveConv(saved.id)
+        messages.value = saved.messages
+        selectMode('during')
+        scenarioStore.setScenario('uranium')
+        await router.replace({ path: SCNET_ROUTES.chatHome, query: { mode: 'during', scenario: 'uranium', experiment_id: saved.experiment_id } })
+        const last = [...messages.value].reverse().find(item => (item._expertEvidence || item._duringPlan) && !item._error)
+        lastAnalysisMsgId.value = last?.id || ''
+        analysisSuccess.value = !!last
+        activeRun.value = { phase: 'during', kind: last?._duringPlan ? 'requirement' : 'experiment', conversation_id: saved.id }
+        execPanelVisible.value = true
+        execState.value = 'done'; execStatus.value = last?._duringPlan ? '需求分析已恢复' : '实验解读已恢复'
+        execTools.value = (last?._expertEvidence.results || []).map(item => ({ call_id: item.skill, tool: item.skill, status: 'done' }))
+        execSections.value = last ? [...SECTION_ORDER] : []
+        scrollToBottom()
+        return
+      }
       // K2-PERSIST:优先读 agent conversation doc(完整消息+结构化元数据),不重新执行 Agent;
       // 按列表条目 source 路由:agent→agent detail;scenario→scenario detail。仅后端 404/410 才提示"已失效"。
       currentConversationId.value = convId
@@ -716,6 +863,7 @@ export default {
     const persistActiveConv = (id) => { try { localStorage.setItem(ACTIVE_CONV_KEY, id || '') } catch (_) {} }
     // 后端没有删除/重命名会话的接口，这里只动本地列表（刷新后回到后端的真实列表）
     const handleDeleteConversation = async (convId) => {
+      removeUraniumConversation(convId)
       conversations.value = conversations.value.filter(c => c.id !== convId)
       if (currentConversationId.value === convId) startNewConversation()
     }
@@ -723,10 +871,13 @@ export default {
     const handleRenameConversation = async ({ id, title }) => {
       const conv = conversations.value.find(c => c.id === id)
       if (conv) conv.title = title
+      const saved = readUraniumConversations().find(item => item.id === id)
+      if (saved) saveUraniumConversation({ ...saved, title })
     }
 
-    // 事中：把问题当作本次推演的需求，建会话 + 写入 SCnet 场景 store，
-    // 然后直接落到「想定生成分析」页（?fresh=1 会在该页发起首轮需求判断与目标拆解）。
+    // 事中：把问题当作本次推演的需求，建会话 + 写入 SCnet 场景 store。
+    // 铀场景先落到「建模设定」展示 Agent 设定与数量，再由该页带着 fresh=1 进入「想定生成分析」
+    // （fresh=1 会在想定生成页发起首轮需求判断与目标拆解）。
     // 汽车场景的想定生成是 5 步向导，另有自己的 store，这里只把问题带过去预填。
     const enterDuringFlow = async (sid, text, scenario) => {
       writeScnetPhase('during')
@@ -741,7 +892,7 @@ export default {
         }
       })
       if (scenario === 'uranium') {
-        return router.push({ path: SCNET_ROUTES.scenarioAnalysis, query: { scenario, fresh: '1' } })
+        return router.push({ path: SCNET_ROUTES.modelingSetup, query: { scenario, fresh: '1' } })
       }
       // 汽车想定生成仍是原来的 5 步向导（另一套 store / 旧接口），这里只把问题带过去预填
       return router.push({ path: SCNET_ROUTES.scenarioModeling, query: { scenario, q: text } })
@@ -775,16 +926,17 @@ export default {
       if ((!text && attachments.value.length === 0) || isStreaming.value) return
 
       // K3-CHAT-1:事前/智能识别/事后不再跳需求分析页,在对话首页内 Agent 研判。
-      // 事中(during)流程保持兼容,仍走原想定生成页。
+      // 铀场景的事中需求先在本页生成分析，用户确认后再进入建模。
       const isDuring = currentMode.value === 'during'
+      const isExpertQuestion = isDuring && scenarioStore.currentScenario === 'uranium' && !!duringExperimentId.value
+      const version = ++requestVersion
       const fileInfo = attachments.value.length > 0 ? '\n[附件: ' + attachments.value.map(a => a.name).join(', ') + ']' : ''
       inputText.value = ''; attachments.value = []
       messages.value.push({ id: 'u' + Date.now(), role: 'user', content: text + fileInfo })
       messages.value.push({
         id: 'a' + Date.now(),
         role: 'assistant',
-        content: isDuring
-          ? '🚨 正在建立事中会话并进入想定生成...'
+        content: isDuring ? ''
           : currentMode.value === 'post'
             ? '📈 正在进入事后复盘（反事实实验）...'
             : '🔍 正在建立会话并进入态势分析...',
@@ -792,8 +944,17 @@ export default {
       })
       isStreaming.value = true
       scrollToBottom()
-      glyphTimer = setInterval(() => { spinnerGlyphIdx.value = (spinnerGlyphIdx.value + 1) % SPINNER_GLYPHS.length }, 180)
+      startStreamTimers()
       try {
+        // 结果追问使用 Agent 会话；只读技能先取得指定实验，不新建想定或启动实验。
+        if (isExpertQuestion) {
+          await runAgentChat(text, currentConversationId.value || null, { phase: 'during', version })
+          return
+        }
+        if (isDuring && scenarioStore.currentScenario === 'uranium') {
+          runDuringRequirementChat(version)
+          return
+        }
         let sid = currentConversationId.value
         if (sid) {
           // 复用已打开的历史会话，把这条追问补进会话记录
@@ -819,30 +980,85 @@ export default {
         messages.value.push({ id: 'a' + Date.now(), role: 'assistant', content: `会话创建失败：${e.message}` })
         execState.value = 'error'; execStatus.value = '会话创建失败'
       }
-      clearInterval(glyphTimer)
-      isStreaming.value = false
+      // Agent 流式任务由 handleAgentEvent 的 complete/error 收尾；只有非流式路径在这里立即收尾
+      if (!agentStream && version === requestVersion) {
+        stopStreamTimers()
+        isStreaming.value = false
+      }
       scrollToBottom()
     }
 
+    const runDuringRequirementChat = (version) => {
+      const lastMsg = messages.value.at(-1)
+      const previousPlan = [...messages.value].reverse().find(item => item._duringPlan)?._duringPlan
+      const sessionId = previousPlan?.sessionId || `during-session-${Date.now()}`
+      const conversationId = currentConversationId.value.startsWith('during-chat-') ? currentConversationId.value : `during-chat-${Date.now()}`
+      const userGoal = messages.value.filter(item => item.role === 'user').map(item => item.content).join('\n补充要求：')
+      currentConversationId.value = conversationId
+      persistActiveConv(conversationId)
+      activeRun.value = { phase: 'during', kind: 'requirement', conversation_id: conversationId }
+      execPanelVisible.value = true
+      execActiveTab.value = 'steps'
+      execTools.value = []; execSections.value = []
+      execState.value = 'running'; execStatus.value = '正在整理需求…'
+      analysisSuccess.value = false; lastAnalysisMsgId.value = ''; pdfReady.value = false
+      agentStream = streamUraniumRequirementChat({
+        userGoal, sessionId, draft: { ...uraniumStore.draft },
+        onPlan: plan => { if (version === requestVersion) lastMsg._duringPlan = plan },
+        onEvent: event => { if (version === requestVersion) handleAgentEvent(event, lastMsg) },
+      })
+    }
+
     // ── K3-CHAT-1:对话首页 Agent 事前研判 ──────
-    const runAgentChat = async (text, sid) => {
+    const runAgentChat = async (text, sid, { phase = 'pre', version = requestVersion } = {}) => {
       execPanelVisible.value = true
       execTools.value = []; execSections.value = []
+      execActiveTab.value = 'steps'
       execState.value = 'running'; execStatus.value = '正在启动 Agent 任务…'
       analysisSuccess.value = false; lastAnalysisMsgId.value = ''; pdfReady.value = false
       const lastMsg = messages.value[messages.value.length - 1]
+      activeRun.value = { phase }
+      if (lastMsg) lastMsg.content = ''
       try {
+        if (phase === 'during') {
+          const conversationId = sid?.startsWith('during-chat-') ? sid : `during-chat-${Date.now()}`
+          currentConversationId.value = conversationId
+          persistActiveConv(conversationId)
+          upsertLocalConversation(conversationId, text.slice(0, 40))
+          activeRun.value = { phase, conversation_id: conversationId }
+          agentStream = streamUraniumExpertChat({
+            experimentId: duringExperimentId.value,
+            question: text,
+            readExperiment: async (id) => {
+              await demoStore.ensureInitialized()
+              return demoStore.getExperiment(id)
+            },
+            onEvidence: evidence => { if (version === requestVersion) lastMsg._expertEvidence = evidence },
+            onEvent: ev => {
+              if (version === requestVersion) handleAgentEvent(ev, lastMsg)
+            },
+          })
+          return
+        }
         const res = await startAgentChat({
           message: text,
           conversationId: sid,
           modelId: selectedModel.value,
           mode: 'agent',
-          phase: 'pre',
+          phase,
         })
         const data = unwrapApiData(res) || res?.data || res || {}
         const taskId = data?.task_id
         if (!taskId) throw new Error(data?.message || 'Agent 任务启动失败')
+        if (version !== requestVersion) {
+          cancelAgentTask(taskId).catch(() => {})
+          return
+        }
+        currentConversationId.value = data.conversation_id || sid || ''
+        persistActiveConv(currentConversationId.value)
+        upsertLocalConversation(currentConversationId.value, text.slice(0, 40))
         activeRun.value = {
+          phase,
           task_id: taskId,
           conversation_id: data.conversation_id || sid,
           provider: data.provider,
@@ -852,13 +1068,22 @@ export default {
         const stream = streamAgentTask({
           taskId,
           afterSeq: 0,
-          onEvent: (ev) => handleAgentEvent(ev, lastMsg),
-          onError: (err) => { handleAgentEvent({ type: 'error', message: (err && err.message) || String(err) }, lastMsg) },
+          onEvent: (ev) => { if (version === requestVersion) handleAgentEvent(ev, lastMsg) },
+          onError: (err) => { if (version === requestVersion) handleAgentEvent({ type: 'error', message: (err && err.message) || String(err) }, lastMsg) },
+          onClose: () => {
+            if (version === requestVersion && isStreaming.value) handleAgentEvent({ type: 'error', message: '连接已结束，但未收到完成确认，请重试' }, lastMsg)
+          },
         })
         agentStream = stream
       } catch (e) {
+        if (version !== requestVersion) return
         execState.value = 'error'; execStatus.value = 'Agent 启动失败'
-        if (lastMsg) lastMsg.content = `❌ Agent 任务启动失败：${e.message}`
+        if (lastMsg) { lastMsg.content = `❌ Agent 任务启动失败：${e.message}`; lastMsg._streaming = false; lastMsg._error = true }
+      } finally {
+        if (version === requestVersion && !agentStream) {
+          stopStreamTimers()
+          isStreaming.value = false
+        }
       }
     }
 
@@ -873,7 +1098,7 @@ export default {
           : (TOOL_STATUS_TEXT[ev.tool] || `正在调用 ${toolDisplayName(ev.tool)}`)
       } else if (type === 'tool_result') {
         const t = execTools.value.find(x => x.call_id === ev.call_id)
-        if (t) t.status = 'done'
+        if (t) t.status = ev.status === 'error' ? 'error' : 'done'
       } else if (type === 'text_delta') {
         if (lastMsg) { lastMsg.content += ev.content; scrollToBottom() }
       } else if (type === 'section') {
@@ -885,27 +1110,61 @@ export default {
         if (ev.phase === 'output') execStatus.value = '正在生成研判方案…'
       } else if (type === 'done') {
         execState.value = 'done'; execStatus.value = '研判完成'
+        // 有些后端只发 done 不发 complete：这里同样收尾，避免输入框一直被锁
+        stopStreamTimers()
+        isStreaming.value = false
+        if (lastMsg) { lastMsg._streaming = false; lastMsg._completedDuration = lastMsg._completedDuration || streamDurationSeconds() }
       } else if (type === 'complete') {
         execState.value = 'done'; execStatus.value = '研判完成'
         if (agentStream) { try { agentStream.close() } catch {} ; agentStream = null }
+        stopStreamTimers()
         isStreaming.value = false
-        if (lastMsg) lastMsg._streaming = false
+        if (lastMsg) { lastMsg._streaming = false; lastMsg._completedDuration = streamDurationSeconds() }
         // K2-FLOW:分析成功 → 展示导出PDF + 进入可视化
         if (lastMsg && lastMsg.content) {
           analysisSuccess.value = true
           lastAnalysisMsgId.value = lastMsg.id
         }
         // Agent 完成:后台同步真实列表(title/updated_at/新会话);失败不影响当前列表
-        setTimeout(() => { refreshHistorySilently() }, 600)
+        if (activeRun.value?.phase === 'during') {
+          const existing = readUraniumConversations().find(item => item.id === currentConversationId.value)
+          saveUraniumConversation({
+            id: currentConversationId.value, source: 'during',
+            experiment_id: lastMsg?._expertEvidence?.experiment_id || duringExperimentId.value,
+            title: existing?.title || messages.value.find(item => item.role === 'user')?.content?.slice(0, 40) || '实验解读',
+            created_at: existing?.created_at || new Date().toISOString(), updated_at: new Date().toISOString(),
+            messages: messages.value.map(item => ({ ...item, _streaming: false })),
+          })
+          fetchConversations()
+        } else setTimeout(() => { refreshHistorySilently() }, 600)
       } else if (type === 'cancelled') {
         execState.value = 'done'; execStatus.value = '已取消'
         analysisSuccess.value = false
+        if (agentStream) { try { agentStream.close() } catch {} ; agentStream = null }
+        stopStreamTimers(); isStreaming.value = false
         if (lastMsg) lastMsg._streaming = false
       } else if (type === 'error') {
         execState.value = 'error'; execStatus.value = ev.message || '执行出错'
         analysisSuccess.value = false
+        if (agentStream) { try { agentStream.close() } catch {} ; agentStream = null }
+        stopStreamTimers(); isStreaming.value = false
+        if (lastMsg) { lastMsg._streaming = false; lastMsg._error = true }
         if (lastMsg && !lastMsg.content) lastMsg.content = `❌ ${ev.message || 'Agent 执行出错'}`
       }
+    }
+
+    // 失败消息可一键重试：取回对应的用户问题重新提交
+    const retryMessage = (msg) => {
+      if (isStreaming.value) return
+      const idx = messages.value.findIndex(m => m.id === msg.id)
+      if (idx < 0) return
+      let userIdx = idx - 1
+      while (userIdx >= 0 && messages.value[userIdx].role !== 'user') userIdx -= 1
+      if (userIdx < 0) return
+      const question = messages.value[userIdx].content.replace(/\n\[附件:.*\]$/, '')
+      messages.value.splice(userIdx, idx - userIdx + 1)
+      inputText.value = question
+      handleSend()
     }
 
     // ── K2-FLOW:导出PDF(从当前研判内容生成,不跳旧报告页) ──
@@ -936,7 +1195,9 @@ export default {
         body.textContent = msg.content
         body.style.cssText = 'white-space:pre-wrap;font-size:13px;line-height:1.7;margin:12px 0;'
         const foot = document.createElement('p')
-        foot.textContent = '数据与模型来源：供应链快照 / OSINT / 知识库 / 风险模型。本报告由 AI 生成，仅供研究参考，不构成决策建议。'
+        foot.textContent = msg._expertEvidence
+          ? `实验依据：${msg._expertEvidence.experiment_id} · 建模配置 / 年度推演指标 / 决策报告。`
+          : '数据与模型来源：供应链快照 / OSINT / 知识库 / 风险模型。本报告由 AI 生成，仅供研究参考，不构成决策建议。'
         foot.style.cssText = 'color:#777;font-size:11px;margin-top:16px;'
         wrap.appendChild(h); wrap.appendChild(meta); wrap.appendChild(meta2)
         wrap.appendChild(hr); wrap.appendChild(body); wrap.appendChild(foot)
@@ -957,7 +1218,7 @@ export default {
         pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', margin, margin, contentW, renderedH)
         pdf.save('铀供应链研判_' + Date.now() + '.pdf')
         pdfReady.value = true
-        if (currentConversationId.value) { try { await markConversationPdf(currentConversationId.value) } catch (_) {} }
+        if (currentConversationId.value && !msg._expertEvidence && !msg._duringPlan) { try { await markConversationPdf(currentConversationId.value) } catch { /* 导出不依赖远程标记 */ } }
       } catch (e) {
         console.warn('导出PDF失败:', e)
         try { ElMessage({ type: 'error', message: '报告生成失败，请重试' }) } catch (_) {}
@@ -969,6 +1230,16 @@ export default {
 
     // ── K2-FLOW:进入可视化 → 态势研判(真实路由 /home/SCnet/situationJudge) ──
     const goVisualization = () => {
+      const message = messages.value.find(item => item.id === lastAnalysisMsgId.value)
+      if (message?._duringPlan) {
+        const { sessionId, userGoal } = message._duringPlan
+        enterDuringFlow(sessionId, userGoal, 'uranium')
+        return
+      }
+      if (message?._expertEvidence) {
+        router.push(message._expertEvidence.detail)
+        return
+      }
       const query = { from_chat: '1' }
       if (activeRun.value && activeRun.value.conversation_id) {
         query.session_id = activeRun.value.conversation_id
@@ -980,9 +1251,15 @@ export default {
     const isSectionDone = (k) => execSections.value.includes(k)
 
     const abortStream = () => {
+      requestVersion += 1
       if (agentStream) { try { agentStream.close() } catch {} ; agentStream = null }
       if (activeRun.value?.task_id) { cancelAgentTask(activeRun.value.task_id).catch(() => {}) }
-      clearInterval(glyphTimer); isStreaming.value = false
+      stopStreamTimers(); isStreaming.value = false
+      const last = messages.value[messages.value.length - 1]
+      if (last && last.role === 'assistant') {
+        last._streaming = false
+        if (!last.content) last.content = '（已中止）'
+      }
       execState.value = 'done'; execStatus.value = '已中止'
     }
 
@@ -997,15 +1274,22 @@ export default {
       return false
     }
     onMounted(async () => {
-      fetchConversations()
       applyModeFromRoute(route.query?.mode)
+      fetchConversations().catch(() => {})
+      if (route.query?.scenario === 'uranium' && duringExperimentId.value) scenarioStore.setScenario('uranium')
       // 模式入口(事中)不自动恢复历史,避免覆盖 ?mode=during 流程
       if (!route.query?.mode) { await restoreConversation() }
+      else if (currentMode.value === 'during') {
+        const saved = readUraniumConversations().find(item => duringExperimentId.value
+          ? item.experiment_id === duringExperimentId.value
+          : item.id === localStorage.getItem(ACTIVE_CONV_KEY) && !item.experiment_id)
+        if (saved) await loadConversation(saved.id)
+      }
       nextTick(() => { if (messages.value.length === 0) welcomeTextarea.value?.focus() })
     })
     watch(() => route.query?.conversation_id, (v) => { if (v) loadConversation(String(v)) })
     watch(() => route.query?.mode, (mode) => applyModeFromRoute(mode))
-    onUnmounted(() => { if (abortController) abortController.abort(); if (agentStream) { try { agentStream.close() } catch {} } clearInterval(glyphTimer) })
+    onUnmounted(() => { requestVersion += 1; if (abortController) abortController.abort(); if (agentStream) { try { agentStream.close() } catch {} } stopStreamTimers() })
     // DEV-only 调试句柄:供回归验证(竞态/迟到失败)驱动 refresh 并读取 count
     if (import.meta.env.DEV) {
       window.__chatHistoryDebug = {
@@ -1017,18 +1301,20 @@ export default {
 
     return {
       scenarioStore,
+      duringExperimentId, openExpertExperiment, openEvidenceDetail, startIndependentDuring,
       logoUrl, msgContainer, welcomeTextarea, chatTextarea, fileInput, debugPanelBody,
       messages, inputText, selectedModel, isStreaming, currentConversationId, conversations,
       historyLoading, historyError, historyLoaded, retryHistory,
       sidebarCollapsed, currentMode, modeIndex, execMode, attachments,
-      debugThinking, debugThinkingVisible, spinnerGlyph,
+      debugThinking, debugThinkingVisible, spinnerGlyph, spinnerVerb, spinnerColor, streamElapsed, formatDuration, retryMessage,
       currentModelLabel, currentExecMode, inputPlaceholder,
       modeOptions: MODE_OPTIONS, chatModels: CHAT_MODELS, EXEC_MODES,
       scenarioOptions: SCENARIO_OPTIONS, selectScenario,
       presetQuestions, presetTitle, applyPreset, phaseShortLabels: PHASE_SHORT_LABELS,
       execPanelVisible, activeRun, execTools, execStatus, execState, execSections,
       analysisSuccess, lastAnalysisMsgId, pdfGenerating, pdfReady, pdfStateText,
-      SECTION_ORDER, SECTION_LABELS, RESULT_CARDS,
+      SECTION_ORDER, SECTION_LABELS: sectionLabels, RESULT_CARDS: resultCards,
+      execActiveTab, activeEvidence, activeDuringPlan,
       toolDisplayName, isSectionDone,
       exportPdf, goVisualization,
       goToMainPage, selectMode, openKnowledge,
@@ -1044,6 +1330,19 @@ export default {
 </script>
 
 <style scoped>
+.chat-exec-tabs { display: flex; gap: 4px; padding: 4px; border-radius: 8px; background: #f1f5f9; margin: 12px 0; }
+.chat-exec-tabs button { flex: 1; border: 0; padding: 7px; border-radius: 5px; color: #64748b; background: transparent; cursor: pointer; }
+.chat-exec-tabs button.active { background: #fff; color: #2563eb; box-shadow: 0 1px 3px #0f172a12; }
+.chat-exec-parameters { color: #475569; font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
+.chat-exec-parameters dl > div { display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding: 8px 0; gap: 10px; }
+.chat-exec-parameters dd { color: #0f172a; font-weight: 600; margin: 0; }
+.chat-msg-bubble :deep(table) { width: 100%; border-collapse: collapse; font-size: 12px; margin: 12px 0; }
+.chat-msg-bubble :deep(th), .chat-msg-bubble :deep(td) { padding: 8px; border: 1px solid #dce5ee; text-align: left; }
+.chat-msg-bubble :deep(th) { background: #edf3fa; }
+.chat-expert-context { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 12px 20px; border-bottom: 1px solid #dbeafe; background: #f8fbff; color: #334155; font-size: 12px; }
+.chat-expert-context > div { flex: 1; min-width: 200px; overflow-wrap: anywhere; }
+.chat-expert-context p { margin: 4px 0 0; }
+.chat-expert-context button { border: 1px solid #cbd5e1; background: #fff; color: #2563eb; padding: 6px 10px; border-radius: 6px; cursor: pointer; }
 /* ── Shell ─────────────────────────────────── */
 .chat-shell { position: relative; display: flex; width: 100%; height: 100vh; background: #ffffff; overflow: hidden; }
 .chat-main { display: flex; flex-direction: column; height: 100vh; min-width: 0; transition: margin-left 0.3s ease, margin-right 0.3s ease; }
@@ -1201,7 +1500,7 @@ export default {
 .chat-pdf-btn:hover:not(:disabled) { border-color: #4f46e5; background: #e0e7ff; }
 .chat-pdf-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 /* K2-FLOW:进入可视化(消息区右下,不覆盖内容) */
-.chat-visualize-zone { display: flex; justify-content: flex-end; padding: 10px 32px 0; }
+.chat-visualize-zone { display: flex; flex-shrink: 0; justify-content: flex-end; padding: 10px 32px 12px; }
 .chat-visualize-btn {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 9px 18px; border: none; border-radius: 999px;
@@ -1230,8 +1529,48 @@ export default {
 .chat-msg-bubble :deep(pre) { background: #1e293b; color: #e2e8f0; padding: 0.8rem 1rem; border-radius: 8px; overflow-x: auto; font-size: 0.82rem; }
 .chat-msg-bubble :deep(ul), .chat-msg-bubble :deep(ol) { padding-left: 1.2rem; margin: 0.3rem 0; }
 .chat-disclaimer { font-size: 0.7rem; color: #9ca3af; margin-top: 0.25rem; padding-left: 0.2rem; }
-.chat-spinner { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0; color: #6b7280; font-size: 0.85rem; }
-.chat-spinner-glyph { font-size: 1.1rem; color: #6366f1; }
+.chat-completed-line { font-size: 0.72rem; color: #8899c4; font-style: italic; padding: 2px 0.2rem 0; }
+.chat-msg { animation: msgSlideIn 0.28s ease-out; }
+@keyframes msgSlideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+/* 流式输出中的光标 */
+.chat-msg-bubble.is-streaming :deep(p:last-child)::after,
+.chat-msg-bubble.is-streaming :deep(li:last-child)::after {
+  content: '';
+  display: inline-block;
+  width: 2px; height: 1em;
+  margin-left: 3px;
+  vertical-align: -0.15em;
+  background: #6366f1;
+  animation: chatCursorBlink 0.9s steps(2, start) infinite;
+}
+@keyframes chatCursorBlink { to { visibility: hidden; } }
+.chat-msg-error {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 8px; padding: 8px 12px;
+  border: 1px solid #fecaca; border-radius: 12px;
+  background: #fef2f2; color: #dc2626; font-size: 12px;
+}
+.chat-msg-error button {
+  margin-left: auto; padding: 4px 10px;
+  border: 1px solid #fca5a5; border-radius: 8px;
+  background: #fff; color: #dc2626; font-size: 11px; cursor: pointer;
+  transition: background 0.15s;
+}
+.chat-msg-error button:hover:not(:disabled) { background: #fff5f5; }
+.chat-msg-error button:disabled { opacity: 0.5; cursor: not-allowed; }
+/* 参考 MACE 对话页 spinner：字形轮转 + 动词流光 + 计时 */
+.chat-spinner { --spinner-color: #4d6beb; display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; padding: 0.5rem 0; color: #9ca3af; font-size: 0.9rem; user-select: none; }
+.chat-spinner-glyph { display: inline-flex; justify-content: center; width: 18px; font-size: 1rem; color: var(--spinner-color); flex-shrink: 0; }
+.chat-spinner-verb {
+  font-weight: 500; color: var(--spinner-color);
+  background: linear-gradient(110deg, var(--spinner-color) 40%, #a5b4fc 50%, var(--spinner-color) 60%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  animation: chatVerbShimmer 2.4s ease-in-out infinite;
+}
+@keyframes chatVerbShimmer { 0%, 100% { background-position: 100% 0; } 50% { background-position: 0 0; } }
+.chat-spinner-timer { color: var(--spinner-color); font-size: 0.8rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+.chat-spinner-info { color: var(--spinner-color); opacity: 0.65; font-size: 0.8rem; }
 
 /* ── Input ─────────────────────────────────── */
 .chat-input-area { flex-shrink: 0; padding: 0 32px 24px; }

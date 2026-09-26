@@ -96,6 +96,7 @@ function uniqueStrings(values = []) {
 }
 
 function safeNumber(value, fallback = null) {
+  if (value == null || value === '') return fallback
   const num = Number(value)
   return Number.isFinite(num) ? num : fallback
 }

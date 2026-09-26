@@ -643,18 +643,25 @@ function buildContractMix(totalProcured, variant) {
   }))
 }
 
-function buildTimelineRows(variantKey) {
+function buildTimelineRows(variantKey, draft = {}) {
   const variant = VARIANT_PROFILES[variantKey] || VARIANT_PROFILES.balanced
-
-  return BASE_YEAR_ROWS.map((row, index) => {
+  const start = Number.isInteger(draft.start_year) ? draft.start_year : 2024
+  const end = Number.isInteger(draft.end_year) ? draft.end_year : 2028
+  const severity = Number.isFinite(draft.event_severity_multiplier) ? draft.event_severity_multiplier : 1
+  const baseRows = Array.from({ length: Math.max(0, Math.min(44, end - start + 1)) }, (_, index) => {
+    const year = start + index
+    const existing = BASE_YEAR_ROWS.find(row => row.year === year)
+    return existing || { ...BASE_YEAR_ROWS[year < 2024 ? 0 : BASE_YEAR_ROWS.length - 1], year, active_events: [] }
+  })
+  return baseRows.map((row, index) => {
     const activeEvents = row.active_events.map((item) => `${item}${variant.event_suffix}`)
     const supplierShares = buildYearSupplierShares(row.year, variant.route_share_adjust)
     const totalProcured = round(row.total_procured_tU * (1 + variant.inventory_shift * 0.02))
     const totalSupply = round(row.total_supply_tU * (1 + variant.inventory_shift * 0.015))
     const totalDemand = row.total_demand_tU
-    const unmetDemand = round(Math.max(0, row.unmet_demand_tU * variant.unmet_multiplier))
+    const unmetDemand = round(Math.max(0, row.unmet_demand_tU * variant.unmet_multiplier * severity))
     const averageCost = round(row.average_cost_usd_kgU + variant.cost_shift + index * 0.6)
-    const averageRisk = round(Math.max(0.07, row.average_risk_exposure + variant.risk_shift), 3)
+    const averageRisk = round(Math.min(1, Math.max(0.07, (row.average_risk_exposure + variant.risk_shift) * severity)), 3)
     const inventoryYears = round(Math.max(0.7, row.inventory_coverage_years + variant.inventory_shift), 2)
     const dynamicConcentration = buildSupplierConcentration(supplierShares)
     const dynamicDominantShare = buildDominantShare(supplierShares)
@@ -667,7 +674,7 @@ function buildTimelineRows(variantKey) {
     return {
       year: row.year,
       active_events: activeEvents,
-      market_price_usd_lb: row.market_price_usd_lb,
+    market_price_usd_lb: round((draft.starting_price_usd_per_lb ?? row.market_price_usd_lb) * (1 + (severity - 1) * 0.1)),
       total_supply_tU: totalSupply,
       total_procured_tU: totalProcured,
       total_demand_tU: totalDemand,
@@ -702,11 +709,15 @@ function buildSummary(timeline) {
 function buildIterationHistory(summary, variantKey, optimizationIterations) {
   const variant = VARIANT_PROFILES[variantKey] || VARIANT_PROFILES.balanced
   const steps = optimizationIterations > 1
-    ? [
-        { iteration: 0, cost: 14, risk: 0.028, inventory: -0.18, unmet: 150, hhi: 0.02, label: '初始方案', signalIndex: 0 },
-        { iteration: 1, cost: 7, risk: 0.013, inventory: -0.08, unmet: 60, hhi: 0.01, label: '第一轮调整', signalIndex: 1 },
-        { iteration: 2, cost: 0, risk: 0, inventory: 0, unmet: 0, hhi: 0, label: '收敛方案', signalIndex: 2 }
-      ]
+    ? Array.from({ length: optimizationIterations + 1 }, (_, iteration) => {
+        const remaining = 1 - iteration / optimizationIterations
+        return {
+          iteration, cost: 14 * remaining, risk: 0.028 * remaining,
+          inventory: -0.18 * remaining, unmet: 150 * remaining, hhi: 0.02 * remaining,
+          label: iteration === 0 ? '初始方案' : remaining === 0 ? '收敛方案' : `第 ${iteration} 轮调整`,
+          signalIndex: iteration === 0 ? 0 : remaining === 0 ? 2 : 1,
+        }
+      })
     : [
         { iteration: 0, cost: 0, risk: 0, inventory: 0, unmet: 0, hhi: 0, label: '单次仿真', signalIndex: 2 }
       ]
@@ -783,11 +794,12 @@ function createUraniumDemoExperiment({
   description,
   optimizationIterations = 2,
   createdAt = '2026-07-08 09:20:00',
-  completedAt = '2026-07-08 11:00:00'
+  completedAt = '2026-07-08 11:00:00',
+  draft = {}
 } = {}) {
   const variantKey = normalizeVariantKey(presetName)
   const variant = VARIANT_PROFILES[variantKey] || VARIANT_PROFILES.balanced
-  const timeline = buildTimelineRows(variantKey)
+  const timeline = buildTimelineRows(variantKey, draft)
   const summary = buildSummary(timeline)
 
   const experiment = {
@@ -805,8 +817,9 @@ function createUraniumDemoExperiment({
       description: description || '围绕长协、现货与库存目标做年度演化评估。',
       template_used: variant.preset_name,
       preset_name: variant.preset_name,
-      start_year: 2024,
-      end_year: 2028,
+      start_year: timeline[0]?.year,
+      end_year: timeline.at(-1)?.year,
+      event_severity_multiplier: draft.event_severity_multiplier ?? 1,
       optimization_iterations: optimizationIterations,
       policy_profiles: deepClone(variant.policy_profiles)
     },
@@ -1002,7 +1015,8 @@ export function createLaunchedUraniumDemoExperiment({
   presetName = 'balanced',
   optimizationIterations = 2,
   createdAt = '2026-07-10 13:00:00',
-  sessionId = 'demo-session-uranium'
+  sessionId = 'demo-session-uranium',
+  draft = {}
 } = {}) {
   const goalText = String(userGoal || '').trim() || '分析铀供应链在地缘冲击下的保供与成本平衡策略'
   const experimentId = buildExperimentId(presetName, createdAt, index)
@@ -1013,7 +1027,8 @@ export function createLaunchedUraniumDemoExperiment({
     description: goalText,
     optimizationIterations,
     createdAt,
-    completedAt: createdAt
+    completedAt: createdAt,
+    draft
   })
 
   const task = buildUraniumDemoTask(experiment, {
@@ -1101,4 +1116,12 @@ export function normalizeUraniumDemoState(payload = {}) {
   }
 }
 
-export { buildExperimentId, buildTaskId, deepClone }
+export {
+  buildExperimentId,
+  buildTaskId,
+  deepClone,
+  // 建模设定页展示的仿真主体名单，与实验运行数据同源
+  SUPPLIERS as URANIUM_SUPPLIER_ACTORS,
+  MANUFACTURERS as URANIUM_MANUFACTURER_ACTORS,
+  BASE_YEAR_ROWS as URANIUM_BASE_YEAR_ROWS
+}

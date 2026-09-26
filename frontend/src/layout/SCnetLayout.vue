@@ -3,7 +3,7 @@
     <!--	左侧菜单栏 -->
     <div class="menu-pos">
       <el-menu :default-active="activeIndex" class="el-menu-vertical-demo"
-               :collapse="isCollapse" ref="menuRef" router @select="onMenuSelect">
+               :collapse="isCollapse" ref="menuRef" router>
         <div style="display: flex; width: 100%; justify-content: space-between; margin-top: 0.5rem; height: 40px; margin-bottom: 1rem; padding: 10px">
           <div style="display: flex">
             <img style="height: 18px" src="../assets/images/logo.png" alt="logo"/>
@@ -162,10 +162,20 @@
     </div>
     <div :class="isCollapse ? 'body-pos-shrink' : 'body-pos-expand'">
       <AppHeader style="flex-shrink: 0; z-index: 2000"/>
-      <div class="scnet-router-host">
+      <div class="scnet-router-host" :class="{ 'has-during-rail': showDuringRail }">
         <router-view />
       </div>
     </div>
+
+    <!-- 事中（铀）流程进度栏：参考 MACE 工作台，固定右侧、悬停展开 -->
+    <EventPhaseStepper
+      v-if="showDuringRail"
+      :steps="duringSteps"
+      :current-key="duringStepKey"
+      :completed-predicate="isDuringStepCompleted"
+      collapsible
+      @step-click="onDuringStepClick"
+    />
 
     <!-- 浮动切换按钮：转到对话模式 -->
     <el-tooltip content="切换到AI对话模式" placement="left" effect="dark">
@@ -178,17 +188,19 @@
 
 <script>
 import {
-  Aim, Box, Coin, Collection, DataAnalysis, DataLine, Document, DocumentDelete, Edit,
+  Aim, Box, Coin, Collection, Connection, Cpu, DataAnalysis, DataLine, Document, DocumentDelete, Edit,
   FolderOpened, Grid, House, MapLocation, Memo, Monitor, Notification, Operation, Orange,
   PieChart, Place, Postcard, Promotion, ScaleToOriginal, Search as SearchIcon, Setting,
   SwitchButton, TrendCharts, User, WarningFilled, ChatDotSquare, CircleCheck
 } from "@element-plus/icons-vue";
 import {ref, onMounted, onUnmounted, computed, watch} from "vue";
-import {useRoute} from "vue-router";
+import {useRoute, useRouter} from "vue-router";
 import {Files, Refresh} from "@element-plus/icons-vue";
 import AppHeader from "@/components/Header.vue";
+import EventPhaseStepper from "@/components/EventPhaseStepper.vue";
 import { useScenarioStore } from "@/stores/scenario";
 import { PHASE_EVENT, PHASE_STORAGE_KEY, ROUTE_TO_PHASE } from "@/constants/scnetPhase";
+import { routeToStepKey, useDuringFlowSteps } from "@/views/SCnet/composables/useDuringFlowSteps_uranium";
 
 const PRE_MAIN_MENU_ITEMS = Object.freeze([
   // 需求分析已从主流程移除(K2-FLOW):对话首页承担研判入口,页面/路由保留供直接访问
@@ -208,7 +220,10 @@ const PRE_TAIL_MENU_ITEMS = Object.freeze([
 ])
 
 const DURING_MAIN_MENU_ITEMS = Object.freeze([
+  // 铀场景事中主线与右侧流程栏一致：建模设定 → 想定生成 → 实体建模 → 实验推演 → 决策生成
+  { index: '/home/SCnet/modelingSetup', label: '建模设定', icon: Cpu, uraniumOnly: true },
   { path: 'scenario', key: 'scenario', label: '想定生成', icon: Edit },
+  { index: '/home/SCnet/agentSimulationStudio', label: '实体建模', icon: Connection, uraniumOnly: true, extraQuery: 'view=workflow' },
   { index: '/home/SCnet/experimentManager', label: '实验推演', icon: Monitor }
 ])
 
@@ -243,6 +258,39 @@ const POST_TAIL_MENU_ITEMS = Object.freeze([
   { index: '/home/SCnet/EXreport', label: '供应链实验报告', icon: Postcard }
 ])
 
+/**
+ * 按当前路由反查应高亮的菜单项。
+ * 菜单 index 形如 `/home/SCnet/experimentManager?scenario=uranium&view=decision`，
+ * 而 route.path 不带 query，直接比较永远不相等，导致刷新 / 「下一步」跳转后菜单失去高亮。
+ * 规则：path 相同，且菜单 index 上除 scenario 以外的 query 都与当前路由一致；
+ * 多个候选时取 query 条件最多的（decision 视图优先匹配「决策生成」而非「实验推演」）。
+ */
+function resolveActiveMenuIndex(route, items) {
+  const routePath = String(route?.path || '')
+  const routeQuery = route?.query || {}
+  let best = null
+  let bestScore = -1
+  for (const item of items) {
+    const raw = String(item?.index || '')
+    if (!raw) continue
+    const [itemPath, search = ''] = raw.split('?')
+    if (itemPath !== routePath) continue
+    const params = new URLSearchParams(search)
+    let score = 0
+    let matched = true
+    for (const [key, value] of params.entries()) {
+      if (key === 'scenario') continue
+      if (String(routeQuery[key] ?? '') !== value) { matched = false; break }
+      score += 1
+    }
+    if (matched && score > bestScore) {
+      best = raw
+      bestScore = score
+    }
+  }
+  return best || routePath
+}
+
 export default {
   name: "SCnetLayout",
   components: {
@@ -250,13 +298,15 @@ export default {
     Monitor,
     Place,
     Edit,
+    Cpu,
     Refresh, Files, DataAnalysis, DataLine, DocumentDelete, House, Aim, Box, Collection,
     Document, Notification, Operation, Postcard, Promotion, ScaleToOriginal, SearchIcon, Setting,
-    Coin, PieChart, FolderOpened, Grid, SwitchButton, Orange, TrendCharts, User, AppHeader, WarningFilled, ChatDotSquare, CircleCheck
+    Coin, PieChart, FolderOpened, Grid, SwitchButton, Orange, TrendCharts, User, AppHeader, WarningFilled, ChatDotSquare, CircleCheck,
+    EventPhaseStepper
   },
   setup() {
     const route = useRoute()
-    const activeIndex = ref('1')
+    const router = useRouter()
     const storedPhase = ref(localStorage.getItem(PHASE_STORAGE_KEY) || '')
 
     // currentPhase 优先按当前路由推断，避免旧的 localStorage 状态把菜单带偏；
@@ -281,6 +331,17 @@ export default {
 
     const isUraniumScenario = computed(() => currentScenario.value === 'uranium')
 
+    // ── 事中（铀）流程进度栏 ──
+    const { steps: duringSteps, isStepCompleted: isDuringStepCompleted } = useDuringFlowSteps()
+    const duringStepKey = computed(() => routeToStepKey(route.path, route.query || {}))
+    const showDuringRail = computed(() => (
+      currentPhase.value === 'during' && isUraniumScenario.value && !!duringStepKey.value
+    ))
+    const onDuringStepClick = (step) => {
+      if (!step?.route) return
+      router.push({ path: step.route, query: { ...(step.query || {}), scenario: 'uranium' } })
+    }
+
     const handleStorageChange = (event) => {
       if (event.key === PHASE_STORAGE_KEY) {
         storedPhase.value = event.newValue || ''
@@ -301,43 +362,65 @@ export default {
       window.removeEventListener(PHASE_EVENT, handleCustomChange)
     })
 
+    const withScenario = (item) => ({
+      ...item,
+      index: `${item.index}?scenario=${currentScenario.value}${item.extraQuery ? `&${item.extraQuery}` : ''}`
+    })
+    const preMainMenuItems = computed(() => PRE_MAIN_MENU_ITEMS.map(withScenario))
+    const preAnalysisMenuItems = computed(() => PRE_ANALYSIS_MENU_ITEMS.map(withScenario))
+    const preTailMenuItems = computed(() => PRE_TAIL_MENU_ITEMS.map(withScenario))
+    const duringMainMenuItems = computed(() => DURING_MAIN_MENU_ITEMS
+      .filter((item) => !item.uraniumOnly || isUraniumScenario.value)
+      .map((item) => {
+        if (item.path === 'scenario') {
+          return {
+            ...item,
+            index: `/home/SCnet/${isUraniumScenario.value ? 'scenarioAnalysis' : 'scenarioModeling'}?scenario=${currentScenario.value}`
+          }
+        }
+        if (item.path === 'decision') {
+          return { ...item, index: `/home/SCnet/experimentManager?scenario=${currentScenario.value}&view=decision` }
+        }
+        return withScenario(item)
+      }))
+    const duringAnalysisMenuItems = computed(() => DURING_ANALYSIS_MENU_ITEMS.map(withScenario))
+    const duringDecisionMenuItems = computed(() => DURING_DECISION_MENU_ITEMS.map((item) => ({
+      ...item,
+      index: `/home/SCnet/experimentManager?scenario=${currentScenario.value}&view=decision`
+    })))
+    const duringTailMenuItems = computed(() => DURING_TAIL_MENU_ITEMS.map(withScenario))
+
+    // 当前高亮项：按路由反查（见 resolveActiveMenuIndex），不再依赖点击事件维护
+    const activeIndex = computed(() => resolveActiveMenuIndex(route, [
+      ...preMainMenuItems.value,
+      ...preAnalysisMenuItems.value,
+      ...preTailMenuItems.value,
+      ...duringMainMenuItems.value,
+      ...duringDecisionMenuItems.value,
+      ...duringAnalysisMenuItems.value,
+      ...duringTailMenuItems.value,
+      ...POST_MAIN_MENU_ITEMS,
+      ...POST_ANALYSIS_MENU_ITEMS,
+      ...POST_TAIL_MENU_ITEMS
+    ]))
+
     return {
       activeIndex,
       currentPhase,
       currentScenario,
       scenarioLabel,
-      preMainMenuItems: computed(() => PRE_MAIN_MENU_ITEMS.map((item) => ({
-        ...item,
-        index: `${item.index}?scenario=${currentScenario.value}`
-      }))),
-      preAnalysisMenuItems: computed(() => PRE_ANALYSIS_MENU_ITEMS.map((item) => ({
-        ...item,
-        index: `${item.index}?scenario=${currentScenario.value}`
-      }))),
-      preTailMenuItems: computed(() => PRE_TAIL_MENU_ITEMS.map((item) => ({
-        ...item,
-        index: `${item.index}?scenario=${currentScenario.value}`
-      }))),
-      duringMainMenuItems: computed(() => DURING_MAIN_MENU_ITEMS.map((item) => ({
-        ...item,
-        index: item.path === 'scenario'
-          ? `/home/SCnet/${isUraniumScenario.value ? 'scenarioAnalysis' : 'scenarioModeling'}?scenario=${currentScenario.value}`
-          : item.path === 'decision'
-            ? `/home/SCnet/experimentManager?scenario=${currentScenario.value}&view=decision`
-            : `${item.index}?scenario=${currentScenario.value}`
-      }))),
-      duringAnalysisMenuItems: computed(() => DURING_ANALYSIS_MENU_ITEMS.map((item) => ({
-        ...item,
-        index: `${item.index}?scenario=${currentScenario.value}`
-      }))),
-      duringDecisionMenuItems: computed(() => DURING_DECISION_MENU_ITEMS.map((item) => ({
-        ...item,
-        index: `/home/SCnet/experimentManager?scenario=${currentScenario.value}&view=decision`
-      }))),
-      duringTailMenuItems: computed(() => DURING_TAIL_MENU_ITEMS.map((item) => ({
-        ...item,
-        index: `${item.index}?scenario=${currentScenario.value}`
-      }))),
+      duringSteps,
+      duringStepKey,
+      isDuringStepCompleted,
+      showDuringRail,
+      onDuringStepClick,
+      preMainMenuItems,
+      preAnalysisMenuItems,
+      preTailMenuItems,
+      duringMainMenuItems,
+      duringAnalysisMenuItems,
+      duringDecisionMenuItems,
+      duringTailMenuItems,
       postMainMenuItems: POST_MAIN_MENU_ITEMS,
       postAnalysisMenuItems: POST_ANALYSIS_MENU_ITEMS,
       postTailMenuItems: POST_TAIL_MENU_ITEMS
@@ -353,20 +436,7 @@ export default {
       }
     }
   },
-  created() {
-    this.activeIndex = this.$route.path
-  },
-  watch: {
-    '$route.path'(path) {
-      this.activeIndex = path
-    }
-  },
   methods: {
-    onMenuSelect(index) {
-      if (index && index !== 'scnet-menu-exit') {
-        this.activeIndex = index
-      }
-    },
     exit() {
       this.$router.push('/home')
     },
@@ -439,6 +509,16 @@ export default {
   width: 100%;
   min-height: 100%;
   box-sizing: border-box;
+}
+
+/* 事中（铀）流程进度栏固定在右侧（折叠 52px + 右距 18px），内容区让出这段宽度避免被遮挡 */
+.scnet-router-host.has-during-rail {
+  padding-right: 76px;
+}
+@media (max-width: 1280px) {
+  .scnet-router-host.has-during-rail {
+    padding-right: 0;
+  }
 }
 
 .fade-delay-enter-active {

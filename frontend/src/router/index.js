@@ -58,6 +58,12 @@ const routes = [
         redirect: '/home/SCnet/total'
       },
       {
+        // 事中（铀）· 建模设定：位于想定生成之前
+        path: 'modelingSetup',
+        name: 'SCnet_ModelingSetup',
+        component: () => import("../views/SCnet/ModelingSetupWrapper.vue")
+      },
+      {
         path: 'scenarioModeling',
         name: 'SCnet_ScenarioModeling',
         component: ScenarioModeling

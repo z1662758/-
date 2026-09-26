@@ -130,16 +130,33 @@
       </section>
     </div>
 
-    <el-empty v-else description="请先完成一次实验推演，再生成决策" />
+    <div v-else class="decision-empty">
+      <el-empty description="请先完成一次实验推演，再生成决策" :image-size="96">
+        <p class="decision-empty-hint">决策生成会读取当前焦点实验的迭代结果、压力窗口与候选方案评分。</p>
+        <el-button type="primary" @click="goToRun">
+          <el-icon><Monitor /></el-icon>
+          <span>前往运行管理启动实验</span>
+        </el-button>
+      </el-empty>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { Monitor } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
 import { buildUraniumReportViewModel } from '@/views/SCnet/adapters/uraniumMockAnalysisAdapter'
+
+const route = useRoute()
+const router = useRouter()
+function goToRun() {
+  const query = { ...route.query, view: 'run' }
+  router.replace({ query })
+}
 
 const uraniumStore = useUraniumDemoStore()
 const snapshotStore = useAnalysisSnapshotStore()
@@ -250,6 +267,9 @@ onMounted(() => uraniumStore.ensureInitialized())
 <style scoped>
 .decision-page { height: 100%; display: flex; flex-direction: column; background: #f4f7fb; color: #172033; }
 .decision-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 14px 18px; }
+.decision-empty { flex: 1; display: flex; align-items: center; justify-content: center; }
+.decision-empty-hint { margin: 0 0 14px; max-width: 360px; color: #64748b; font-size: 12.5px; line-height: 1.6; text-align: center; }
+.decision-empty .el-button > .el-icon + span { margin-left: 6px; }
 .decision-hero { display: grid; grid-template-columns: minmax(260px, 1.1fr) minmax(280px, 1.4fr) 132px; grid-template-areas: "main reason score"; gap: 10px; padding: 10px; border: 1px solid #bfdbfe; border-radius: 10px; background: #fff; box-shadow: 0 4px 12px rgba(37, 99, 235, .07); }
 .hero-main { grid-area: main; min-width: 0; }
 .decision-line { display: flex; align-items: center; gap: 10px; min-width: 0; }

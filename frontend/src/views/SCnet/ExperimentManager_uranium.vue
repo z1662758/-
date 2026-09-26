@@ -1,7 +1,7 @@
 <template>
   <div class="experiment-manager mid-stage-bg">
     <MidStagePageHeader
-      title="实验运行"
+      title="实验管理"
       subtitle="提交、排队并跟踪铀供应链实验任务"
       :icon="Monitor"
     >
@@ -37,6 +37,33 @@
           <el-icon><Plus /></el-icon>
           <span>新建实验</span>
         </el-button>
+        <!-- 案例分析挂在运行管理之下：这里是统一入口，选一个历史案例去核验当前焦点实验 -->
+        <el-dropdown trigger="click" placement="bottom-end" @command="openCaseAnalysis">
+          <el-button size="small" class="case-entry-btn">
+            <el-icon><Reading /></el-icon>
+            <span>案例分析</span>
+            <el-icon class="case-entry-caret"><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu class="case-entry-menu">
+              <div class="case-entry-menu-head">典型验证案例 · 用历史事件核验仿真结果</div>
+              <el-dropdown-item
+                v-for="item in caseLibrary"
+                :key="item.id"
+                :command="item"
+                :class="{ 'is-research': item.status !== 'ready' }"
+              >
+                <span class="case-entry-item">
+                  <b>{{ item.title }}</b>
+                  <small>
+                    <em :class="item.status === 'ready' ? 'ready' : 'research'">{{ item.status === 'ready' ? '可验证' : '调研中' }}</em>
+                    {{ item.period }} · {{ item.category }}
+                  </small>
+                </span>
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </template>
     </MidStagePageHeader>
 
@@ -79,7 +106,15 @@
               <div class="progress-hero-title">{{ truncateGoal(runningTask?.user_goal || '当前实验任务运行中') }}</div>
               <div class="progress-hero-meta">
                 <span class="progress-hero-pill primary">铀供应链仿真</span>
+                <span class="progress-hero-pill live">
+                  <span class="progress-live-dot"></span>
+                  已运行 {{ formatDuration(liveElapsedSeconds) }}
+                </span>
               </div>
+            </div>
+            <div class="progress-hero-side">
+              <strong>{{ runningProgress.percentage || 0 }}%</strong>
+              <span>总体进度</span>
             </div>
           </div>
 
@@ -90,12 +125,31 @@
               </span>
               <span class="progress-inline-hint mono" :title="displayedTaskId">{{ formatShortId(displayedTaskId) }}</span>
             </div>
-            <div class="progress-task-text">{{ runningStageText }}</div>
+            <!-- 参考 MACE 对话页的推演 spinner：字形轮转 + 动词流光 + 计时 -->
+            <div class="progress-task-text progress-spinner">
+              <span class="progress-spinner-glyph">{{ progressGlyph }}</span>
+              <span class="progress-spinner-verb">{{ runningStageText }}</span>
+              <span class="progress-spinner-timer">{{ formatDuration(liveElapsedSeconds) }}</span>
+            </div>
             <el-progress
               :percentage="runningProgress.percentage"
               :status="runningProgress.total > 0 && runningProgress.completed >= runningProgress.total ? 'success' : ''"
               :stroke-width="16"
             />
+            <div class="progress-brief-grid">
+              <div class="progress-brief-item">
+                <span>已完成轮次</span>
+                <strong>{{ runningProgress.completed || 0 }} / {{ runningProgress.total || '-' }}</strong>
+              </div>
+              <div class="progress-brief-item">
+                <span>预计剩余</span>
+                <strong>{{ liveRemainingSeconds == null ? '估算中' : formatDuration(liveRemainingSeconds) }}</strong>
+              </div>
+              <div class="progress-brief-item">
+                <span>启动时间</span>
+                <strong>{{ formatTime(runningTask?.started_at || runningTask?.created_at) }}</strong>
+              </div>
+            </div>
           </div>
 
           <div v-if="progressAdjustmentRows.length" class="progress-adjust-inline">
@@ -135,9 +189,23 @@
 
         <el-empty
           v-else
-          description="当前没有运行中的实验，可在下方任务列表查看历史迭代优化过程"
+          description="当前没有运行中的实验"
           :image-size="70"
-        />
+        >
+          <p class="progress-empty-hint">
+            {{ launchDisabledReason || '基于当前需求生成一组铀供应链实验任务，运行进度、参数修正与迭代日志会在这里实时展示。' }}
+          </p>
+          <el-button
+            type="primary"
+            size="small"
+            :disabled="!canLaunch || launching"
+            :loading="launching"
+            @click="launchCurrentSession"
+          >
+            <el-icon><VideoPlay /></el-icon>
+            <span>启动实验</span>
+          </el-button>
+        </el-empty>
       </el-card>
     </div>
 
@@ -146,8 +214,10 @@
         :task="focusTask"
         :experiment="focusExperiment"
         :rows="focusIterationRows"
+        :can-validate="focusTask.status === 'completed' && isUraniumTask(focusTask)"
         @view-config="openTaskConfigDialog(focusTask)"
         @view-experiment="viewExperiment(focusTask)"
+        @validate-case="openCaseAnalysis(null, focusTask)"
       />
     </div>
 
@@ -345,6 +415,15 @@
                     @click.stop="viewExperiment(row)"
                   >
                     加载实验
+                  </el-button>
+                  <el-button
+                    v-if="row.status === 'completed' && isUraniumTask(row)"
+                    type="success"
+                    size="small"
+                    link
+                    @click.stop="openCaseAnalysis(null, row)"
+                  >
+                    案例验证
                   </el-button>
                   <el-button
                     type="info"
@@ -550,7 +629,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useScnetSupplyChainStore as useSupplyChainStore } from '@/stores/scnet'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import {
@@ -566,6 +645,7 @@ import {
   Search,
   Sort,
   Refresh,
+  Reading,
   ArrowDown,
   ArrowUp
 } from '@element-plus/icons-vue'
@@ -579,6 +659,7 @@ import IterationDetailDrawer from './components/IterationDetailDrawer.vue'
 import { useUraniumDuringStore } from '@/stores/scnet/useUraniumDuringStore'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 import { SCNET_ROUTES } from '@/constants/scnetRoutes'
+import { URANIUM_CASE_LIBRARY, getReadyCases } from '@/views/SCnet/mock/uraniumCaseLibrary'
 import {
   formatUraniumMetricValue
 } from '@/utils/uraniumDuringAdapter'
@@ -591,9 +672,32 @@ import {
 } from '@/utils/scnetTaskUtils'
 
 const router = useRouter()
+const route = useRoute()
 const store = useSupplyChainStore()
 const uraniumStore = useUraniumDuringStore()
 const demoStore = useUraniumDemoStore()
+
+// 典型验证案例：案例分析挂在运行管理之下（工作台 ?view=case&case=<id>）。
+// 入口有三处：页头「案例验证」下拉、焦点实验面板、台账中已完成实验的行操作。
+// 带 task 进入时先把该实验加载为对照实验，案例页直接用它核验。
+const caseLibrary = URANIUM_CASE_LIBRARY
+const openCaseAnalysis = async (item = null, task = null) => {
+  const caseDef = item?.id ? item : getReadyCases()[0]
+  if (!caseDef?.id) return
+  if (task && isUraniumTask(task)) {
+    const experimentId = resolveExperimentIdFromTask(task)
+    if (experimentId) {
+      try {
+        await demoStore.loadExperiment(experimentId)
+        store.setCurrentExperimentId(experimentId)
+        if (task.session_id) store.setCurrentSessionId(task.session_id)
+      } catch (error) {
+        console.warn('[ExperimentManager] 加载对照实验失败:', error?.message || error)
+      }
+    }
+  }
+  router.push({ query: { ...route.query, view: 'case', case: caseDef.id } })
+}
 
 // 选中实验快捷入口 banner（替代原 MessageBox 阻塞弹窗）
 const selectedExperimentBanner = reactive({
@@ -621,6 +725,49 @@ const runningProgress = ref({
   next_param_items: []
 })
 const progressHint = ref('')
+
+// ── 运行中态的实时计时与字形轮转（参考 MACE 对话页 spinner） ──
+const PROGRESS_GLYPHS = ['✽', '✢', '✦', '✧']
+const progressGlyphIdx = ref(0)
+const progressGlyph = computed(() => PROGRESS_GLYPHS[progressGlyphIdx.value] || '✽')
+const liveTickSeconds = ref(0)
+let liveTimer = null
+let liveAnchorAt = 0
+
+const liveElapsedSeconds = computed(() => {
+  const base = Number(runningProgress.value.elapsed_time || 0)
+  return Math.max(0, Math.round(base + liveTickSeconds.value))
+})
+const liveRemainingSeconds = computed(() => {
+  const est = runningProgress.value.estimated_remaining
+  if (est == null || !Number.isFinite(Number(est))) return null
+  return Math.max(0, Math.round(Number(est) - liveTickSeconds.value))
+})
+
+const formatDuration = (seconds) => {
+  const s = Math.max(0, Math.floor(Number(seconds) || 0))
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s / 60)
+  const sec = s % 60
+  if (m < 60) return `${m}m ${sec}s`
+  const h = Math.floor(m / 60)
+  return `${h}h ${m % 60}m`
+}
+
+const startLiveTicker = () => {
+  if (liveTimer) return
+  liveAnchorAt = Date.now()
+  liveTickSeconds.value = 0
+  liveTimer = setInterval(() => {
+    liveTickSeconds.value = (Date.now() - liveAnchorAt) / 1000
+    progressGlyphIdx.value = (progressGlyphIdx.value + 1) % PROGRESS_GLYPHS.length
+  }, 1000)
+}
+const stopLiveTicker = () => {
+  if (liveTimer) clearInterval(liveTimer)
+  liveTimer = null
+  liveTickSeconds.value = 0
+}
 
 const taskConfigDialogVisible = ref(false)
 const selectedTaskConfig = ref({
@@ -1393,7 +1540,11 @@ const fetchRunningProgress = async () => {
       || prev.current_task !== next.current_task
       || JSON.stringify(prev.current_parameters) !== JSON.stringify(next.current_parameters)
       || JSON.stringify(prev.next_parameters) !== JSON.stringify(next.next_parameters)
-    if (changed) runningProgress.value = next
+    if (changed) {
+      runningProgress.value = next
+      // 后端进度刷新后，以新的 elapsed_time 为基准重新起算本地计时
+      if (liveTimer) { liveAnchorAt = Date.now(); liveTickSeconds.value = 0 }
+    }
 
     const hint = next.is_running && !next.current_task ? '实验已启动，等待进入下一轮。' : ''
     if (progressHint.value !== hint) progressHint.value = hint
@@ -1539,21 +1690,14 @@ async function launchCurrentSession() {
       name: uraniumStore.draft?.name || store.scenarioUserGoal || '事中铀供应链推演',
       description: uraniumStore.draft?.description || store.scenarioUserGoal || ''
     }
-    const experiment = await uraniumStore.runExperiment(draft)
+    const experiment = await demoStore.launchExperiment({ sessionId: store.currentSessionId, userGoal: store.scenarioUserGoal, draft })
     const experimentId = String(experiment?.experiment_id || '').trim()
-    if (!experimentId) throw new Error('后端未返回实验 ID')
+    if (!experimentId) throw new Error('未返回实验 ID')
     store.setCurrentExperimentId(experimentId)
-    if (store.currentSessionId) {
-      try {
-        const { linkExperiment } = await import('@/api/scenarioSession')
-        await linkExperiment(store.currentSessionId, experimentId)
-      } catch (linkError) {
-        console.warn('[ExperimentManager] 关联会话失败:', linkError?.message || linkError)
-      }
-    }
+    await refreshData()
     ElNotification.success({
       title: '实验已生成',
-      message: '后端实验已完成，可在左侧菜单进入态势推演、决策生成或报告生成',
+      message: '实验已完成，可进入态势推演、决策生成或查看实验解读',
       duration: 3000
     })
   } catch (error) {
@@ -1689,7 +1833,13 @@ const scheduleMetricsFetch = () => {
 onUnmounted(() => {
   metricsCancelled = true
   metricsFetchQueue.length = 0
+  stopLiveTicker()
 })
+
+watch(showRunningSection, (running) => {
+  if (running) startLiveTicker()
+  else stopLiveTicker()
+}, { immediate: true })
 </script>
 
 <style scoped>
@@ -1960,6 +2110,70 @@ onUnmounted(() => {
   line-height: 1.5;
 }
 
+.progress-spinner {
+  --spinner-color: #2563eb;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  user-select: none;
+}
+
+.progress-spinner-glyph {
+  display: inline-flex;
+  justify-content: center;
+  width: 16px;
+  color: var(--spinner-color);
+  flex-shrink: 0;
+}
+
+.progress-spinner-verb {
+  font-weight: 600;
+  color: var(--spinner-color);
+  background: linear-gradient(110deg, var(--spinner-color) 40%, #818cf8 50%, var(--spinner-color) 60%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: progressVerbShimmer 2.4s ease-in-out infinite;
+}
+
+.progress-spinner-timer {
+  color: var(--spinner-color);
+  opacity: .7;
+  font-size: var(--mid-fs-label);
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes progressVerbShimmer {
+  0%, 100% { background-position: 100% 0; }
+  50% { background-position: 0 0; }
+}
+
+.progress-hero-pill.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, .45);
+  animation: progressLivePulse 1.6s ease-out infinite;
+}
+
+@keyframes progressLivePulse {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, .45); }
+  100% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+}
+
 .progress-pending-meta {
   display: flex;
   align-items: center;
@@ -2046,9 +2260,72 @@ onUnmounted(() => {
   color: #1d4ed8;
 }
 
+.progress-empty-hint {
+  margin: 0 0 12px;
+  max-width: 420px;
+  color: var(--ux-muted);
+  font-size: var(--mid-fs-label);
+  line-height: 1.6;
+  text-align: center;
+}
+
 .focus-experiment-section {
   margin-bottom: 8px;
 }
+
+/* 页头「案例验证」入口（案例分析挂在运行管理之下） */
+.case-entry-btn .case-entry-caret {
+  margin-left: 2px;
+  font-size: 12px;
+}
+</style>
+
+<style>
+/* 下拉菜单渲染在 body 下，不能用 scoped */
+.case-entry-menu {
+  min-width: 300px;
+  padding: 6px 0;
+}
+.case-entry-menu-head {
+  padding: 4px 12px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  border-bottom: 1px dashed #e2e8f0;
+  margin-bottom: 4px;
+}
+.case-entry-menu .el-dropdown-menu__item {
+  padding: 6px 12px;
+  line-height: 1.4;
+}
+.case-entry-menu .el-dropdown-menu__item.is-research {
+  opacity: .72;
+}
+.case-entry-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.case-entry-item b {
+  font-size: 12px;
+  color: #0f172a;
+}
+.case-entry-item small {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: #64748b;
+}
+.case-entry-item small em {
+  font-style: normal;
+  padding: 0 5px;
+  border-radius: 999px;
+}
+.case-entry-item small em.ready { background: #dcfce7; color: #166534; }
+.case-entry-item small em.research { background: #f1f5f9; color: #64748b; }
+</style>
+<style scoped>
 
 .experiment-list {
   flex: 1;

@@ -30,6 +30,7 @@ export const ROUTE_TO_PHASE = Object.freeze({
   '/home/SCnet/reportGeneration': 'pre',
   '/home/SCnet/situationResearch-main': 'pre',
 
+  '/home/SCnet/modelingSetup': 'during',
   '/home/SCnet/scenarioModeling': 'during',
   '/home/SCnet/scenarioAnalysis': 'during',
   '/home/SCnet/agentSimulationStudio': 'during',

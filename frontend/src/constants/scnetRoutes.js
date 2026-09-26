@@ -12,6 +12,8 @@ export const SCNET_ROUTES = Object.freeze({
   // 直接建会话并跳到想定生成分析（智能对话），不再有单独的「想定生成」输入步骤。
   duringEntry: '/chatHome?mode=during',
   total: `${SCNET_BASE}/total`,
+  // 事中（铀）· 建模设定：想定生成之前展示 Agent 设定与数量等建模内容
+  modelingSetup: `${SCNET_BASE}/modelingSetup`,
   scenarioModeling: `${SCNET_BASE}/scenarioModeling`,
   scenarioAnalysis: `${SCNET_BASE}/scenarioAnalysis`,
   agentSimulationStudio: `${SCNET_BASE}/agentSimulationStudio`,

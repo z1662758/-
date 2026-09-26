@@ -2,7 +2,7 @@
   <div class="studio-host mid-stage-bg" :class="{ 'page-loaded': pageLoaded }">
     <div class="workflow-page">
       <MidStagePageHeader
-        title="实体图"
+        title="实体建模"
         :subtitle="pageSubtitle"
         :icon="Cpu"
       >
@@ -60,6 +60,13 @@
           />
         </div>
       </div>
+
+      <div class="workbench-next-fab workbench-flow-footer">
+        <el-button class="workbench-next-button" type="primary" size="large" @click="goToExperiment">
+          <span class="next-text">下一步：实验推演</span>
+          <el-icon class="next-icon"><ArrowRight /></el-icon>
+        </el-button>
+      </div>
     </div>
   </div>
 </template>
@@ -67,7 +74,7 @@
 <script setup>
 import { useRouter, useRoute } from 'vue-router'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { Cpu } from '@element-plus/icons-vue'
+import { ArrowRight, Cpu } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import { useScnetSupplyChainStore as useSupplyChainStore } from '@/stores/scnet'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
@@ -84,6 +91,7 @@ import {
   pickLatestParameterCatalog
 } from './composables/scnetCatalogAdapter_uranium'
 import { AGENT_GRAPH_SNAPSHOTS, URANIUM_REFERENCE_GRAPH } from './mock/agentGraphMock'
+import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 import './components/shared/midStage.css'
 
 const router = useRouter()
@@ -173,6 +181,10 @@ function applyCatalogAgents() {
 }
 
 async function refreshParameterCatalog() {
+  if (String(store.currentSessionId).startsWith('during-session-')) {
+    applyCatalogAgents()
+    return
+  }
   try {
     const response = await getParameterCatalog('uranium')
     fetchedParameterCatalog.value = unwrapApiData(response)
@@ -329,6 +341,10 @@ function revealPage() {
   })
 }
 
+function goToExperiment() {
+  router.push({ path: SCNET_ROUTES.experimentManager, query: { scenario: 'uranium', view: 'run' } })
+}
+
 async function syncViewQuery() {
   const nextView = 'workflow'
   if (route.query?.view === nextView) return
@@ -353,7 +369,7 @@ onMounted(async () => {
   }
 
   // 仍加载 agent_design 以同步已存参数/会话，但不阻塞实体图首屏展示。
-  loadAgentDesignPayload({ reuseCache: true }).catch((error) => {
+  if (!String(sid).startsWith('during-session-')) loadAgentDesignPayload({ reuseCache: true }).catch((error) => {
     console.warn('[AgentSimulationStudio] loadAgentDesignPayload failed:', error?.message || error)
   })
   revealPage()
@@ -432,7 +448,8 @@ watch(graphSource, (next) => {
   flex-direction: column;
   overflow: hidden;
   font-family: var(--mid-font-sans);
-  padding: 6px 0 14px;
+  padding: 6px 0 0;
+  box-sizing: border-box;
   gap: 8px;
 }
 
@@ -507,6 +524,7 @@ watch(graphSource, (next) => {
 .main-container {
   display: flex;
   flex: 1;
+  min-height: 0;
   gap: 12px;
   align-items: stretch;
   overflow: hidden;
@@ -521,6 +539,17 @@ watch(graphSource, (next) => {
   border-radius: var(--mid-radius-md);
   overflow: hidden;
 }
+
+.workbench-next-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 26px;
+  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.22);
+}
+.workbench-next-button .next-text { font-size: 13px; font-weight: 700; }
+.workbench-next-button .next-icon { font-size: 16px; }
 
 ::-webkit-scrollbar {
   width: 6px;

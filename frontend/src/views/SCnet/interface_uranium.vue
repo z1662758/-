@@ -224,12 +224,18 @@
             </div>
           </div>
 
-          <el-empty
-            v-else
-            class="interface-empty"
-            description="请先在实验运行页选择一个已完成的铀供应链实验"
-            :image-size="120"
-          />
+          <div v-else class="interface-empty">
+            <el-empty
+              description="尚未加载任何铀供应链实验"
+              :image-size="110"
+            >
+              <p class="interface-empty-hint">在实验管理的实验台账中点击「加载实验」，态势推演会展示该实验的年度链路、压力窗口与调运关系。</p>
+              <el-button type="primary" @click="goToRunManager">
+                <el-icon><Monitor /></el-icon>
+                <span>前往实验管理</span>
+              </el-button>
+            </el-empty>
+          </div>
         </div>
       </div>
     </div>
@@ -241,9 +247,10 @@
 defineOptions({ name: 'SystemInterface' })
 
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 import { storeToRefs } from 'pinia'
-import { Loading, RefreshLeft, Place } from '@element-plus/icons-vue'
+import { Loading, RefreshLeft, Place, Monitor } from '@element-plus/icons-vue'
 import MidStagePageHeader from './components/shared/MidStagePageHeader.vue'
 import AsyncPanelPlaceholder from './components/shared/AsyncPanelPlaceholder.vue'
 import UraniumFlowMap from './components/UraniumFlowMap.vue'
@@ -425,12 +432,19 @@ const uraniumFocusedRouteFacts = computed(() => {
     { label: '制造端', value: route.manufacturer_group || URANIUM_LOCATION_LABELS[route.manufacturer_location] || route.manufacturer_location || '-' }
   ]
 })
-const headerTitle = '铀供应链推演界面'
-const headerSubtitle = computed(() => (
-  isUraniumMode.value
-    ? `${uraniumYearRows.value.length} 个年度窗口`
-    : '等待选择实验'
-))
+// 与实验推演工作台的页签同名
+const headerTitle = '态势推演'
+const headerSubtitle = computed(() => {
+  if (!isUraniumMode.value) return '等待选择实验'
+  const name = uraniumExperiment.value?.name ? `${uraniumExperiment.value.name} · ` : ''
+  return `${name}${uraniumYearRows.value.length} 个年度窗口`
+})
+
+const route = useRoute()
+const router = useRouter()
+function goToRunManager() {
+  router.replace({ query: { ...route.query, view: 'run' } })
+}
 
 function getUraniumRouteKey(item) {
   return buildUraniumRouteKey(item)
@@ -532,6 +546,7 @@ watch(uraniumStaticCorridorId, (next) => {
 
 <style scoped>
 .simulation-interface {
+  container: simulation / inline-size;
   width: 100%;
   height: 100%;
   display: flex;
@@ -586,6 +601,10 @@ watch(uraniumStaticCorridorId, (next) => {
   width: 100%;
   gap: 6px;
 }
+
+.interface-empty { flex: 1; display: flex; align-items: center; justify-content: center; }
+.interface-empty-hint { margin: 0 0 14px; max-width: 400px; color: #64748b; font-size: 12.5px; line-height: 1.6; text-align: center; }
+.interface-empty .el-button > .el-icon + span { margin-left: 6px; }
 
 .simulation-overview {
   display: grid;
@@ -1017,15 +1036,18 @@ watch(uraniumStaticCorridorId, (next) => {
 
 /* ========== 响应式：窄屏收窄侧栏，避免中间地图被挤裁切 ========== */
 @media (max-width: 1280px) {
-  .simulation-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .top-section { grid-template-columns: 246px minmax(0, 1fr) 268px; gap: 6px; }
 }
 
-@media (max-width: 992px) {
-  .simulation-overview { grid-template-columns: 1fr; }
-  .top-section { grid-template-columns: 214px minmax(0, 1fr) 234px; gap: 5px; }
-  .uranium-summary-grid,
-  .uranium-summary-grid.compact,
-  .uranium-focus-metric-grid { grid-template-columns: 1fr; }
+@container simulation (max-width: 1100px) {
+  .main-content { overflow-y: auto; }
+  .view-wrapper { flex: none; }
+  .simulation-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .top-section { flex: none; grid-template-columns: 230px minmax(0, 1fr); grid-template-rows: 520px 340px; overflow: visible; }
+  .right-panel { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container simulation (max-width: 680px) {
+  .top-section { grid-template-columns: minmax(0, 1fr); grid-template-rows: 320px 520px 640px; }
+  .right-panel { grid-template-columns: minmax(0, 1fr); }
 }
 </style>
