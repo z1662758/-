@@ -15,8 +15,8 @@
         <div class="conversation-panel glass-effect">
           <div class="panel-header">
             <div class="header-title">
-              <span class="header-icon-small">💬</span>
-              <span>智能对话</span>
+
+              <span>想定生成</span>
             </div>
             <div class="conversation-stats">
               <span class="stat-item">
@@ -104,6 +104,7 @@
                       </div>
                     </div>
 
+                    <details class="scenario-more-details"><summary>查看 Agent 与变量</summary>
                     <div class="analysis-section variables-section entity-flow-section" v-if="getSelectedEntities(msg).length">
                       <div class="section-title">
                         <span>实体选择</span>
@@ -139,6 +140,7 @@
                         </div>
                       </div>
                     </div>
+                    </details>
 
                   </div>
 
@@ -206,6 +208,7 @@
               />
               <button
                 class="send-button"
+                aria-label="发送补充需求"
                 @click="submitFeedback"
                 :disabled="isProcessing || !feedbackInput.trim()"
               >
@@ -237,12 +240,12 @@
                   <div class="plan-overview-main">
                     <span>实验方案</span>
                     <strong>{{ experimentDesign.userGoal || '围绕当前供应链目标生成可执行实验组合' }}</strong>
-                    <p>{{ experimentDesign.goalExplain || '当前展示已生成的候选参数组合，用于说明方案意图和参数边界。' }}</p>
+
                   </div>
                   <div class="plan-overview-metrics">
                     <article>
                       <b>{{ experimentDesign.paramRows.length || tasks.length }}</b>
-                      <span>候选实验</span>
+                      <span>策略方向</span>
                     </article>
                     <article>
                       <b>{{ experimentDesign.factors.length || 0 }}</b>
@@ -259,8 +262,8 @@
                   <div class="plan-panel generated-plan-panel" v-if="generatedPlanRows.length">
                     <div class="plan-panel-head">
                       <div>
-                        <span>生成方案</span>
-                        <strong>根据参数组合生成 {{ generatedPlanRows.length }} 个候选方案</strong>
+                        <span>在实验管理中选择策略并启动</span>
+                        <strong>{{ generatedPlanRows.length }} 种采购策略方向</strong>
                       </div>
                     </div>
                     <div class="generated-plan-list">
@@ -275,12 +278,14 @@
                           </div>
                         </div>
                         <p class="generated-plan-desc">{{ row.focus }}</p>
+                        <details class="scenario-more-details"><summary>查看参数设置</summary>
                         <div class="generated-param-grid">
                           <div v-for="param in row.params" :key="param.label">
                             <span>{{ param.label }}</span>
                             <b>{{ param.value }}</b>
                           </div>
                         </div>
+                        </details>
                       </article>
                     </div>
                   </div>
@@ -314,7 +319,8 @@
                     </ul>
                   </button>
 
-                  <div class="plan-panel plan-variable-panel">
+                  <details class="plan-panel plan-variable-panel">
+                    <summary>变量与指标</summary>
                     <div class="plan-panel-head compact">
                       <div>
                         <span>变量链路</span>
@@ -338,7 +344,7 @@
                         <p>{{ experimentDesign.responses.slice(0, 3).join('、') || '暂未识别' }}</p>
                       </article>
                     </div>
-                  </div>
+                  </details>
                 </section>
 
                 <div class="eds-section eds-formula" v-if="experimentDesign.formulas.length">
@@ -416,7 +422,7 @@ export default {
     ...(ScenarioModelingLogic.computed || {}),
     conversationInputPlaceholder() {
       if (this.tasks?.length > 0 && this.currentTaskIndex >= this.tasks.length) {
-        return '输入调整诉求继续迭代, 例如: 把库存上限改成 [200, 800]…'
+        return '补充采购目标或约束，例如：优先保障年度需求，控制单一来源占比'
       }
       return '输入您的问题或反馈...'
     },
@@ -425,44 +431,12 @@ export default {
       return this.experimentDesign.entities.length || fallbackCount
     },
     generatedPlanRows() {
-      const rows = this.experimentDesign.paramRows.length
-        ? this.experimentDesign.paramRows
-        : this.tasks.map((task, index) => ({ index: `方案 ${index + 1}`, task: task.title || task.description || '' }))
-      return rows.slice(0, 4).map((row, index) => {
-        const name = row.index || `方案 ${index + 1}`
-        const title = [
-          '保供增强方案',
-          '成本对照方案',
-          '库存缓冲方案',
-          '边界压力方案'
-        ][index] || '补充验证方案'
-        const statusMeta = [
-          { status: '主方案', kind: 'main' },
-          { status: '对照', kind: 'compare' },
-          { status: '补充', kind: 'support' },
-          { status: '边界', kind: 'edge' }
-        ][index] || { status: '补充', kind: 'support' }
-        const params = this.experimentDesign.factorKeys.map((key, idx) => ({
-          label: this.getParameterDisplayName(key, idx),
-          value: row[key] ?? '-'
-        }))
-        const focus = [
-          '验证提高订货量后，服务水平是否明显改善。',
-          '验证较低投入下，成本变化是否可接受。',
-          '验证库存提高后，对提前期扰动的缓冲效果。',
-          '验证高压力参数下，系统是否仍满足基本约束。'
-        ][index] || '补充观察该参数组合对核心指标的影响。'
-        return {
-          name,
-          title,
-          description: params.length
-            ? `该方案使用第 ${index + 1} 组参数，作为实验运行页的输入组合。`
-            : (row.task || '该方案来自当前任务拆解结果。'),
-          params,
-          focus,
-          ...statusMeta
-        }
-      })
+      const candidates = this.apiResult?.candidate_plans || buildUraniumScenarioPlan(this.experimentDesign.userGoal, this.uraniumStore.draft).candidate_plans
+      const labels = { start_year: '起始年份', end_year: '结束年份', optimization_iterations: '优化轮数', event_severity_multiplier: '事件强度倍率', starting_price_usd_per_lb: '首年价格（美元/lb）' }
+      return candidates.map(item => ({
+        ...item,
+        params: Object.entries(item.params || {}).filter(([key]) => labels[key]).map(([key, value]) => ({ label: labels[key], value })),
+      }))
     },
     experimentDesign() {
       const r = (this.apiResult && typeof this.apiResult === 'object') ? this.apiResult : {}
@@ -795,6 +769,10 @@ export default {
 <style scoped src="./Css/ScenarioModeling.css"></style>
 
 <style scoped>
+.scenario-more-details { margin-top: 12px; color: #475569; }
+.scenario-more-details > summary, .plan-variable-panel > summary { cursor: pointer; font-size: 12px; line-height: 1.8; }
+.scenario-more-details[open] > summary { margin-bottom: 10px; }
+
 
 .scenario-modeling-root { height: 100%; min-height: 0; overflow: hidden; container: scenario / inline-size; }
 .scenario-modeling-container { min-height: 0; padding: 8px; }

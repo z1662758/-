@@ -120,9 +120,9 @@ const summaryCards = computed(() => {
   const last = props.rows[props.rows.length - 1] || {}
   return [
     {
-      label: '总轮次',
+      label: '结果记录',
       value: String(props.rows.length),
-      hint: '本次实验迭代总数'
+      hint: '包含初始方案与迭代结果'
     },
     {
       label: '起始成本',
@@ -130,7 +130,7 @@ const summaryCards = computed(() => {
       hint: '初始方案'
     },
     {
-      label: '最终风险',
+      label: '最终风险暴露',
       value: formatUraniumMetricValue('avg_risk_exposure', last.avg_risk_exposure),
       hint: '最后一轮结果'
     },
@@ -148,12 +148,6 @@ function formatScore(value) {
   return num.toFixed(3)
 }
 
-function normalizePercent(value) {
-  const num = Number(value)
-  if (!Number.isFinite(num)) return null
-  return num <= 1 ? num * 100 : num
-}
-
 function buildMetricCards(row) {
   return [
     {
@@ -161,7 +155,7 @@ function buildMetricCards(row) {
       value: formatUraniumMetricValue('avg_cost_usd_kgU', row.avg_cost_usd_kgU)
     },
     {
-      label: '平均风险',
+      label: '平均风险暴露',
       value: formatUraniumMetricValue('avg_risk_exposure', row.avg_risk_exposure)
     },
     {
@@ -233,7 +227,7 @@ function buildChartOption() {
     yAxis: [
       {
         type: 'value',
-        name: '成本',
+        name: '美元/kgU',
         axisLabel: {
           formatter: '${value}'
         },
@@ -245,10 +239,10 @@ function buildChartOption() {
       },
       {
         type: 'value',
-        name: '风险',
+        name: '风险暴露',
         position: 'right',
         axisLabel: {
-          formatter: '{value}%'
+          formatter: '{value}'
         },
         splitLine: {
           show: false
@@ -278,11 +272,11 @@ function buildChartOption() {
         lineStyle: { color: '#2563eb', width: 2.5 }
       },
       {
-        name: '平均风险',
+        name: '平均风险暴露',
         type: 'line',
         smooth: true,
         yAxisIndex: 1,
-        data: props.rows.map((item) => normalizePercent(item.avg_risk_exposure)),
+        data: props.rows.map((item) => item.avg_risk_exposure == null ? null : Number(item.avg_risk_exposure)),
         itemStyle: { color: '#d97706' },
         lineStyle: { color: '#d97706', width: 2.5 }
       },

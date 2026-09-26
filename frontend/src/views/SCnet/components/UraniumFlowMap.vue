@@ -2,7 +2,7 @@
   <div class="uranium-flow-map">
     <div class="map-toolbar">
       <div class="toolbar-left">
-        <div class="toolbar-title">全球运输链路地图</div>
+        <div class="toolbar-title">供应链运输地图</div>
         <div class="toolbar-subtitle">
           {{ activeYearLabel }}
           <span v-if="yearRows.length"> · {{ yearIndex + 1 }}/{{ yearRows.length }}</span>
@@ -21,20 +21,20 @@
 
       <div class="toolbar-right">
         <div class="layer-group">
-          <span class="layer-group-label">实验数据</span>
+          <span class="layer-group-label">业务图层</span>
           <el-button-group size="small">
-            <el-button :type="showRoutes ? 'primary' : ''" @click="showRoutes = !showRoutes">本年调运</el-button>
-            <el-button :type="showSuppliers ? 'primary' : ''" @click="showSuppliers = !showSuppliers">供给方</el-button>
-            <el-button :type="showManufacturers ? 'primary' : ''" @click="showManufacturers = !showManufacturers">制造方</el-button>
-            <el-button :type="showHubs ? 'primary' : ''" @click="showHubs = !showHubs">途经枢纽</el-button>
+            <el-button plain :aria-pressed="showRoutes" :type="showRoutes ? 'primary' : ''" @click="showRoutes = !showRoutes">本年调运</el-button>
+            <el-button plain :aria-pressed="showSuppliers" :type="showSuppliers ? 'primary' : ''" @click="showSuppliers = !showSuppliers">供给方</el-button>
+            <el-button plain :aria-pressed="showManufacturers" :type="showManufacturers ? 'primary' : ''" @click="showManufacturers = !showManufacturers">采购主体</el-button>
+            <el-button plain :aria-pressed="showHubs" :type="showHubs ? 'primary' : ''" @click="showHubs = !showHubs">途经枢纽</el-button>
           </el-button-group>
         </div>
         <div class="layer-group reference-layer-group">
-          <span class="layer-group-label">参考底图</span>
+          <span class="layer-group-label">运输通道</span>
           <el-button-group size="small">
-            <el-button :type="showReferenceLand ? 'primary' : ''" @click="showReferenceLand = !showReferenceLand">陆运</el-button>
-            <el-button :type="showReferenceSea ? 'primary' : ''" @click="showReferenceSea = !showReferenceSea">海运</el-button>
-            <el-button :type="showReferenceMultimodal ? 'primary' : ''" @click="showReferenceMultimodal = !showReferenceMultimodal">联运</el-button>
+            <el-button plain :aria-pressed="showReferenceLand" :type="showReferenceLand ? 'primary' : ''" @click="showReferenceLand = !showReferenceLand">陆运</el-button>
+            <el-button plain :aria-pressed="showReferenceSea" :type="showReferenceSea ? 'primary' : ''" @click="showReferenceSea = !showReferenceSea">海运</el-button>
+            <el-button plain :aria-pressed="showReferenceMultimodal" :type="showReferenceMultimodal ? 'primary' : ''" @click="showReferenceMultimodal = !showReferenceMultimodal">联运</el-button>
           </el-button-group>
         </div>
       </div>
@@ -74,7 +74,7 @@
         <div class="panel-title">图例</div>
         <div class="legend-list">
           <span class="legend-item"><span class="legend-dot supplier"></span>供给方</span>
-          <span class="legend-item"><span class="legend-dot manufacturer"></span>制造方</span>
+          <span class="legend-item"><span class="legend-dot manufacturer"></span>采购主体</span>
           <span class="legend-item"><span class="legend-dot hub"></span>枢纽 / 口岸</span>
           <span class="legend-item"><span class="legend-line land"></span>陆运</span>
           <span class="legend-item"><span class="legend-line sea"></span>海运</span>
@@ -568,10 +568,10 @@ function buildOption() {
               ? `${item.company || item.country || '-'} · ${item.asset} · ${formatRouteType(item.route_type)}`
               : `${item.country || '-'} · ${formatRouteType(item.route_type)}`,
             `可供：${formatUraniumMetricValue('total_supply_tU', item.available_supply_tU)}`,
-            `风险：${formatUraniumMetricValue('avg_risk_exposure', item.risk_exposure)}`
+            `风险暴露：${formatUraniumMetricValue('avg_risk_exposure', item.risk_exposure)}`
           ].join('<br/>')
         }
-        if (params.seriesName === '制造方') {
+        if (params.seriesName === '采购主体') {
           const item = params.data?.raw || {}
           return [
             `<b>${item.name || params.name}</b>`,
@@ -732,7 +732,7 @@ function buildOption() {
         data: supplierData.map((item) => buildSupplierNode(item))
       },
       {
-        name: '制造方',
+        name: '采购主体',
         type: 'scatter',
         coordinateSystem: 'geo',
         z: 5,

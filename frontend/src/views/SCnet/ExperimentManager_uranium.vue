@@ -12,7 +12,7 @@
         >
           <span class="launch-btn-wrap">
             <el-button
-              type="success"
+              type="primary"
               size="small"
               :disabled="!canLaunch || launching"
               :loading="launching"
@@ -24,7 +24,7 @@
           </span>
         </el-tooltip>
         <el-button
-          type="danger"
+          :type="showRunningSection ? 'danger' : 'default'"
           size="small"
           :disabled="!showRunningSection || stoppingExperiment"
           :loading="stoppingExperiment"
@@ -33,7 +33,7 @@
           <el-icon><Warning /></el-icon>
           <span>停止当前实验</span>
         </el-button>
-        <el-button type="primary" size="small" @click="createNewExperiment">
+        <el-button size="small" @click="createNewExperiment">
           <el-icon><Plus /></el-icon>
           <span>新建实验</span>
         </el-button>
@@ -46,7 +46,7 @@
           </el-button>
           <template #dropdown>
             <el-dropdown-menu class="case-entry-menu">
-              <div class="case-entry-menu-head">典型验证案例 · 用历史事件核验仿真结果</div>
+              <div class="case-entry-menu-head">选择案例，查看事件背景与实验结果</div>
               <el-dropdown-item
                 v-for="item in caseLibrary"
                 :key="item.id"
@@ -75,21 +75,8 @@
       @dismiss="selectedExperimentBanner.visible = false"
     />
 
-    <section class="run-overview">
-      <article
-        v-for="item in runOverviewCards"
-        :key="item.label"
-        class="run-overview-card"
-        :class="item.tone"
-      >
-        <span>{{ item.label }}</span>
-        <strong>{{ item.value }}</strong>
-        <p>{{ item.hint }}</p>
-      </article>
-    </section>
-
-    <div class="iteration-progress-section">
-      <el-card shadow="hover" class="progress-card">
+    <div v-if="showRunningSection || pendingTask" class="iteration-progress-section">
+      <el-card shadow="never" class="progress-card">
         <template #header>
           <div class="progress-card-header">
             <span class="progress-title">当前实验迭代进度</span>
@@ -99,118 +86,34 @@
           </div>
         </template>
 
-        <div v-if="showRunningSection" class="progress-content progress-running-shell">
-          <div class="progress-hero">
-            <div class="progress-hero-copy">
-              <span class="progress-kicker">运行中任务</span>
-              <div class="progress-hero-title">{{ truncateGoal(runningTask?.user_goal || '当前实验任务运行中') }}</div>
-              <div class="progress-hero-meta">
-                <span class="progress-hero-pill primary">铀供应链仿真</span>
-                <span class="progress-hero-pill live">
-                  <span class="progress-live-dot"></span>
-                  已运行 {{ formatDuration(liveElapsedSeconds) }}
-                </span>
-              </div>
-            </div>
-            <div class="progress-hero-side">
-              <strong>{{ runningProgress.percentage || 0 }}%</strong>
-              <span>总体进度</span>
-            </div>
+        <div v-if="showRunningSection" class="run-progress-body">
+          <div class="run-progress-caption">
+            <strong>{{ truncateGoal(runningTask?.user_goal || '当前实验') }}</strong>
+            <span>已运行 {{ formatDuration(liveElapsedSeconds) }}</span>
           </div>
-
-          <div class="progress-track-panel">
-            <div class="progress-track-head">
-              <span class="progress-stage-chip">
-                第 {{ runningProgress.current_iteration || 0 }} / {{ runningProgress.total || '-' }} 轮
-              </span>
-              <span class="progress-inline-hint mono" :title="displayedTaskId">{{ formatShortId(displayedTaskId) }}</span>
-            </div>
-            <!-- 参考 MACE 对话页的推演 spinner：字形轮转 + 动词流光 + 计时 -->
-            <div class="progress-task-text progress-spinner">
-              <span class="progress-spinner-glyph">{{ progressGlyph }}</span>
-              <span class="progress-spinner-verb">{{ runningStageText }}</span>
-              <span class="progress-spinner-timer">{{ formatDuration(liveElapsedSeconds) }}</span>
-            </div>
-            <el-progress
-              :percentage="runningProgress.percentage"
-              :status="runningProgress.total > 0 && runningProgress.completed >= runningProgress.total ? 'success' : ''"
-              :stroke-width="16"
-            />
-            <div class="progress-brief-grid">
-              <div class="progress-brief-item">
-                <span>已完成轮次</span>
-                <strong>{{ runningProgress.completed || 0 }} / {{ runningProgress.total || '-' }}</strong>
-              </div>
-              <div class="progress-brief-item">
-                <span>预计剩余</span>
-                <strong>{{ liveRemainingSeconds == null ? '估算中' : formatDuration(liveRemainingSeconds) }}</strong>
-              </div>
-              <div class="progress-brief-item">
-                <span>启动时间</span>
-                <strong>{{ formatTime(runningTask?.started_at || runningTask?.created_at) }}</strong>
-              </div>
-            </div>
+          <el-progress :percentage="runningProgress.percentage || 0" :stroke-width="6" />
+          <div class="run-progress-meta">
+            <span>{{ progressGlyph }} {{ runningStageText }}</span>
+            <span>第 {{ runningProgress.current_iteration || 0 }} / {{ runningProgress.total || '-' }} 轮</span>
+            <span>预计剩余 {{ liveRemainingSeconds == null ? '估算中' : formatDuration(liveRemainingSeconds) }}</span>
           </div>
-
-          <div v-if="progressAdjustmentRows.length" class="progress-adjust-inline">
-            <span class="progress-adjust-inline-label">下一轮建议</span>
-            <span
-              v-for="item in progressAdjustmentRows.slice(0, 3)"
-              :key="item.key"
-              class="progress-adjust-chip"
-            >
-              {{ item.label }} {{ item.current ?? '-' }} → {{ item.next || '-' }}
-            </span>
-          </div>
-
-          <div v-if="progressHint" class="progress-note">{{ progressHint }}</div>
+          <details v-if="progressAdjustmentRows.length || progressHint" class="run-progress-details">
+            <summary>参数调整建议</summary>
+            <p v-for="item in progressAdjustmentRows.slice(0, 3)" :key="item.key">{{ item.label }}：{{ item.current ?? '-' }} → {{ item.next || '-' }}</p>
+            <p v-if="progressHint">{{ progressHint }}</p>
+          </details>
         </div>
-
-        <div v-else-if="pendingTask" class="progress-content progress-pending-shell">
-          <div class="progress-hero pending">
-            <div class="progress-hero-copy">
-              <span class="progress-kicker">排队任务</span>
-              <div class="progress-hero-title">{{ truncateGoal(pendingTask?.user_goal || '待执行实验任务') }}</div>
-              <div class="progress-hero-meta">
-                <span class="progress-hero-pill warning">等待执行</span>
-              </div>
-            </div>
-            <div class="progress-hero-side">
-              <strong>第 {{ pendingPosition || '-' }} 位</strong>
-              <span>队列顺位</span>
-            </div>
-          </div>
-
-          <div class="progress-pending-meta">
-            <span>队列第 {{ pendingPosition || '-' }} 位</span>
-            <span class="mono" :title="pendingTask.task_id">{{ formatShortId(pendingTask.task_id) }}</span>
-          </div>
+        <div v-else class="run-progress-body">
+          <div class="run-progress-caption"><strong>{{ truncateGoal(pendingTask?.user_goal || '待执行实验') }}</strong><span>队列第 {{ pendingPosition || '-' }} 位</span></div>
+          <p class="run-progress-meta">前序任务结束后开始执行。</p>
         </div>
-
-        <el-empty
-          v-else
-          description="当前没有运行中的实验"
-          :image-size="70"
-        >
-          <p class="progress-empty-hint">
-            {{ launchDisabledReason || '基于当前需求生成一组铀供应链实验任务，运行进度、参数修正与迭代日志会在这里实时展示。' }}
-          </p>
-          <el-button
-            type="primary"
-            size="small"
-            :disabled="!canLaunch || launching"
-            :loading="launching"
-            @click="launchCurrentSession"
-          >
-            <el-icon><VideoPlay /></el-icon>
-            <span>启动实验</span>
-          </el-button>
-        </el-empty>
       </el-card>
     </div>
 
-    <div v-if="focusTask && focusIterationRows.length" class="focus-experiment-section">
+    <details v-if="focusTask && focusIterationRows.length" class="focus-experiment-section" @toggle="showIterationDetails = $event.target.open">
+      <summary>迭代结果 <span>{{ focusExperiment?.name || focusTask.user_goal }} · {{ focusIterationRows.length }} 条记录</span></summary>
       <UraniumExperimentFocusPanel
+        v-if="showIterationDetails"
         :task="focusTask"
         :experiment="focusExperiment"
         :rows="focusIterationRows"
@@ -219,13 +122,13 @@
         @view-experiment="viewExperiment(focusTask)"
         @validate-case="openCaseAnalysis(null, focusTask)"
       />
-    </div>
+    </details>
 
     <div class="experiment-list">
-      <el-card shadow="hover" class="experiment-list-card">
+      <el-card shadow="never" class="experiment-list-card">
         <template #header>
           <div class="list-card-header">
-            <span class="list-title">实验台账</span>
+            <span class="list-title">实验列表</span>
             <div class="list-header-stats">
               <div class="overview-pill">
                 <div class="overview-label">实验任务</div>
@@ -318,8 +221,8 @@
                     </div>
                     <span class="ledger-record-time">{{ getTaskLifecycleText(row) }}</span>
                   </div>
-                  <h4 class="ledger-record-title">{{ truncateGoal(row.user_goal) }}</h4>
-                  <div class="plan-chip-row">
+                  <h4 class="ledger-record-title" :title="row.user_goal">{{ truncateGoal(row.user_goal) }}</h4>
+                  <div v-if="!isUraniumTask(row)" class="plan-chip-row">
                     <el-tag v-if="!isUraniumTask(row)" size="small" type="success" effect="plain" class="plan-chip" round>
                       {{ formatModelName(parseParams(row.params)?.model) }}
                     </el-tag>
@@ -352,8 +255,8 @@
                 </div>
               </div>
 
-              <div v-if="row.status === 'running'" class="ledger-inline-panel">
-                <div class="ledger-inline-title">参数修正</div>
+              <details v-if="row.status === 'running'" class="ledger-param-details">
+                <summary>本轮参数与调整建议</summary>
                 <div class="ledger-param-inline">
                   <div class="ledger-param-group">
                     <span class="ledger-param-label">本轮</span>
@@ -362,7 +265,7 @@
                       :key="`cur-inline-${item.key}`"
                       class="ledger-param-chip muted"
                     >
-                      {{ item.key }}={{ item.value }}
+                      {{ item.key }}：{{ item.value }}
                     </span>
                     <span v-if="!getCurrentRoundParamChips(row).length" class="round-empty">等待启动</span>
                   </div>
@@ -373,15 +276,14 @@
                       :key="`next-inline-${item.key}`"
                       class="ledger-param-chip next"
                     >
-                      {{ item.key }}={{ item.value }}
+                      {{ item.key }}：{{ item.value }}
                     </span>
                     <span v-if="!getNextRoundParamChips(row).length" class="round-empty">优化器计算中</span>
                   </div>
                 </div>
-              </div>
+              </details>
 
               <div v-else-if="row.status === 'completed'" class="ledger-inline-panel">
-                <div class="ledger-inline-title">核心结果</div>
                 <div v-if="getMetricsState(row) === 'loading'" class="metrics-loading">
                   <el-skeleton :rows="1" animated />
                 </div>
@@ -400,11 +302,6 @@
                 <div v-else class="metrics-placeholder">-</div>
               </div>
 
-              <div v-else-if="row.status === 'pending'" class="ledger-inline-panel pending">
-                <div class="ledger-inline-title">当前状态</div>
-                <div class="ledger-inline-text">等待前序任务完成后进入求解。</div>
-              </div>
-
               <div class="ledger-record-footer">
                 <div class="ledger-footer-actions">
                   <el-button
@@ -414,7 +311,7 @@
                     link
                     @click.stop="viewExperiment(row)"
                   >
-                    加载实验
+                    查看结果
                   </el-button>
                   <el-button
                     v-if="row.status === 'completed' && isUraniumTask(row)"
@@ -904,15 +801,12 @@ const showRunningSection = computed(() => {
   return Boolean(runningProgress.value.is_running || runningTask.value)
 })
 
-const displayedTaskId = computed(() => {
-  return runningTask.value?.task_id || recentQueuedTaskId.value || '-'
-})
-
+const showIterationDetails = ref(false)
 const focusTask = computed(() => {
   const selectedExperimentId = currentUraniumExperimentId.value
-  return runningTask.value
+  return displayTaskRows.value.find((item) => resolveExperimentIdFromTask(item) === selectedExperimentId)
+    || runningTask.value
     || pendingTask.value
-    || displayTaskRows.value.find((item) => resolveExperimentIdFromTask(item) === selectedExperimentId)
     || displayTaskRows.value.find((item) => item.status === 'completed')
     || displayTaskRows.value[0]
     || null
@@ -991,7 +885,7 @@ const getMetricItems = (row) => {
       },
       {
         key: 'risk',
-        label: '风险',
+        label: '风险暴露',
         tone: 'warning',
         pct: clampPercent(riskPct <= 1 ? riskPct * 100 : riskPct),
         valueText: formatUraniumMetricValue('avg_risk_exposure', m.avg_risk_exposure)
@@ -1040,21 +934,6 @@ const overviewStats = computed(() => ({
   completed: uraniumHistoryRows.value.length,
   pending: uraniumQueueRows.value.filter(t => t.status === 'pending').length
 }))
-
-const runOverviewCards = computed(() => {
-  const active = showRunningSection.value
-    ? { value: '运行中', hint: runningStageText.value, tone: 'running' }
-    : pendingTask.value
-      ? { value: '排队中', hint: `队列第 ${pendingPosition.value || '-'} 位`, tone: 'pending' }
-      : { value: '空闲', hint: '可启动实验或查看历史结果', tone: 'idle' }
-
-  return [
-    { label: '当前状态', ...active },
-    { label: '任务总数', value: `${overviewStats.value.plans}`, hint: `${overviewStats.value.completed} 个已完成`, tone: 'total' },
-    { label: '待处理', value: `${overviewStats.value.running + overviewStats.value.pending}`, hint: `${overviewStats.value.running} 运行 / ${overviewStats.value.pending} 排队`, tone: 'pending' },
-    { label: '焦点实验', value: formatShortId(focusTask.value?.task_id || ''), hint: truncateGoal(focusTask.value?.user_goal || '暂无焦点实验'), tone: 'focus' }
-  ]
-})
 
 const PARAM_LABEL_MAP = {
   model: '模型',
@@ -1843,6 +1722,22 @@ watch(showRunningSection, (running) => {
 </script>
 
 <style scoped>
+.run-progress-body { display: grid; gap: 10px; }
+.run-progress-caption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; font-size: 13px; }
+.run-progress-caption strong { font-weight: 500; color: #334155; }
+.run-progress-caption > span { color: #64748b; font-size: 12px; }
+.run-progress-meta { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 0; color: #64748b; font-size: 12px; }
+.run-progress-details { color: #475569; font-size: 12px; line-height: 1.6; }
+.run-progress-details summary { cursor: pointer; }
+.run-progress-details p { margin: 6px 0 0; }
+.mono { font-family: var(--mid-font-mono); }
+
+.focus-experiment-section > summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; padding: 12px 14px; color: #334155; font-size: 13px; font-weight: 600; cursor: pointer; list-style: none; }
+.focus-experiment-section > summary::before { content: '›'; color: #64748b; }
+.focus-experiment-section[open] > summary::before { transform: rotate(90deg); }
+.focus-experiment-section > summary span { color: #64748b; font-size: 12px; font-weight: 400; overflow-wrap: anywhere; }
+.focus-experiment-section { border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; }
+
 .launch-btn-wrap {
   display: inline-flex;
 }
@@ -1866,70 +1761,9 @@ watch(showRunningSection, (running) => {
 .experiment-manager > .iteration-progress-section,
 .experiment-manager > .focus-experiment-section,
 .experiment-manager > .experiment-list,
-.experiment-manager > .run-overview,
 .experiment-manager > .selected-exp-banner {
   margin-left: 8px;
   margin-right: 8px;
-}
-
-.run-overview {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.run-overview-card {
-  min-height: 76px;
-  padding: 10px 12px;
-  border: 1px solid #dbeafe;
-  border-radius: 10px;
-  background: rgba(255,255,255,.86);
-  box-shadow: 0 6px 16px rgba(15,23,42,.05);
-  box-sizing: border-box;
-}
-
-.run-overview-card span {
-  display: block;
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.run-overview-card strong {
-  display: block;
-  margin-top: 4px;
-  color: #0f172a;
-  font-size: 18px;
-  line-height: 1.2;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.run-overview-card p {
-  margin: 5px 0 0;
-  color: #64748b;
-  font-size: 11px;
-  line-height: 1.35;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.run-overview-card.running { border-color: #93c5fd; background: linear-gradient(135deg, #eff6ff, #fff); }
-.run-overview-card.pending { border-color: #fde68a; background: linear-gradient(135deg, #fffbeb, #fff); }
-.run-overview-card.focus { border-color: #bbf7d0; background: linear-gradient(135deg, #f0fdf4, #fff); }
-
-.progress-title,
-.list-title,
-.ledger-record-title,
-.hero-goal-text {
-  font-family: var(--mid-font-sans);
-  letter-spacing: 0.01em;
-}
-
-.mono {
-  font-family: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
 }
 
 .iteration-progress-section {
@@ -1965,309 +1799,6 @@ watch(showRunningSection, (running) => {
   color: var(--ux-ink);
 }
 
-
-.progress-content {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-
-.progress-hero {
-  display: flex;
-  align-items: stretch;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
-  border-radius: var(--mid-radius-md);
-  border: 1px solid var(--ux-border);
-  background:
-    radial-gradient(circle at top right, rgba(59, 130, 246, 0.12), transparent 26%),
-    linear-gradient(180deg, #f7fbff 0%, #ffffff 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
-}
-
-.progress-hero.pending {
-  background:
-    radial-gradient(circle at top right, rgba(245, 158, 11, 0.14), transparent 30%),
-    linear-gradient(180deg, #fffaf2 0%, #ffffff 100%);
-}
-
-.progress-hero-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-
-.progress-kicker {
-  font-size: var(--mid-fs-micro);
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  color: var(--ux-blue);
-}
-
-.progress-hero-title {
-  font-size: var(--mid-fs-title);
-  line-height: var(--mid-lh-tight);
-  font-weight: 800;
-  color: var(--ux-ink);
-}
-
-.progress-hero-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.progress-hero-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--ux-border);
-  background: rgba(255, 255, 255, 0.9);
-  font-size: var(--mid-fs-label);
-  font-weight: 700;
-  color: #475569;
-}
-
-.progress-hero-pill.primary {
-  border-color: #bfdbfe;
-  background: #eff6ff;
-  color: #1d4ed8;
-}
-
-.progress-hero-pill.warning {
-  border-color: #fde68a;
-  background: #fffbeb;
-  color: #b45309;
-}
-
-.progress-hero-side {
-  min-width: 92px;
-  padding: 8px 10px;
-  border-radius: var(--mid-radius-md);
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid #dbe4f0;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 3px;
-}
-
-.progress-hero-side strong {
-  font-size: var(--mid-fs-hero);
-  line-height: 1;
-  font-weight: 900;
-  color: var(--ux-ink);
-  font-family: var(--mid-font-mono);
-}
-
-.progress-hero-side span {
-  font-size: var(--mid-fs-label);
-  color: var(--ux-muted);
-}
-
-.progress-track-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 12px;
-  border-radius: var(--mid-radius-md);
-  border: 1px solid var(--ux-border);
-  background: linear-gradient(180deg, #f9fbfe 0%, #ffffff 100%);
-}
-
-.progress-track-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.progress-stage-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  font-size: var(--mid-fs-label);
-  font-weight: 700;
-  color: #1d4ed8;
-}
-
-.progress-inline-hint {
-  font-size: var(--mid-fs-label);
-  color: var(--ux-muted-2);
-}
-
-.progress-task-text {
-  font-size: var(--mid-fs-body);
-  color: var(--el-text-color-primary);
-  line-height: 1.5;
-}
-
-.progress-spinner {
-  --spinner-color: #2563eb;
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  flex-wrap: wrap;
-  user-select: none;
-}
-
-.progress-spinner-glyph {
-  display: inline-flex;
-  justify-content: center;
-  width: 16px;
-  color: var(--spinner-color);
-  flex-shrink: 0;
-}
-
-.progress-spinner-verb {
-  font-weight: 600;
-  color: var(--spinner-color);
-  background: linear-gradient(110deg, var(--spinner-color) 40%, #818cf8 50%, var(--spinner-color) 60%);
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: progressVerbShimmer 2.4s ease-in-out infinite;
-}
-
-.progress-spinner-timer {
-  color: var(--spinner-color);
-  opacity: .7;
-  font-size: var(--mid-fs-label);
-  font-variant-numeric: tabular-nums;
-}
-
-@keyframes progressVerbShimmer {
-  0%, 100% { background-position: 100% 0; }
-  50% { background-position: 0 0; }
-}
-
-.progress-hero-pill.live {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: #ecfdf5;
-  border-color: #a7f3d0;
-  color: #047857;
-  font-variant-numeric: tabular-nums;
-}
-
-.progress-live-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #10b981;
-  box-shadow: 0 0 0 0 rgba(16, 185, 129, .45);
-  animation: progressLivePulse 1.6s ease-out infinite;
-}
-
-@keyframes progressLivePulse {
-  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, .45); }
-  100% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
-}
-
-.progress-pending-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 2px 2px 0;
-  color: var(--ux-muted);
-  font-size: var(--mid-fs-label);
-}
-
-.progress-brief-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.progress-brief-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 10px;
-  border-radius: var(--mid-radius-sm);
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
-}
-
-.progress-brief-item span {
-  font-size: var(--mid-fs-label);
-  font-weight: 700;
-  color: var(--ux-muted);
-}
-
-.progress-brief-item strong {
-  font-size: var(--mid-fs-strong);
-  line-height: 1.2;
-  font-weight: 800;
-  color: var(--ux-ink);
-}
-
-.progress-brief-item strong.mono {
-  font-weight: 700;
-  font-family: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
-}
-
-.progress-adjust-inline {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-}
-
-.progress-adjust-inline-label {
-  font-size: var(--mid-fs-label);
-  font-weight: 700;
-  color: var(--ux-muted);
-}
-
-.progress-adjust-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: #ffffff;
-  border: 1px solid #dbe4f0;
-  font-size: var(--mid-fs-label);
-  font-weight: 700;
-  color: #475569;
-}
-
-.progress-note {
-  padding: 8px 10px;
-  border-radius: var(--mid-radius-sm);
-  background: #fff7ed;
-  border: 1px solid #fed7aa;
-  font-size: var(--mid-fs-label);
-  line-height: 1.55;
-  color: #9a3412;
-}
-
-.progress-note.info {
-  background: #f8fbff;
-  border-color: #dbeafe;
-  color: #1d4ed8;
-}
-
-.progress-empty-hint {
-  margin: 0 0 12px;
-  max-width: 420px;
-  color: var(--ux-muted);
-  font-size: var(--mid-fs-label);
-  line-height: 1.6;
-  text-align: center;
-}
 
 .focus-experiment-section {
   margin-bottom: 8px;
@@ -2449,39 +1980,11 @@ watch(showRunningSection, (running) => {
   flex-wrap: wrap;
 }
 
-.overview-pill {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: flex-start;
-  min-width: 76px;
-  padding: 7px 10px;
-  border-radius: var(--mid-radius-sm);
-  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
-  border: 1px solid #dbe4f0;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
+.overview-pill { display: flex; align-items: baseline; gap: 6px; padding: 3px 0; }
 
-.overview-pill:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.06);
-}
 
-.overview-pill.running {
-  background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
-  border-color: #bfdbfe;
-}
 
-.overview-pill.pending {
-  background: linear-gradient(180deg, #fffbeb 0%, #ffffff 100%);
-  border-color: #fde68a;
-}
 
-.overview-pill.completed {
-  background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%);
-  border-color: #bbf7d0;
-}
 
 .overview-pill.running .overview-value { color: #2563eb; }
 .overview-pill.pending .overview-value { color: #b45309; }
@@ -2508,21 +2011,11 @@ watch(showRunningSection, (running) => {
   gap: 10px;
 }
 
-.ledger-record {
-  position: relative;
-  overflow: hidden;
-  padding: 12px 14px;
-  border-radius: var(--mid-radius-lg);
-  border: 1px solid var(--ux-border);
-  background:
-    radial-gradient(circle at top right, rgba(59, 130, 246, 0.05), transparent 28%),
-    linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
-  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
+.ledger-record { position: relative; padding: 12px 16px; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; display: flex; flex-direction: column; gap: 8px; }
+.ledger-param-details { color: #64748b; font-size: 12px; }
+.ledger-param-details summary { cursor: pointer; padding: 4px 0; }
+.ledger-param-details summary:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.ledger-param-details[open] .ledger-param-inline { margin-top: 8px; padding: 10px; border-radius: 6px; background: #f8fafc; }
 
 .ledger-record::before {
   content: '';
@@ -2535,63 +2028,26 @@ watch(showRunningSection, (running) => {
   background: #cbd5e1;
 }
 
-.ledger-record::after {
-  content: '';
-  position: absolute;
-  right: -40px;
-  top: -40px;
-  width: 140px;
-  height: 140px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.5) 0%, transparent 68%);
-  pointer-events: none;
-}
 
-.ledger-record:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.06);
-}
+.ledger-record:hover { border-color: #cbd5e1; }
 
-.ledger-record.focus {
-  border-color: rgba(37, 99, 235, 0.35);
-  box-shadow: 0 16px 30px rgba(37, 99, 235, 0.08);
-}
+.ledger-record.focus { border-color: #93c5fd; background: #fafcff; }
 
-.ledger-record.status-running {
-  background:
-    radial-gradient(circle at top right, rgba(14, 165, 233, 0.08), transparent 30%),
-    linear-gradient(180deg, #f8fdff 0%, #ffffff 100%);
-}
 
 .ledger-record.status-running::before {
   background: linear-gradient(180deg, #38bdf8 0%, #2563eb 100%);
 }
 
-.ledger-record.status-pending {
-  background:
-    radial-gradient(circle at top right, rgba(245, 158, 11, 0.08), transparent 30%),
-    linear-gradient(180deg, #fffdf8 0%, #ffffff 100%);
-}
 
 .ledger-record.status-pending::before {
   background: linear-gradient(180deg, #fbbf24 0%, #f59e0b 100%);
 }
 
-.ledger-record.status-completed {
-  background:
-    radial-gradient(circle at top right, rgba(16, 185, 129, 0.07), transparent 30%),
-    linear-gradient(180deg, #f8fffb 0%, #ffffff 100%);
-}
 
 .ledger-record.status-completed::before {
   background: linear-gradient(180deg, #34d399 0%, #059669 100%);
 }
 
-.ledger-record.status-failed {
-  background:
-    radial-gradient(circle at top right, rgba(239, 68, 68, 0.07), transparent 30%),
-    linear-gradient(180deg, #fffafa 0%, #ffffff 100%);
-}
 
 .ledger-record.status-failed::before {
   background: linear-gradient(180deg, #f87171 0%, #ef4444 100%);
@@ -2599,12 +2055,7 @@ watch(showRunningSection, (running) => {
 
 .ledger-record-top,
 .ledger-record-meta,
-.ledger-record-footer {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-}
+.ledger-record-footer { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 
 .ledger-record-meta {
   align-items: center;
@@ -2630,17 +2081,7 @@ watch(showRunningSection, (running) => {
   color: #94a3b8;
 }
 
-.ledger-record-time {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid #e2e8f0;
-  background: rgba(248, 250, 252, 0.92);
-  font-size: var(--mid-fs-micro);
-  font-weight: 700;
-  color: var(--ux-muted);
-}
+.ledger-record-time { font-size: 12px; color: #64748b; }
 
 .ledger-record-title {
   margin: 0;
@@ -2653,9 +2094,9 @@ watch(showRunningSection, (running) => {
 .ledger-record-footer :deep(.el-button),
 .ledger-footer-actions :deep(.el-button.is-link) {
   padding: 5px 10px;
-  border-radius: 999px;
-  border: 1px solid #e2e8f0;
-  background: rgba(255, 255, 255, 0.86);
+  border-radius: 4px;
+  border: 0;
+  background: transparent;
   font-weight: 700;
   font-size: var(--mid-fs-body);
 }
@@ -2666,23 +2107,9 @@ watch(showRunningSection, (running) => {
   border-color: #bfdbfe;
 }
 
-.ledger-brief-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 0;
-}
+.ledger-brief-row { display: flex; flex-wrap: wrap; gap: 8px 24px; }
 
-.ledger-brief-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 10px;
-  border-radius: var(--mid-radius-sm);
-  border: 1px solid #e5edf6;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
-}
+.ledger-brief-item { display: flex; align-items: baseline; gap: 8px; }
 
 .ledger-brief-item span {
   font-size: var(--mid-fs-label);
@@ -2701,8 +2128,7 @@ watch(showRunningSection, (running) => {
   margin-top: 0;
   padding: 10px 12px;
   border-radius: var(--mid-radius-sm);
-  border: 1px solid #e5edf6;
-  background: linear-gradient(180deg, #fcfdff 0%, #ffffff 100%);
+  background: #f8fafc;
 }
 
 .ledger-inline-panel.pending {
@@ -2775,19 +2201,7 @@ watch(showRunningSection, (running) => {
   align-items: stretch;
 }
 
-.ledger-metric-pill {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 3px;
-  min-height: 46px;
-  border-radius: var(--mid-radius-sm);
-  border: 1px solid #e5edf6;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-  padding: 7px 10px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
-}
+.ledger-metric-pill { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; padding: 4px 0; }
 
 .ledger-metric-pill-label {
   font-size: var(--mid-fs-label);
@@ -2805,20 +2219,8 @@ watch(showRunningSection, (running) => {
   white-space: nowrap;
 }
 
-.ledger-metric-pill.primary {
-  background: linear-gradient(180deg, #f7fbff 0%, #ffffff 100%);
-  border-color: #dbeafe;
-}
 
-.ledger-metric-pill.warning {
-  background: linear-gradient(180deg, #fffaf2 0%, #ffffff 100%);
-  border-color: #fed7aa;
-}
 
-.ledger-metric-pill.success {
-  background: linear-gradient(180deg, #f4fff8 0%, #ffffff 100%);
-  border-color: #bbf7d0;
-}
 
 .ledger-metric-pill.primary .ledger-metric-pill-value {
   color: var(--ux-blue);
@@ -3203,7 +2605,6 @@ watch(showRunningSection, (running) => {
 
 /* Element Plus 控件密度：与 midStage.css 的字号刻度对齐 */
 .mono,
-.progress-brief-item strong.mono,
 .ledger-metric-pill-value,
 .hero-meta-value.mono,
 .core-param-value.mono,
@@ -3231,17 +2632,11 @@ watch(showRunningSection, (running) => {
 }
 
 @media (max-width: 1200px) {
-  .run-overview {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 
   .hero-meta-grid {
     grid-template-columns: 1fr;
   }
 
-  .progress-brief-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 
   .ledger-brief-row {
     grid-template-columns: 1fr;
@@ -3267,17 +2662,9 @@ watch(showRunningSection, (running) => {
 }
 
 @media (max-width: 768px) {
-  .run-overview {
-    grid-template-columns: 1fr;
-  }
 
-  .progress-brief-grid {
-    grid-template-columns: 1fr;
-  }
 
   .progress-card-header,
-  .progress-hero,
-  .progress-track-head,
   .ledger-record-top,
   .ledger-record-meta,
   .ledger-record-footer {

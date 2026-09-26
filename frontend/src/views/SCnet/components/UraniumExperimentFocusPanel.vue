@@ -8,9 +8,9 @@
       </div>
 
       <div class="focus-actions">
-        <el-button size="small" link @click="emit('view-config')">查看全量配置</el-button>
+        <el-button size="small" link @click="emit('view-config')">查看配置</el-button>
         <el-button v-if="canValidate" size="small" type="success" plain @click="emit('validate-case')">案例验证</el-button>
-        <el-button size="small" type="primary" @click="emit('view-experiment')">加载实验</el-button>
+        <el-button size="small" type="primary" @click="emit('view-experiment')">查看结果</el-button>
       </div>
     </header>
 
@@ -93,14 +93,14 @@ const titleText = computed(() => (
 const subtitleText = computed(() => {
   const taskId = String(props.task?.task_id || '').trim()
   const shortTaskId = taskId.length > 18 ? `${taskId.slice(0, 14)}...` : taskId || '-'
-  return `任务 ${shortTaskId} · ${orderedRows.value.length || 0} 轮结果`
+  return `任务 ${shortTaskId} · ${orderedRows.value.length || 0} 条结果记录`
 })
 
 const kpiCards = computed(() => [
   {
-    label: '总迭代轮次',
-    value: `${orderedRows.value.length || 0} 轮`,
-    hint: '本次实验预设总数',
+    label: '结果记录',
+    value: `${orderedRows.value.length || 0} 条`,
+    hint: '包含初始方案与迭代结果',
     tone: 'slate'
   },
   {
@@ -110,7 +110,7 @@ const kpiCards = computed(() => [
     tone: 'blue'
   },
   {
-    label: '极值/最低风险',
+    label: '最低风险暴露',
     value: formatUraniumMetricValue('avg_risk_exposure', bestRiskRow.value?.avg_risk_exposure),
     hint: formatAchievementText(bestRiskRow.value, '最低风险结果'),
     tone: 'amber'
@@ -138,8 +138,8 @@ function buildChartOption() {
   return {
     grid: {
       left: 52,
-      right: 76,
-      top: 28,
+      right: 110,
+      top: 36,
       bottom: 36
     },
     tooltip: {
@@ -172,7 +172,7 @@ function buildChartOption() {
     yAxis: [
       {
         type: 'value',
-        name: '成本',
+        name: '美元/kgU',
         nameTextStyle: {
           color: '#3b82f6',
           fontWeight: 700
@@ -190,9 +190,10 @@ function buildChartOption() {
       },
       {
         type: 'value',
-        name: '风险/库存',
+        name: '风险暴露',
         position: 'right',
         nameTextStyle: {
+          align: 'right',
           color: '#64748b',
           fontWeight: 700
         },
@@ -202,6 +203,11 @@ function buildChartOption() {
         splitLine: {
           show: false
         }
+      },
+      {
+        type: 'value', name: '库存（年）', position: 'right', offset: 58,
+        nameTextStyle: { align: 'left', fontSize: 11 },
+        axisLabel: { color: '#64748b' }, splitLine: { show: false }
       }
     ],
     series: [
@@ -224,12 +230,12 @@ function buildChartOption() {
         }
       },
       {
-        name: '平均风险',
+        name: '平均风险暴露',
         type: 'line',
         smooth: true,
         yAxisIndex: 1,
         symbolSize: 7,
-        data: orderedRows.value.map((item) => normalizePercent(item.avg_risk_exposure)),
+        data: orderedRows.value.map((item) => item.avg_risk_exposure == null ? null : Number(item.avg_risk_exposure)),
         lineStyle: {
           width: 3,
           color: '#f59e0b'
@@ -242,7 +248,7 @@ function buildChartOption() {
         name: '库存覆盖',
         type: 'line',
         smooth: true,
-        yAxisIndex: 1,
+        yAxisIndex: 2,
         symbolSize: 7,
         data: orderedRows.value.map((item) => Number(item.inventory_coverage_years) || null),
         lineStyle: {
@@ -256,12 +262,6 @@ function buildChartOption() {
       }
     ]
   }
-}
-
-function normalizePercent(value) {
-  const num = Number(value)
-  if (!Number.isFinite(num)) return null
-  return num <= 1 ? Number((num * 100).toFixed(2)) : num
 }
 
 function renderChart() {

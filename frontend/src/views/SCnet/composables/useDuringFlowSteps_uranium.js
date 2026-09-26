@@ -3,6 +3,7 @@ import { storeToRefs } from 'pinia'
 import { useScnetScenarioStore } from '@/stores/scnet/useScenarioStore'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
 import { SCNET_ROUTES } from '@/constants/scnetRoutes'
+import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 
 export const DURING_FLOW_STEPS = [
   { key: 'setup', label: '建模设定', route: SCNET_ROUTES.modelingSetup, query: {} },
@@ -44,14 +45,24 @@ function buildCompletionMap(s) {
     setup: hasApiResult || hasSnapshot || !!s.currentSessionId,
     analysis: hasApiResult || hasSnapshot,
     workflow: hasWorkflowData,
-    experiment: hasWorkflowData,
-    decision: hasWorkflowData,
+    experiment: s.hasCompletedExperiment,
+    decision: s.hasCompletedExperiment && s.hasRecommendations,
   }
 }
 
 export function useDuringFlowSteps() {
   const scenarioStore = useScnetScenarioStore()
   const snapshotStore = useAnalysisSnapshotStore()
+  const experimentStore = useUraniumDemoStore()
+  // 实体就绪不代表实验已完成；完成标记只读取当前会话对应的实验结果。
+  const completedExperiment = computed(() => {
+    const experiment = experimentStore.selectedExperiment
+    if (!experiment) return null
+    const task = experimentStore.taskRows.find(item => item.experiment_id === experiment.experiment_id)
+    if (task?.status !== 'completed') return null
+    if (scenarioStore.currentSessionId && task.session_id !== scenarioStore.currentSessionId) return null
+    return experiment.result?.timeline?.length ? experiment : null
+  })
 
   const {
     currentSessionId,
@@ -70,6 +81,11 @@ export function useDuringFlowSteps() {
     agentDesignPayload: agentDesignPayload.value,
     agentDesignPayloadSessionId: agentDesignPayloadSessionId.value,
     activeSnapshotId: activeSnapshotId.value,
+    hasCompletedExperiment: !!completedExperiment.value,
+    hasRecommendations: !!(
+      completedExperiment.value?.report?.recommendations?.length
+      || completedExperiment.value?.report?.best_report?.recommendations?.length
+    ),
   }))
 
   function isStepCompleted(stepKey) {

@@ -47,24 +47,26 @@ const FACTORY_METHODS = ['生产执行', '质量控制', '产能切换']
 const RETAILER_METHODS = ['需求预测', '库存管理', '渠道协同']
 
 // 实验设计页的轻量参考图：仅在当前会话方案尚未返回时展示。
-// 节点控制在 6 个，覆盖供应、运输、加工、需求四个关键环节，避免参考数据喧宾夺主。
+// 以供给、陆运/海运、采购和需求节点说明核心业务关系。
 export const URANIUM_REFERENCE_GRAPH = {
   title: '铀资源供应保障参考关系',
   agents: [
     agent('supplier_kazakhstan', '哈萨克斯坦铀矿', 'supply', '主要进口来源，承担基础供给。'),
     agent('supplier_namibia', '纳米比亚铀矿', 'supply', '补充进口来源，用于分散供给风险。'),
+    agent('transport_land', '中亚陆运通道', 'transport', '连接中亚供给来源与国内采购主体。'),
     agent('transport_ocean', '国际海运通道', 'transport', '连接海外矿区与国内接收节点。'),
     agent('supplier_reserve', '国内铀资源储备', 'supply', '供应中断时释放库存并平抑缺口。'),
-    agent('factory_fuel', '核燃料加工企业', 'manufacturing', '将天然铀转化为核燃料产品。'),
+    agent('factory_fuel', '核电采购主体', 'manufacturing', '统筹年度需求、采购分配和库存保障。'),
     agent('retailer_nuclear', '核电需求端', 'sales', '形成需求计划并反馈库存消耗。')
   ],
   relationship_net: [
-    edge('supplier_kazakhstan', 'transport_ocean', '进口供应'),
+    edge('supplier_kazakhstan', 'transport_land', '陆运供应'),
     edge('supplier_namibia', 'transport_ocean', '补充供应'),
-    edge('transport_ocean', 'factory_fuel', '运输交付'),
+    edge('transport_ocean', 'factory_fuel', '海运交付'),
+    edge('transport_land', 'factory_fuel', '陆运交付'),
     edge('supplier_reserve', 'factory_fuel', '储备补位'),
-    edge('factory_fuel', 'retailer_nuclear', '核燃料供应'),
-    edge('retailer_nuclear', 'supplier_reserve', '库存反馈')
+    edge('factory_fuel', 'retailer_nuclear', '需求保障'),
+    edge('retailer_nuclear', 'factory_fuel', '需求反馈')
   ]
 }
 

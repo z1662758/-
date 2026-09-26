@@ -2,7 +2,7 @@
   <nav class="analysis-link-tabs glass-panel" aria-label="决策分析子页面">
     <div class="alt-left">
       <el-icon class="alt-icon"><DataAnalysis /></el-icon>
-      <span class="alt-title">分析工作区</span>
+
       <el-segmented
         v-model="activeRef"
         :options="tabs"
@@ -21,6 +21,9 @@
     </div>
 
     <div class="alt-right">
+      <el-select v-if="isUranium" :model-value="experimentStore.selectedExperimentId" class="analysis-experiment-select" size="small" aria-label="分析实验" placeholder="选择实验" @change="changeExperiment">
+        <el-option v-for="item in experimentStore.history" :key="item.experiment_id" :label="item.name || item.experiment_id" :value="item.experiment_id" />
+      </el-select>
       <slot name="right" />
     </div>
   </nav>
@@ -33,8 +36,10 @@ import {
   DataAnalysis,
   Grid,
   Promotion,
-  TrendCharts
+  TrendCharts, Document
 } from '@element-plus/icons-vue'
+import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
+import { useScenarioStore } from '@/stores/scenario'
 import { SCNET_DECISION_ROUTE_BY_TAB } from '@/constants/scnetRoutes'
 import './midStage.css'
 
@@ -42,16 +47,24 @@ const props = defineProps({
   active: {
     type: String,
     required: true,
-    validator: v => ['gameTheory', 'decisionTree', 'scenario'].includes(v)
+    validator: v => ['gameTheory', 'decisionTree', 'scenario', 'report'].includes(v)
   }
 })
 
 const router = useRouter()
+const experimentStore = useUraniumDemoStore()
+const scenarioStore = useScenarioStore()
+const isUranium = computed(() => (router.currentRoute.value.query.scenario || scenarioStore.currentScenario) === 'uranium')
+async function changeExperiment(id) {
+  await experimentStore.loadExperiment(id)
+  router.replace({ query: { ...router.currentRoute.value.query, experiment_id: id } })
+}
 
 const tabs = computed(() => [
   { value: 'scenario',     label: '情景分析', icon: markRaw(TrendCharts) },
   { value: 'gameTheory',   label: '脆弱性分析', icon: markRaw(Grid) },
-  { value: 'decisionTree', label: '对策分析', icon: markRaw(Promotion) }
+  { value: 'decisionTree', label: '对策分析', icon: markRaw(Promotion) },
+  { value: 'report', label: '决策报告', icon: markRaw(Document) }
 ])
 
 const activeRef = ref(props.active)
@@ -80,7 +93,8 @@ function handleChange(value) {
   position: sticky;
   top: 0;
   z-index: 20;
-  box-shadow: 0 6px 20px rgba(30, 64, 175, 0.08);
+  box-shadow: none;
+  flex-wrap: wrap;
 }
 
 .alt-left {
@@ -105,7 +119,7 @@ function handleChange(value) {
 
 .alt-segmented {
   --el-segmented-bg-color: rgba(255, 255, 255, 0.6);
-  min-width: 334px;
+  min-width: 0;
   max-width: 100%;
 }
 
@@ -138,10 +152,10 @@ function handleChange(value) {
 .alt-right :deep(.el-button > span + .el-icon) {
   margin-left: 6px;
 }
-@media (max-width: 1200px) {
+@media (max-width: 800px) {
   .analysis-link-tabs { flex-wrap: wrap; }
-  .alt-left { width: 100%; }
-  .alt-segmented { width: 100%; min-width: 0; }
+  .alt-left { width: 100%; flex-wrap: nowrap; }
+  .alt-segmented { flex: 1; min-width: 0; }
   .alt-right { flex-wrap: wrap; }
 }
 
@@ -175,4 +189,6 @@ function handleChange(value) {
     flex: 1 1 auto;
   }
 }
+.analysis-experiment-select { width: 250px; max-width: 100%; }
+@media (max-width: 800px) { .analysis-experiment-select { width: 200px; } }
 </style>

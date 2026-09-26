@@ -23,13 +23,7 @@
     <!-- 参考 MACE Agent 工作室的三栏布局：左侧 Agent 列表 / 中间角色卡 / 右侧环境配置 -->
     <div class="ms-studio">
       <aside class="ms-left glass-panel">
-        <div class="ms-panel-head">
-          <div>
-            <strong>Agent 列表</strong>
-            <span>按供应链层级分组 · 点击查看角色卡</span>
-          </div>
-          <span class="ms-count">{{ totalAgentCount }}</span>
-        </div>
+        <MidStagePanelHeader title="Agent 列表" description="按供应链层级分组" :count="totalAgentCount" />
         <div class="ms-search">
           <el-input v-model="searchKeyword" size="small" clearable placeholder="搜索 Agent 名称" :prefix-icon="Search" />
         </div>
@@ -41,7 +35,6 @@
                   <i class="ms-tier-dot" :class="group.tier"></i>
                   <span>{{ group.label }}</span>
                   <el-tag size="small" effect="plain" round>{{ group.members.length }}</el-tag>
-                  <small v-if="group.capacity">容量 {{ group.capacity }}</small>
                 </div>
               </template>
               <button
@@ -63,34 +56,17 @@
               </button>
             </el-collapse-item>
           </el-collapse>
+          <el-empty v-if="!filteredGroups.length" description="没有匹配的 Agent，请调整搜索内容" :image-size="48" />
         </el-scrollbar>
         <div class="ms-left-foot">
-          <div class="ms-foot-title">决策智能等级分布</div>
-          <div class="ms-level-bar" role="img" :aria-label="levelBarLabel">
-            <span
-              v-for="level in intelligenceLevels"
-              :key="level.key"
-              class="ms-level-segment"
-              :style="{ flexBasis: `${level.share * 100}%`, background: level.color }"
-            >
-              <em>{{ level.label }} {{ Math.round(level.share * 100) }}%</em>
-            </span>
-          </div>
-          <details class="ms-level-details">
-          <summary>查看策略说明</summary>
-          <ul class="ms-level-list">
-            <li v-for="level in intelligenceLevels" :key="level.key">
-              <i :style="{ background: level.color }"></i>
-              <span><b>{{ level.label }} · {{ level.strategy }}</b>{{ level.description }}</span>
-            </li>
-          </ul>
-          </details>
+          <div class="ms-foot-title">建模范围</div>
+          <p class="ms-note">供给方提供可用量与报价，制造方负责采购和库存；运输与需求节点表示年度环境和业务关系。</p>
         </div>
       </aside>
 
       <main class="ms-center" :class="{ 'is-role': modelingView === 'role' }">
         <nav class="ms-view-tabs" aria-label="建模视图">
-          <button :class="{ active: modelingView === 'graph' }" :aria-pressed="modelingView === 'graph'" @click="modelingView = 'graph'">Agent 关系总览</button>
+          <button :class="{ active: modelingView === 'graph' }" :aria-pressed="modelingView === 'graph'" @click="modelingView = 'graph'">关系总览</button>
           <button :class="{ active: modelingView === 'role' }" :aria-pressed="modelingView === 'role'" @click="modelingView = 'role'">角色设定与行为</button>
           <span>{{ totalAgentCount }} 个实体已纳入建模</span>
         </nav>
@@ -105,7 +81,7 @@
               <h2>{{ selectedRole.displayName }}</h2>
               <div class="ms-hero-tags">
                 <span class="ms-tag method">{{ selectedRole.modelingMethod }}</span>
-                <span v-if="selectedRole.agentClass" class="ms-tag mono">{{ selectedRole.agentClass }}</span>
+
                 <span class="ms-tag">{{ selectedRole.camp }}</span>
                 <span class="ms-tag">{{ selectedGroup?.members.length || 0 }} 个{{ selectedRole.countHint }}</span>
               </div>
@@ -132,7 +108,7 @@
               <dl v-if="selectedRole.facts.length" class="ms-facts">
                 <div v-for="fact in selectedRole.facts" :key="fact.label">
                   <dt>{{ fact.label }}</dt>
-                  <dd>{{ fact.type === 'risk' ? formatPercent(fact.value) : fact.value }}</dd>
+                  <dd>{{ fact.type === 'risk' ? formatRisk(fact.value) : fact.value }}</dd>
                 </div>
               </dl>
             </el-collapse-item>
@@ -185,7 +161,7 @@
               </div>
             </el-collapse-item>
 
-            <el-collapse-item name="cognition" title="认知模型（OODA）">
+            <el-collapse-item name="cognition" title="决策过程">
               <div class="ms-ooda-strip">
                 <template v-for="(stage, index) in oodaStages" :key="stage.key">
                   <span class="ms-ooda-stage" :style="{ '--stage-color': stage.color }">
@@ -201,10 +177,10 @@
                   <dd>{{ (selectedRole.cognition[stage.key] || []).join('、') || '—' }}</dd>
                 </div>
               </dl>
-              <p class="ms-note">闭环迭代：行动结果回流观察阶段；决策策略由智能等级决定（低 → 随机，中 → 市场跟随，高 → PPO 强化学习）。</p>
+              <p class="ms-note">按年度观察价格与事件，评估供给条件，完成采购与库存更新，再根据结果调整策略。</p>
             </el-collapse-item>
 
-            <el-collapse-item name="relations" title="关系网">
+            <el-collapse-item name="relations" title="关联关系">
               <ul v-if="relatedEdges.length" class="ms-edge-list">
                 <li v-for="edge in relatedEdges" :key="`${edge.source}-${edge.target}`">
                   <b>{{ edge.sourceName }}</b>
@@ -212,7 +188,7 @@
                   <b>{{ edge.targetName }}</b>
                 </li>
               </ul>
-              <el-empty v-else description="参考关系骨架中没有涉及该层级的边" :image-size="48" />
+              <el-empty v-else description="该层级暂无关联关系" :image-size="48" />
               <p class="ms-note">完整实体图与实例参数在下一步「实体建模」中查看。</p>
             </el-collapse-item>
           </el-collapse>
@@ -221,8 +197,9 @@
 
       <aside class="ms-right glass-panel">
         <nav class="ms-inspector-tabs" aria-label="建模属性面板">
-          <button :class="{ active: inspectorView === 'agent' }" @click="inspectorView = 'agent'">Agent 属性</button>
-          <button :class="{ active: inspectorView === 'environment' }" @click="inspectorView = 'environment'">环境配置<span v-if="draftDirty"> •</span></button>
+          <button :aria-pressed="inspectorView === 'agent'" :class="{ active: inspectorView === 'agent' }" @click="inspectorView = 'agent'">Agent 属性</button>
+          <button :aria-pressed="inspectorView === 'environment'" :class="{ active: inspectorView === 'environment' }" @click="inspectorView = 'environment'">推演设置<span v-if="draftDirty"> •</span></button>
+          <button :aria-pressed="inspectorView === 'events'" :class="{ active: inspectorView === 'events' }" @click="inspectorView = 'events'">事件</button>
         </nav>
         <el-scrollbar v-if="inspectorView === 'agent'" class="ms-right-scroll">
           <section class="ms-env-section ms-inspector-role">
@@ -250,19 +227,12 @@
             <el-button size="small" text type="primary" @click="modelingView = 'role'">查看完整角色设定 →</el-button>
           </section>
         </el-scrollbar>
-        <template v-else>
-        <div class="ms-panel-head">
-          <div>
-            <strong>环境配置</strong>
-            <span>随实验一起提交，可在此调整基线</span>
-          </div>
-          <el-tag size="small" type="info" effect="plain">
-            本次实验草稿
-          </el-tag>
-        </div>
+        <template v-else-if="inspectorView === 'environment'">
+        <MidStagePanelHeader title="推演设置" description="设置本次实验的时间、规模与评估规则" />
         <el-scrollbar class="ms-right-scroll">
           <section class="ms-env-section">
-            <div class="ms-env-title"><el-icon><Calendar /></el-icon><span>仿真时间与规模</span></div>
+            <div class="ms-env-title"><el-icon><Calendar /></el-icon><span>推演时段与规模</span></div>
+            <p class="ms-window-note">按年度推演。常规前瞻为 2024–2028 年，历史复现为 1997–2024 年，极端冲击为 2027–2029 年。</p>
             <div class="ms-form-grid">
               <label>
                 <span>起始年份</span>
@@ -278,7 +248,7 @@
               </label>
               <label>
                 <span>事件强度倍率</span>
-                <el-input-number v-model="draftForm.event_severity_multiplier" :min="0.5" :max="3" :step="0.1" :precision="1" size="small" controls-position="right" />
+                <el-input-number v-model="draftForm.event_severity_multiplier" :min="0.1" :max="2" :step="0.1" :precision="1" size="small" controls-position="right" />
               </label>
             </div>
             <div class="ms-form-actions">
@@ -288,7 +258,7 @@
           </section>
 
           <section class="ms-env-section">
-            <div class="ms-env-title"><el-icon><Aim /></el-icon><span>收敛与评估规则</span></div>
+            <div class="ms-env-title"><el-icon><Aim /></el-icon><span>时间与评估口径</span></div>
             <dl class="ms-rule-list">
               <div v-for="rule in convergenceRules" :key="rule.label">
                 <dt>{{ rule.label }}</dt>
@@ -296,7 +266,7 @@
               </div>
             </dl>
             <div class="ms-weights compact">
-              <span class="ms-weights-title">评估器权重</span>
+              <span class="ms-weights-title">综合评分权重</span>
               <div v-for="item in observerWeights" :key="item.key" class="ms-weight-row">
                 <span>{{ item.label }}</span>
                 <div class="ms-weight-track"><i :style="{ width: `${item.weight * 100 * 2.5}%` }"></i></div>
@@ -304,13 +274,19 @@
               </div>
             </div>
             <div class="ms-chip-row ms-param-space">
-              <span class="ms-weights-title">规划器参数空间</span>
+              <span class="ms-weights-title">可调整策略</span>
               <span v-for="key in planner.parameterSpace" :key="key" class="ms-chip mono">{{ key }}</span>
             </div>
           </section>
 
+
+        </el-scrollbar>
+        </template>
+        <template v-else>
+          <MidStagePanelHeader title="年度事件" description="浅色条目不在本次推演时段内" :count="eventCount" />
+          <el-scrollbar class="ms-right-scroll">
           <section class="ms-env-section">
-            <div class="ms-env-title"><el-icon><Bell /></el-icon><span>年度事件库</span><small>{{ eventCount }} 条在窗口内</small></div>
+            <div class="ms-env-title"><el-icon><Bell /></el-icon><span>年度事件</span><small>{{ eventCount }} 条在推演时段内</small></div>
             <ul class="ms-event-list">
               <li v-for="row in eventRows" :key="row.year" :class="{ muted: !row.inWindow }">
                 <strong>{{ row.year }}</strong>
@@ -320,7 +296,7 @@
               </li>
             </ul>
           </section>
-        </el-scrollbar>
+          </el-scrollbar>
         </template>
       </aside>
     </div>
@@ -339,10 +315,12 @@
 </template>
 
 <script setup>
+import { formatUraniumEvent } from '@/utils/uraniumScene'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Aim, ArrowRight, Bell, Box, Calendar, ChatDotRound, Cpu, Guide, OfficeBuilding, Search, Sell } from '@element-plus/icons-vue'
+import MidStagePanelHeader from './components/shared/MidStagePanelHeader.vue'
 import MidStagePageHeader from './components/shared/MidStagePageHeader.vue'
 import UraniumModelingTopology from './components/simulation/UraniumModelingTopology.vue'
 import './components/shared/midStage.css'
@@ -359,7 +337,6 @@ import {
 } from '@/views/SCnet/mock/uraniumDemoLab'
 import {
   URANIUM_AGENT_ROLE_LIBRARY,
-  URANIUM_INTELLIGENCE_LEVELS,
   URANIUM_OBSERVER_WEIGHTS,
   URANIUM_OODA_STAGES,
   URANIUM_PLANNER,
@@ -381,7 +358,6 @@ const tierIcon = (tier) => TIER_ICONS[tier] || OfficeBuilding
 
 const planner = URANIUM_PLANNER
 const oodaStages = URANIUM_OODA_STAGES
-const intelligenceLevels = URANIUM_INTELLIGENCE_LEVELS
 const observerWeights = URANIUM_OBSERVER_WEIGHTS
 const modelingView = ref('graph')
 const inspectorView = ref('environment')
@@ -478,10 +454,10 @@ function selectGroup(tier) {
   if (group?.members.length) selectMember(group.members[0])
 }
 
-const openSections = ref(['role', 'posture', 'cognition'])
+const openSections = ref(['role'])
 
 // ---------- 属性条 / 格式化 ----------
-const formatPercent = (value) => (Number.isFinite(Number(value)) ? `${(Number(value) * 100).toFixed(0)}%` : '—')
+const formatRisk = (value) => (Number.isFinite(Number(value)) ? Number(value).toFixed(3) : '—')
 const formatRange = (attr) => {
   const [min, max] = attr.range || []
   if (!Number.isFinite(min) || !Number.isFinite(max)) return '—'
@@ -497,7 +473,7 @@ const attrBarStyle = (attr) => {
   return { left: `${left.toFixed(1)}%`, width: `${Math.min(100 - left, width).toFixed(1)}%` }
 }
 
-// ---------- 关系网（参考骨架中涉及所选层级的边） ----------
+// ---------- 关联关系（参考骨架中涉及所选层级的边） ----------
 const agentById = new Map(referenceAgents.map((item) => [item.id, item]))
 const relatedEdges = computed(() => (URANIUM_REFERENCE_GRAPH.relationship_net || [])
   .filter((edge) => agentById.get(edge.source)?.category === selectedRole.value.tier || agentById.get(edge.target)?.category === selectedRole.value.tier)
@@ -507,11 +483,6 @@ const relatedEdges = computed(() => (URANIUM_REFERENCE_GRAPH.relationship_net ||
     targetName: agentById.get(edge.target)?.name || edge.target
   })))
 const relationEdgeCount = (URANIUM_REFERENCE_GRAPH.relationship_net || []).length
-
-// ---------- 智能等级 ----------
-const levelBarLabel = computed(() => (
-  intelligenceLevels.map((item) => `${item.label}智能 ${Math.round(item.share * 100)}%`).join('，')
-))
 
 // ---------- 环境配置（与 during store draft 同步） ----------
 const draftForm = reactive({
@@ -559,17 +530,16 @@ watch(() => uraniumStore.draft, syncFormFromDraft, { deep: true })
 
 const convergenceRules = computed(() => [
   { label: '时间步长', value: `1 ${planner.timeStepUnit}` },
-  { label: '历史校准窗口', value: planner.calibrationWindow },
-  { label: '收敛阈值', value: `目标函数变化 < ${planner.convergenceThreshold}` },
-  { label: '最大迭代', value: `${planner.maxIterations} 轮` },
-  { label: '知识共享', value: `精英前 ${Math.round(planner.knowledgeSharing.elitePercent * 100)}% · 衰减 ${planner.knowledgeSharing.decay}` },
-  { label: '实体繁殖', value: planner.evolutionEnabled ? '开启' : '关闭（矿企 / 国家不繁殖）' }
+  { label: '历史数据窗口', value: planner.calibrationWindow },
+  { label: '最大优化轮数', value: `${planner.maxIterations} 轮` },
+  { label: '结果选择', value: '保留评分更优的策略' },
+  { label: '优化目标值', value: '1 − 综合评分 / 100，越低越好' }
 ])
 
 // ---------- 事件库 ----------
 const eventRows = computed(() => URANIUM_BASE_YEAR_ROWS.map((row) => ({
   year: row.year,
-  events: row.active_events || [],
+  events: (row.active_events || []).map(formatUraniumEvent),
   inWindow: row.year >= draftForm.start_year && row.year <= draftForm.end_year
 })))
 const eventCount = computed(() => eventRows.value.filter((row) => row.inWindow).reduce((sum, row) => sum + row.events.length, 0))
@@ -577,9 +547,9 @@ const eventCount = computed(() => eventRows.value.filter((row) => row.inWindow).
 // ---------- 顶部统计 ----------
 const heroStats = computed(() => [
   { label: 'Agent', value: String(totalAgentCount.value) },
-  { label: '关系边', value: String(relationEdgeCount) },
-  { label: '窗口事件', value: String(eventCount.value) },
-  { label: '仿真窗口', value: `${draftForm.start_year}–${draftForm.end_year}` }
+  { label: '关系', value: String(relationEdgeCount) },
+  { label: '事件', value: String(eventCount.value) },
+  { label: '推演时段', value: `${draftForm.start_year}–${draftForm.end_year}` }
 ])
 
 // ---------- 导航 ----------
@@ -610,6 +580,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.ms-window-note { margin: 0 0 12px; color: #64748b; font-size: 12px; line-height: 1.7; }
 .ms-view-tabs, .ms-inspector-tabs { display: flex; flex-shrink: 0; align-items: center; gap: 4px; padding: 4px; background: #fff; border: 1px solid #e2e8f0; border-radius: 9px; }
 .ms-view-tabs button, .ms-inspector-tabs button { padding: 8px 12px; border: 0; border-radius: 6px; background: transparent; color: #64748b; cursor: pointer; font-size: 12px; }
 .ms-view-tabs button.active, .ms-inspector-tabs button.active { color: #2563eb; background: #eff6ff; font-weight: 600; }

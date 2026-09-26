@@ -19,31 +19,31 @@ export const URANIUM_CASE_LIBRARY = Object.freeze([
     period: '2024 – 2028',
     category: '政策制裁 · 供应结构冲击',
     scope: ['核电燃料', '浓缩服务', '二次供应'],
-    summary: '俄乌冲突后西方推动核燃料去俄化，美国立法禁止进口俄罗斯浓缩铀并设置豁免过渡期。案例用于检验：政策型供应冲击如何沿贸易、转化与供给节点传导，仿真结果是否复现缺口抬升、来源重组与长协占比上升。',
+    summary: '俄乌冲突后西方推动核燃料去俄化，美国立法禁止进口俄罗斯浓缩铀并设置豁免过渡期。本案例关注政策变化对采购来源、库存和需求缺口的影响；2025–2028 年按前瞻情景进行对照。',
     eventKeywords: ['禁俄铀', '去俄化'],
     timeline: [
       { date: '2022-02', text: '俄乌冲突升级，西方对俄能源制裁范围扩大，铀与浓缩服务成为讨论焦点。' },
       { date: '2024-01', text: '现货铀价触及约 106 美元/磅，为十七年高位；电力公司加速锁定长协。' },
       { date: '2024-05', text: '美国签署《禁止进口俄罗斯铀法案》，禁令分阶段生效，期间可申请豁免。' },
       { date: '2024-11', text: '俄罗斯宣布临时限制对美浓缩铀出口，作为反制措施。' },
-      { date: '2028-01', text: '豁免窗口关闭，禁令完全生效，二次供应结构性收缩。' }
+      { date: '2028（情景）', text: '按禁俄铀政策全面实施的设定，评估采购来源调整与库存压力。' }
     ],
     historicalFacts: [
       { label: '受影响环节', value: '浓缩服务与二次供应', note: '俄罗斯浓缩产能占全球约四成（公开估算）' },
       { label: '市场反应', value: '现货价格冲高', note: '2024 年初约 106 美元/磅' },
       { label: '采购行为', value: '提前锁定长协', note: '去俄化采购竞争升温，现货占比回落' },
-      { label: '供应重组', value: '哈萨克 / 加拿大 / 纳米比亚份额上升', note: '新矿投产对冲来源收缩' }
+      { label: '供应重组', value: '采购来源份额变化', note: '比较中亚与海运来源的采购分配' }
     ],
     mapping: [
-      { system: '事件库 events', item: '美国禁俄铀法案 → 豁免到期 → 完全生效', effect: '按年份注入年度事件，作用于供给来源权重' },
-      { system: '供给方 Agent supplier', item: '俄罗斯方向供应区暴露上升，份额向中亚与海运来源重分配', effect: 'supply_concentration_hhi · dominant_supplier_share · top_supplier_shares' },
-      { system: '价格模型 price_model', item: 'event_impact 抬升现货价格与采购成本', effect: 'market_price_usd_lb · average_cost_usd_kgU' },
-      { system: '制造方 Agent manufacturer', item: '长协偏好与库存目标上调，压缩现货窗口', effect: 'contract_mix · inventory_coverage_years · unmet_demand_tU' }
+      { system: '年度事件', item: '禁俄铀政策 → 采购调整 → 全面实施情景', effect: '按年份注入年度事件，作用于供给来源权重' },
+      { system: '供给方', item: '俄罗斯方向供应区暴露上升，份额向中亚与海运来源重分配', effect: '供应集中度 · 最大来源占比 · 采购份额' },
+      { system: '市场价格', item: '价格冲击影响年度采购成本', effect: '市场价格 · 年度采购成本' },
+      { system: '制造方（采购主体）', item: '长协偏好与库存目标上调，压缩现货窗口', effect: '合同结构 · 库存覆盖 · 需求缺口' }
     ],
     validationPoints: [
-      { check: 'peak_in_case_years', title: '缺口峰值落在案例作用年份', detail: '需求缺口的年度峰值应出现在禁令生效或完全生效的年份。' },
-      { check: 'hhi_declines', title: '供给集中度逐年回落', detail: '去俄化叠加新矿投产后，供给集中度终值应低于起始值。' },
-      { check: 'longterm_share_majority', title: '长协占比过半', detail: '采购结构中长协份额应超过一半，用以压低成本波动。' }
+      { check: 'peak_in_case_years', title: '缺口峰值与事件年份重合', detail: '检查缺口峰值是否出现在案例关联年份，作为结果对照，不据此判断因果。' },
+      { check: 'hhi_declines', title: '期末集中度低于期初', detail: '比较推演窗口首尾的 HHI，判断来源分散程度是否改善。' },
+      { check: 'longterm_share_majority', title: '期末长协占比不低于一半', detail: '检查期末合同结构中长协份额是否达到 50%。' }
     ],
     sourceNote: '历史资料摘自公开报道与行业年报，仅用于对照检验；正式案例需在调研后核实并补充参考文献。'
   },

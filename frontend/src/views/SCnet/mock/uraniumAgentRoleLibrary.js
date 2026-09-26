@@ -4,8 +4,8 @@
  * 结构参考 MACE 实验设计 schema 的 AgentSpec：
  *   role            身份与背景 / 制度背景 / 核心目标 / 行为底线
  *   decision_posture 决策风格 / 风险偏好 / 关注信息优先级 / 典型行动
- *   attributes      属性及取值范围（attribute_meta），数值来自 configs/uranium_agent_config.yaml
- *   cognition       认知模型：智能等级 → 决策策略；OODA 四阶段各自处理的信息
+ *   attributes      属性及取值范围（attribute_meta），字段与权重对照 sgm-cmse 的 uranium_supply_chain/during 模块
+ *   cognition       决策过程：按观察、判断、决策、行动组织年度信息
  *
  * 角色按供应链层级（supply / transport / manufacturing / sales）定义，
  * 具体实体（哈萨克矿山、南方燃料基地…）通过 resolveUraniumAgentRole 叠加实体信息。
@@ -25,31 +25,23 @@ export const URANIUM_OODA_STAGES = Object.freeze([
   { key: 'act', label: 'Act', zh: '行动', color: '#eda100' }
 ])
 
-// 智能等级分布（intelligence_levels）
-export const URANIUM_INTELLIGENCE_LEVELS = Object.freeze([
-  { key: 'low', label: '低', share: 0.3, strategy: 'random', description: '成本加成定价，随机产能分配', color: '#2a78d6' },
-  { key: 'medium', label: '中', share: 0.5, strategy: 'greedy', description: '市场跟随定价，按供需比调整策略', color: '#eb6834' },
-  { key: 'high', label: '高', share: 0.2, strategy: 'PPO 强化学习', description: '强化学习优化定价与产能分配（state 25 维，最多 8 个动作）', color: '#1baf7a' }
-])
-
 // 评估器权重（observer.evaluation_weights）
 export const URANIUM_OBSERVER_WEIGHTS = Object.freeze([
-  { key: 'supply_reliability', label: '供应可靠性', weight: 0.3 },
-  { key: 'cost_efficiency', label: '成本效率', weight: 0.25 },
-  { key: 'risk_diversification', label: '风险分散度', weight: 0.2 },
-  { key: 'network_resilience', label: '网络韧性', weight: 0.15 },
-  { key: 'inventory_adequacy', label: '库存充足度', weight: 0.1 }
+  { key: 'supply_reliability', label: '供应可靠性', weight: 0.25 },
+  { key: 'cost_efficiency', label: '成本效率', weight: 0.2 },
+  { key: 'risk_diversification', label: '风险分散度', weight: 0.15 },
+  { key: 'network_resilience', label: '网络韧性', weight: 0.2 },
+  { key: 'inventory_adequacy', label: '库存充足度', weight: 0.15 },
+  { key: 'calibration', label: '校准偏差', weight: 0.05 }
 ])
 
 // 规划器（planner）
 export const URANIUM_PLANNER = Object.freeze({
-  parameterSpace: ['spot_price_usd_lb', 'risk_aversion', 'diversification_target', 'cost_sensitivity', 'policy_compliance'],
-  convergenceThreshold: 0.03,
-  maxIterations: 50,
-  knowledgeSharing: { elitePercent: 0.2, decay: 0.95, maxAgeMonths: 3 },
-  evolutionEnabled: false,
+  parameterSpace: ['采购权重', '目标库存覆盖', '目标供给方数量', '单一来源上限', '预算倍率'],
+  maxIterations: 100,
   timeStepUnit: '年',
-  calibrationWindow: '1997 – 2024'
+  calibrationWindow: '1997–2024'
+
 })
 
 export const URANIUM_AGENT_ROLE_LIBRARY = Object.freeze({
@@ -58,10 +50,10 @@ export const URANIUM_AGENT_ROLE_LIBRARY = Object.freeze({
     label: '供给方 Agent',
     camp: '海外供给',
     agentClass: 'SupplierAgent',
-    modelingMethod: 'OODA',
+    modelingMethod: '年度规则与策略评估',
     countHint: '矿企 / 资源国',
     role: {
-      identity: '资源国矿企或国家铀公司，掌握矿山产能、成本层级与出口配额。',
+      identity: '代表资源国、矿山或二次供应来源，提供年度可用供给、报价和风险信息。',
       institutional_context: '受本国出口审批、国际制裁与长协惯例约束；产量受矿山品位、硫酸等辅料供给和地浸工艺限制。',
       goal: '在保障长协履约的前提下最大化销售收入，维持产能利用率与客户结构稳定。',
       constraints: ['不得超出矿山年度产能与出口配额', '制裁或禁令生效时停止对应方向发运', '长协交付优先于现货投放']
@@ -92,7 +84,7 @@ export const URANIUM_AGENT_ROLE_LIBRARY = Object.freeze({
   },
   transport: {
     tier: 'transport',
-    label: '运输通道 Agent',
+    label: '运输通道',
     camp: '通道 / 口岸',
     agentClass: 'RouteNode',
     modelingMethod: '规则式',
@@ -110,9 +102,9 @@ export const URANIUM_AGENT_ROLE_LIBRARY = Object.freeze({
       typical_actions: ['按运力分摊运量', '拥堵时延长交付周期', '触发替代路径评估']
     },
     attributes: [
-      { key: 'transit_days', label: '在途时间', unit: '天', type: 'range', range: [20, 75] },
+      { key: 'logistics_risk', label: '物流风险', type: 'float', range: [0, 1] },
       { key: 'capacity_share', label: '通道运力份额', type: 'float', range: [0, 1] },
-      { key: 'disruption_probability', label: '年度扰动概率', type: 'float', range: [0, 0.3] }
+      { key: 'export_risk', label: '出口风险', type: 'float', range: [0, 1] }
     ],
     enums: [
       { label: '通道类型', values: ['陆运（中亚铁路 / 西北口岸）', '海运（大西洋 / 印度洋 / 太平洋）', '陆海联运（贝宁走廊）'] }
@@ -127,12 +119,12 @@ export const URANIUM_AGENT_ROLE_LIBRARY = Object.freeze({
   manufacturing: {
     tier: 'manufacturing',
     label: '制造方 Agent',
-    camp: '国内制造',
+    camp: '国内采购',
     agentClass: 'ManufacturerAgent',
-    modelingMethod: 'OODA',
-    countHint: '燃料制造 / 接卸节点',
+    modelingMethod: '年度规则与策略评估',
+    countHint: '采购主体 / 接收节点',
     role: {
-      identity: '国家级核燃料公司下属的燃料组件基地与沿海接卸节点，代表国内采购与转化环节。',
+      identity: '代表中国核电采购主体，负责年度需求、供应来源选择、采购分配和库存管理。',
       institutional_context: '承担国家保供责任，采购须满足政策合规、供给来源分散与安全库存要求。',
       goal: '以可接受成本保障年度燃料需求，维持库存覆盖目标并降低对单一来源的依赖。',
       constraints: ['政策合规优先于成本', '目标供给方数量 1–5 个', '库存覆盖不低于最低比例']
@@ -145,22 +137,22 @@ export const URANIUM_AGENT_ROLE_LIBRARY = Object.freeze({
     },
     attributes: [
       { key: 'demand_tU', label: '年度需求', unit: 'tU/年', type: 'range', range: [1000, 11000] },
-      { key: 'inventory_target_years', label: '库存目标', unit: '年', type: 'range', range: [2, 5] },
-      { key: 'processing_capacity_tU', label: '处理能力', unit: 'tU/年', type: 'range', range: [2000, 10000] },
+      { key: 'target_inventory_years', label: '目标库存覆盖', unit: '年', type: 'range', range: [1, 4.5] },
+      { key: 'diversification_limit', label: '单一来源上限', type: 'float', range: [0.15, 0.8] },
       { key: 'risk_aversion', label: '风险厌恶', type: 'float', range: [0.2, 0.8] },
       { key: 'cost_sensitivity', label: '成本敏感度', type: 'float', range: [0.2, 0.8] },
-      { key: 'diversification_target', label: '目标供给方数量', type: 'int', range: [1, 5] }
+      { key: 'target_supplier_count', label: '目标供给方数量', type: 'int', range: [1, 5] }
     ],
     preferenceWeights: [
-      { key: 'policy_safety', label: '政策安全性', weight: 0.2 },
-      { key: 'cost_efficiency', label: '成本经济性', weight: 0.2 },
-      { key: 'reliability', label: '履约可靠性', weight: 0.2 },
-      { key: 'geo_stability', label: '地缘稳定性', weight: 0.15 },
-      { key: 'transport_safety', label: '运输可靠性', weight: 0.1 },
-      { key: 'historical_performance', label: '历史表现', weight: 0.15 }
+      { key: 'price', label: '价格', weight: 0.22 },
+      { key: 'reliability', label: '履约可靠性', weight: 0.24 },
+      { key: 'risk', label: '供给风险', weight: 0.20 },
+      { key: 'logistics', label: '物流风险', weight: 0.10 },
+      { key: 'contract', label: '合同偏好', weight: 0.12 },
+      { key: 'diversification', label: '来源分散', weight: 0.12 }
     ],
     enums: [
-      { label: '实体类型', values: ['国家级公司', '港口', '转化 / 浓缩设施'] }
+      { label: '实体类型', values: ['核电采购主体', '港口接收节点'] }
     ],
     cognition: {
       observe: ['市场价格与事件', '供给方报价与风险画像', '自身库存与需求计划'],
@@ -171,14 +163,14 @@ export const URANIUM_AGENT_ROLE_LIBRARY = Object.freeze({
   },
   sales: {
     tier: 'sales',
-    label: '需求端 Agent',
+    label: '需求端',
     camp: '核电需求',
     agentClass: 'DemandNode',
     modelingMethod: '规则式',
     countHint: '核电需求主体',
     role: {
-      identity: '在运与在建核电机组的燃料需求汇总，代表终端消耗。',
-      institutional_context: '需求由装机规模与换料周期决定，年增长率约 1%，受高需求情景与政策目标影响。',
+      identity: '汇总核电需求，向采购主体提供年度需求和消耗信号。',
+      institutional_context: '年度需求按场景基线和事件影响更新，用于衡量采购、库存与需求缺口。',
       goal: '按换料计划稳定获得核燃料，把库存消耗与缺口信号反馈给制造方。',
       constraints: ['需求不因价格短期波动改变', '缺口不能通过削减发电吸收']
     },
@@ -269,7 +261,7 @@ export function resolveUraniumAgentRole(agentLike = {}) {
         { label: '参考运量', value: `${actor.reference_volume_ktu} ktU/年` },
         { label: '基线风险', value: actor.base_risk, type: 'risk' }
       )
-      if (actor.activation_year) facts.push({ label: '投产年份', value: String(actor.activation_year) })
+      if (actor.activation_year) facts.push({ label: '情景启用年份', value: String(actor.activation_year) })
     }
   } else if (tier === 'manufacturing') {
     const actor = matchManufacturerActor(agentLike)

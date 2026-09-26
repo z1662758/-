@@ -1,10 +1,6 @@
 <template>
   <div class="mid-stage-bg gm-page analysis-workspace">
-    <AnalysisLinkTabs active="gameTheory">
-      <template #right>
-        <el-tag type="warning" effect="plain">节点 · 资源 · 通道 · 恢复</el-tag>
-      </template>
-    </AnalysisLinkTabs>
+    <AnalysisLinkTabs active="gameTheory" />
 
     <el-empty
       v-if="!hasGameContext"
@@ -27,7 +23,7 @@
         <section class="vulnerability-overview glass-panel">
           <div class="vulnerability-overview-main">
             <span>综合脆弱性等级</span>
-            <strong>{{ vulnerabilityLevel.label }}</strong>
+            <strong :class="vulnerabilityLevel.type">{{ vulnerabilityLevel.label }}</strong>
             <p>围绕供应国、关键节点、运输通道和库存缓冲评估中断后果。</p>
           </div>
           <div class="vulnerability-overview-grid">
@@ -39,61 +35,16 @@
           </div>
         </section>
 
-        <section class="vulnerability-priority glass-panel">
-          <div class="analysis-column-head">
-            <span class="analysis-column-index">00</span>
-            <div>
-              <h3>治理优先级</h3>
-              <p>按脆弱性评分生成保供、绕行、补库顺序。</p>
-            </div>
-          </div>
-          <div class="priority-grid">
-            <article v-for="(item, index) in vulnerabilityPriorityCards" :key="item.title" :class="item.tone">
-              <span>{{ String(index + 1).padStart(2, '0') }}</span>
-              <div>
-                <strong>{{ item.title }}</strong>
-                <p>{{ item.detail }}</p>
-              </div>
-              <el-tag size="small" :type="item.tagType" effect="light">{{ item.level }}</el-tag>
-            </article>
-          </div>
-        </section>
-
-        <section class="algorithm-screening-panel glass-panel">
-          <div class="analysis-column-head">
-            <span class="analysis-column-index">A1</span>
-            <div>
-              <h3>筛选依据</h3>
-              <p>抽样给出风险权重，反馈结果用于修正下一轮排序。</p>
-            </div>
-          </div>
-          <div class="algorithm-flow-grid">
-            <article v-for="item in algorithmFlowCards" :key="item.label">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-              <p>{{ item.detail }}</p>
-            </article>
-          </div>
-        </section>
-
         <section class="gm-column output-column glass-panel">
           <header class="analysis-column-head">
             <span class="analysis-column-index">01</span>
             <div>
               <h3>关键节点依赖矩阵</h3>
-              <p>按地理、资源、运输通道和替代难度定位高暴露节点。</p>
+
             </div>
           </header>
 
           <section id="matrix-analysis" ref="matrixSectionRef" class="payoff-card analysis-anchor">
-            <div class="payoff-card-head">
-              <div>
-                <span>矩阵分析</span>
-                <strong>关键节点 × 依赖类型</strong>
-              </div>
-              <el-tag size="small" type="info" effect="light">风险值 0—100</el-tag>
-            </div>
-
             <div class="payoff-table-wrap">
               <table class="payoff-table">
                 <thead>
@@ -174,13 +125,52 @@
           </section>
 
         </section>
+        <section class="vulnerability-priority glass-panel">
+          <div class="analysis-column-head">
+            <span class="analysis-column-index">02</span>
+            <div>
+              <h3>处置优先级</h3>
+              <p>按脆弱性评分生成保供、绕行、补库顺序。</p>
+            </div>
+          </div>
+          <div class="priority-grid">
+            <article v-for="(item, index) in vulnerabilityPriorityCards" :key="item.title" :class="item.tone">
+              <span>{{ String(index + 1).padStart(2, '0') }}</span>
+              <div>
+                <strong>{{ item.title }}</strong>
+                <p>{{ item.detail }}</p>
+              </div>
+              <el-tag size="small" :type="item.tagType" effect="light">{{ item.level }}</el-tag>
+            </article>
+          </div>
+        </section>
+
+        <details class="algorithm-screening-panel glass-panel">
+        <summary class="mid-details-summary">查看脆弱性评估依据</summary>
+          <div class="analysis-column-head">
+            <span class="analysis-column-index">A1</span>
+            <div>
+              <h3>筛选依据</h3>
+              <p>抽样给出风险权重，反馈结果用于修正下一轮排序。</p>
+            </div>
+          </div>
+          <div class="algorithm-flow-grid">
+            <article v-for="item in algorithmFlowCards" :key="item.label">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+              <p>{{ item.detail }}</p>
+            </article>
+          </div>
+        </details>
+
       </main>
     </template>
   </div>
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { buildUraniumVulnerability, uraniumVulnerabilityLevel } from '@/utils/uraniumVulnerability'
+import { computed, nextTick, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute } from 'vue-router'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
@@ -188,8 +178,10 @@ import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 import AnalysisLinkTabs from './components/shared/AnalysisLinkTabs.vue'
 import AnalysisPageHero from './components/shared/AnalysisPageHero.vue'
 import './components/shared/midStage.css'
+import { useUraniumAnalysisExperiment } from './composables/useUraniumAnalysisExperiment'
 import { buildUraniumGameTheoryViewModel } from '@/views/SCnet/adapters/uraniumMockAnalysisAdapter'
 
+useUraniumAnalysisExperiment()
 const route = useRoute()
 const matrixSectionRef = ref(null)
 const vulnerabilitySectionRef = ref(null)
@@ -197,29 +189,14 @@ const structureSectionRef = ref(null)
 const logisticsSectionRef = ref(null)
 const snapshotStore = useAnalysisSnapshotStore()
 const uraniumStore = useUraniumDemoStore()
-const { history, selectedExperiment, selectedExperimentId } = storeToRefs(uraniumStore)
+const { selectedExperiment } = storeToRefs(uraniumStore)
 
-const snapshotMode = computed(() => !!snapshotStore.activeSnapshotId)
 const activeSnapshot = computed(() => snapshotStore.getActiveSnapshot())
 const hasGameContext = computed(() => !!selectedExperiment.value || !!activeSnapshot.value)
-
-// 默认场景（无快照时兜底）
-const DEFAULT_SCENARIO_KEY = 'supplierVsRetailer'
 
 // 非快照模式下的手动场景切换
 const manualScenarioKey = ref('')
 const manualModelKey = ref('')
-const scenarioSelectKey = computed({
-  get() {
-    return snapshotMode.value
-      ? gameVm.value.scenarioKey
-      : (manualScenarioKey.value || baseGameVm.value.scenarioKey || DEFAULT_SCENARIO_KEY)
-  },
-  set(value) {
-    manualScenarioKey.value = value
-  }
-})
-
 const baseGameVm = computed(() => buildUraniumGameTheoryViewModel({
   experiment: selectedExperiment.value,
   snapshot: activeSnapshot.value,
@@ -232,82 +209,19 @@ const gameVm = computed(() => buildUraniumGameTheoryViewModel({
   manualModelKey: manualModelKey.value
 }))
 const effectiveScenarioKey = computed(() => baseGameVm.value.scenarioKey)
-const currentScenario = computed(() => baseGameVm.value.currentScenario)
-const currentModel = computed(() => gameVm.value.modelSelection.selectedModel)
-const simulationAgent = computed(() => gameVm.value.modelSelection.simulationAgent)
 const topTags = computed(() => gameVm.value.hero.tags.filter((item) => ['场景', '时点'].includes(item.label)))
-const payoffMatrix = computed(() => gameVm.value.payoffMatrix || [])
-const selectedMatrixKey = ref('')
-const selectedMatrix = computed(() => {
-  const matrix = payoffMatrix.value
-  if (!matrix.length) return null
-  const fallbackKey = gameVm.value.matrixSummary?.dominantKey || '0-0'
-  const targetKey = selectedMatrixKey.value || fallbackKey
-  const [rowIndex, colIndex] = targetKey.split('-').map(Number)
-  const cell = matrix[rowIndex]?.[colIndex]
-  if (!cell) return null
-  return {
-    ...cell,
-    rowIndex,
-    colIndex
-  }
-})
-const selectedMatrixLabel = computed(() => {
-  const cell = selectedMatrix.value
-  if (!cell) return '等待矩阵'
-  return `${currentScenario.value.p1Strategies[cell.rowIndex]?.name || '行策略'} × ${currentScenario.value.p2Strategies[cell.colIndex]?.name || '列策略'}`
-})
-
-function clampScore(value) {
-  return Math.max(0, Math.min(100, Math.round(Number(value) || 0)))
-}
-
-const vulnerabilityMetrics = computed(() => {
-  const summary = selectedExperiment.value?.summary || selectedExperiment.value?.report || {}
-  const toPercent = value => {
-    const num = Number(value)
-    if (!Number.isFinite(num)) return 0
-    return num <= 1 ? num * 100 : num
-  }
-  const risk = clampScore(toPercent(summary.avg_risk_exposure ?? summary.risk_exposure ?? 0.48))
-  const concentration = clampScore(toPercent(summary.final_supply_concentration_hhi ?? summary.avg_supply_hhi ?? 0.56))
-  const unmet = clampScore(toPercent(summary.avg_unmet_ratio ?? 0.12))
-  const inventoryYears = Number(summary.final_inventory_coverage_years ?? summary.avg_inventory_coverage_years ?? 0.9)
-  const inventoryPressure = clampScore(82 - Math.max(0, inventoryYears) * 38 + unmet * .35)
-  const sensitivity = clampScore(risk * .48 + concentration * .34 + unmet * .3)
-  const robustness = clampScore(100 - risk * .42 - concentration * .28 - inventoryPressure * .22)
-  const recoveryDifficulty = clampScore(25 + sensitivity * 0.35 + (100 - robustness) * 0.4)
-  const costPressure = clampScore(risk * .36 + recoveryDifficulty * .42 + concentration * .22)
-  const recoveryDays = Math.max(3, Math.round(7 + recoveryDifficulty * 0.38))
-  const recoveryCost = Math.max(5, Math.round(costPressure * 0.72 + recoveryDifficulty * 0.35))
-  return [
-    { label: '敏感性', value: `${sensitivity}`, score: sensitivity, color: '#f59e0b', detail: '供应风险、来源集中度与缺口对系统的扰动程度' },
-    { label: '鲁棒性', value: `${robustness}`, score: robustness, color: '#10b981', detail: '中断情景下供应、库存与交付能力的保持程度' },
-    { label: '库存压力', value: `${inventoryPressure}`, score: inventoryPressure, color: '#3b82f6', detail: '供需偏差对库存缓冲的占用程度' },
-    { label: '恢复难度', value: `${recoveryDifficulty}`, score: recoveryDifficulty, color: '#ef4444', detail: '策略失效后恢复稳定状态的难度' },
-    { label: '恢复时长', value: `${recoveryDays}天`, score: recoveryDifficulty, color: '#f97316', detail: '关键节点受损后的预估恢复周期' },
-    { label: '恢复成本', value: `${recoveryCost}`, score: Math.min(100, recoveryCost), color: '#8b5cf6', detail: '替代采购、航线切换与库存补位的综合成本指数' },
-    { label: '成本压力', value: `${costPressure}`, score: costPressure, color: '#6366f1', detail: '相对低脆弱组合的机会与执行成本' }
-  ]
-})
-
-const vulnerabilityLevel = computed(() => {
-  const rows = vulnerabilityMetrics.value.filter(item => item.label !== '鲁棒性')
-  const avg = rows.length ? rows.reduce((sum, item) => sum + item.score, 0) / rows.length : 0
-  if (avg >= 70) return { label: '高脆弱', type: 'danger' }
-  if (avg >= 45) return { label: '中脆弱', type: 'warning' }
-  return { label: '低脆弱', type: 'success' }
-})
+const vulnerabilityMetrics = computed(() => buildUraniumVulnerability(selectedExperiment.value?.summary || selectedExperiment.value?.report || {}))
+const vulnerabilityLevel = computed(() => uraniumVulnerabilityLevel(vulnerabilityMetrics.value))
 
 const metricScore = (label, fallback = 50) => (
   vulnerabilityMetrics.value.find(item => item.label === label)?.score ?? fallback
 )
 
 const vulnerabilityHeadlineCards = computed(() => [
-  { label: '最高风险节点', value: '跨境运输通道', detail: '地缘与物流依赖叠加' },
-  { label: '预估恢复时长', value: vulnerabilityMetrics.value.find(item => item.label === '恢复时长')?.value || '--', detail: '关键节点受损后' },
-  { label: '结构替代能力', value: `${metricScore('鲁棒性')}%`, detail: '备选国家与航线的承接能力' },
-  { label: '库存缓冲压力', value: `${metricScore('库存压力')}%`, detail: '当前库存对中断的覆盖程度' }
+  { label: '依赖最集中节点', value: [...dependencyMatrixRows.value].sort((a, b) => b.values.reduce((sum, v) => sum + v.value, 0) - a.values.reduce((sum, v) => sum + v.value, 0))[0]?.node || '暂无数据', detail: '按四类依赖评分合计比较' },
+  { label: '恢复难度', value: `${metricScore('恢复难度')} 分`, detail: '评分越高，恢复越困难' },
+  { label: '结构替代能力', value: `${metricScore('鲁棒性')} 分`, detail: '评分越高，替代能力越强' },
+  { label: '库存缓冲压力', value: `${metricScore('库存压力')} 分`, detail: '评分越高，库存压力越大' }
 ])
 
 const dependencyColumns = Object.freeze(['地理依赖', '资源依赖', '通道依赖', '替代难度'])
@@ -342,8 +256,8 @@ const structureIndicators = computed(() => {
   const sensitivity = vulnerabilityMetrics.value.find(item => item.label === '敏感性')?.score || 0
   const robustness = vulnerabilityMetrics.value.find(item => item.label === '鲁棒性')?.score || 0
   return [
-    { label: '单一节点依赖', value: `${Math.round((sensitivity + 45) / 2)}%`, detail: '由策略切换敏感度估算' },
-    { label: '结构替代能力', value: `${robustness}%`, detail: '最坏响应下的结构保持度' },
+    { label: '单一节点依赖', value: `${Math.round((sensitivity + 45) / 2)} 分`, detail: '由策略切换敏感度估算' },
+    { label: '结构替代能力', value: `${robustness} 分`, detail: '最坏响应下的结构保持度' },
     { label: '关键链路压力', value: vulnerabilityLevel.value.label, detail: '综合矩阵局部波动与恢复难度' }
   ]
 })
@@ -352,8 +266,8 @@ const logisticsIndicators = computed(() => {
   const inventory = vulnerabilityMetrics.value.find(item => item.label === '库存压力')?.score || 0
   const recovery = vulnerabilityMetrics.value.find(item => item.label === '恢复难度')?.score || 0
   return [
-    { label: '航线冗余度', value: `${Math.max(0, 100 - recovery)}%`, detail: '恢复难度的反向表征' },
-    { label: '库存缓冲压力', value: `${inventory}%`, detail: '供需偏差对缓冲库存的占用' },
+    { label: '航线冗余度', value: `${Math.max(0, 100 - recovery)} 分`, detail: '恢复难度的反向表征' },
+    { label: '库存缓冲压力', value: `${inventory} 分`, detail: '供需偏差对缓冲库存的占用' },
     { label: '通道稳定等级', value: recovery >= 70 ? '偏低' : recovery >= 45 ? '中等' : '稳定', detail: '结合恢复难度与库存压力判定' }
   ]
 })
@@ -403,14 +317,14 @@ const algorithmFlowCards = computed(() => {
       detail: '来自实验方案汇总，绑定节点、通道、库存三类对象。'
     },
     {
-      label: '蒙特卡罗采样',
-      value: `${Math.max(300, Math.round((sensitivity + recovery) * 8))} 次`,
-      detail: `高压样本集中在恢复难度 ${recovery}、敏感性 ${sensitivity}。`
+      label: '风险评估',
+      value: vulnerabilityLevel.value.label,
+      detail: `恢复难度 ${recovery} 分，敏感性 ${sensitivity} 分。`
     },
     {
-      label: '贝叶斯反馈',
+      label: '处置方向',
       value: robustness < 55 ? '上调保供' : '维持权重',
-      detail: `库存压力 ${inventory}，结构替代能力 ${robustness}%。`
+      detail: `库存压力 ${inventory}，结构替代能力 ${robustness} 分。`
     },
     {
       label: '输出',
@@ -438,97 +352,8 @@ watch(() => route.query.section, section => nextTick(() => focusAnalysisSection(
 watch(hasGameContext, ready => {
   if (ready) nextTick(() => focusAnalysisSection(route.query.section))
 })
-const equilibriumCards = computed(() => gameVm.value.equilibriumCards || [])
-const playerGuideCards = computed(() => (
-  (gameVm.value.playerGuideCards || []).filter((item) => item.id !== 'bridge-guide')
-))
-const currentEventCard = computed(() => gameVm.value.modelSelection.inputSignalCards.find((item) => item.label === '当前事件') || null)
-const visibleInputCards = computed(() => {
-  const cards = gameVm.value.modelSelection.inputSignalCards || []
-  const priorityLabels = ['参与方', '核心冲突', '时间压力', '关键约束']
-  const selected = priorityLabels
-    .map((label) => cards.find((item) => item.label === label))
-    .filter(Boolean)
-  return selected.length ? selected : cards.slice(1, 5)
-})
-const primaryInputCards = computed(() => {
-  const cards = visibleInputCards.value
-  return cards.filter((item) => ['参与方', '核心冲突'].includes(item.label))
-})
-const secondaryInputCards = computed(() => {
-  const cards = visibleInputCards.value
-  const rows = cards.filter((item) => ['时间压力', '关键约束'].includes(item.label))
-  return rows.length ? rows : cards.slice(2)
-})
-const focusInputCard = computed(() => {
-  return gameVm.value.modelSelection.inputSignalCards.find((item) => item.label === '关键约束')
-    || visibleInputCards.value[visibleInputCards.value.length - 1]
-    || currentEventCard.value
-})
-const inputLeadText = computed(() => {
-  return focusInputCard.value?.detail
-    || gameVm.value.hero.briefs?.find((item) => item.label === '冲突焦点')?.text
-    || currentScenario.value.viewDesc
-})
-const selectedModelReason = computed(() => {
-  return gameVm.value.modelSelection.candidateCards.find((item) => item.selected)?.reason
-    || currentScenario.value.viewDesc
-})
-// 「为什么是它」已在上方 model-focus-card 展示，这里只列模型自身的定义卡
-const modelDetailCards = computed(() => (
-  gameVm.value.modelSelection.definitionCards.filter((item) => ['收益结构', '核心洞见', '博弈策略'].includes(item.label))
-))
-const agentContextCards = computed(() => {
-  const cards = []
-  const primaryEquilibrium = equilibriumCards.value[0] || null
-  const firstGuide = playerGuideCards.value[0] || null
-  const secondGuide = playerGuideCards.value[1] || null
-
-  cards.push({
-    label: '默认稳定点',
-    title: primaryEquilibrium?.pairText || '当前没有纯策略稳定点',
-    text: primaryEquilibrium
-      ? `收益 ${primaryEquilibrium.payoffText}`
-      : '建议优先查看双方均值优势，再决定是否主动调整策略。'
-  })
-
-  if (firstGuide) {
-    cards.push({
-      label: firstGuide.eyebrow,
-      title: firstGuide.title,
-      text: firstGuide.metricValue && firstGuide.metricValue !== '—'
-        ? `平均收益 ${firstGuide.metricValue} · ${firstGuide.summary}`
-        : firstGuide.summary
-    })
-  }
-
-  if (secondGuide) {
-    cards.push({
-      label: secondGuide.eyebrow,
-      title: secondGuide.title,
-      text: secondGuide.metricValue && secondGuide.metricValue !== '—'
-        ? `平均收益 ${secondGuide.metricValue} · ${secondGuide.summary}`
-        : secondGuide.summary
-    })
-  }
-
-  cards.push({
-    label: '当前输入',
-    title: simulationAgent.value.currentInput,
-    text: simulationAgent.value.modelBinding
-  })
-
-  return cards
-})
 watch(effectiveScenarioKey, () => {
   manualModelKey.value = ''
-  selectedMatrixKey.value = ''
-})
-
-onMounted(() => {
-  uraniumStore.ensureInitialized()
-    .then(() => uraniumStore.loadExperiment(selectedExperimentId.value || history.value[0]?.experiment_id || ''))
-    .catch(() => {})
 })
 
 // 快照切换 → 恢复推荐模型
@@ -537,37 +362,6 @@ watch(() => snapshotStore.activeSnapshotId, (next, prev) => {
   manualModelKey.value = ''
 })
 
-watch(selectedExperimentId, (nextId) => {
-  if (!nextId) return
-  if (selectedExperiment.value?.experiment_id === nextId) return
-  uraniumStore.loadExperiment(nextId).catch(() => {})
-})
-
-function matrixKey(rowIndex, colIndex) {
-  return `${rowIndex}-${colIndex}`
-}
-
-function isEquilibrium(rowIndex, colIndex) {
-  return gameVm.value.matrixSummary?.dominantKey === matrixKey(rowIndex, colIndex)
-    || (gameVm.value.nashEquilibria || []).some((item) => item.row === rowIndex && item.col === colIndex)
-}
-
-function isEfficientCell(rowIndex, colIndex) {
-  return gameVm.value.matrixSummary?.efficiencyKey === matrixKey(rowIndex, colIndex)
-}
-
-function isFragileCell(rowIndex, colIndex) {
-  return gameVm.value.matrixSummary?.worstKey === matrixKey(rowIndex, colIndex)
-}
-
-function selectMatrixCell(rowIndex, colIndex) {
-  selectedMatrixKey.value = matrixKey(rowIndex, colIndex)
-}
-
-function formatPayoff(cell) {
-  if (!cell) return '-- / --'
-  return `${Number(cell.p1).toFixed(1)} / ${Number(cell.p2).toFixed(1)}`
-}
 </script>
 
 <style scoped>
@@ -586,6 +380,8 @@ function formatPayoff(cell) {
 
 .vulnerability-overview-main > span { color: #64748b; font-size: var(--mid-fs-label); font-weight: 700; }
 .vulnerability-overview-main > strong { display: block; margin-top: 4px; color: #dc2626; font-size: 24px; }
+.vulnerability-overview-main > strong.success { color: #15803d; }
+.vulnerability-overview-main > strong.warning { color: #b45309; }
 .vulnerability-overview-main > p { margin: 5px 0 0; color: #64748b; font-size: var(--mid-fs-label); line-height: var(--mid-lh-body); }
 .vulnerability-overview-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .vulnerability-overview-grid article { padding: 9px 10px; border: 1px solid #e2e8f0; border-radius: 9px; background: #f8fafc; }

@@ -11,25 +11,6 @@
       @close="loadError = ''"
     />
 
-    <!-- 顶部工具栏 -->
-    <MidStagePageHeader
-      :title="headerTitle"
-      :subtitle="headerSubtitle"
-      :icon="Place"
-    >
-      <template #right>
-        <el-button
-          v-if="isUraniumMode"
-          size="small"
-          type="primary"
-          @click="reloadUraniumExperiment"
-        >
-          <el-icon><RefreshLeft /></el-icon>
-          <span>刷新实验</span>
-        </el-button>
-      </template>
-    </MidStagePageHeader>
-
     <!-- 主内容区 -->
     <div class="main-content">
       <div v-if="isScenarioBusy" class="view-busy-hint">
@@ -39,21 +20,19 @@
 
       <div class="view-wrapper">
         <div class="simulation-view">
-          <section v-if="isUraniumMode" class="simulation-overview">
-            <article v-for="item in simulationOverviewCards" :key="item.label" class="simulation-overview-card">
+          <section v-if="isUraniumMode" class="simulation-overview" aria-label="年度推演概况">
+            <article v-for="item in simulationOverviewCards" :key="item.label" class="simulation-overview-card" :title="item.hint">
               <span>{{ item.label }}</span>
               <strong>{{ item.value }}</strong>
-              <p>{{ item.hint }}</p>
+
             </article>
+            <el-button size="small" text :loading="isScenarioBusy" @click="reloadUraniumExperiment" aria-label="刷新实验"><el-icon><RefreshLeft /></el-icon>刷新</el-button>
           </section>
 
           <div v-if="isUraniumMode" class="top-section">
             <div class="left-panel">
               <div class="uranium-route-panel uranium-panel-scroll">
-                <div class="uranium-panel-head">
-                  <div class="uranium-panel-title">运输通道</div>
-                  <div class="uranium-panel-subtitle">铀以黄饼 / UF6 形态运输，分陆运、海运与多式联运三类</div>
-                </div>
+                <MidStagePanelHeader title="运输通道" description="选择通道查看线路与供应范围" />
 
                 <div class="entity-stat-grid">
                   <article v-for="item in uraniumTransportStatCards" :key="item.label" class="entity-stat-card">
@@ -83,7 +62,9 @@
                     <div class="uranium-block-title">通道目录</div>
                   </div>
                   <div class="uranium-route-list">
-                    <article
+                    <button
+                      type="button"
+                      :aria-pressed="item.id === uraniumStaticCorridorId"
                       v-for="item in uraniumCorridorRows"
                       :key="item.id"
                       class="uranium-route-card"
@@ -94,12 +75,11 @@
                         <strong>{{ item.shortName }}</strong>
                         <span>{{ item.typeLabel }}</span>
                       </div>
-                      <div class="uranium-route-name">{{ item.name }}</div>
+                      <div class="uranium-route-name" :title="item.name">{{ item.name }}</div>
                       <div class="uranium-route-meta">
-                        <span>{{ item.origin }} → {{ item.destination }}</span>
                         <span>{{ item.riskLabel }}</span>
                       </div>
-                    </article>
+                    </button>
                   </div>
                 </div>
 
@@ -132,10 +112,7 @@
             <div class="right-panel">
               <div class="right-stack-item">
                 <div class="uranium-side-card uranium-panel-scroll simulation-status-panel">
-                  <div class="uranium-panel-head">
-                    <div class="uranium-panel-title">运行态势</div>
-                    <div class="uranium-panel-subtitle">{{ uraniumActiveYearLabel }}的供应、调运与吸收关系</div>
-                  </div>
+                  <MidStagePanelHeader title="年度态势" :description="uraniumActiveYearLabel + ' · 供应、事件与调运关系'" />
 
                   <div class="uranium-summary-grid compact">
                     <article v-for="item in uraniumYearMetricCards" :key="item.label" class="uranium-summary-card">
@@ -159,13 +136,13 @@
                       >
                         {{ item.label }}
                       </el-tag>
-                      <span v-if="!uraniumActiveEventRows.length" class="uranium-empty-note">本年无激活事件</span>
+                      <span v-if="!uraniumActiveEventRows.length" class="uranium-empty-note">本年度暂无事件</span>
                     </div>
                   </div>
 
                   <div class="uranium-info-block process-section">
                     <div class="uranium-block-row">
-                      <div class="uranium-block-title">选中调运关系</div>
+                      <div class="uranium-block-title">调运关系</div>
                       <span class="uranium-block-tip">{{ uraniumFocusedRoute?.route_label || '未选中' }}</span>
                     </div>
                     <div v-if="uraniumFocusedRoute" class="uranium-focus-card runtime">
@@ -184,6 +161,7 @@
                         查看全部关系
                       </el-button>
                     </div>
+                    <p v-else class="uranium-empty-note">点击地图中的调运线路，查看双方节点与采购信息。</p>
                                       </div>
 
                   <div class="entity-group">
@@ -196,7 +174,7 @@
                         <span class="entity-dot supplier"></span>
                         <div class="entity-row-copy">
                           <strong>{{ item.name }}</strong>
-                          <small>{{ item.meta }}</small>
+                          <small :title="item.meta">{{ item.meta }}</small>
                         </div>
                       </article>
                       <div v-if="!uraniumDisplayedSupplierEntities.length" class="uranium-empty-note">暂无供给方数据</div>
@@ -205,18 +183,18 @@
 
                   <div class="entity-group">
                     <div class="uranium-block-row">
-                      <div class="uranium-block-title">{{ uraniumFocusedRoute ? '关联制造节点' : '年度制造节点' }}</div>
-                      <span class="uranium-block-tip">{{ uraniumFocusedRoute ? '仅显示当前关系对应制造节点' : '按年度采购量排序' }}</span>
+                      <div class="uranium-block-title">{{ uraniumFocusedRoute ? '关联采购主体' : '年度采购主体' }}</div>
+                      <span class="uranium-block-tip">{{ uraniumFocusedRoute ? '仅显示当前关系对应采购主体' : '按年度采购量排序' }}</span>
                     </div>
                     <div class="entity-list">
                       <article v-for="item in uraniumDisplayedManufacturerEntities" :key="item.id" class="entity-row">
                         <span class="entity-dot manufacturer"></span>
                         <div class="entity-row-copy">
                           <strong>{{ item.name }}</strong>
-                          <small>{{ item.meta }}</small>
+                          <small :title="item.meta">{{ item.meta }}</small>
                         </div>
                       </article>
-                      <div v-if="!uraniumDisplayedManufacturerEntities.length" class="uranium-empty-note">暂无制造节点数据</div>
+                      <div v-if="!uraniumDisplayedManufacturerEntities.length" class="uranium-empty-note">暂无采购主体数据</div>
                     </div>
                   </div>
                 </div>
@@ -249,9 +227,10 @@ defineOptions({ name: 'SystemInterface' })
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
+import { formatUraniumEvent } from '@/utils/uraniumScene'
 import { storeToRefs } from 'pinia'
-import { Loading, RefreshLeft, Place, Monitor } from '@element-plus/icons-vue'
-import MidStagePageHeader from './components/shared/MidStagePageHeader.vue'
+import { Loading, RefreshLeft, Monitor } from '@element-plus/icons-vue'
+import MidStagePanelHeader from './components/shared/MidStagePanelHeader.vue'
 import AsyncPanelPlaceholder from './components/shared/AsyncPanelPlaceholder.vue'
 import UraniumFlowMap from './components/UraniumFlowMap.vue'
 import {
@@ -342,7 +321,7 @@ const uraniumTransportStatCards = computed(() => [
 ])
 const uraniumYearMetricCards = computed(() => [
   {
-    label: '现货价格',
+    label: '现货价格（美元/lb）',
     value: formatUraniumMetricValue('market_price_usd_lb', uraniumActiveYear.value?.market_price_usd_lb)
   },
   {
@@ -362,11 +341,11 @@ const simulationOverviewCards = computed(() => {
   const activeRouteCount = uraniumRouteRows.value.length
   const selectedRoute = uraniumFocusedRoute.value
   return [
-    { label: '年度窗口', value: uraniumActiveYearLabel.value, hint: `${uraniumYearRows.value.length || 0} 个年度序列` },
+    { label: '推演年份', value: uraniumActiveYearLabel.value, hint: `${uraniumYearRows.value.length || 0} 个年度序列` },
     {
       label: '年度采购',
       value: formatUraniumMetricValue('total_procured_tU', uraniumActiveYear.value?.total_procured_tU),
-      hint: '当前年度制造端吸收量'
+      hint: '当前年度采购主体的采购量'
     },
     {
       label: '需求缺口',
@@ -382,9 +361,10 @@ const simulationOverviewCards = computed(() => {
 })
 const uraniumActiveEventRows = computed(() => (
   uraniumActiveEvents.value.map((item, index) => {
-    const label = typeof item === 'string'
+    const rawLabel = typeof item === 'string'
       ? item
       : item?.label || item?.title || item?.name || `年度事件 ${index + 1}`
+    const label = formatUraniumEvent(rawLabel)
     return {
       key: `${label}-${index}`,
       label,
@@ -432,14 +412,6 @@ const uraniumFocusedRouteFacts = computed(() => {
     { label: '制造端', value: route.manufacturer_group || URANIUM_LOCATION_LABELS[route.manufacturer_location] || route.manufacturer_location || '-' }
   ]
 })
-// 与实验推演工作台的页签同名
-const headerTitle = '态势推演'
-const headerSubtitle = computed(() => {
-  if (!isUraniumMode.value) return '等待选择实验'
-  const name = uraniumExperiment.value?.name ? `${uraniumExperiment.value.name} · ` : ''
-  return `${name}${uraniumYearRows.value.length} 个年度窗口`
-})
-
 const route = useRoute()
 const router = useRouter()
 function goToRunManager() {
@@ -606,55 +578,18 @@ watch(uraniumStaticCorridorId, (next) => {
 .interface-empty-hint { margin: 0 0 14px; max-width: 400px; color: #64748b; font-size: 12.5px; line-height: 1.6; text-align: center; }
 .interface-empty .el-button > .el-icon + span { margin-left: 6px; }
 
-.simulation-overview {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.simulation-overview-card {
-  min-height: 74px;
-  padding: 10px 12px;
-  border: 1px solid #dbeafe;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, .9);
-  box-shadow: 0 6px 16px rgba(15, 23, 42, .05);
-  box-sizing: border-box;
-}
-
-.simulation-overview-card span {
-  display: block;
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.simulation-overview-card strong {
-  display: block;
-  margin-top: 4px;
-  color: #0f172a;
-  font-size: 17px;
-  line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.simulation-overview-card p {
-  margin: 5px 0 0;
-  color: #64748b;
-  font-size: 11px;
-  line-height: 1.35;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+.simulation-overview { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; padding: 10px 14px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; flex-shrink: 0; }
+.simulation-overview-card { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.simulation-overview-card span { color: #64748b; font-size: 12px; }
+.simulation-overview-card strong { color: #1e293b; font-size: 14px; font-weight: 600; }
+.simulation-overview > .el-button { margin-left: auto; }
+.uranium-route-card { width: 100%; text-align: left; font-family: inherit; }
+.uranium-route-card:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
 
 .top-section {
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(286px, 320px) minmax(0, 1fr) minmax(286px, 320px);
+  grid-template-columns: 240px minmax(0, 1fr) 280px;
   gap: 8px;
   min-height: 0;
   overflow: hidden;
@@ -897,8 +832,8 @@ watch(uraniumStaticCorridorId, (next) => {
   gap: 6px;
   padding: 9px 10px;
   border-radius: 11px;
-  border: 1px solid #dbeafe;
-  background: rgba(239, 246, 255, 0.74);
+  border: 1px solid #e2e8f0;
+  background: #fff;
   cursor: pointer;
   transition: border-color 0.16s ease, background 0.16s ease;
 }
@@ -907,6 +842,9 @@ watch(uraniumStaticCorridorId, (next) => {
   border-color: #2563eb;
   background: linear-gradient(135deg, rgba(219, 234, 254, 0.95), rgba(255, 255, 255, 0.95));
 }
+.uranium-route-card:hover { border-color: #93c5fd; }
+.uranium-route-meta { flex-wrap: wrap; }
+.uranium-route-meta span { white-space: normal; overflow-wrap: anywhere; }
 
 .uranium-route-top,
 .uranium-route-meta {
@@ -942,6 +880,8 @@ watch(uraniumStaticCorridorId, (next) => {
   flex-wrap: wrap;
   gap: 8px;
 }
+.uranium-chip-row :deep(.el-tag) { height: auto; max-width: 100%; padding-block: 3px; white-space: normal; }
+.uranium-chip-row :deep(.el-tag__content) { white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }
 
 .uranium-fact-list {
   display: grid;
@@ -1044,7 +984,7 @@ watch(uraniumStaticCorridorId, (next) => {
   .view-wrapper { flex: none; }
   .simulation-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .top-section { flex: none; grid-template-columns: 230px minmax(0, 1fr); grid-template-rows: 520px 340px; overflow: visible; }
-  .right-panel { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .right-panel { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr); }
 }
 @container simulation (max-width: 680px) {
   .top-section { grid-template-columns: minmax(0, 1fr); grid-template-rows: 320px 520px 640px; }

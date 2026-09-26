@@ -17,62 +17,7 @@
         :summary="scenarioVm.hero.summary"
         :tags="scenarioVm.hero.tags"
       >
-        <template #side>
-          <article class="command-focus-card">
-            <span>{{ scenarioVm.hero.spotlight.label }}</span>
-            <strong>{{ scenarioVm.hero.spotlight.title }}</strong>
-            <p>{{ scenarioVm.hero.spotlight.text }}</p>
-          </article>
-        </template>
       </AnalysisPageHero>
-
-      <section class="scenario-plan-pool glass-panel">
-        <div class="scenario-plan-head">
-          <div>
-            <span>SCENARIO PORTFOLIO</span>
-            <strong>情景方案池与概率分布（实验估计）</strong>
-            <p>按年度窗口归并三类情景，供后续节点脆弱性和对策树调用。</p>
-          </div>
-          <el-tag type="primary" effect="plain">{{ scenarioPlanCards.length }} 类情景</el-tag>
-        </div>
-        <div class="scenario-plan-grid">
-          <article v-for="item in scenarioPlanCards" :key="item.label" :class="item.tone">
-            <div><span>{{ item.label }}</span><strong>{{ item.probability }}%</strong></div>
-            <el-progress :percentage="item.probability" :show-text="false" :stroke-width="7" :color="item.color" />
-            <p>{{ item.description }}</p>
-            <small>{{ item.basis }}</small>
-          </article>
-        </div>
-      </section>
-
-      <section class="scenario-filter-panel glass-panel">
-        <div class="scenario-plan-head">
-          <div>
-            <span>PLAN SCREENING</span>
-            <strong>方案筛选</strong>
-            <p>概率来自蒙特卡罗抽样，排序随本轮推演结果更新。</p>
-          </div>
-          <el-tag type="success" effect="plain">优选 {{ preferredPlanRows.length }} / 剔除 {{ rejectedPlanRows.length }}</el-tag>
-        </div>
-        <el-table
-          :data="scenarioScreeningRows"
-          size="small"
-          stripe
-          class="scenario-screening-table"
-          empty-text="暂无方案筛选结果"
-        >
-          <el-table-column prop="rankText" label="序" width="56" />
-          <el-table-column prop="name" label="方案" min-width="130" show-overflow-tooltip />
-          <el-table-column prop="purpose" label="作用" min-width="220" show-overflow-tooltip />
-          <el-table-column prop="monteCarlo" label="概率" width="92" />
-          <el-table-column prop="bayes" label="反馈" min-width="118" show-overflow-tooltip />
-          <el-table-column prop="status" label="结果" width="92">
-            <template #default="{ row }">
-              <el-tag size="small" :type="row.statusType" effect="light">{{ row.status }}</el-tag>
-            </template>
-          </el-table-column>
-        </el-table>
-      </section>
 
       <section class="scenario-conclusion-strip glass-panel">
         <article v-for="item in scenarioConclusionCards" :key="item.label" :class="item.tone">
@@ -89,8 +34,8 @@
               <div class="analysis-column-head">
                 <span class="analysis-column-index">01</span>
                 <div>
-                  <h3>年度窗口列表</h3>
-                  <p>选择年度窗口，对比风险、库存与主要通道。</p>
+                  <h3>年度列表</h3>
+                  <p>选择年份，查看事件、风险与调运关系。</p>
                 </div>
               </div>
               <div>
@@ -103,6 +48,8 @@
                 v-for="(item, index) in scenarioVm.yearWindows"
                 :key="item.id"
                 class="window-card"
+                role="button"
+                :aria-pressed="activeWindowIndex === index"
                 :class="[item.tone, { active: activeWindowIndex === index }]"
                 tabindex="0"
                 @click="selectWindow(index)"
@@ -122,22 +69,6 @@
                   </div>
                 </div>
 
-                <div class="window-kpi-row">
-                  <div class="window-kpi">
-                    <span>风险</span>
-                    <strong>{{ item.riskText }}</strong>
-                  </div>
-                  <div class="window-kpi">
-                    <span>库存</span>
-                    <strong>{{ item.inventoryText }}</strong>
-                  </div>
-                  <div class="window-kpi">
-                    <span>缺口</span>
-                    <strong>{{ item.unmetText }}</strong>
-                  </div>
-                </div>
-
-                <p class="window-desc">{{ item.summary }}</p>
               </article>
             </div>
           </aside>
@@ -161,6 +92,7 @@
                 type="button"
                 class="detail-tab"
                 :class="{ active: scenarioTab === item.key }"
+                :aria-pressed="scenarioTab === item.key"
                 @click="scenarioTab = item.key"
               >
                 {{ item.label }}
@@ -330,26 +262,12 @@
               <div class="analysis-column-head">
                 <span class="analysis-column-index">03</span>
                 <div>
-                  <h3>窗口结论</h3>
-                  <p>将年度指标收敛为状态判断、主要通道与执行提示。</p>
+                  <h3>{{ activeWindow.title }} · 执行提示</h3>
+                  <p>依据所选年度的风险、库存与运输情况提出建议。</p>
                 </div>
               </div>
             </div>
-            <div class="scenario-brief-grid in-column">
-              <article
-                v-for="item in scenarioVm.briefCards"
-                :key="item.label"
-                class="scenario-brief-card"
-                :class="item.tone"
-              >
-                <span>{{ item.label }}</span>
-                <p>{{ item.text }}</p>
-              </article>
-            </div>
-
             <div class="insight-subsection">
-              <div class="insight-subtitle">执行提示</div>
-              <p class="rail-summary">结合当前窗口的风险、库存和主通道给出执行建议。</p>
               <div class="rail-card-list">
                 <article
                   v-for="item in activeWindow.actionRows"
@@ -376,29 +294,83 @@
         </div>
 
       </div>
+      <details class="scenario-supplement glass-panel">
+        <summary class="mid-details-summary">情景分布与方案筛选</summary>
+      <section class="scenario-plan-pool glass-panel">
+        <div class="scenario-plan-head">
+          <div>
+
+            <strong>情景分布</strong>
+            <p>按年度风险等级统计占比，用于了解本次实验的压力分布。</p>
+          </div>
+          <el-tag type="primary" effect="plain">{{ scenarioPlanCards.length }} 类情景</el-tag>
+        </div>
+        <div class="scenario-plan-grid">
+          <article v-for="item in scenarioPlanCards" :key="item.label" :class="item.tone">
+            <div><span>{{ item.label }}</span><strong>{{ item.probability }}%</strong></div>
+            <el-progress :percentage="item.probability" :show-text="false" :stroke-width="7" :color="item.color" />
+            <p>{{ item.description }}</p>
+            <small>{{ item.basis }}</small>
+          </article>
+        </div>
+      </section>
+
+      <details class="scenario-filter-panel glass-panel">
+        <summary class="mid-details-summary">查看方案筛选依据</summary>
+        <div class="scenario-plan-head">
+          <div>
+
+            <strong>方案筛选</strong>
+            <p>结合年度风险分布，区分日常参照与应急处置方向。</p>
+          </div>
+          <el-tag type="success" effect="plain">优选 {{ preferredPlanRows.length }} / 剔除 {{ rejectedPlanRows.length }}</el-tag>
+        </div>
+        <el-table
+          :data="scenarioScreeningRows"
+          size="small"
+          stripe
+          class="scenario-screening-table"
+          empty-text="暂无方案筛选结果"
+        >
+          <el-table-column prop="rankText" label="序" width="56" />
+          <el-table-column prop="name" label="方案" min-width="130" show-overflow-tooltip />
+          <el-table-column prop="purpose" label="作用" min-width="220" show-overflow-tooltip />
+          <el-table-column prop="monteCarlo" label="年度占比" width="92" />
+          <el-table-column prop="bayes" label="处置方向" min-width="118" show-overflow-tooltip />
+          <el-table-column prop="status" label="结果" width="92">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.statusType" effect="light">{{ row.status }}</el-tag>
+            </template>
+          </el-table-column>
+        </el-table>
+      </details>
+
+      </details>
     </template>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import AnalysisLinkTabs from './components/shared/AnalysisLinkTabs.vue'
 import AnalysisPageHero from './components/shared/AnalysisPageHero.vue'
 import './components/shared/midStage.css'
+import { useUraniumAnalysisExperiment } from './composables/useUraniumAnalysisExperiment'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
 import { formatUraniumMetricValue } from '@/utils/uraniumDuringAdapter'
 import { buildUraniumScenarioViewModel } from '@/views/SCnet/adapters/uraniumMockAnalysisAdapter'
 
+useUraniumAnalysisExperiment()
 const store = useUraniumDemoStore()
 const snapshotStore = useAnalysisSnapshotStore()
-const { history, selectedExperiment, selectedExperimentId } = storeToRefs(store)
+const { history, selectedExperiment } = storeToRefs(store)
 
 const activeWindowIndex = ref(0)
 const scenarioTab = ref('overview')
 const scenarioTabs = [
-  { key: 'overview', label: '窗口主线' },
+  { key: 'overview', label: '年度概况' },
   { key: 'routes', label: '航线与节点' },
   { key: 'compare', label: '年度对比' }
 ]
@@ -420,9 +392,8 @@ const scenarioPlanCards = computed(() => {
   const severeCount = windows.filter(item => ['danger', 'critical'].includes(item.tone)).length
   const warningCount = windows.filter(item => item.tone === 'warning').length
   const total = Math.max(1, windows.length)
-  const extreme = Math.max(12, Math.min(35, Math.round((severeCount / total) * 100)))
-  const rawDisruption = Math.max(25, Math.min(48, Math.round(((warningCount + severeCount * .5) / total) * 100)))
-  const disruption = Math.min(rawDisruption, 80 - extreme)
+  const extreme = Math.round((severeCount / total) * 100)
+  const disruption = Math.round((warningCount / total) * 100)
   const baseline = 100 - extreme - disruption
   return [
     { label: '基准情景', probability: baseline, tone: 'baseline', color: '#2563eb', description: '供应与运输按计划运行。', basis: '历史窗口 / 库存基线' },
@@ -437,7 +408,7 @@ const scenarioConclusionCards = computed(() => {
   const warningCount = windows.filter(item => item.tone === 'warning').length
   return [
     {
-      label: '主压力窗口',
+      label: '当前年度',
       value: active?.title || '等待窗口',
       detail: active?.headline || '选择年度窗口后查看关键扰动。',
       tone: active?.tone || 'info'
@@ -450,7 +421,7 @@ const scenarioConclusionCards = computed(() => {
     },
     {
       label: '主通道',
-      value: active?.routeRows?.[0]?.route_label || '未选中',
+      value: active?.routeRows?.[0]?.channelLabel || '暂无通道',
       detail: active?.routeRows?.[0]
         ? `${active.routeRows[0].supplier_name} → ${active.routeRows[0].manufacturer_name}`
         : '点击航线与节点页签查看。',
@@ -463,7 +434,7 @@ const scenarioScreeningRows = computed(() => {
   const cards = scenarioPlanCards.value
   const active = activeWindow.value
   const riskText = active?.riskText || '当前风险'
-  const routeText = active?.routeRows?.[0]?.route_label || '主通道'
+  const routeText = active?.routeRows?.[0]?.channelLabel || '主通道'
   return cards
     .map((item, index) => {
       const keep = item.tone === 'danger' || item.tone === 'warning' || index === 0
@@ -477,7 +448,7 @@ const scenarioScreeningRows = computed(() => {
             ? `${routeText}绕行、补库、合同补位。`
             : `${riskText}年份启用组合应急。`,
         monteCarlo: `${item.probability}%`,
-        bayes: item.tone === 'danger' ? '上调' : item.tone === 'warning' ? '保留' : '校准',
+        bayes: item.tone === 'danger' ? '组合应急' : item.tone === 'warning' ? '通道补位' : '常态监测',
         status: observeOnly ? '参照' : keep ? '优选' : '剔除',
         statusType: observeOnly ? 'info' : keep ? 'success' : 'danger'
       }
@@ -486,6 +457,7 @@ const scenarioScreeningRows = computed(() => {
       const order = { '优选': 0, '参照': 1, '剔除': 2 }
       return order[left.status] - order[right.status]
     })
+    .map((item, index) => ({ ...item, rankText: `#${index + 1}` }))
 })
 const preferredPlanRows = computed(() => scenarioScreeningRows.value.filter(row => row.status === '优选'))
 const rejectedPlanRows = computed(() => scenarioScreeningRows.value.filter(row => row.status === '剔除'))
@@ -494,24 +466,6 @@ function selectWindow(index) {
   activeWindowIndex.value = index
   if (scenarioTab.value === 'compare') scenarioTab.value = 'overview'
 }
-
-async function ensureExperimentLoaded(force = false) {
-  await store.ensureInitialized()
-  const targetId = selectedExperimentId.value || history.value[0]?.experiment_id || ''
-  if (!targetId) return
-  if (!force && selectedExperiment.value?.experiment_id === targetId) return
-  await store.loadExperiment(targetId)
-}
-
-onMounted(() => {
-  ensureExperimentLoaded().catch(() => {})
-})
-
-watch(selectedExperimentId, (nextId) => {
-  if (!nextId) return
-  if (selectedExperiment.value?.experiment_id === nextId) return
-  ensureExperimentLoaded(true).catch(() => {})
-})
 
 watch(() => scenarioVm.value?.yearWindows || [], (rows) => {
   if (!rows.length) {
@@ -531,6 +485,8 @@ watch(activeWindowIndex, () => {
 </script>
 
 <style scoped>
+.scenario-supplement { margin: 0 8px 16px; padding: 14px; }
+.scenario-supplement > section, .scenario-supplement > details { margin-top: 14px; }
 .scenario-plan-pool { margin: 0 8px 10px; padding: 12px; }
 .scenario-plan-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .scenario-plan-head span { color: #2563eb; font-size: var(--mid-fs-micro); font-weight: 800; letter-spacing: .08em; }
@@ -705,10 +661,12 @@ watch(activeWindowIndex, () => {
 
 .scenario-stage-grid {
   display: grid;
-  grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.55fr) minmax(320px, 0.92fr);
+  grid-template-columns: minmax(240px, 0.65fr) minmax(0, 1.8fr);
   gap: 12px;
   align-items: stretch;
 }
+
+.insight-column { grid-column: 1 / -1; }
 
 .scenario-stage-grid > * {
   min-width: 0;
@@ -777,7 +735,7 @@ watch(activeWindowIndex, () => {
 
 .window-card,
 .route-item {
-  border-radius: 16px;
+  border-radius: 10px;
 }
 
 
@@ -789,7 +747,7 @@ watch(activeWindowIndex, () => {
 
 .window-card:hover {
   transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  box-shadow: none;
 }
 
 .window-card:focus-visible {
@@ -800,7 +758,7 @@ watch(activeWindowIndex, () => {
 .window-card.active {
   border-color: #2563eb;
   background: #f8fbff;
-  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.12);
+  box-shadow: none;
 }
 
 .window-card.success {
@@ -1048,7 +1006,7 @@ watch(activeWindowIndex, () => {
 }
 
 .node-card {
-  border-radius: 16px;
+  border-radius: 10px;
   border: 1px solid #e2e8f0;
   background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
   min-width: 0;

@@ -5,7 +5,7 @@
       <div class="config-section-card">
         <div class="section-header">
           <el-icon><Calendar /></el-icon>
-          <span>模拟时间设定</span>
+          <span>推演时段</span>
         </div>
         <div class="section-body">
           <el-form label-position="top" size="small">
@@ -62,17 +62,17 @@
         </div>
       </div>
 
-      <!-- 模拟历史事件 -->
+      <!-- 历史事件 -->
       <div class="config-section-card">
         <div class="section-header">
           <el-icon><VideoPlay /></el-icon>
-          <span>模拟历史事件</span>
+          <span>历史事件</span>
         </div>
         <div class="section-body">
           <el-select
             v-model="historicEvents"
             multiple
-            placeholder="选择要模拟的历史事件"
+            placeholder="选择历史事件"
             style="width: 100%"
           >
             <el-option
@@ -83,7 +83,7 @@
             />
           </el-select>
           <div class="config-hint">
-            选中的历史事件将作为背景上下文注入到模拟环境中。
+            选中的历史事件将作为背景上下文纳入推演背景。
           </div>
         </div>
       </div>

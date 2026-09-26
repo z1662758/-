@@ -9,7 +9,7 @@ export const SCNET_BASE = '/home/SCnet'
 export const SCNET_ROUTES = Object.freeze({
   chatHome: '/chatHome',
   // 事中入口 = 对话首页的「事中决策」模式：用户在这里输入问题，
-  // 直接建会话并跳到想定生成分析（智能对话），不再有单独的「想定生成」输入步骤。
+  // 对话形成需求后，由用户进入建模设定，再依次完成想定生成与实体建模。
   duringEntry: '/chatHome?mode=during',
   total: `${SCNET_BASE}/total`,
   // 事中（铀）· 建模设定：想定生成之前展示 Agent 设定与数量等建模内容

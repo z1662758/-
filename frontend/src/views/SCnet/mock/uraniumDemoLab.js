@@ -55,10 +55,14 @@ function buildTaskId(status = 'completed', createdAt = '', suffix = '') {
 
 function normalizeDisplayText(value = '') {
   return String(value || '')
+    .replace(/等待队列执行的实验任务，用于展示排队与配置查看界面。/g, '实验已加入队列，将按顺序执行。')
     .replace(/演示数据/g, '实验数据')
     .replace(/演示任务/g, '实验任务')
     .replace(/演示实验/g, '实验')
     .replace(/待执行演示/g, '待执行窗口')
+    .replace(/制造节点|制造端|制造方/g, '采购主体')
+    .replace(/目标覆盖年数保持在 1\.2 年以上。/g, '结合预算逐步向 3 年库存覆盖目标补充。')
+    .replace(/在美国禁俄铀法案和 2025-2026 新产能爬坡期间，提前锁定接卸窗口和船期。/g, '结合制裁与新增供给情景，提前锁定接卸窗口和船期。')
 }
 
 const SUPPLIERS = Object.freeze([
@@ -694,14 +698,22 @@ function buildTimelineRows(variantKey, draft = {}) {
 }
 
 function buildSummary(timeline) {
+  const weighted = key => {
+    const weight = timeline.reduce((sum, row) => sum + Number(row.total_procured_tU || 0), 0)
+    return weight > 0 ? timeline.reduce((sum, row) => sum + Number(row[key] || 0) * Number(row.total_procured_tU || 0), 0) / weight : average(timeline.map(row => row[key]))
+  }
+  const totalDemand = timeline.reduce((sum, row) => sum + Number(row.total_demand_tU || 0), 0)
+  const totalUnmet = timeline.reduce((sum, row) => sum + Number(row.unmet_demand_tU || 0), 0)
   const latest = timeline[timeline.length - 1] || {}
   return {
-    avg_cost_usd_kgU: round(average(timeline.map((item) => item.average_cost_usd_kgU)) || 0, 2),
-    avg_risk_exposure: round(average(timeline.map((item) => item.average_risk_exposure)) || 0, 3),
+    avg_cost_usd_kgU: round(weighted('average_cost_usd_kgU') || 0, 2),
+    avg_risk_exposure: round(weighted('average_risk_exposure') || 0, 3),
+    avg_unmet_ratio: totalDemand > 0 ? totalUnmet / totalDemand : null,
+    avg_supply_hhi: average(timeline.map(row => row.supply_concentration_hhi)),
     final_inventory_coverage_years: latest.inventory_coverage_years ?? null,
     max_unmet_demand_tU: Math.max(...timeline.map((item) => Number(item.unmet_demand_tU || 0))),
     final_supply_concentration_hhi: latest.supply_concentration_hhi ?? null,
-    final_total_inventory_tU: round((latest.total_procured_tU || 0) * (latest.inventory_coverage_years || 0) * 0.84, 2),
+    final_total_inventory_tU: round((latest.total_demand_tU || 0) * (latest.inventory_coverage_years || 0), 2),
     final_dominant_supplier_share: latest.dominant_supplier_share ?? null
   }
 }
@@ -757,8 +769,8 @@ function buildReport(experiment, variantKey) {
 
   return {
     generated_at: experiment.completed_at,
-    alerts: deepClone(variant.alerts),
-    recommendations: deepClone(variant.recommendations),
+    alerts: variant.alerts.map(normalizeDisplayText),
+    recommendations: variant.recommendations.map(normalizeDisplayText),
     yearly_overview: timeline.map((item) => ({
       year: item.year,
       active_events: item.active_events,
@@ -949,7 +961,7 @@ export function createUraniumDemoSeed() {
     experimentId: buildExperimentId('balanced', pendingCreatedAt, 'q1'),
     presetName: 'balanced',
     name: '平衡方案 · 待执行窗口',
-    description: '等待队列执行的实验任务，用于展示排队与配置查看界面。',
+    description: '实验已加入队列，将按顺序执行。',
     optimizationIterations: 2,
     createdAt: pendingCreatedAt,
     completedAt: '2026-07-10 12:10:00'
@@ -1068,15 +1080,21 @@ export function normalizeUraniumDemoState(payload = {}) {
         }
       : rawExperiment.plan
 
+    const annualRows = rawExperiment.result?.timeline
+    const summary = Array.isArray(annualRows) && annualRows.length
+      ? { ...rawExperiment.summary, ...buildSummary(annualRows) } : rawExperiment.summary
     normalizedExperiments[nextId] = {
       ...rawExperiment,
       experiment_id: nextId,
+      summary,
       name: normalizeDisplayText(rawExperiment.name || ''),
       description: normalizeDisplayText(rawExperiment.description || ''),
       plan,
       report: rawExperiment.report && typeof rawExperiment.report === 'object'
         ? {
             ...rawExperiment.report,
+            recommendations: rawExperiment.report.recommendations?.map(normalizeDisplayText),
+            alerts: rawExperiment.report.alerts?.map(normalizeDisplayText),
             generated_at: rawExperiment.report.generated_at || rawExperiment.completed_at
           }
         : rawExperiment.report

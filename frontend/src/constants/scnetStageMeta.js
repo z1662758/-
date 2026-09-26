@@ -38,9 +38,9 @@ export const SCNET_PHASE_CARDS = Object.freeze([
     id: 2,
     phaseKey: 'during',
     name: SCNET_PHASE_TITLES.during,
-    desc: '面向铀供应链运行中的冲击与波动，动态调整供给组合、运输路径和库存策略，支撑实时响应与协同调度。',
+    desc: '面向铀供应链运行中的冲击与波动，动态调整供给组合、运输路径和库存策略，支撑年度采购响应与协同调度。',
     icon: '⚡',
-    tag: '实时响应 · 精准调度',
+    tag: '采购调整 · 协同保供',
     bgClass: 'card-bg-during'
   },
   {

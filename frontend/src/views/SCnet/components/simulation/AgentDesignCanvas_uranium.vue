@@ -1,17 +1,11 @@
 <template>
   <div class="right-column">
     <div class="agent-studio-wrapper">
-      <div class="right-inner-layout">
-        <div class="sidebar left-sidebar">
-          <div class="panel-header">
-            <div class="panel-heading-copy">
-              <strong>{{ readOnly ? '方案实体' : '企业实体' }}</strong>
-              <span>按业务层级浏览</span>
-            </div>
-            <span class="panel-count">{{ totalAgentCount }}</span>
-          </div>
+      <div class="right-inner-layout" :class="{ 'canvas-focused': canvasFocused }">
+        <div v-show="!canvasFocused" class="sidebar left-sidebar">
+          <MidStagePanelHeader title="Agent 列表" description="按供应链层级分组" :count="totalAgentCount" />
           <div class="search-box">
-            <el-input v-model="searchKeywordProxy" placeholder="搜索实体名称" :prefix-icon="Search" clearable size="small" />
+            <el-input v-model="searchKeywordProxy" placeholder="搜索 Agent 名称" :prefix-icon="Search" clearable size="small" />
           </div>
           <el-scrollbar class="sidebar-scroll">
             <div class="agent-list">
@@ -46,7 +40,7 @@
                   <span class="agent-locate">›</span>
                 </button>
               </div>
-              <el-empty v-if="totalAgentCount === 0" description="暂无匹配实体" :image-size="70" />
+              <el-empty v-if="totalAgentCount === 0" description="暂无匹配 Agent" :image-size="70" />
             </div>
           </el-scrollbar>
         </div>
@@ -55,8 +49,8 @@
           <div class="canvas-area">
             <div class="canvas-toolbar">
               <div class="canvas-summary">
-                <strong>实体关系</strong>
-                <span>{{ nodesProxy.length }} 个实体</span>
+                <strong>关系总览</strong>
+                <span>{{ nodesProxy.length }} 个 Agent</span>
                 <span>{{ edgesProxy.length }} 条关系</span>
               </div>
               <div class="canvas-actions">
@@ -65,6 +59,7 @@
                     <i :class="item.key"></i>{{ item.label }}
                   </span>
                 </div>
+                <el-button size="small" :aria-pressed="canvasFocused" @click="toggleCanvasFocus">{{ canvasFocused ? '显示目录与属性' : '专注关系图' }}</el-button>
                 <el-button size="small" plain :icon="FullScreen" @click="fitCanvas">适配视图</el-button>
               </div>
             </div>
@@ -74,8 +69,11 @@
                 v-model:edges="edgesProxy"
                 style="width: 100%; height: 100%;"
                 :fit-view-on-init="true"
-                :min-zoom="0.6"
-                :max-zoom="1.2"
+                :nodes-draggable="!readOnly"
+                :nodes-connectable="!readOnly"
+                :edges-updatable="!readOnly"
+                :min-zoom="0.2"
+                :max-zoom="1.6"
                 @node-click="payload => $emit('select-node', payload)"
               >
                 <template #node-CardNode="nodeProps">
@@ -90,10 +88,10 @@
                     <div class="node-body">
                       <div class="node-meta">
                         <span class="node-method-tag" :class="nodeProps.data.category">{{ roleOf(nodeProps.data).modelingMethod }}</span>
-                        <span class="node-model"><el-icon><Cpu /></el-icon>{{ nodeProps.data.llmConfig?.model || roleOf(nodeProps.data).agentClass || 'rule' }}</span>
+                        <span class="node-model">{{ roleOf(nodeProps.data).decision_posture.style }}</span>
                       </div>
                       <div v-if="nodeProps.data.selectedMethod" class="node-method">方法：{{ nodeProps.data.selectedMethod }}</div>
-                      <div v-else class="node-method muted">{{ roleOf(nodeProps.data).role.goal ? truncate(roleOf(nodeProps.data).role.goal, 26) : '点击查看实体详情' }}</div>
+                      <div v-else class="node-method muted">{{ roleOf(nodeProps.data).role.goal ? truncate(roleOf(nodeProps.data).role.goal, 26) : '点击查看 Agent 属性' }}</div>
                     </div>
                     <Handle id="t-top" type="target" :position="Position.Top" class="handle-top" />
                     <Handle id="s-bottom" type="source" :position="Position.Bottom" class="handle-bottom" />
@@ -113,15 +111,12 @@
             </div>
           </div>
 
-          <div class="properties-panel">
-            <div class="panel-header">
-              <span>实体详情</span>
-              <span class="panel-header-hint">{{ selectedNode ? '已选择' : '未选择' }}</span>
-            </div>
+          <div v-show="!canvasFocused" class="properties-panel">
+            <MidStagePanelHeader title="Agent 属性" :description="selectedNode ? selectedNode.data?.name : '选择目录或关系图中的 Agent'" />
             <el-scrollbar class="properties-scroll">
               <div v-if="!selectedNode" class="empty-tip">
                 <div class="empty-tip-icon">◎</div>
-                <strong>选择一个实体</strong>
+                <strong>选择一个 Agent</strong>
                 <span>{{ readOnly ? '点击左侧目录或画布节点，查看实体参数与说明' : '点击节点配置企业实体参数' }}</span>
               </div>
               <div v-else class="property-card">
@@ -137,7 +132,7 @@
                   </div>
                   <div class="property-tag-row">
                     <span class="property-tag method">{{ selectedRole.modelingMethod }}</span>
-                    <span v-if="selectedRole.agentClass" class="property-tag mono">{{ selectedRole.agentClass }}</span>
+
                     <span class="property-tag">{{ selectedRole.camp }}</span>
                   </div>
                   <div class="property-summary-row">
@@ -287,7 +282,7 @@
                         <dd>{{ (selectedRole.cognition[stage.key] || []).join('、') || '—' }}</dd>
                       </div>
                     </dl>
-                    <p class="ooda-note">决策策略由智能等级决定：低 → 成本加成随机分配，中 → 市场跟随，高 → PPO 强化学习。</p>
+                    <p class="ooda-note">按年度读取价格、事件与库存，评估候选供应来源并调整采购策略。</p>
                   </el-collapse-item>
                 </el-collapse>
               </div>
@@ -328,8 +323,9 @@
 </template>
 
 <script setup>
+import MidStagePanelHeader from '../shared/MidStagePanelHeader.vue'
 import { computed, onMounted, onBeforeUnmount, nextTick, ref } from 'vue'
-import { Search, Folder, OfficeBuilding, Grid, Box, Sell, Guide, FullScreen, Cpu } from '@element-plus/icons-vue'
+import { Search, Folder, OfficeBuilding, Grid, Box, Sell, Guide, FullScreen } from '@element-plus/icons-vue'
 import { VueFlow, Handle, Position, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
@@ -402,6 +398,8 @@ const emit = defineEmits([
 ])
 
 const { fitView } = useVueFlow()
+const canvasFocused = ref(false)
+function toggleCanvasFocus() { canvasFocused.value = !canvasFocused.value; nextTick(fitCanvas) }
 const totalAgentCount = computed(() => Object.values(props.groupedAgents || {}).reduce((sum, group) => sum + (group?.length || 0), 0))
 const visibleCategories = computed(() => Object.entries(props.groupedAgents || {})
   .filter(([, group]) => Array.isArray(group) && group.length)
@@ -422,7 +420,7 @@ const truncate = (text, max) => {
   const value = String(text || '')
   return value.length > max ? `${value.slice(0, max)}…` : value
 }
-const formatRisk = (value) => (Number.isFinite(Number(value)) ? `${(Number(value) * 100).toFixed(0)}%` : '—')
+const formatRisk = (value) => (Number.isFinite(Number(value)) ? Number(value).toFixed(3) : '—')
 const formatRange = (attr) => {
   const [min, max] = attr.range || []
   if (!Number.isFinite(min) || !Number.isFinite(max)) return '—'
@@ -466,7 +464,7 @@ const methodDialogSelectedProxy = computed({
 const handleLocateAgent = (nodeId) => {
   emit('locate-agent', nodeId)
   nextTick(() => {
-    fitView({ padding: 0.1, duration: 500 })
+    fitView({ nodes: [nodeId], padding: 0.3, maxZoom: 1, duration: 400 })
   })
 }
 
@@ -1342,4 +1340,7 @@ onBeforeUnmount(() => {
   .properties-panel { width: 100%; min-width: 0; height: 280px; }
   .canvas-summary span { display: none; }
 }
+
+.right-inner-layout.canvas-focused { flex-direction: row; }
+.canvas-focused .right-content-area { width: 100%; grid-template-columns: minmax(0, 1fr); }
 </style>

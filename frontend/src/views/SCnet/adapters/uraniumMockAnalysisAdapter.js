@@ -1,3 +1,5 @@
+import { uraniumAnnualState } from '@/utils/uraniumScene'
+import { applyUraniumDecisionCopy, uraniumDecisionReasoning } from './uraniumDecisionCopy'
 import {
   buildExperimentDetailPanels,
   buildUraniumTimelineRows,
@@ -9,11 +11,9 @@ import {
 import {
   BASELINE_BRANCH_DATA,
   BASELINE_EVENT_METRICS,
-  EVENT_NAME_MAP,
   SCENARIO_OPTIONS,
   TIME_NODE_OPTIONS,
   TREE_DATA,
-  buildReasoning,
   cloneNode,
   markTrack,
   shortLabel
@@ -26,6 +26,11 @@ import { buildUraniumPaperResultsModel } from '@/views/SCnet/mock/uraniumPaperRe
 
 const DEFAULT_SCENARIO = 'rawShortage'
 const DEFAULT_TIME_INDEX = 1
+export const URANIUM_SCENARIO_OPTIONS = Object.freeze({
+  rawShortage: '铀资源供应中断',
+  regionalDemandSurge: '核燃料需求增长',
+  logisticsCongestion: '运输通道受阻'
+})
 const DEFAULT_GAME_SCENARIO = 'supplierVsRetailer'
 const DECISION_TO_GAME_SCENARIO_MAP = Object.freeze({
   rawShortage: 'domesticVsImportSourcing',
@@ -102,7 +107,7 @@ const GAME_SCENARIO_METHOD_MAP = Object.freeze({
   },
   corePlatformVs3PL: {
     recommendedModelKey: 'hawk_dove',
-    conflict: '制造商希望加大投产抢占需求窗口，供应商希望维持报价和供货节奏，双方同时强硬会把交付和成本一起打坏。',
+    conflict: '采购主体希望保障年度需求，供给方需要协调报价和可用量，资源竞争可能推高成本和交付压力。',
     timePressure: '峰值窗口的强制协调',
     constraint: '供货能力和物流通道有限，双方都不愿先让步。',
     worldState: '上游供给与通道容量受限，交付优先权需要重新分配。',
@@ -115,7 +120,7 @@ const GAME_SCENARIO_METHOD_MAP = Object.freeze({
   },
   supplierVsRetailer: {
     recommendedModelKey: 'repeated_game',
-    conflict: '需求方需要判断是否提前锁量，制造节点需要判断是否扩产；采购节奏与产能配置不会在单一回合结束，而会跨多个年度窗口持续反馈。',
+    conflict: '需求方需要判断是否提前锁量，采购主体需要判断是否补充库存；采购节奏与库存配置不会在单一回合结束，而会跨多个年度窗口持续反馈。',
     timePressure: '跨年度协调决策',
     constraint: '扩产存在滞后，且各方会根据历史履约记录调整后续动作。',
     worldState: '需求持续上行，价格、库存和产能都要在多期内滚动校准。',
@@ -154,27 +159,7 @@ function formatSignedDelta(value, digits = 0) {
   return num > 0 ? `+${fixed}` : fixed
 }
 
-function resolveScenarioStage({ risk, unmet, inventory }) {
-  if (Number(risk || 0) >= 0.18 || Number(unmet || 0) >= 120 || Number(inventory || 0) < 1) {
-    return {
-      tone: 'danger',
-      label: '承压运行',
-      detail: '供给保障优先，需重点压住缺口与主通道波动。'
-    }
-  }
-  if (Number(risk || 0) >= 0.14 || Number(unmet || 0) >= 60 || Number(inventory || 0) < 1.15) {
-    return {
-      tone: 'warning',
-      label: '弹性校准',
-      detail: '已出现结构性波动，需要继续校准库存和采购分配。'
-    }
-  }
-  return {
-    tone: 'success',
-    label: '稳态收敛',
-    detail: '整体运行趋稳，可围绕成本和集中度继续优化。'
-  }
-}
+const resolveScenarioStage = uraniumAnnualState
 
 function rankStress(row = {}) {
   return Number(row.average_risk_exposure || 0) * 100 + Number(row.unmet_demand_tU || 0)
@@ -216,6 +201,7 @@ function inferTimeIndex(timelineRows = [], stressedYear = null) {
   const stage = resolveScenarioStage({
     risk: stressedYear.average_risk_exposure,
     unmet: stressedYear.unmet_demand_tU,
+      demand: stressedYear.total_demand_tU,
     inventory: stressedYear.inventory_coverage_years
   })
   const stressedIndex = timelineRows.findIndex((row) => row.id === stressedYear.id)
@@ -236,7 +222,7 @@ function buildBaselineBranch(scenarioKey, timeIndex) {
     desc: baseline.desc,
     depth: 1,
     prob: 1,
-    reasoning: buildReasoning(`${scenarioKey}-${timeIndex}-baseline`, baseline.action, baseline.desc),
+    reasoning: uraniumDecisionReasoning(baseline.action, baseline.desc),
     children: baseline.children.map((child) => cloneNode(child))
   }, 'baseline')
 }
@@ -251,7 +237,7 @@ function buildControlledBranch(sourceTree) {
     desc: '依据应急预案与联动手册触发响应，对比库存、履约完成率与综合评分的变化。',
     depth: 1,
     prob: 1,
-    reasoning: buildReasoning(`${sourceTree.id}-controlled`, '经过调控：执行策略联动', '依据应急预案与联动手册触发响应'),
+    reasoning: uraniumDecisionReasoning('执行供应链协同调控', '比较采购、库存与运输等候选动作。'),
     children: (sourceTree.children || []).map((child) => cloneNode(child))
   }, 'controlled')
 }
@@ -305,7 +291,7 @@ function buildStrategyRows(controlledBranchTree, baselineMetrics) {
   const max = Math.max(...rawRows.map((item) => item.score))
   const min = Math.min(...rawRows.map((item) => item.score))
 
-  return rawRows.map((item) => ({
+  return rawRows.sort((a, b) => b.score - a.score).map((item) => ({
     ...item,
     percent: max === min ? 50 : Math.round(10 + ((item.score - min) / (max - min)) * 90),
     isBest: item.score === max
@@ -468,7 +454,7 @@ function buildHistoryComparisonActions(templateKey = '') {
 }
 
 function buildExperimentComparisonNarrative(item = {}) {
-  if (item.rawCoverage >= 1.15 && item.rawRisk <= 0.22) {
+  if (item.rawCoverage >= 2.8 && item.rawRisk <= 0.22) {
     return {
       preview: '库存更厚，优先保供。',
       verdict: '这套库存缓冲最厚，适合高压窗口先保供再谈成本。'
@@ -493,29 +479,8 @@ function buildExperimentComparisonNarrative(item = {}) {
 }
 
 function resolveWindowStage(row = {}) {
-  const risk = Number(row.average_risk_exposure || 0)
-  const unmet = Number(row.unmet_demand_tU || 0)
-  const inventory = Number(row.inventory_coverage_years || 0)
-
-  if (risk >= 0.18 || unmet >= 120 || inventory < 1) {
-    return {
-      tone: 'danger',
-      label: '承压保障',
-      actionLabel: '应急补位'
-    }
-  }
-  if (risk >= 0.16 || unmet >= 70 || inventory < 1.08) {
-    return {
-      tone: 'warning',
-      label: '弹性校准',
-      actionLabel: '结构调整'
-    }
-  }
-  return {
-    tone: 'success',
-    label: '稳态收敛',
-    actionLabel: '稳态维持'
-  }
+  return uraniumAnnualState({ risk: row.average_risk_exposure, unmet: row.unmet_demand_tU,
+      demand: row.total_demand_tU, inventory: row.inventory_coverage_years })
 }
 
 function inferRouteChannelLabel(supplierName = '') {
@@ -542,7 +507,7 @@ function buildScenarioYearWindow(row, index, panels, fallbackAction, totalRows =
   const primaryRoute = routeRows[0] || null
   const mainRecommendation = recommendations[index % Math.max(recommendations.length, 1)] || fallbackAction
   const summary = row.active_events?.length
-    ? `${row.active_events[0]}推动年度调度进入${stage.label}阶段，需把重点放在主通道交付和制造节点库存缓冲上。`
+    ? `${row.active_events[0]}对应年度状态为${stage.label}，重点关注主通道交付和采购主体的库存缓冲。`
     : `该年度以稳态采购和港口分流为主，继续围绕成本、风险和库存覆盖做收敛优化。`
 
   return {
@@ -566,7 +531,7 @@ function buildScenarioYearWindow(row, index, panels, fallbackAction, totalRows =
         hint: '年度市场价格'
       },
       {
-        label: '平均风险',
+        label: '平均风险暴露',
         value: formatUraniumMetricValue('average_risk_exposure', row.average_risk_exposure),
         hint: '年度风险暴露'
       },
@@ -585,7 +550,7 @@ function buildScenarioYearWindow(row, index, panels, fallbackAction, totalRows =
       {
         label: '01',
         title: row.active_events?.[0] || '年度态势识别',
-        text: `当年平均风险为 ${formatUraniumMetricValue('average_risk_exposure', row.average_risk_exposure)}，需求缺口 ${formatUraniumMetricValue('unmet_demand_tU', row.unmet_demand_tU)}。`
+        text: `当年平均风险暴露为 ${formatUraniumMetricValue('average_risk_exposure', row.average_risk_exposure)}，需求缺口 ${formatUraniumMetricValue('unmet_demand_tU', row.unmet_demand_tU)}。`
       },
       {
         label: '02',
@@ -816,12 +781,16 @@ export function buildUraniumDecisionTreeViewModel({
     : (typeof manualTimeIndex === 'number' && TIME_NODE_OPTIONS[manualTimeIndex]
         ? manualTimeIndex
         : inferTimeIndex(timelineRows, stressedYear))
-  const currentScenarioLabel = SCENARIO_OPTIONS[scenarioKey] || SCENARIO_OPTIONS[DEFAULT_SCENARIO]
+  const currentScenarioLabel = URANIUM_SCENARIO_OPTIONS[scenarioKey] || URANIUM_SCENARIO_OPTIONS[DEFAULT_SCENARIO]
   const currentTimeLabel = TIME_NODE_OPTIONS[timeIndex]?.label || TIME_NODE_OPTIONS[DEFAULT_TIME_INDEX].label
-  const currentEventName = EVENT_NAME_MAP[scenarioKey]?.[timeIndex] || '铀场景对比'
+  const eventYear = timeIndex === 0 ? timelineRows[0] : timeIndex === 2 ? timelineRows.at(-1) : stressedYear
+  const eventLabel = eventYear?.active_events?.[0]
+  const currentEventName = eventLabel
+    ? `${eventYear.year} 年 · ${typeof eventLabel === 'string' ? eventLabel : eventLabel.label || eventLabel.name || '年度事件'}`
+    : `${currentScenarioLabel} · ${currentTimeLabel}`
   const sourceTree = TREE_DATA[scenarioKey]?.[timeIndex] || TREE_DATA[DEFAULT_SCENARIO]?.[DEFAULT_TIME_INDEX] || null
-  const baselineBranch = buildBaselineBranch(scenarioKey, timeIndex)
-  const controlledBranchTree = buildControlledBranch(sourceTree)
+  const baselineBranch = applyUraniumDecisionCopy(buildBaselineBranch(scenarioKey, timeIndex), scenarioKey, timeIndex, true)
+  const controlledBranchTree = applyUraniumDecisionCopy(buildControlledBranch(sourceTree), scenarioKey, timeIndex)
   const tree = sourceTree
     ? {
         id: `${sourceTree.id}-compare-root`,
@@ -831,17 +800,19 @@ export function buildUraniumDecisionTreeViewModel({
         desc: '对比未干预路径与调控路径，突出风险与履约完成率变化。',
         depth: 0,
         prob: 1,
-        reasoning: buildReasoning(`${sourceTree.id}-compare-root`, sourceTree.action, '对比未干预与调控后效果'),
+        reasoning: uraniumDecisionReasoning(currentEventName, '对比未干预与调控后的交付结果。'),
         children: [baselineBranch, controlledBranchTree].filter(Boolean)
       }
     : null
 
-  const baselineMetrics = BASELINE_EVENT_METRICS[scenarioKey]?.[timeIndex] || null
+  const sourceBaseline = BASELINE_EVENT_METRICS[scenarioKey]?.[timeIndex]
+  const baselineMetrics = sourceBaseline ? { ...sourceBaseline, event: currentEventName } : null
   const l1Scores = buildStrategyRows(controlledBranchTree, baselineMetrics)
   const bestStrategy = l1Scores.find((item) => item.isBest) || null
   const stage = resolveScenarioStage({
     risk: stressedYear?.average_risk_exposure,
     unmet: stressedYear?.unmet_demand_tU,
+    demand: stressedYear?.total_demand_tU,
     inventory: stressedYear?.inventory_coverage_years
   })
   const improvement = bestStrategy && baselineMetrics?.score != null
@@ -949,7 +920,7 @@ export function buildUraniumDecisionTreeViewModel({
       ]
     },
     reportHeadline: bestStrategy
-      ? `${currentScenarioLabel}在${currentTimeLabel}建议优先执行“${bestStrategy.name}”，预计综合得分 ${bestStrategy.score} 分，较未干预 ${formatSignedDelta(improvement)} 分。`
+      ? `${currentScenarioLabel}在${currentTimeLabel}建议优先执行“${bestStrategy.name}”，预计对策评分 ${bestStrategy.score} 分，较未干预 ${formatSignedDelta(improvement)} 分。`
       : '当前场景尚未生成候选调控动作。'
   }
 }
@@ -975,12 +946,12 @@ export function buildUraniumScenarioViewModel({ experiment = null, snapshot = nu
   const topRoute = panels.allocations?.[0] || activeWindow?.routeRows?.[0] || null
   const heroMetricCards = [
     {
-      label: '平均成本',
+      label: '平均成本（美元/kgU）',
       value: formatUraniumMetricValue('avg_cost_usd_kgU', experiment?.summary?.avg_cost_usd_kgU),
       hint: '实验窗口平均采购成本'
     },
     {
-      label: '平均风险',
+      label: '平均风险暴露',
       value: formatUraniumMetricValue('avg_risk_exposure', experiment?.summary?.avg_risk_exposure),
       hint: '实验窗口平均风险暴露'
     },
@@ -1028,11 +999,10 @@ export function buildUraniumScenarioViewModel({ experiment = null, snapshot = nu
   const hero = {
     title: `${selectedExperimentName} · 年度窗口识别`,
     headline: decisionVm.stressedYear?.year
-      ? `${decisionVm.stressedYear.year} 年是当前主要承压窗口，需先定位风险来源和主通道，再进入模型选择。`
-      : '先识别承压窗口，再进入博弈模型与动作展开。',
-    summary: `覆盖 ${selectedYearRange} 年窗口，共梳理 ${totalEvents} 个年度扰动事件。本页只负责识别压力窗口、关键扰动和主通道，不直接给最终动作结论。`,
+      ? `${decisionVm.stressedYear.year} 年是当前主要承压窗口，可按年度查看风险来源、库存和主要采购通道。`
+      : '按年度检查事件、采购通道与库存变化。',
+    summary: `覆盖 ${selectedYearRange} 年窗口，共梳理 ${totalEvents} 个年度扰动事件。选择年度后查看关键扰动、采购关系和执行提示。`,
     tags: [
-      { label: '实验', value: experiment?.experiment_id || '-' },
       { label: '模板', value: selectedPresetLabel },
       { label: '年份', value: selectedYearRange },
       { label: '压力窗口', value: decisionVm.stressedYear?.year ? `${decisionVm.stressedYear.year} 年` : '-' }
@@ -1301,31 +1271,31 @@ export function buildUraniumReportViewModel({ experiment = null, history = [], s
   const selectedYearRange = `${experiment?.plan?.start_year || timelineRows[0]?.year || '-'} - ${experiment?.plan?.end_year || timelineRows[timelineRows.length - 1]?.year || '-'}`
   const keyResultCards = [
     {
-      label: '平均成本',
+      label: '平均成本（美元/kgU）',
       value: formatUraniumMetricValue('avg_cost_usd_kgU', summaryData.avg_cost_usd_kgU),
-      hint: '越低越好'
+      hint: '按采购量加权'
     },
     {
-      label: '平均风险',
+      label: '平均风险暴露',
       value: formatUraniumMetricValue('avg_risk_exposure', summaryData.avg_risk_exposure),
-      hint: '越低越稳'
+      hint: '0–1，越低表示暴露越小'
     },
     {
       label: '最大缺口',
       value: formatUraniumMetricValue('max_unmet_demand_tU', summaryData.max_unmet_demand_tU),
-      hint: '供需缺口'
+      hint: '窗口内年度最大需求缺口'
     },
     {
-      label: '库存覆盖',
+      label: '期末库存覆盖',
       value: formatUraniumMetricValue('final_inventory_coverage_years', summaryData.final_inventory_coverage_years),
-      hint: '越高越安全'
+      hint: '目标覆盖 3 年需求'
     }
   ]
   const alerts = (detailPanels.alerts || []).slice(0, 4)
   const recommendations = (detailPanels.recommendations || []).slice(0, 4)
   const overallAssessment = resolveScenarioStage({
     risk: summaryData.avg_risk_exposure,
-    unmet: summaryData.max_unmet_demand_tU,
+    unmetRatio: summaryData.avg_unmet_ratio,
     inventory: summaryData.final_inventory_coverage_years
   })
   const mostStressedYear = pickMostStressedYear(timelineRows)
@@ -1412,6 +1382,7 @@ export function buildUraniumReportViewModel({ experiment = null, history = [], s
     const stage = resolveScenarioStage({
       risk: row.average_risk_exposure,
       unmet: row.unmet_demand_tU,
+      demand: row.total_demand_tU,
       inventory: row.inventory_coverage_years
     })
     const primaryAllocation = [...(row.allocations || [])]
@@ -1420,6 +1391,7 @@ export function buildUraniumReportViewModel({ experiment = null, history = [], s
     return {
       id: row.id || `${row.year || index}`,
       year: row.year,
+      isPeak: row.year === mostStressedYear?.year,
       tone: stage.tone,
       stageLabel: stage.label,
       headline: row.active_events?.[0] || '常态运行',
@@ -1506,10 +1478,10 @@ export function buildUraniumReportViewModel({ experiment = null, history = [], s
         actionChain: item.detailSource === 'current'
           ? recommendations.slice(0, 3)
           : buildHistoryComparisonActions(item.templateKey),
-        benefit: item.rawCoverage >= 1.15
-          ? `库存覆盖 ${formatUraniumMetricValue('final_inventory_coverage_years', item.rawCoverage)}，能扛住更强扰动。`
-          : item.rawCoverage >= 1
-            ? `库存覆盖 ${formatUraniumMetricValue('final_inventory_coverage_years', item.rawCoverage)}，保留了基本缓冲。`
+        benefit: item.rawCoverage >= 2.8
+          ? `库存覆盖 ${formatUraniumMetricValue('final_inventory_coverage_years', item.rawCoverage)}，达到当前模型的库存缓冲参考线。`
+          : item.rawCoverage >= 2.3
+            ? `库存覆盖 ${formatUraniumMetricValue('final_inventory_coverage_years', item.rawCoverage)}，仍需关注库存缓冲。`
             : `库存覆盖 ${formatUraniumMetricValue('final_inventory_coverage_years', item.rawCoverage)}，缓冲偏薄，需要后续调度补位。`,
         costText: item.rawUnmet >= 120
           ? `平均成本 ${formatUraniumMetricValue('avg_cost_usd_kgU', item.rawCost)}，最大缺口 ${formatUraniumMetricValue('max_unmet_demand_tU', item.rawUnmet)}，缺口压力仍然明显。`
@@ -1537,23 +1509,24 @@ export function buildUraniumReportViewModel({ experiment = null, history = [], s
     {
       label: '实验结论',
       title: `${selectedExperimentName} 已完成多年度供应链压力评估`,
-      text: `${selectedPresetLabel} 覆盖 ${selectedYearRange} 年窗口，当前总体判断为 ${overallAssessment.label}。平均成本 ${formatUraniumMetricValue('avg_cost_usd_kgU', summaryData.avg_cost_usd_kgU)}，平均风险 ${formatUraniumMetricValue('avg_risk_exposure', summaryData.avg_risk_exposure)}，期末库存覆盖 ${formatUraniumMetricValue('final_inventory_coverage_years', summaryData.final_inventory_coverage_years)}。`,
+      text: `${selectedPresetLabel} 覆盖 ${selectedYearRange} 年窗口，当前总体判断为 ${overallAssessment.label}。平均成本 ${formatUraniumMetricValue('avg_cost_usd_kgU', summaryData.avg_cost_usd_kgU)}，平均风险暴露 ${formatUraniumMetricValue('avg_risk_exposure', summaryData.avg_risk_exposure)}，期末库存覆盖 ${formatUraniumMetricValue('final_inventory_coverage_years', summaryData.final_inventory_coverage_years)}。`,
       tone: overallAssessment.tone
     },
     {
       label: '运行观察',
       title: mostStressedYear?.year ? `${mostStressedYear.year} 年是本轮推演的主要承压点` : '运行链路已可做年度回放',
-      text: `${mostStressedYear?.active_events?.[0] || '年度扰动'} 是压力上升的主要触发点。当前最需要盯住的主采购链路是 ${routeDigestRows[0]?.label || '关键采购组合'}，${topManufacturer ? `${topManufacturer.name} 是期末承接量最高的制造节点。` : '当前制造节点承接仍以汇总展示为主。'}`,
+      text: `${mostStressedYear?.active_events?.[0] || '年度扰动'} 是压力上升的主要触发点。当前最需要盯住的主采购链路是 ${routeDigestRows[0]?.label || '关键采购组合'}，${topManufacturer ? `${topManufacturer.name} 是期末采购量最高的采购主体。` : '当前采购主体以汇总结果展示。'}`,
       tone: mostStressedYear ? resolveScenarioStage({
         risk: mostStressedYear.average_risk_exposure,
         unmet: mostStressedYear.unmet_demand_tU,
+      demand: mostStressedYear.total_demand_tU,
         inventory: mostStressedYear.inventory_coverage_years
       }).tone : 'neutral'
     },
     {
       label: '结构判断',
       title: topSupplier ? `${topSupplier.supplier_name} 仍是当前结构中的头部来源` : '供应与合同结构已具备基础快照',
-      text: `期末供应集中度为 ${formatUraniumMetricValue('final_supply_concentration_hhi', finalHhi)}，主供份额 ${formatUraniumMetricValue('final_dominant_supplier_share', dominantShare)}。${anchorContract ? `${anchorContract.contract_type} 是当前主合同结构，占比 ${formatUraniumPercent(anchorContract.share)}。` : '合同结构字段后续可继续补充真实数据。'}`,
+      text: `期末供应集中度为 ${formatUraniumMetricValue('final_supply_concentration_hhi', finalHhi)}，主供份额 ${formatUraniumMetricValue('final_dominant_supplier_share', dominantShare)}。${anchorContract ? `${anchorContract.contract_type} 是当前主合同结构，占比 ${formatUraniumPercent(anchorContract.share)}。` : '暂无合同结构数据。'}`,
       tone: 'neutral'
     },
     {
@@ -1643,6 +1616,7 @@ export function buildUraniumReportViewModel({ experiment = null, history = [], s
     selectedPresetLabel,
     selectedExperimentName,
     selectedExecutionMode,
+    selectedYearRange,
     paperResults,
     reportHero,
     analysisRecoveryCards,
@@ -1659,7 +1633,7 @@ export function buildUraniumReportViewModel({ experiment = null, history = [], s
       endYear: experiment?.plan?.end_year || '-',
       metaCards: [
         { label: '供给方', value: experiment?.scenario_context?.supplier_count ?? '-' },
-        { label: '制造方', value: experiment?.scenario_context?.manufacturer_count ?? '-' },
+        { label: '采购主体', value: experiment?.scenario_context?.manufacturer_count ?? '-' },
         { label: '环境事件', value: experiment?.scenario_context?.event_count ?? '-' },
         { label: '完成时间', value: formatDateTime(experiment?.completed_at) }
       ]

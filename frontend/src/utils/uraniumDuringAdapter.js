@@ -1,3 +1,5 @@
+import { formatUraniumEvent } from './uraniumScene.js'
+
 const COUNTRY_COORDINATES = Object.freeze({
   '哈萨克斯坦': [71.43, 51.17],
   '乌兹别克': [69.24, 41.31],
@@ -278,7 +280,7 @@ function buildDomesticLeg(manufacturer = {}, destinationCoord = null, { includeP
   const points = []
   const portWaypoint = includePort ? getChinaPortWaypoint(manufacturer?.port_tag) : null
   const destination = destinationCoord
-    ? createWaypoint(manufacturer?.name || manufacturer?.location || '国内制造节点', destinationCoord, 'land_hub')
+    ? createWaypoint(manufacturer?.name || manufacturer?.location || '国内采购主体', destinationCoord, 'land_hub')
     : null
 
   if (portWaypoint) pushWaypoint(points, portWaypoint)
@@ -542,16 +544,19 @@ export function formatUraniumPercent(value, digits = 1) {
 }
 
 export function formatUraniumMetricValue(key, value) {
+  if (value == null || (typeof value === 'string' && !value.trim())) return '-'
   const num = toFiniteNumber(value)
   if (num == null) return '-'
 
   switch (key) {
     case 'market_price_usd_lb':
+      return `$${num.toFixed(2)}/lb`
     case 'average_cost_usd_kgU':
     case 'avg_cost_usd_kgU':
-      return `$${num.toFixed(2)}`
+      return `$${num.toFixed(2)}/kgU`
     case 'average_risk_exposure':
     case 'avg_risk_exposure':
+      return num.toFixed(3)
     case 'dominant_supplier_share':
     case 'final_dominant_supplier_share':
       return formatUraniumPercent(num)
@@ -578,7 +583,8 @@ export function buildUraniumTimelineRows(experiment) {
   return timeline.map((item, index) => ({
     id: `${experiment?.experiment_id || 'exp'}-year-${index}`,
     year: safeNumber(item?.year, index + 1),
-    active_events: Array.isArray(item?.active_events) ? item.active_events : [],
+    active_events: Array.isArray(item?.active_events) ? item.active_events.map(formatUraniumEvent).filter(Boolean) : [],
+    raw_active_events: Array.isArray(item?.active_events) ? item.active_events : [],
     active_event_count: Array.isArray(item?.active_events) ? item.active_events.length : 0,
     market_price_usd_lb: safeNumber(item?.market_price_usd_lb),
     market_price_usd_kgU: safeNumber(item?.market_price_usd_kgU),
