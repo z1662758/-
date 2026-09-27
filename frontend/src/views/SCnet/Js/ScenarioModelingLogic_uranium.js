@@ -964,10 +964,10 @@ export default {
     formatTaskAnalysisHtml(tasks) {
       let html = '<div class="task-list">'
       html += '<div class="analysis-header">'
-      html += '<div class="header-badge">✨ AI分析完成</div>'
-      html += '<h3>任务分解结果</h3>'
+      html += '<div class="header-badge">推演任务已生成</div>'
+      html += '<h3>推演任务分解</h3>'
       html += '</div>'
-      html += '<p class="analysis-intro">根据您的问题，系统自动生成以下任务步骤：</p>'
+      html += '<p class="analysis-intro">根据当前供需冲击与设定条件，系统已生成以下分析任务：</p>'
       html += '<div class="tasks-grid">'
 
       // 如果有详细的subtask数据，展示更丰富的卡片
@@ -1225,18 +1225,16 @@ export default {
       this.selectedResult = null
       this.currentResult = {
         agent_type: 'SUMMARY',
-        title: '实验设计生成完成',
-        description: '已完成目标分析与实验设计。可在右侧查看方案概览，或点击「下一步」查看完整实验设计。',
-        emoji: '🎉'
+        title: '推演方案已生成',
+        description: '已完成需求分解与方案规划。可在右侧查看策略对比，或点击「下一步」进入实体拓扑。',
+        emoji: '✓'
       }
 
       this.editingContent = this.currentResult
 
       this.pushMessage({
         type: 'system',
-        content: this.agentDesignSynced
-          ? `✅ 实验设计已生成，已形成 ${this.tasks.length} 项子任务并同步实体方案配置。请点击「下一步」继续。`
-          : `✅ 实验设计已生成，已形成 ${this.tasks.length} 项子任务。请点击「下一步」继续同步智能体配置并提交实验。`,
+        content: `✅ 推演任务已生成，已形成 ${this.tasks.length} 项子任务。请点击「下一步」进入实体建模。`,
         timestamp: new Date(),
         completionData: {
           totalTasks: this.tasks.length,
@@ -1502,10 +1500,10 @@ export default {
 
         this.pushMessage({
           type: 'system',
-          content: `✅ 目标分析完成，已生成 ${tasks.length} 个拆解任务`,
+          content: `✅ 需求分析完成，已生成 ${tasks.length} 个推演任务`,
           timestamp: new Date(),
           analysisData: {
-            understanding: goalDecomp.goal_understanding || '系统将分步骤完成您的需求分析',
+            understanding: goalDecomp.goal_understanding || '系统将根据供需约束与业务参数开展多方案协同推演',
             subtasks: subtasks,
             selectedEntities: typeof this.extractSelectedEntities === 'function'
               ? this.extractSelectedEntities(parsedApiResult)
@@ -1720,7 +1718,7 @@ export default {
 
         this.pushMessage({
           type: 'system',
-          content: '✅ 已根据您的反馈更新任务内容',
+          content: '✅ 已根据补充条件更新推演任务',
           timestamp: new Date()
         })
 
@@ -1844,7 +1842,7 @@ export default {
         }
         this.pushMessage({
           type: 'system',
-          content: `✅ 方案已按诉求调整: ${proposal.slice(0, 60)}${proposal.length > 60 ? '…' : ''}`,
+          content: `✅ 方案已按要求更新: ${proposal.slice(0, 60)}${proposal.length > 60 ? '…' : ''}`,
           timestamp: new Date()
         })
         this.$message?.success?.('方案已更新, 可继续迭代或点「确认并提交实验」')

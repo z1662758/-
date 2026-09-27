@@ -566,7 +566,7 @@ export function formatUraniumMetricValue(key, value) {
     case 'total_procured_tU':
     case 'total_demand_tU':
     case 'final_total_inventory_tU':
-      return `${formatUraniumNumber(num)} tU`
+      return `${formatUraniumNumber(Math.round(num), 0)} tU`
     case 'inventory_coverage_years':
     case 'final_inventory_coverage_years':
       return `${num.toFixed(2)} 年`
@@ -636,6 +636,7 @@ export function summarizeExperimentHistoryRow(experiment) {
     supplier_count: safeNumber(scenarioContext.supplier_count, latest.supplier_count ?? null),
     manufacturer_count: safeNumber(scenarioContext.manufacturer_count, latest.manufacturer_count ?? null),
     selected_profile_labels: uniqueStrings((experiment?.plan?.policy_profiles || []).map((item) => item?.label || item?.manufacturer_id)),
+    lineage_tag: experiment?.lineage_tag || experiment?.plan?.lineage_tag || '',
     iteration_count: getIterationCount(experiment),
     iteration_rows: buildIterationRows(experiment)
   }

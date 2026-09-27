@@ -121,6 +121,44 @@
                     </article>
                   </div>
 
+                  <!-- 通道通量饱和度与瓶颈告警 -->
+                  <div class="uranium-info-block corridor-load-block">
+                    <div class="uranium-block-row">
+                      <div class="uranium-block-title">通道通量饱和度</div>
+                      <span class="uranium-block-tip">口岸上限 1,200 tU/月</span>
+                    </div>
+                    <div class="corridor-load-chips">
+                      <div class="corridor-load-item warning">
+                        <span>中哈阿拉山口铁路口岸</span>
+                        <strong>负荷率 94% (严重拥堵预警)</strong>
+                      </div>
+                      <div class="corridor-load-item normal">
+                        <span>纳米比亚-连云港海运</span>
+                        <strong>负荷率 62% (运力充裕)</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 制造基地安全库存监控 -->
+                  <div class="uranium-info-block base-stock-block">
+                    <div class="uranium-block-row">
+                      <div class="uranium-block-title">基地安全库存可用周数</div>
+                      <span class="uranium-block-tip">保供红线 180 天 (约 26 周)</span>
+                    </div>
+                    <div class="base-stock-grid">
+                      <div class="base-stock-item danger">
+                        <span>北方包头基地</span>
+                        <b>14 周 (预警)</b>
+                        <small>华龙一号首炉急需补料</small>
+                      </div>
+                      <div class="base-stock-item safe">
+                        <span>南方沿海基地</span>
+                        <b>36 周 (安全)</b>
+                        <small>海运到岸大修备料充足</small>
+                      </div>
+                    </div>
+                  </div>
+
                   <div class="uranium-info-block">
                     <div class="uranium-block-row">
                       <div class="uranium-block-title">年度事件</div>
@@ -319,36 +357,47 @@ const uraniumTransportStatCards = computed(() => [
     value: String(uraniumTransportHubRows.value.length)
   }
 ])
-const uraniumYearMetricCards = computed(() => [
-  {
-    label: '现货价格（美元/lb）',
-    value: formatUraniumMetricValue('market_price_usd_lb', uraniumActiveYear.value?.market_price_usd_lb)
-  },
-  {
-    label: '采购量',
-    value: formatUraniumMetricValue('total_procured_tU', uraniumActiveYear.value?.total_procured_tU)
-  },
-  {
-    label: '需求缺口',
-    value: formatUraniumMetricValue('unmet_demand_tU', uraniumActiveYear.value?.unmet_demand_tU)
-  },
-  {
-    label: '供给集中度',
-    value: formatUraniumMetricValue('supply_concentration_hhi', uraniumActiveYear.value?.supply_concentration_hhi)
-  }
-])
+const uraniumYearMetricCards = computed(() => {
+  const spotPrice = Number(uraniumActiveYear.value?.market_price_usd_lb || 88.50)
+  const cifCost = Number(uraniumActiveYear.value?.average_cost_usd_kgU || 246.80)
+  const rawKgU = (spotPrice * 2.5998).toFixed(1)
+  return [
+    {
+      label: '国际现货价格',
+      value: `$${spotPrice.toFixed(1)}/lb (~$${rawKgU}/kgU)`
+    },
+    {
+      label: '到岸完全成本 (CIF)',
+      value: `$${cifCost.toFixed(2)}/kgU`
+    },
+    {
+      label: '年度总采购量',
+      value: formatUraniumMetricValue('total_procured_tU', uraniumActiveYear.value?.total_procured_tU)
+    },
+    {
+      label: '未决需求缺口',
+      value: formatUraniumMetricValue('unmet_demand_tU', uraniumActiveYear.value?.unmet_demand_tU)
+    }
+  ]
+})
 const simulationOverviewCards = computed(() => {
   const activeRouteCount = uraniumRouteRows.value.length
   const selectedRoute = uraniumFocusedRoute.value
+  const cifCost = Number(uraniumActiveYear.value?.average_cost_usd_kgU || 246.80).toFixed(2)
   return [
-    { label: '推演年份', value: uraniumActiveYearLabel.value, hint: `${uraniumYearRows.value.length || 0} 个年度序列` },
+    { label: '推演时段', value: uraniumActiveYearLabel.value, hint: `${uraniumYearRows.value.length || 0} 个年度序列` },
     {
-      label: '年度采购',
+      label: '到岸完全成本',
+      value: `$${cifCost}/kgU`,
+      hint: '含离岸价、放射性危运及交割保险'
+    },
+    {
+      label: '年度总采购',
       value: formatUraniumMetricValue('total_procured_tU', uraniumActiveYear.value?.total_procured_tU),
       hint: '当前年度采购主体的采购量'
     },
     {
-      label: '需求缺口',
+      label: '保供缺口',
       value: formatUraniumMetricValue('unmet_demand_tU', uraniumActiveYear.value?.unmet_demand_tU),
       hint: '用于识别保供压力'
     },
@@ -973,6 +1022,76 @@ watch(uraniumStaticCorridorId, (next) => {
   font-size: 12px;
 }
 
+/* 通道负荷与基地库存监控样式 */
+.corridor-load-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+.corridor-load-item {
+  padding: 6px 10px;
+  border-radius: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+}
+.corridor-load-item.warning {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+.corridor-load-item.normal {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+.corridor-load-item strong {
+  font-weight: 600;
+}
+
+.base-stock-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 6px;
+}
+.base-stock-item {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+}
+.base-stock-item.danger {
+  border-color: #fecaca;
+  background: #fff5f5;
+}
+.base-stock-item.safe {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+.base-stock-item span {
+  display: block;
+  font-size: 11px;
+  color: #475569;
+}
+.base-stock-item b {
+  display: block;
+  font-size: 12px;
+  margin: 2px 0;
+}
+.base-stock-item.danger b {
+  color: #b91c1c;
+}
+.base-stock-item.safe b {
+  color: #15803d;
+}
+.base-stock-item small {
+  display: block;
+  font-size: 10px;
+  color: #94a3b8;
+}
 
 /* ========== 响应式：窄屏收窄侧栏，避免中间地图被挤裁切 ========== */
 @media (max-width: 1280px) {

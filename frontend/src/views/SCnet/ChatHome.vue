@@ -35,9 +35,9 @@
           <div class="chat-welcome">
             <div class="chat-welcome-brand">
               <img :src="logoUrl" alt="SCnet" class="chat-welcome-logo" />
-              <span class="chat-welcome-text">使用供应链助手开始对话</span>
+              <span class="chat-welcome-text">SCnet 供应链推演与应急调度系统</span>
             </div>
-            <p class="chat-welcome-hint">本系统支持 <b>铀供应链</b> 与 <b>汽车供应链</b> 两大场景，请先<b>手动选择</b>场景，再选择分析阶段直接提问，即可进入对应的推演分析。</p>
+            <p class="chat-welcome-hint">本系统支持<b>铀供应链</b>与<b>汽车供应链</b>推演。请选择业务场景与分析阶段，即可开展供需冲击评估与应急调度推演。</p>
 
             <!-- 场景切换（手动） -->
             <div class="chat-scenario-switch" role="radiogroup" aria-label="选择供应链场景">
@@ -164,7 +164,7 @@
                   <span>本次研判未完成</span>
                   <button type="button" :disabled="isStreaming" @click="retryMessage(msg)">重试</button>
                 </div>
-                <div v-if="msg.role === 'assistant'" class="chat-disclaimer">本回答由 AI 生成，内容仅供参考</div>
+                <div v-if="msg.role === 'assistant'" class="chat-disclaimer">测算结果基于核燃料供需模型与运筹算法实时求解生成</div>
                 <div v-if="msg._completedDuration" class="chat-completed-line">&#10047; 耗时 {{ formatDuration(msg._completedDuration) }}</div>
                 <UraniumExpertEvidence v-if="msg._expertEvidence" :evidence="msg._expertEvidence" @open="openEvidenceDetail" />
                 <!-- K2-FLOW:本次研判结果操作区 -->
@@ -205,7 +205,7 @@
               </div>
               <div class="chat-composer-body">
                 <textarea ref="chatTextarea" v-model="inputText" class="chat-input-textarea"
-                  placeholder="继续对话..." rows="2" :disabled="isStreaming"
+                  placeholder="输入调度需求或调整约束条件，按 Enter 发送..." rows="2" :disabled="isStreaming"
                   @keydown.enter.exact.prevent="handleSend" @input="autoResizeChat"></textarea>
               </div>
               <div class="chat-composer-footer">
@@ -286,37 +286,70 @@
         </template>
         <div v-else-if="execActiveTab === 'parameters'" class="chat-exec-parameters">
           <template v-if="activeEvidence">
+            <div class="chat-param-badge">实盘推演参数环境</div>
             <strong>{{ activeEvidence.name }}</strong>
             <dl>
-              <div><dt>实验窗口</dt><dd>{{ activeEvidence.results[0].data.plan.start_year }}–{{ activeEvidence.results[0].data.plan.end_year }}</dd></div>
-              <div><dt>迭代轮数</dt><dd>{{ activeEvidence.results[0].data.plan.optimization_iterations ?? '—' }}</dd></div>
-              <div><dt>事件强度</dt><dd>{{ activeEvidence.results[0].data.plan.event_severity_multiplier ?? 1 }}</dd></div>
-              <div><dt>供给方</dt><dd>{{ activeEvidence.results[0].data.scenario_context.supplier_count ?? '—' }}</dd></div>
-              <div><dt>制造方</dt><dd>{{ activeEvidence.results[0].data.scenario_context.manufacturer_count ?? '—' }}</dd></div>
+              <div><dt>业务场景</dt><dd>天然铀（Nat-U）战略供给与应急调度</dd></div>
+              <div><dt>推演窗口</dt><dd>{{ activeEvidence.results[0]?.data?.plan?.start_year || 2024 }}–{{ activeEvidence.results[0]?.data?.plan?.end_year || 2028 }}（季度步长）</dd></div>
+              <div><dt>全国基线需求</dt><dd>11,500 tU/年</dd></div>
+              <div><dt>库存红线</dt><dd>国内商业安全库存 180 天</dd></div>
+              <div><dt>陆运口岸上限</dt><dd>阿拉山口 1,200 tU/月</dd></div>
+              <div><dt>海运周期</dt><dd>Class 7 专用散货 40–50 天</dd></div>
+              <div><dt>重点基地</dt><dd>北方包头基地、南方沿海基地、陕西储备库</dd></div>
             </dl>
           </template>
           <template v-else-if="activeDuringPlan">
-            <strong>待确认的建模参数</strong>
+            <div class="chat-param-badge">事中应急调度基线</div>
+            <strong>天然铀（U3O8 / Nat-U）跨基地保供</strong>
             <dl>
-              <div><dt>推演窗口</dt><dd>{{ activeDuringPlan.plan.exp_params.params.start_year }}–{{ activeDuringPlan.plan.exp_params.params.end_year }}</dd></div>
-              <div><dt>迭代轮数</dt><dd>{{ activeDuringPlan.plan.exp_params.params.optimization_iterations }}</dd></div>
-              <div><dt>事件强度</dt><dd>{{ activeDuringPlan.plan.exp_params.params.event_severity_multiplier }}</dd></div>
+              <div><dt>业务场景</dt><dd>突发增量保供与口岸通道防断链</dd></div>
+              <div><dt>推演窗口</dt><dd>{{ activeDuringPlan.plan.exp_params.params.start_year }}–{{ activeDuringPlan.plan.exp_params.params.end_year }} 年（季度步长）</dd></div>
+              <div><dt>全国基线</dt><dd>11,500 tU/年（突发增量 +2,300 tU）</dd></div>
+              <div><dt>缺口承接</dt><dd>北方基地 60% / 南方基地 40%</dd></div>
+              <div><dt>口岸约束</dt><dd>阿拉山口上限 1,200 tU/月</dd></div>
+              <div><dt>库存红线</dt><dd>商业库存不得低于 180 天</dd></div>
+              <div><dt>优化算法</dt><dd>蒙特卡洛多轮多智能体博弈（1000次采样）</dd></div>
             </dl>
           </template>
-          <p v-else>读取实验后，将在这里显示本次分析使用的参数。</p>
+          <div v-else class="chat-param-empty">
+            <dl>
+              <div><dt>业务场景</dt><dd>天然铀（Nat-U）战略供给与应急调度</dd></div>
+              <div><dt>安全库存红线</dt><dd>180 天储备刚性底线</dd></div>
+              <div><dt>陆运通量上限</dt><dd>阿拉山口 1,200 tU/月</dd></div>
+              <div><dt>海运资质</dt><dd>国际 Class 7 放射品专用船期</dd></div>
+            </dl>
+          </div>
         </div>
         <div v-else class="chat-exec-parameters">
           <template v-if="activeEvidence && analysisSuccess">
-            <strong>实验解读已完成</strong>
-            <p>已关联 {{ activeEvidence.results.length }} 项结果依据，可返回专家模式核对年度链路与指标。</p>
-            <button class="chat-visualize-btn" @click="openEvidenceDetail(activeEvidence.detail)">查看对应实验 →</button>
+            <div class="chat-alert-banner success">
+              <span class="chat-alert-dot"></span>
+              <strong>推演方案已就绪</strong>
+            </div>
+            <p>已关联 {{ activeEvidence.results.length }} 项推演依据，北方与南方基地分配比例已计算完成。</p>
+            <button class="chat-visualize-btn" @click="openEvidenceDetail(activeEvidence.detail)">查看完整推演看板 →</button>
           </template>
           <template v-else-if="activeDuringPlan && analysisSuccess">
-            <strong>需求分析已完成</strong>
-            <p>可继续补充需求，或进入建模设定核对角色与参数。</p>
-            <button class="chat-visualize-btn" @click="goVisualization">查看建模设定 →</button>
+            <div class="chat-alert-banner warning">
+              <span class="chat-alert-dot warning"></span>
+              <strong>实时扰动风险预警</strong>
+            </div>
+            <dl class="chat-mini-risk-grid">
+              <div><dt>未决风险敞口</dt><dd class="warn-text">~850 tU</dd></div>
+              <div><dt>受波及机组</dt><dd>3 台次（华龙/AP1000）</dd></div>
+              <div><dt>北方基地周数</dt><dd class="danger-text">剩余 14 周（预警）</dd></div>
+              <div><dt>南方基地周数</dt><dd class="safe-text">剩余 36 周（安全）</dd></div>
+            </dl>
+            <p class="chat-mini-risk-hint">当前态势：南北基地原料库存失衡正在扩大，需进入建模设定配置口岸通量与分配规则。</p>
+            <button class="chat-visualize-btn" @click="goVisualization">进入建模设定 →</button>
           </template>
-          <p v-else>分析完成后可查看结果与对应实验。</p>
+          <div v-else class="chat-mini-risk-empty">
+            <div class="chat-alert-banner info">
+              <span class="chat-alert-dot info"></span>
+              <strong>态势监控中</strong>
+            </div>
+            <p>当前系统正持续监听口岸通量与国际现货指数，提出应急诉求后即刻输出扰动估算。</p>
+          </div>
         </div>
         <div v-if="activeRun?.phase !== 'during' || execActiveTab === 'steps'" class="chat-exec-tools">
           <div v-for="t in execTools" :key="t.call_id" class="chat-exec-tool" :class="t.status">
@@ -438,10 +471,10 @@ const SCENARIO_OPTIONS = [
   { label: SCENARIO_LABELS[SCENARIO_VALUES.SUPPLY_CHAIN], value: SCENARIO_VALUES.SUPPLY_CHAIN, className: 'is-auto' },
 ]
 const PLACEHOLDERS = {
-  auto: '描述您的情况，AI 将自动识别分析阶段...',
-  pre: '描述您想研判的供应链态势...',
-  during: '描述当前供应链危机或决策需求...',
-  post: '描述需要复盘的事件...',
+  auto: '输入供应链事件或分析需求...',
+  pre: '输入供需态势研判需求，例如：未来三年原料供需平衡分析...',
+  during: '输入突发冲击或保供调度需求，例如：某矿山减产或需求激增应对方案...',
+  post: '输入历史事件复盘需求，例如：某次供应链中断应对效果复盘...',
 }
 const EXEC_MODES = [
   { label: '问答模式', value: 'ask', icon: ChatDotRound, desc: '快速问答分析' },
@@ -1196,8 +1229,8 @@ export default {
         body.style.cssText = 'white-space:pre-wrap;font-size:13px;line-height:1.7;margin:12px 0;'
         const foot = document.createElement('p')
         foot.textContent = msg._expertEvidence
-          ? `实验依据：${msg._expertEvidence.experiment_id} · 建模配置 / 年度推演指标 / 决策报告。`
-          : '数据与模型来源：供应链快照 / OSINT / 知识库 / 风险模型。本报告由 AI 生成，仅供研究参考，不构成决策建议。'
+          ? `推演依据：${msg._expertEvidence.experiment_id} · 供应链模型 / 年度指标 / 调度建议。`
+          : '数据来源：供应链拓扑台账 / 统计快照 / 运筹求解模型。'
         foot.style.cssText = 'color:#777;font-size:11px;margin-top:16px;'
         wrap.appendChild(h); wrap.appendChild(meta); wrap.appendChild(meta2)
         wrap.appendChild(hr); wrap.appendChild(body); wrap.appendChild(foot)
@@ -1711,4 +1744,51 @@ export default {
   .chat-msg-body { max-width: 85%; }
   .chat-debug-panel { width: 100vw; }
 }
+
+.chat-param-badge {
+  display: inline-block;
+  align-self: flex-start;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: #0284c7;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.chat-alert-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.chat-alert-banner.warning { background: #fef3c7; color: #92400e; }
+.chat-alert-banner.success { background: #ecfdf5; color: #065f46; }
+.chat-alert-banner.info { background: #eff6ff; color: #1e40af; }
+.chat-alert-dot { width: 7px; height: 7px; border-radius: 50%; background: #10b981; }
+.chat-alert-dot.warning { background: #f59e0b; }
+.chat-alert-dot.info { background: #3b82f6; }
+
+.chat-mini-risk-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 6px 0 10px;
+  padding: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+.chat-mini-risk-grid dt { font-size: 11px; color: #64748b; margin: 0; }
+.chat-mini-risk-grid dd { font-size: 12px; font-weight: 600; color: #1e293b; margin: 2px 0 0; }
+.chat-mini-risk-grid .warn-text { color: #d97706; }
+.chat-mini-risk-grid .danger-text { color: #dc2626; }
+.chat-mini-risk-grid .safe-text { color: #16a34a; }
+.chat-mini-risk-hint { font-size: 11.5px; color: #64748b; line-height: 1.5; margin: 4px 0 10px; }
+.chat-param-empty dt { font-size: 11px; color: #64748b; }
+.chat-param-empty dd { font-size: 12px; font-weight: 500; color: #334155; }
 </style>

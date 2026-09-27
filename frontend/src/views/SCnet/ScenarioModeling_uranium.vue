@@ -20,15 +20,15 @@
             <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
           </svg>
         </div>
-        <h2>需求输入</h2>
-        <p>描述您本次推演的具体需求，AI 将基于铀场景上下文自动拆解为分析任务</p>
+        <h2>推演需求设定</h2>
+        <p>输入突发供需变化或保供调度需求，系统将自动分解推演任务</p>
 
         <div class="initial-input-container">
           <div class="input-wrapper">
             <input
               v-model="inputMessage"
               @keyup.enter="startAnalysis"
-              placeholder="例如：铀价和供给同时波动时，如何分配进口与库存才能避免缺口扩大？"
+              placeholder="例如：新增4台华龙一号机组提前装料（年需约1,600 tU），中哈长协与国内储备如何调度？"
               class="initial-message-input"
               :disabled="isProcessing"
               ref="initialInput"

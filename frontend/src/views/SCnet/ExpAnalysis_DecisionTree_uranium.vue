@@ -71,16 +71,8 @@
         </article>
       </section>
 
-      <details class="decision-handoff-strip glass-panel">
-        <summary class="mid-details-summary">查看决策输入摘要</summary>
-        <article v-for="item in decisionHandoffCards" :key="item.label">
-          <span>{{ item.label }}</span>
-          <strong>{{ item.value }}</strong>
-          <p>{{ item.detail }}</p>
-        </article>
-      </details>
-
       <div class="dt-console">
+        <!-- 01 决策输入 -->
         <aside class="dt-side glass-panel">
           <div class="analysis-column-head">
             <span class="analysis-column-index">01</span>
@@ -90,30 +82,28 @@
             </div>
           </div>
 
-          <details class="dt-source-card">
-            <summary class="mid-details-summary">事件与分析依据</summary>
-            <span>当前对策任务</span>
-            <strong>{{ decisionVm.inputBridge.eventName }}</strong>
-            <p>{{ decisionVm.inputBridge.sourceSummary }}</p>
+          <div class="dt-source-card">
+            <div class="source-card-badge-row">
+              <span class="source-badge">任务依据</span>
+              <span class="source-scenario-tag">{{ decisionVm.inputBridge.scenarioLabel }} · {{ decisionVm.inputBridge.timeLabel }}</span>
+            </div>
+            <strong class="source-event-title">{{ decisionVm.inputBridge.eventName }}</strong>
+            <p class="source-summary-text">{{ decisionVm.inputBridge.sourceSummary }}</p>
             <div class="dt-source-grid">
               <div>
-                <small>情景窗口</small>
-                <p>{{ decisionVm.inputBridge.scenarioLabel }} / {{ decisionVm.inputBridge.timeLabel }}</p>
-              </div>
-              <div>
                 <small>当前风险等级</small>
-                <p>{{ decisionVm.decisionHero.stageLabel }}</p>
-              </div>
-              <div>
-                <small>决策事件</small>
-                <p>{{ decisionVm.inputBridge.eventName }}</p>
+                <p>
+                  <el-tag size="small" :type="decisionVm.decisionHero.stageLabel?.includes('高') ? 'danger' : 'warning'" effect="light">
+                    {{ decisionVm.decisionHero.stageLabel }}
+                  </el-tag>
+                </p>
               </div>
               <div>
                 <small>展开原则</small>
                 <p>{{ decisionVm.inputBridge.treeRule }}</p>
               </div>
             </div>
-          </details>
+          </div>
 
           <div class="dt-kpi-stack">
             <article
@@ -128,15 +118,16 @@
           </div>
 
           <div v-if="baselineMetrics" class="dt-baseline-card">
-            <span>未干预基线</span>
+            <div class="dt-baseline-head">
+              <span>未干预基线状态</span>
+              <el-tag size="small" type="danger" effect="plain">未干预基准</el-tag>
+            </div>
             <strong>{{ decisionVm.inputBridge.eventName }}</strong>
-            <p>履约 {{ baselineMetrics.fulfillmentRate }}% · 缺口率 {{ baselineMetrics.stockoutRate }}% · 得分 {{ baselineMetrics.score }} 分</p>
+            <p>履约率 <b>{{ baselineMetrics.fulfillmentRate }}%</b> · 缺口率 <b>{{ baselineMetrics.stockoutRate }}%</b> · 基线得分 <b>{{ baselineMetrics.score }} 分</b></p>
           </div>
-
-
-
         </aside>
 
+        <!-- 02 对策证据树 -->
         <main class="tree-panel glass-panel" :style="treePanelStyle">
           <div class="panel-header">
             <div class="panel-header-main">
@@ -182,6 +173,7 @@
           </div>
         </main>
 
+        <!-- 03 方案优先级排序 -->
         <aside class="dt-rail glass-panel">
           <div class="dt-rail-inner">
             <div class="analysis-column-head">
@@ -192,48 +184,32 @@
               </div>
             </div>
 
-            <el-table
-              :data="strategyScreeningRows"
-              size="small"
-              stripe
-              class="strategy-screening-table"
-              empty-text="暂无方案排序"
-            >
-              <el-table-column prop="rankText" label="序" width="44" />
-              <el-table-column prop="name" label="方案" min-width="112" show-overflow-tooltip />
-              <el-table-column prop="scoreText" label="评分" width="70" />
-              <el-table-column prop="decision" label="状态" width="82">
-                <template #default="{ row }">
-                  <el-tag size="small" :type="row.tagType" effect="light">{{ row.decision }}</el-tag>
-                </template>
-              </el-table-column>
-            </el-table>
-
+            <!-- 推荐优选动作卡片 -->
             <article class="dt-focus-card" :class="{ muted: !bestStrategy }">
               <div class="dt-focus-head">
                 <div>
-                  <span>当前推荐</span>
-                  <strong>{{ bestStrategy?.name || '等待推荐动作' }}</strong>
+                  <span class="dt-focus-label">推荐优选动作</span>
+                  <strong class="dt-focus-name">{{ bestStrategy?.name || '等待推荐动作' }}</strong>
                 </div>
                 <el-button
                   v-if="bestStrategy"
-                  link
+                  size="small"
                   type="primary"
                   class="dt-focus-action"
                   @click="openStrategyNode(bestStrategy.id)"
                 >
-                  查看路径
+                  定位路径
                 </el-button>
               </div>
-              <p>{{ bestStrategy?.note || '当前场景尚未返回动作评分，候选排序生成后会自动聚焦推荐动作。' }}</p>
+              <p class="dt-focus-desc">{{ bestStrategy?.note || '当前场景尚未返回动作评分，候选排序生成后会自动聚焦推荐动作。' }}</p>
               <div class="dt-focus-grid">
                 <div>
                   <small>预计得分</small>
-                  <strong>{{ bestStrategy ? `${bestStrategy.score} 分` : '--' }}</strong>
+                  <strong class="score-num">{{ bestStrategy ? `${bestStrategy.score} 分` : '--' }}</strong>
                 </div>
                 <div>
-                  <small>较基线</small>
-                  <strong>{{ bestStrategyImprovementText }}</strong>
+                  <small>较基线提升</small>
+                  <strong class="imp-num">{{ bestStrategyImprovementText }}</strong>
                 </div>
                 <div>
                   <small>高概率结果</small>
@@ -241,42 +217,59 @@
                 </div>
                 <div>
                   <small>结果指向</small>
-                  <strong>{{ bestStrategyOutcomeText }}</strong>
+                  <strong class="outcome-num">{{ bestStrategyOutcomeText }}</strong>
                 </div>
               </div>
             </article>
 
-            <div v-if="decisionVm.strategyDeck.length" class="sb-items">
-              <article
-                v-for="item in decisionVm.strategyDeck"
-                :key="item.id"
-                class="sb-item"
-                :class="{ best: item.isBest, active: selectedStrategyId === item.id }"
-                tabindex="0"
-                @click="openStrategyNode(item.id)"
-                @keydown.enter.prevent="openStrategyNode(item.id)"
-                @keydown.space.prevent="openStrategyNode(item.id)"
+            <!-- 候选排序清单表格 -->
+            <div class="strategy-list-box">
+              <div class="strategy-list-head">
+                <span class="strategy-list-title">候选对策评价排序</span>
+                <span class="strategy-list-hint">点击行可高亮树节点</span>
+              </div>
+              <el-table
+                :data="strategyScreeningRows"
+                size="small"
+                stripe
+                highlight-current-row
+                class="strategy-screening-table"
+                empty-text="暂无方案排序"
+                @row-click="(row) => openStrategyNode(row.id)"
               >
-                <div class="sb-row">
-                  <span class="sb-name">#{{ item.rank }} {{ item.title }}</span>
-                  <span class="sb-score">{{ item.scoreText }}</span>
-                </div>
-                <el-progress
-                  :percentage="item.percent"
-                  :show-text="false"
-                  :stroke-width="8"
-                  :color="item.isBest ? '#f59e0b' : '#94a3b8'"
-                />
-                <p class="sb-note">{{ item.note }}</p>
-                <div class="sb-metrics">
-                  <span>{{ item.improvementText }}</span>
-                  <span>{{ item.successText }}</span>
-                </div>
-                <div class="sb-outcome">{{ item.outcomeText }}</div>
-                <el-tag v-if="item.isBest" type="warning" size="small" effect="dark" class="best-tag">推荐</el-tag>
-              </article>
+                <el-table-column prop="rankText" label="序" width="44" align="center" />
+                <el-table-column prop="name" label="对策方案" min-width="112" show-overflow-tooltip>
+                  <template #default="{ row }">
+                    <span :class="{ 'best-name': row.decision === '优选' }">{{ row.name }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="scoreText" label="评分" width="70" align="center">
+                  <template #default="{ row }">
+                    <span class="score-badge">{{ row.scoreText }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="decision" label="状态" width="76" align="center">
+                  <template #default="{ row }">
+                    <el-tag size="small" :type="row.tagType" effect="light">{{ row.decision }}</el-tag>
+                  </template>
+                </el-table-column>
+              </el-table>
             </div>
-            <el-empty v-else description="当前场景与时点暂未生成策略评分" :image-size="60" />
+
+            <!-- 落地依赖条目卡 -->
+            <div class="side-dependency-card">
+              <div class="side-dep-head">
+                <strong>执行前置依赖约束</strong>
+                <el-tag size="small" type="info" effect="plain">{{ dependencyCards.length }}项约束</el-tag>
+              </div>
+              <div class="side-dep-items">
+                <div v-for="item in dependencyCards" :key="item.label" class="side-dep-row">
+                  <span class="dep-row-type">{{ item.type }}</span>
+                  <span class="dep-row-label">{{ item.label }}</span>
+                  <el-tag size="small" :type="item.tagType" effect="light">{{ item.level }}</el-tag>
+                </div>
+              </div>
+            </div>
           </div>
         </aside>
       </div>
@@ -1137,23 +1130,85 @@ onBeforeUnmount(() => {
 
 .dt-console {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: 310px minmax(0, 1fr) 350px;
+  gap: 14px;
   align-items: start;
 }
 
-.tree-panel { grid-column: 1 / -1; grid-row: 1; }
+@media (max-width: 1399px) {
+  .dt-console {
+    grid-template-columns: 280px minmax(0, 1fr) 320px;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 1080px) {
+  .dt-console {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 
 .dt-side {
-  padding: 12px 14px;
+  position: sticky;
+  top: 8px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
+  border-radius: 12px;
+}
+
+.source-card-badge-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.source-badge {
+  font-size: 10px;
+  font-weight: 800;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 1px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+}
+
+.source-scenario-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.source-event-title {
+  display: block;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.source-summary-text {
+  margin: 6px 0 10px;
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.dt-baseline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
 }
 
 .dt-source-card {
-  padding: 10px 12px;
+  padding: 12px 14px;
   border-radius: var(--mid-radius-md);
   border: 1px solid #dbeafe;
   background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
@@ -1534,37 +1589,100 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-.sb-items { display: flex; flex-direction: column; gap: 10px; }
-.sb-item {
-  padding: 12px 14px;
+.strategy-list-box {
+  margin-top: 10px;
+  border-radius: var(--mid-radius-md);
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  background: rgba(248, 250, 252, 0.78);
-  position: relative;
-  cursor: pointer;
-  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+  background: #ffffff;
+  padding: 10px 12px;
 }
-.sb-item:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+
+.strategy-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
 }
-.sb-item:focus-visible {
-  outline: 2px solid #2563eb;
-  outline-offset: 2px;
+
+.strategy-list-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: #0f172a;
 }
-.sb-item.best { border-color: #f59e0b; background: rgba(255, 251, 235, 0.9); }
-.sb-item.active {
-  border-color: #2563eb;
-  background: linear-gradient(180deg, rgba(239, 246, 255, 0.96) 0%, rgba(255, 255, 255, 0.98) 100%);
-  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.12);
+
+.strategy-list-hint {
+  font-size: 11px;
+  color: #94a3b8;
 }
-.sb-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
-.sb-name { font-size: 13px; font-weight: 600; color: #334155; overflow-wrap: anywhere; }
-.sb-score { font-size: var(--mid-fs-strong); font-weight: 800; color: #0f172a; white-space: nowrap; }
-.sb-note { margin: 8px 0 0; font-size: var(--mid-fs-label); color: #64748b; line-height: 1.55; overflow-wrap: anywhere; }
-.sb-metrics { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; color: #475569; font-size: 11px; }
-.sb-outcome { margin-top: 8px; color: #0f172a; font-size: var(--mid-fs-label); line-height: 1.55; font-weight: 600; overflow-wrap: anywhere; }
-.best-tag { position: absolute; top: 8px; right: 8px; }
+
+.best-name {
+  font-weight: 800;
+  color: #1d4ed8;
+}
+
+.score-badge {
+  font-weight: 800;
+  font-family: var(--mid-font-mono, monospace);
+  color: #0f172a;
+}
+
+.side-dependency-card {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: var(--mid-radius-md);
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.side-dep-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.side-dep-head strong {
+  font-size: 12px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.side-dep-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.side-dep-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: #ffffff;
+  border: 1px solid #eef2f7;
+  border-radius: 6px;
+}
+
+.dep-row-type {
+  font-size: 10px;
+  font-weight: 700;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  padding: 1px 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.dep-row-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .reasoning-drawer :deep(.el-drawer__body) { padding: 0; }
 .drawer-header {

@@ -1724,17 +1724,19 @@ export default {
         },
         // ── 规则库（铀 & 汽车两套） ──
         rules_uranium: {
-          name: '规则库（铀）', desc: '铀供应链博弈规则、红线条件与行为约束',
-          docCount: 5, chunkCount: 95, entityCount: 38, relationCount: 72,
-          enabled: true, keywords: ['供应中断', '价格阈值', '制裁规则', '长协违约'],
+          name: '规则库（铀）', desc: '铀供应链调度规则、地缘与两用管制合规与刚性库存红线',
+          docCount: 6, chunkCount: 124, entityCount: 46, relationCount: 88,
+          enabled: true, keywords: ['美国禁俄铀法案', 'Class 7海运资质', '中哈过境协定', '180天安全库存', '照付不议长协'],
           documents: [
-            { name: '铀供应中断情景规则集', type: '规则', chunks: 32, uploadTime: '2024-01-05' },
-            { name: '国际核贸易管制条例', type: '法规', chunks: 24, uploadTime: '2024-01-20' },
+            { name: '美国禁俄铀法案 (Prohibiting Russian Uranium Imports Act) 实施细则', type: '管制法规', chunks: 36, uploadTime: '2024-05-18' },
+            { name: '中哈放射性核材料过境与阿拉山口专用编组站技术协议', type: '双边规程', chunks: 28, uploadTime: '2024-03-12' },
+            { name: '国际海事组织 (IMO) Class 7 放射性危化物海运与港口接卸规程', type: '国际标准', chunks: 32, uploadTime: '2024-02-15' },
+            { name: '国家战略天然铀商业储备借调与紧急平抑联动机制', type: '集团制度', chunks: 28, uploadTime: '2024-06-01' },
           ],
           entityCategories: {
-            sanction: { name: '制裁规则', count: 10, entities: ['俄铀进口禁令', '尼日尔出口限制', '伊朗禁运'], overflow: 7 },
-            contract: { name: '合约规则', count: 8, entities: ['长协违约', 'spot采购上限', '库存警戒线'], overflow: 5 },
-            price: { name: '价格规则', count: 6, entities: ['$120/lb 触发线', '$40/lb 成本底线', '溢价上限15%'], overflow: 3 },
+            sanction: { name: '管制法规', count: 12, entities: ['美国禁俄铀法案', 'Class 7危品航运资质', '中哈过境协定', '两用物项管制', 'IAEA保障监督'], overflow: 7 },
+            contract: { name: '合约与配额', count: 10, entities: ['Inkai长协40%权益', 'Husab全资离岸FOB', 'Take-or-Pay照付不议', '180天安全库存红线'], overflow: 6 },
+            logistics: { name: '口岸通运规则', count: 8, entities: ['阿拉山口1200tU/月上限', '连云港Class 7接卸资质', '鲸湾港45天船期窗口', '中走廊TITR通量限制'], overflow: 4 },
           },
           graphData: true,
         },

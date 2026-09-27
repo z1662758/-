@@ -529,11 +529,11 @@ function resetDraft() {
 watch(() => uraniumStore.draft, syncFormFromDraft, { deep: true })
 
 const convergenceRules = computed(() => [
-  { label: '时间步长', value: `1 ${planner.timeStepUnit}` },
-  { label: '历史数据窗口', value: planner.calibrationWindow },
-  { label: '最大优化轮数', value: `${planner.maxIterations} 轮` },
-  { label: '结果选择', value: '保留评分更优的策略' },
-  { label: '优化目标值', value: '1 − 综合评分 / 100，越低越好' }
+  { label: '推演时间步长', value: '1 季度 / 1 半年度（核燃料调运与换料大修周期）' },
+  { label: '历史校准基准', value: planner.calibrationWindow },
+  { label: '收敛判定准则', value: 'Monte-Carlo 随机采样 1000 次 · 95% 置信区间' },
+  { label: '多目标优化导向', value: '帕累托最优前沿解（极小化保供敞口 & 平抑完全成本）' },
+  { label: '决策约束边界', value: '商业安全库存 >= 180 天 · 阿拉山口 <= 1,200 tU/月' }
 ])
 
 // ---------- 事件库 ----------

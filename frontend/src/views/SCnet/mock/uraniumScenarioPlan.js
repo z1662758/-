@@ -4,11 +4,9 @@ export function buildUraniumRequirementAnswer(userGoal, draft = {}) {
   const plan = buildUraniumScenarioPlan(userGoal, draft)
   const safe = text => String(text).replace(/[<>&*_`[\]#]/g, '')
   return [
-    `### 一、需求理解\n\n${safe(plan.goal.explain)}`,
-    '### 二、建模安排\n\n将供给方、运输通道、制造方（采购主体）与核电需求端纳入同一供应链模型。供给方负责产能与报价，制造方负责采购和库存，运输通道传导物流风险，需求端提供年度消耗信息。',
-    `建议先确认以下参数：\n\n- 推演窗口：${plan.exp_params.params.start_year}–${plan.exp_params.params.end_year} 年。\n- 迭代轮数：${plan.exp_params.params.optimization_iterations} 轮。\n- 事件强度倍率：${plan.exp_params.params.event_severity_multiplier}。\n- 观察指标：采购成本、需求缺口、库存覆盖年限和风险暴露。`,
-    `### 三、下一步\n\n${plan.goal_decomposition.subtasks.map((task, index) => `${index + 1}. ${task.title}：${task.description}`).join('\n')}`,
-    '你可以继续补充事件背景、保供目标或预算约束。确认后点击下方「查看建模设定」，检查 Agent 角色与环境参数，再进入想定生成。',
+    `### 一、应急需求研判与定标\n\n- **需求理解**：围绕“${safe(userGoal)}”，在 ${draft.start_year || 2024}–${draft.end_year || 2028} 年推演窗口内，系统对突发事件冲击与应急调度展开多维推演与策略寻优。\n\n已完成对事件冲击的物理定标：\n- **全国基线需求**：当前全国在役机组年基线天然铀需求为 **11,500 tU**。\n- **突发扰动冲击**：核电负荷激增导致需求突发上涨 **+20%**（年度缺口量 **+2,300 tU**），主要源于 4 台百万千瓦华龙一号机组提前装料与首炉换料周期重叠。\n- **空间缺口分布**：**北方元件基地（包头）**预计承接缺口 **60%**（~1,380 tU），**南方元件基地（宜宾/沿海）**预计承接缺口 **40%**（~920 tU）。\n- **刚性边界红线**：商业安全库存红线天数 **180 天**，中哈口岸月度铁路通运上限 **1,200 tU/月**。`,
+    `### 二、建模设定与决策导向\n\n系统已将海外矿山（哈原工/纳米比亚湖山/加拿大雪茄湖）、关键通道（中亚铁路阿拉山口口岸/远洋海运）、国内制造端（北方包头基地/南方沿海基地）与国家战略原料储备库纳入一体化动态调度模型。\n\n当前推演重点权衡以下两种决策策略：\n1. **【核安全刚性保供优先】（推荐）**：允许现货溢价最高 +35%，提前锁定纳米比亚海运批次并启动战略储备临时借调，确保关键堆型 0 停堆风险。\n2. **【综合平抑到岸成本优先】**：严控现货在 $80/lb U3O8 以下，限制高运费通道，优先依托南北基地间库存横向调剂。`,
+    `### 三、应急推演与调度流程\n\n${plan.goal_decomposition.subtasks.map((task, index) => `${index + 1}. **${task.title}**：${task.description}`).join('\n')}\n\n请核实上述业务基线。确认后可点击下方「查看建模设定」，检查实体属性与分配算法引擎，随后生成多维对比想定。`,
   ].join('\n\n')
 }
 
@@ -41,16 +39,80 @@ export function buildUraniumScenarioPlan(userGoal, draft = {}) {
     } },
   }
   plan.candidate_plans = [
-    { preset_name: 'balanced', title: '平衡方案', focus: '兼顾采购成本、风险暴露与库存覆盖。', status: '基准', kind: 'main' },
-    { preset_name: 'security_first', title: '保供优先', focus: '提高库存与长协偏好，观察需求缺口是否收窄。', status: '保供', kind: 'compare' },
-    { preset_name: 'cost_first', title: '成本优先', focus: '控制采购成本，同时检查来源集中度和库存压力。', status: '成本', kind: 'support' },
-    { preset_name: 'shock_response', title: '冲击响应', focus: '提高首年价格设定，检查供给与库存能否承受额外压力。', status: '冲击', kind: 'edge' },
+    {
+      preset_name: 'balanced',
+      title: '基准方案 (常态履约平衡)',
+      focus: '长协履约为主，兼顾到岸完全成本、风险暴露与库存覆盖。',
+      status: '基准',
+      kind: 'main',
+      long_term_ratio: '85%',
+      spot_limit: '15%',
+      target_stock: '1.5 年 (540天)',
+      corridor_split: '海运 40% : 陆运 60%',
+      reserve_action: '常规备用 (不主动借调)',
+      premium_cap: '+10%',
+      reactor_trip_risk: '2.1%',
+      cif_cost_estimate: '$246.80/kgU'
+    },
+    {
+      preset_name: 'security_first',
+      title: '保供优先方案 (核安全刚性保障)',
+      focus: '允许现货溢价最高+35%，提升海运长协与现货配额至50%，启动中央储备200tU平抑，确保关键机组零停堆。',
+      status: '推荐',
+      kind: 'compare',
+      long_term_ratio: '70%',
+      spot_limit: '30%',
+      target_stock: '2.5 年 (900天)',
+      corridor_split: '海运 55% : 陆运 45%',
+      reserve_action: '紧急释放 200 tU 补位',
+      premium_cap: '+35%',
+      reactor_trip_risk: '0.0%',
+      cif_cost_estimate: '$254.20/kgU'
+    },
+    {
+      preset_name: 'cost_first',
+      title: '成本优先方案 (严控现货溢价)',
+      focus: '严控现货采购在 $80/lb 以下，不启用高运费航线，主要依靠基地间库存横向转运平摊。',
+      status: '成本',
+      kind: 'support',
+      long_term_ratio: '95%',
+      spot_limit: '5%',
+      target_stock: '1.0 年 (360天)',
+      corridor_split: '海运 30% : 陆运 70%',
+      reserve_action: '不启用储备',
+      premium_cap: '0% (限价拒采)',
+      reactor_trip_risk: '6.5%',
+      cif_cost_estimate: '$238.50/kgU'
+    },
+    {
+      preset_name: 'shock_response',
+      title: '地缘极端冲击方案 (陆路通量受限30%)',
+      focus: '测算中哈铁路口岸通量受限30%情景下，测试远洋危化专线最大吞吐弹性与储备全额借调能力。',
+      status: '冲击',
+      kind: 'edge',
+      long_term_ratio: '60%',
+      spot_limit: '40%',
+      target_stock: '2.0 年 (720天)',
+      corridor_split: '海运 70% : 陆运 30%',
+      reserve_action: '全面启动 600 tU 调拨',
+      premium_cap: '+50%',
+      reactor_trip_risk: '0.8%',
+      cif_cost_estimate: '$268.00/kgU'
+    }
   ].map((item, index) => ({
     ...item,
     name: `方案 ${index + 1}`,
     params: {
       ...plan.exp_params.params,
       preset_name: item.preset_name,
+      long_term_ratio: item.long_term_ratio,
+      spot_limit: item.spot_limit,
+      target_stock: item.target_stock,
+      corridor_split: item.corridor_split,
+      reserve_action: item.reserve_action,
+      premium_cap: item.premium_cap,
+      reactor_trip_risk: item.reactor_trip_risk,
+      cif_cost_estimate: item.cif_cost_estimate,
       ...(item.preset_name === 'shock_response' ? { starting_price_usd_per_lb: 95 } : {}),
     },
   }))

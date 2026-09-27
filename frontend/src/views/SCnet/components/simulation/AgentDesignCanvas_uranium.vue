@@ -171,6 +171,52 @@
                     </dl>
                   </el-collapse-item>
 
+                  <el-collapse-item name="dispatchRules" title="应急调度分配规则引擎">
+                    <div class="dispatch-engine-box">
+                      <div class="dispatch-rule-item" :class="{ active: selectedDispatchRule === 'ruleA' }" @click="selectedDispatchRule = 'ruleA'">
+                        <div class="rule-radio"><span class="radio-dot"></span></div>
+                        <div class="rule-content">
+                          <strong>规则 A：关键堆型换料截止期倒排优先（推荐）</strong>
+                          <p>华龙一号首炉装料 > 商业大修换料 > 常规备料储备，优先向北方包头基地定向倾斜铁路配额。</p>
+                        </div>
+                      </div>
+                      <div class="dispatch-rule-item" :class="{ active: selectedDispatchRule === 'ruleB' }" @click="selectedDispatchRule = 'ruleB'">
+                        <div class="rule-radio"><span class="radio-dot"></span></div>
+                        <div class="rule-content">
+                          <strong>规则 B：全网核电机组停堆电量损失最小化</strong>
+                          <p>按机组单日停机发电损失动态权衡，向满功率负荷机组集中调配天然铀原料。</p>
+                        </div>
+                      </div>
+                      <div class="dispatch-rule-item" :class="{ active: selectedDispatchRule === 'ruleC' }" @click="selectedDispatchRule = 'ruleC'">
+                        <div class="rule-radio"><span class="radio-dot"></span></div>
+                        <div class="rule-content">
+                          <strong>规则 C：各基地安全库存可用周数均衡平摊</strong>
+                          <p>动态拉平北方基地（14周）与南方基地（36周）的库存水位，实施横向跨基地协同调拨。</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="multi-base-status-board">
+                      <span class="board-title">各基地库存与调剂运行状态</span>
+                      <div class="base-status-row">
+                        <div class="base-status-item">
+                          <span>北方包头基地</span>
+                          <strong class="warn">14 周 (预警)</strong>
+                          <small>缺口约 1,380 tU · 中哈直达直供中</small>
+                        </div>
+                        <div class="base-status-item">
+                          <span>南方沿海基地</span>
+                          <strong class="safe">36 周 (安全)</strong>
+                          <small>海运港口接卸 · 可调拨备用</small>
+                        </div>
+                        <div class="base-status-item">
+                          <span>战略原料储备库</span>
+                          <strong class="normal">2,800 tU (充足)</strong>
+                          <small>应急借调限额 600 tU · 审批即发</small>
+                        </div>
+                      </div>
+                    </div>
+                  </el-collapse-item>
+
                   <el-collapse-item name="posture" title="决策姿态">
                     <div class="posture-grid">
                       <div><span>决策风格</span><b>{{ selectedRole.decision_posture.style || '—' }}</b></div>
@@ -407,7 +453,8 @@ const visibleCategories = computed(() => Object.entries(props.groupedAgents || {
 
 // ---------- 角色卡（参考 MACE AgentSpec） ----------
 const oodaStages = URANIUM_OODA_STAGES
-const activeSections = ref(['role', 'params'])
+const activeSections = ref(['role', 'dispatchRules', 'params'])
+const selectedDispatchRule = ref('ruleA')
 const roleCache = new Map()
 const roleOf = (agentLike) => {
   const key = `${agentLike?.id || ''}|${agentLike?.name || ''}|${agentLike?.category || ''}`
@@ -1341,6 +1388,109 @@ onBeforeUnmount(() => {
   .canvas-summary span { display: none; }
 }
 
-.right-inner-layout.canvas-focused { flex-direction: row; }
-.canvas-focused .right-content-area { width: 100%; grid-template-columns: minmax(0, 1fr); }
+/* 应急调度分配规则引擎与多基地状态看板 */
+.dispatch-engine-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 6px 0 12px;
+}
+.dispatch-rule-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.dispatch-rule-item:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+.dispatch-rule-item.active {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 1px #3b82f6;
+}
+.rule-radio {
+  margin-top: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dispatch-rule-item.active .rule-radio {
+  border-color: #3b82f6;
+}
+.dispatch-rule-item.active .radio-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #3b82f6;
+}
+.rule-content strong {
+  display: block;
+  font-size: 11px;
+  color: #1e293b;
+  margin-bottom: 2px;
+}
+.rule-content p {
+  margin: 0;
+  font-size: 10px;
+  color: #64748b;
+  line-height: 1.4;
+}
+.multi-base-status-board {
+  border-top: 1px solid #f1f5f9;
+  padding-top: 10px;
+}
+.board-title {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 6px;
+}
+.base-status-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.base-status-item {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 5px;
+  padding: 6px 8px;
+}
+.base-status-item span {
+  display: block;
+  font-size: 11px;
+  color: #334155;
+  font-weight: 500;
+}
+.base-status-item strong {
+  display: inline-block;
+  font-size: 12px;
+  margin: 2px 0;
+}
+.base-status-item strong.warn {
+  color: #b45309;
+}
+.base-status-item strong.safe {
+  color: #15803d;
+}
+.base-status-item strong.normal {
+  color: #0369a1;
+}
+.base-status-item small {
+  display: block;
+  font-size: 10px;
+  color: #94a3b8;
+}
 </style>

@@ -25,24 +25,23 @@ export const URANIUM_OODA_STAGES = Object.freeze([
   { key: 'act', label: 'Act', zh: '行动', color: '#eda100' }
 ])
 
-// 评估器权重（observer.evaluation_weights）
+// 业务化多维风控评估体系权重（五维雷达与综合决策模型）
 export const URANIUM_OBSERVER_WEIGHTS = Object.freeze([
-  { key: 'supply_reliability', label: '供应可靠性', weight: 0.25 },
-  { key: 'cost_efficiency', label: '成本效率', weight: 0.2 },
-  { key: 'risk_diversification', label: '风险分散度', weight: 0.15 },
-  { key: 'network_resilience', label: '网络韧性', weight: 0.2 },
-  { key: 'inventory_adequacy', label: '库存充足度', weight: 0.15 },
-  { key: 'calibration', label: '校准偏差', weight: 0.05 }
+  { key: 'supply_reliability', label: '战略保供履约度', weight: 0.30 },
+  { key: 'cost_efficiency', label: '平抑到岸完全成本', weight: 0.25 },
+  { key: 'network_resilience', label: '地缘运输断链冗余度', weight: 0.20 },
+  { key: 'inventory_adequacy', label: '跨基地安全库存均衡指数', weight: 0.15 },
+  { key: 'contract_compliance', label: '长协契约违约风险', weight: 0.10 }
 ])
 
 // 规划器（planner）
 export const URANIUM_PLANNER = Object.freeze({
-  parameterSpace: ['采购权重', '目标库存覆盖', '目标供给方数量', '单一来源上限', '预算倍率'],
+  parameterSpace: ['长协现货采购比', '跨基地安全库存覆盖目标', '中哈/海运通道分流配额', '单一产区依赖限额', '应急现货超额预算上限'],
   maxIterations: 100,
-  timeStepUnit: '年',
-  calibrationWindow: '1997–2024'
-
+  timeStepUnit: '季度/月度',
+  calibrationWindow: '1997–2024 (全国机组实绩与长协履约)'
 })
+
 
 export const URANIUM_AGENT_ROLE_LIBRARY = Object.freeze({
   supply: {
@@ -118,23 +117,24 @@ export const URANIUM_AGENT_ROLE_LIBRARY = Object.freeze({
   },
   manufacturing: {
     tier: 'manufacturing',
-    label: '制造方 Agent',
-    camp: '国内采购',
+    label: '制造与转化基地 Agent',
+    camp: '国内制造与转化',
     agentClass: 'ManufacturerAgent',
-    modelingMethod: '年度规则与策略评估',
-    countHint: '采购主体 / 接收节点',
+    modelingMethod: '季度调度与OODA自适应分配',
+    countHint: '制造基地 / 转化入库节点',
     role: {
-      identity: '代表中国核电采购主体，负责年度需求、供应来源选择、采购分配和库存管理。',
-      institutional_context: '承担国家保供责任，采购须满足政策合规、供给来源分散与安全库存要求。',
-      goal: '以可接受成本保障年度燃料需求，维持库存覆盖目标并降低对单一来源的依赖。',
-      constraints: ['政策合规优先于成本', '目标供给方数量 1–5 个', '库存覆盖不低于最低比例']
+      identity: '代表北方（包头）与南方（沿海/宜宾）燃料元件制造基地及转化衔接节点，统筹天然铀采购、转化排产、应急调剂与库存均衡。',
+      institutional_context: '承担国家核安全保供与换料大修刚性保障责任，受 180 天商业安全库存红线及中哈口岸铁路月度通运上限（1,200 tU/月）刚性约束。',
+      goal: '在确保全网在役机组（华龙一号首炉/商用大修）零停堆断料风险的前提下，平抑到岸完全成本，消除南北跨基地库存失衡。',
+      constraints: ['核安全刚性保供优先于成本', '各基地安全库存不低于 180 天红线', '两用物项运输与放射性危化合规']
     },
     decision_posture: {
-      style: '多目标加权采购',
-      risk_appetite: '偏保守（风险厌恶 0.2–0.8 可调）',
-      information_priority: ['供给方政策与地缘稳定性', '履约可靠性与历史表现', '成本经济性与运输可靠性'],
-      typical_actions: ['按偏好权重为供给方评分并分配采购量', '上调长协比例与库存目标', '切换接卸港口与转运方式']
+      style: '风险厌恶型跨基地协同',
+      risk_appetite: '极度保守（安全保供权重优先）',
+      information_priority: ['机组换料大修截止期', '口岸与远洋在途到货进度', '各基地库存可用周数差异'],
+      typical_actions: ['倒排换料截止期动态调整排产', '启动南北基地横向库存调拨', '申请中央战略储备应急平抑借调']
     },
+
     attributes: [
       { key: 'demand_tU', label: '年度需求', unit: 'tU/年', type: 'range', range: [1000, 11000] },
       { key: 'target_inventory_years', label: '目标库存覆盖', unit: '年', type: 'range', range: [1, 4.5] },

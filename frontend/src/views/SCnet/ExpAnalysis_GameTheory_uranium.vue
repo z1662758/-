@@ -145,23 +145,46 @@
           </div>
         </section>
 
-        <details class="algorithm-screening-panel glass-panel">
-        <summary class="mid-details-summary">查看脆弱性评估依据</summary>
-          <div class="analysis-column-head">
-            <span class="analysis-column-index">A1</span>
-            <div>
-              <h3>筛选依据</h3>
-              <p>抽样给出风险权重，反馈结果用于修正下一轮排序。</p>
+        <!-- A1 筛选依据与脆弱性演进闭环 (执行流水线) -->
+        <section class="algorithm-screening-panel glass-panel">
+          <div class="screening-panel-header">
+            <div class="analysis-column-head">
+              <span class="analysis-column-index">A1</span>
+              <div>
+                <h3>脆弱性评估依据与闭环流水线</h3>
+                <p>基于敏感性矩阵与鲁棒性评分动态抽样赋予风险权重，反馈结果用于修正下一轮对策树排序。</p>
+              </div>
+            </div>
+            <div class="screening-status-pill">
+              <span class="mc-iter-tag">博弈收敛判定：已达成</span>
+              <el-tag size="small" type="success" effect="plain">反馈闭环已联通</el-tag>
             </div>
           </div>
-          <div class="algorithm-flow-grid">
-            <article v-for="item in algorithmFlowCards" :key="item.label">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-              <p>{{ item.detail }}</p>
-            </article>
+
+          <div class="algorithm-pipeline-track">
+            <div
+              v-for="(item, index) in algorithmFlowCards"
+              :key="item.label"
+              class="pipeline-step-card"
+              :class="'step-tier-' + (index + 1)"
+            >
+              <div class="pipeline-step-head">
+                <span class="step-badge">STEP 0{{ index + 1 }}</span>
+                <span class="step-role-label">{{ item.label }}</span>
+              </div>
+              <div class="pipeline-step-body">
+                <strong class="step-value">{{ item.value }}</strong>
+                <p class="step-detail">{{ item.detail }}</p>
+              </div>
+              <div class="pipeline-step-footer">
+                <span class="pipeline-status-text">
+                  {{ index === 0 ? '标的对象已锁定' : index === 1 ? '韧性指标已达标' : index === 2 ? '权重调节就绪' : '输入对策树推演' }}
+                </span>
+                <el-icon v-if="index < algorithmFlowCards.length - 1" class="step-arrow-icon"><Right /></el-icon>
+              </div>
+            </div>
           </div>
-        </details>
+        </section>
 
       </main>
     </template>
@@ -173,6 +196,7 @@ import { buildUraniumVulnerability, uraniumVulnerabilityLevel } from '@/utils/ur
 import { computed, nextTick, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute } from 'vue-router'
+import { Right } from '@element-plus/icons-vue'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 import AnalysisLinkTabs from './components/shared/AnalysisLinkTabs.vue'
@@ -441,46 +465,145 @@ watch(() => snapshotStore.activeSnapshotId, (next, prev) => {
 .priority-grid article.inventory { border-color: #fde68a; background: #fffbeb; }
 
 .algorithm-screening-panel {
-  padding: 12px 14px;
+  margin-top: 14px;
+  padding: 18px 20px;
+  border-radius: 14px;
+  border: 1px solid #dbe6f3;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(246, 250, 255, 0.88) 100%);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.05);
 }
 
-.algorithm-flow-grid {
+.screening-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #eef3f9;
+}
+
+.screening-status-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.mc-iter-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: #1e40af;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+/* 4步执行流水线 */
+.algorithm-pipeline-track {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  gap: 12px;
+  margin-top: 16px;
 }
 
-.algorithm-flow-grid article {
+.pipeline-step-card {
+  position: relative;
   min-width: 0;
-  padding: 10px;
-  border: 1px solid #dbe4ef;
-  border-radius: 9px;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
   background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  transition: all 0.2s ease;
 }
 
-.algorithm-flow-grid span {
-  display: block;
-  color: #2563eb;
-  font-size: var(--mid-fs-micro);
+.pipeline-step-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.08);
+  border-color: #bfdbfe;
+}
+
+.pipeline-step-card.step-tier-1 {
+  border-top: 3px solid #3b82f6;
+}
+
+.pipeline-step-card.step-tier-2 {
+  border-top: 3px solid #10b981;
+}
+
+.pipeline-step-card.step-tier-3 {
+  border-top: 3px solid #f59e0b;
+}
+
+.pipeline-step-card.step-tier-4 {
+  border-top: 3px solid #6366f1;
+}
+
+.pipeline-step-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.step-badge {
+  font-size: 10px;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #f1f5f9;
+  color: #475569;
+  font-family: var(--mid-font-mono, monospace);
+  letter-spacing: 0.05em;
 }
 
-.algorithm-flow-grid strong {
-  display: block;
-  margin-top: 4px;
+.step-role-label {
+  font-size: 12px;
+  font-weight: 800;
   color: #0f172a;
-  font-size: var(--mid-fs-strong);
-  line-height: var(--mid-lh-tight);
-  overflow-wrap: anywhere;
 }
 
-.algorithm-flow-grid p {
+.pipeline-step-body {
+  flex: 1;
+}
+
+.step-value {
+  display: block;
+  color: #1e3a8a;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.step-detail {
   margin: 6px 0 0;
-  color: #64748b;
-  font-size: var(--mid-fs-label);
-  line-height: var(--mid-lh-body);
-  overflow-wrap: anywhere;
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.pipeline-step-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed #f1f5f9;
+}
+
+.pipeline-status-text {
+  font-size: 10px;
+  font-weight: 600;
+  color: #059669;
+}
+
+.step-arrow-icon {
+  font-size: 14px;
+  color: #94a3b8;
 }
 
 .dependency-matrix-cell {

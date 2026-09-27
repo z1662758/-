@@ -294,58 +294,141 @@
         </div>
 
       </div>
-      <details class="scenario-supplement glass-panel">
-        <summary class="mid-details-summary">情景分布与方案筛选</summary>
-      <section class="scenario-plan-pool glass-panel">
-        <div class="scenario-plan-head">
-          <div>
-
-            <strong>情景分布</strong>
-            <p>按年度风险等级统计占比，用于了解本次实验的压力分布。</p>
+      <!-- 情景分布与方案筛选 (现代化高管驾驶舱面板) -->
+      <section class="scenario-supplement glass-panel">
+        <div class="supplement-header">
+          <div class="supplement-title-group">
+            <span class="analysis-column-index">04</span>
+            <div>
+              <h3>情景分布与方案筛选</h3>
+              <p>按年度风险等级统计占比，用于了解本次实验的压力分布，并结合 Monte-Carlo 压力传导进行应急处置方案初筛。</p>
+            </div>
           </div>
-          <el-tag type="primary" effect="plain">{{ scenarioPlanCards.length }} 类情景</el-tag>
+          <div class="supplement-actions">
+            <el-tag type="primary" effect="plain" round>{{ scenarioPlanCards.length }} 类情景全景覆盖</el-tag>
+            <el-tag type="success" effect="plain" round>优选 {{ preferredPlanRows.length }} / 剔除 {{ rejectedPlanRows.length }}</el-tag>
+          </div>
         </div>
+
+        <!-- 连续风险情景频谱分布条 -->
+        <div class="distribution-spectrum-wrapper">
+          <div class="spectrum-bar-header">
+            <span class="spectrum-caption">全周期压力与情景分布频谱 (按年度权重聚合)</span>
+            <div class="spectrum-legend">
+              <span v-for="item in scenarioPlanCards" :key="item.label" class="legend-dot-item">
+                <i :style="{ background: item.color }"></i> {{ item.label }} ({{ item.probability }}%)
+              </span>
+            </div>
+          </div>
+          <div class="distribution-spectrum-bar">
+            <div
+              v-for="item in scenarioPlanCards"
+              :key="item.label"
+              class="spectrum-segment"
+              :style="{ width: `${item.probability > 0 ? item.probability : 2}%`, background: item.color }"
+              :class="{ 'zero-pct': item.probability === 0 }"
+              :title="`${item.label}: ${item.probability}%`"
+            >
+              <span v-if="item.probability > 12" class="spectrum-label">{{ item.label }} {{ item.probability }}%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 三类情景卡片网格 -->
         <div class="scenario-plan-grid">
-          <article v-for="item in scenarioPlanCards" :key="item.label" :class="item.tone">
-            <div><span>{{ item.label }}</span><strong>{{ item.probability }}%</strong></div>
-            <el-progress :percentage="item.probability" :show-text="false" :stroke-width="7" :color="item.color" />
-            <p>{{ item.description }}</p>
-            <small>{{ item.basis }}</small>
+          <article
+            v-for="item in scenarioPlanCards"
+            :key="item.label"
+            class="scenario-card"
+            :class="[item.tone, { 'is-dominant': item.probability >= 50 }]"
+          >
+            <div class="sc-card-top">
+              <div class="sc-card-badge">
+                <span class="sc-dot" :style="{ background: item.color }"></span>
+                <span class="sc-title">{{ item.label }}</span>
+              </div>
+              <div class="sc-prob-wrap">
+                <strong class="sc-prob">{{ item.probability }}%</strong>
+                <span class="sc-prob-tag" :class="item.tone">
+                  {{ item.probability >= 50 ? '全域焦点' : item.probability > 0 ? '局部承压' : '常态参照' }}
+                </span>
+              </div>
+            </div>
+            <div class="sc-progress-wrap">
+              <el-progress
+                :percentage="item.probability"
+                :show-text="false"
+                :stroke-width="7"
+                :color="item.color"
+              />
+            </div>
+            <p class="sc-desc">{{ item.description }}</p>
+            <div class="sc-basis-chip">
+              <span class="basis-label">判定依据</span>
+              <span class="basis-text">{{ item.basis }}</span>
+            </div>
           </article>
         </div>
-      </section>
 
-      <details class="scenario-filter-panel glass-panel">
-        <summary class="mid-details-summary">查看方案筛选依据</summary>
-        <div class="scenario-plan-head">
-          <div>
-
-            <strong>方案筛选</strong>
-            <p>结合年度风险分布，区分日常参照与应急处置方向。</p>
+        <!-- 方案筛选依据与处置方向模块 -->
+        <div class="scenario-filter-box">
+          <div class="filter-box-head">
+            <div class="filter-box-title">
+              <span class="filter-index-dot">A</span>
+              <div>
+                <strong>方案筛选依据与处置方向</strong>
+                <small>结合年度风险分布，区分日常参照与应急处置方向，形成对策树候选动作输入</small>
+              </div>
+            </div>
+            <div class="filter-tags">
+              <span class="mc-sample-pill">Monte-Carlo 抽样 1,000次</span>
+              <span class="ci-pill">置信度 95%</span>
+            </div>
           </div>
-          <el-tag type="success" effect="plain">优选 {{ preferredPlanRows.length }} / 剔除 {{ rejectedPlanRows.length }}</el-tag>
-        </div>
-        <el-table
-          :data="scenarioScreeningRows"
-          size="small"
-          stripe
-          class="scenario-screening-table"
-          empty-text="暂无方案筛选结果"
-        >
-          <el-table-column prop="rankText" label="序" width="56" />
-          <el-table-column prop="name" label="方案" min-width="130" show-overflow-tooltip />
-          <el-table-column prop="purpose" label="作用" min-width="220" show-overflow-tooltip />
-          <el-table-column prop="monteCarlo" label="年度占比" width="92" />
-          <el-table-column prop="bayes" label="处置方向" min-width="118" show-overflow-tooltip />
-          <el-table-column prop="status" label="结果" width="92">
-            <template #default="{ row }">
-              <el-tag size="small" :type="row.statusType" effect="light">{{ row.status }}</el-tag>
-            </template>
-          </el-table-column>
-        </el-table>
-      </details>
 
-      </details>
+          <el-table
+            :data="scenarioScreeningRows"
+            size="default"
+            class="scenario-screening-table-modern"
+            empty-text="暂无方案筛选结果"
+          >
+            <el-table-column prop="rankText" label="序" width="70" align="center">
+              <template #default="{ row }">
+                <span class="rank-badge">{{ row.rankText }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="name" label="方案" width="130">
+              <template #default="{ row }">
+                <strong class="scheme-name">{{ row.name }}</strong>
+              </template>
+            </el-table-column>
+            <el-table-column prop="purpose" label="作用" min-width="260" show-overflow-tooltip>
+              <template #default="{ row }">
+                <span class="scheme-purpose">{{ row.purpose }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="monteCarlo" label="年度占比" width="110" align="center">
+              <template #default="{ row }">
+                <span class="percentage-pill" :class="row.statusType">{{ row.monteCarlo }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="bayes" label="处置方向" width="140" align="center">
+              <template #default="{ row }">
+                <el-tag size="small" :type="row.statusType === 'danger' ? 'danger' : row.statusType === 'warning' ? 'warning' : 'primary'" effect="plain">
+                  {{ row.bayes }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="status" label="结果" width="100" align="center">
+              <template #default="{ row }">
+                <el-tag size="small" :type="row.statusType" effect="dark" class="result-tag">
+                  {{ row.status }}
+                </el-tag>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+      </section>
     </template>
   </div>
 </template>
@@ -485,32 +568,395 @@ watch(activeWindowIndex, () => {
 </script>
 
 <style scoped>
-.scenario-supplement { margin: 0 8px 16px; padding: 14px; }
-.scenario-supplement > section, .scenario-supplement > details { margin-top: 14px; }
-.scenario-plan-pool { margin: 0 8px 10px; padding: 12px; }
-.scenario-plan-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.scenario-plan-head span { color: #2563eb; font-size: var(--mid-fs-micro); font-weight: 800; letter-spacing: .08em; }
-.scenario-plan-head strong { display: block; margin-top: 2px; color: #0f172a; font-size: var(--mid-fs-strong); }
-.scenario-plan-head p { margin: 4px 0 0; color: #64748b; font-size: var(--mid-fs-label); line-height: var(--mid-lh-body); }
-.scenario-plan-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 10px; }
-.scenario-plan-grid article { padding: 10px; border: 1px solid #dbe4ef; border-radius: 9px; background: #f8fafc; }
-.scenario-plan-grid article > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
-.scenario-plan-grid span { color: #475569; font-size: var(--mid-fs-label); font-weight: 700; }
-.scenario-plan-grid strong { color: #0f172a; font-size: var(--mid-fs-title); }
-.scenario-plan-grid p { margin: 7px 0 3px; color: #334155; font-size: var(--mid-fs-label); line-height: var(--mid-lh-body); }
-.scenario-plan-grid small { color: #94a3b8; font-size: var(--mid-fs-micro); line-height: 1.4; }
-.scenario-plan-grid article.warning { border-color: #fde68a; background: #fffbeb; }
-.scenario-plan-grid article.danger { border-color: #fecaca; background: #fef2f2; }
-
-.scenario-filter-panel {
-  margin: 0 8px 10px;
-  padding: 12px;
+.scenario-supplement {
+  margin: 0 8px 20px;
+  padding: 18px 20px;
+  border-radius: 14px;
+  border: 1px solid #dbe6f3;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(246, 250, 255, 0.88) 100%);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.05);
 }
 
-.scenario-screening-table {
-  margin-top: 10px;
-  border-radius: var(--mid-radius-sm);
+.supplement-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #eef3f9;
+}
+
+.supplement-title-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.supplement-title-group h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.supplement-title-group p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.supplement-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* 风险情景频谱分布条 */
+.distribution-spectrum-wrapper {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.spectrum-bar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  gap: 12px;
+}
+
+.spectrum-caption {
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  letter-spacing: 0.02em;
+}
+
+.spectrum-legend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.legend-dot-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.legend-dot-item i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.distribution-spectrum-bar {
+  display: flex;
+  height: 20px;
+  width: 100%;
+  border-radius: 8px;
   overflow: hidden;
+  background: #f1f5f9;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.spectrum-segment {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  transition: width 0.3s ease;
+  position: relative;
+}
+
+.spectrum-segment.zero-pct {
+  opacity: 0.25;
+}
+
+.spectrum-label {
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+/* 情景卡片网格 */
+.scenario-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.scenario-card {
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.scenario-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+}
+
+.scenario-card.is-dominant {
+  border-color: #fca5a5;
+  background: linear-gradient(180deg, #fff5f5 0%, #ffffff 100%);
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.08);
+}
+
+.scenario-card.warning {
+  border-color: #fde68a;
+  background: linear-gradient(180deg, #fffbeb 0%, #ffffff 100%);
+}
+
+.sc-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.sc-card-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sc-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sc-title {
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.sc-prob-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.sc-prob {
+  color: #0f172a;
+  font-size: 18px;
+  font-weight: 800;
+  font-family: var(--mid-font-mono, monospace);
+}
+
+.sc-prob-tag {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.sc-prob-tag.danger {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.sc-prob-tag.warning {
+  background: #fffbeb;
+  color: #d97706;
+  border: 1px solid #fde68a;
+}
+
+.sc-progress-wrap {
+  margin-bottom: 10px;
+}
+
+.sc-desc {
+  margin: 0 0 10px;
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.55;
+  flex: 1;
+}
+
+.sc-basis-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #f8fafc;
+  border: 1px solid #edf2f7;
+  font-size: 11px;
+}
+
+.basis-label {
+  color: #94a3b8;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.basis-text {
+  color: #475569;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 方案筛选依据卡片 */
+.scenario-filter-box {
+  margin-top: 16px;
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+}
+
+.filter-box-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.filter-box-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.filter-index-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 800;
+  border: 1px solid #bfdbfe;
+}
+
+.filter-box-title strong {
+  display: block;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.filter-box-title small {
+  display: block;
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.filter-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mc-sample-pill,
+.ci-pill {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.mc-sample-pill {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #dbeafe;
+}
+
+.ci-pill {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #dcfce7;
+}
+
+.scenario-screening-table-modern {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #eef2f6;
+}
+
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--mid-font-mono, monospace);
+}
+
+.scheme-name {
+  color: #0f172a;
+  font-size: 12px;
+}
+
+.scheme-purpose {
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.percentage-pill {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--mid-font-mono, monospace);
+  background: #f8fafc;
+  color: #475569;
+}
+
+.percentage-pill.danger {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fee2e2;
+}
+
+.percentage-pill.warning {
+  background: #fffbeb;
+  color: #d97706;
+  border: 1px solid #fef3c7;
+}
+
+.result-tag {
+  font-weight: 700;
+  letter-spacing: 0.05em;
 }
 
 .scenario-conclusion-strip {

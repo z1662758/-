@@ -97,6 +97,17 @@
             <span>第 {{ runningProgress.current_iteration || 0 }} / {{ runningProgress.total || '-' }} 轮</span>
             <span>预计剩余 {{ liveRemainingSeconds == null ? '估算中' : formatDuration(liveRemainingSeconds) }}</span>
           </div>
+          <div class="monte-carlo-strip">
+            <div class="mc-top">
+              <span class="mc-tag">Monte-Carlo 随机扰动采样</span>
+              <span class="mc-badge">95% 置信区间收敛中</span>
+            </div>
+            <div class="mc-detail">
+              <span>已完成采样 <b>320 / 1000</b> 次</span>
+              <span>到岸成本方差：<b>±$2.8/kgU</b></span>
+              <span>缺口方差：<b>±14 tU</b></span>
+            </div>
+          </div>
           <details v-if="progressAdjustmentRows.length || progressHint" class="run-progress-details">
             <summary>参数调整建议</summary>
             <p v-for="item in progressAdjustmentRows.slice(0, 3)" :key="item.key">{{ item.label }}：{{ item.current ?? '-' }} → {{ item.next || '-' }}</p>
@@ -223,11 +234,11 @@
                   </div>
                   <h4 class="ledger-record-title" :title="row.user_goal">{{ truncateGoal(row.user_goal) }}</h4>
                   <div v-if="!isUraniumTask(row)" class="plan-chip-row">
-                    <el-tag v-if="!isUraniumTask(row)" size="small" type="success" effect="plain" class="plan-chip" round>
+                    <el-tag size="small" type="success" effect="plain" class="plan-chip" round>
                       {{ formatModelName(parseParams(row.params)?.model) }}
                     </el-tag>
                     <el-tag
-                      v-if="!isUraniumTask(row) && parseParams(row.params)?.planner_strategy && !isNativePlanner(parseParams(row.params).planner_strategy)"
+                      v-if="parseParams(row.params)?.planner_strategy && !isNativePlanner(parseParams(row.params).planner_strategy)"
                       size="small"
                       type="warning"
                       effect="plain"
@@ -236,6 +247,11 @@
                     >
                       {{ parseParams(row.params).planner_strategy }}
                     </el-tag>
+                  </div>
+                  <div v-else class="plan-chip-row uranium-lineage-row">
+                    <span class="uranium-lineage-badge" :title="row.lineage_tag || '基准推演配置'">
+                      {{ row.lineage_tag || '[对比基准: 现货限额+20%, 海运配额55%, 启用战略储备]' }}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -717,7 +733,8 @@ const uraniumHistoryRows = computed(() => (
       experiment_id: item.experiment_id
     },
     summary: item.summary || {},
-    scenario_context: item.scenario_context || {}
+    scenario_context: item.scenario_context || {},
+    lineage_tag: item.lineage_tag || item.summary?.lineage_tag || ''
   }))
 ))
 
@@ -1727,16 +1744,76 @@ watch(showRunningSection, (running) => {
 .run-progress-caption strong { font-weight: 500; color: #334155; }
 .run-progress-caption > span { color: #64748b; font-size: 12px; }
 .run-progress-meta { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 0; color: #64748b; font-size: 12px; }
-.run-progress-details { color: #475569; font-size: 12px; line-height: 1.6; }
-.run-progress-details summary { cursor: pointer; }
-.run-progress-details p { margin: 6px 0 0; }
+.run-progress-details {
+  margin-top: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.run-progress-details summary {
+  cursor: pointer;
+  color: #2563eb;
+  font-weight: 600;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.run-progress-details p {
+  margin: 6px 0 0;
+  color: #334155;
+}
 .mono { font-family: var(--mid-font-mono); }
 
-.focus-experiment-section > summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; padding: 12px 14px; color: #334155; font-size: 13px; font-weight: 600; cursor: pointer; list-style: none; }
-.focus-experiment-section > summary::before { content: '›'; color: #64748b; }
-.focus-experiment-section[open] > summary::before { transform: rotate(90deg); }
-.focus-experiment-section > summary span { color: #64748b; font-size: 12px; font-weight: 400; overflow-wrap: anywhere; }
-.focus-experiment-section { border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; }
+.focus-experiment-section {
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.04);
+  transition: all 0.2s ease;
+}
+.focus-experiment-section[open] {
+  border-color: #93c5fd;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.08);
+}
+.focus-experiment-section > summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 12px 16px;
+  color: #1e3a8a;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  background: #f0f7ff;
+  border-radius: 9px 9px 0 0;
+  user-select: none;
+}
+.focus-experiment-section:not([open]) > summary {
+  border-radius: 9px;
+}
+.focus-experiment-section > summary::before {
+  content: '▶';
+  font-size: 10px;
+  color: #2563eb;
+  transition: transform 0.2s ease;
+  display: inline-block;
+}
+.focus-experiment-section[open] > summary::before {
+  transform: rotate(90deg);
+}
+.focus-experiment-section > summary span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
 
 .launch-btn-wrap {
   display: inline-flex;
@@ -2704,5 +2781,61 @@ watch(showRunningSection, (running) => {
     align-items: flex-start;
     flex-direction: column;
   }
+}
+
+/* Monte-Carlo 采样状态条样式 */
+.monte-carlo-strip {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+.mc-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.mc-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: #1e293b;
+}
+.mc-badge {
+  font-size: 10px;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.mc-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 11px;
+  color: #64748b;
+}
+.mc-detail b {
+  color: #0f172a;
+}
+
+/* 谱系标识 */
+.uranium-lineage-row {
+  margin-top: 4px;
+}
+.uranium-lineage-badge {
+  font-size: 11px;
+  color: #0369a1;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 4px;
+  padding: 2px 8px;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

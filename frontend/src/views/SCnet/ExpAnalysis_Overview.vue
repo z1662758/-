@@ -148,10 +148,29 @@
             </div>
           </article>
           <article class="report-section glass-panel">
-            <div class="overview-section-head compact"><div><span class="overview-kicker">06 · 监测清单</span><h3>策略调整的触发条件</h3></div></div>
-            <div class="alert-list">
-              <div v-for="(item, index) in reportVm.alerts" :key="item" class="alert-row"><span>{{ index + 1 }}</span><p>{{ item }}</p></div>
-              <el-empty v-if="!reportVm.alerts.length" description="当前实验没有新增风险告警" :image-size="54" />
+            <div class="overview-section-head compact">
+              <div>
+                <span class="overview-kicker">06 · 监测清单</span>
+                <h3>策略调整的触发条件与联动响应</h3>
+              </div>
+              <el-tag type="warning" effect="plain" size="small">动态阈值联动</el-tag>
+            </div>
+            <div class="monitoring-grid">
+              <div v-for="(item, index) in monitoringTriggerRows" :key="item.name" class="monitoring-card">
+                <div class="monitoring-card-top">
+                  <span class="mon-index">0{{ index + 1 }}</span>
+                  <span class="mon-title">{{ item.name }}</span>
+                  <el-tag size="small" :type="item.levelType" effect="light">{{ item.level }}</el-tag>
+                </div>
+                <div class="mon-condition">
+                  <small>触发阈值</small>
+                  <strong>{{ item.trigger }}</strong>
+                </div>
+                <div class="mon-action">
+                  <small>联动调度响应</small>
+                  <p>{{ item.action }}</p>
+                </div>
+              </div>
             </div>
           </article>
         </section>
@@ -279,6 +298,55 @@ const actions = computed(() => reportVm.value?.recommendations?.map((item, index
   { title: '分散关键通道', detail: '校验替代供应商和运输路径，降低单点暴露。', tag: '优先准备', type: 'warning' },
   { title: '滚动调整库存', detail: '结合价格、库存和风险变化，动态修正补库节奏。', tag: '持续跟踪', type: 'success' }
 ]))
+
+const monitoringTriggerRows = computed(() => {
+  const alerts = reportVm.value?.alerts || []
+  if (alerts.length) {
+    return alerts.map((text, idx) => {
+      const parts = text.split('：')
+      const name = parts[0] || `风险监测点 0${idx + 1}`
+      const detail = parts[1] || text
+      const isUrgent = /突破|红线|停堆|借调|超限/.test(text)
+      return {
+        name,
+        trigger: detail.split('，')[0] || detail,
+        action: detail.split('，')[1] || '启动协同应急预案并重新测算采购组合。',
+        level: isUrgent ? '一级告警' : '二级预警',
+        levelType: isUrgent ? 'danger' : 'warning'
+      }
+    })
+  }
+  return [
+    {
+      name: '现货溢价超限预警',
+      trigger: 'U3O8 现货突破 $85/lb 或涨幅超 +20%',
+      action: '锁定长协履约，现货敞口压缩至 15% 以下，释放平抑库存。',
+      level: '二级预警',
+      levelType: 'warning'
+    },
+    {
+      name: '跨境通关运力受阻预警',
+      trigger: '口岸月运量低于 800 tU 或滞留超 15 天',
+      action: '启动远洋海运多港口接卸分流，沿海基地承接中转调度。',
+      level: '二级预警',
+      levelType: 'warning'
+    },
+    {
+      name: '商业安全库存红线预警',
+      trigger: '核心基地库存覆盖天数低于 180 天红线',
+      action: '向集团与国家储备申请 200 tU 战略借调，确保关键堆型 0 停堆。',
+      level: '一级告警',
+      levelType: 'danger'
+    },
+    {
+      name: '地缘单一来源集中度预警',
+      trigger: '单一主供国占比超 55% 或发生属地冲突',
+      action: '启动三方转口，激活纳米比亚/加拿大备用矿山采购配额。',
+      level: '二级预警',
+      levelType: 'warning'
+    }
+  ]
+})
 const evidenceIcons = [markRaw(TrendCharts), markRaw(Grid), markRaw(Promotion)]
 const evidenceTones = ['green', 'blue', 'orange']
 const evidence = computed(() => reportVm.value?.analysisRecoveryCards?.slice(1).map((item, index) => ({
@@ -472,6 +540,70 @@ h3 { margin: 5px 0 0; color: #0f172a; font-size: 17px; }
 .structure-card { padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; }
 .structure-card > span { color: #64748b; font-size: 10px; }
 .structure-card > strong { display: block; margin-top: 4px; color: #0f172a; font-size: 15px; }
+.monitoring-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.monitoring-card {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.02);
+}
+.monitoring-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.mon-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 10px;
+  font-weight: 800;
+  font-family: var(--mid-font-mono, monospace);
+}
+.mon-title {
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 800;
+  flex: 1;
+}
+.mon-condition {
+  margin-bottom: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #f8fafc;
+  border: 1px solid #edf2f7;
+}
+.mon-condition small,
+.mon-action small {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  color: #94a3b8;
+  margin-bottom: 2px;
+}
+.mon-condition strong {
+  color: #1e3a8a;
+  font-size: 11px;
+}
+.mon-action p {
+  margin: 0;
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.5;
+}
 .alert-list { display: grid; gap: 8px; }
 .alert-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px; border-left: 3px solid #f59e0b; background: #fffbeb; border-radius: 6px; }
 .alert-row > span { display: grid; flex: 0 0 22px; place-items: center; height: 22px; border-radius: 50%; background: #fef3c7; color: #b45309; font-size: 10px; font-weight: 800; }
