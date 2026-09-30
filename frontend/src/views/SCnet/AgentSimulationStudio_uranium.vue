@@ -2,7 +2,7 @@
   <div class="studio-host mid-stage-bg" :class="{ 'page-loaded': pageLoaded }">
     <div class="workflow-page">
       <MidStagePageHeader
-        title="实体建模"
+        title="实体关系图"
         :subtitle="pageSubtitle"
         :icon="Cpu"
       >
@@ -45,6 +45,10 @@
       </div>
 
       <div class="workbench-next-fab workbench-flow-footer">
+        <el-button class="workbench-prev-button" size="large" @click="goToScenario">
+          <el-icon class="prev-icon"><ArrowLeft /></el-icon>
+          <span class="prev-text">上一步：想定生成</span>
+        </el-button>
         <el-button class="workbench-next-button" type="primary" size="large" @click="goToExperiment">
           <span class="next-text">下一步：实验推演</span>
           <el-icon class="next-icon"><ArrowRight /></el-icon>
@@ -57,7 +61,7 @@
 <script setup>
 import { useRouter, useRoute } from 'vue-router'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { ArrowRight, Cpu } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Cpu } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import { useScnetSupplyChainStore as useSupplyChainStore } from '@/stores/scnet'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
@@ -318,8 +322,12 @@ function revealPage() {
   })
 }
 
+function goToScenario() {
+  router.push({ path: SCNET_ROUTES.scenarioAnalysis, query: { ...route.query, scenario: 'uranium' } })
+}
+
 function goToExperiment() {
-  router.push({ path: SCNET_ROUTES.experimentManager, query: { scenario: 'uranium', view: 'run' } })
+  router.push({ path: SCNET_ROUTES.experimentManager, query: { ...route.query, scenario: 'uranium', view: 'run' } })
 }
 
 async function syncViewQuery() {

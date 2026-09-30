@@ -162,20 +162,11 @@
     </div>
     <div :class="isCollapse ? 'body-pos-shrink' : 'body-pos-expand'">
       <AppHeader style="flex-shrink: 0; z-index: 2000"/>
-      <div class="scnet-router-host" :class="{ 'has-during-rail': showDuringRail }">
+      <div class="scnet-router-host">
         <router-view />
       </div>
     </div>
 
-    <!-- 事中（铀）流程进度栏：参考 MACE 工作台，固定右侧、悬停展开 -->
-    <EventPhaseStepper
-      v-if="showDuringRail"
-      :steps="duringSteps"
-      :current-key="duringStepKey"
-      :completed-predicate="isDuringStepCompleted"
-      collapsible
-      @step-click="onDuringStepClick"
-    />
 
     <!-- 浮动切换按钮：转到对话模式 -->
     <el-tooltip content="切换到AI对话模式" placement="left" effect="dark">
@@ -197,10 +188,8 @@ import {ref, onMounted, onUnmounted, computed, watch} from "vue";
 import {useRoute, useRouter} from "vue-router";
 import {Files, Refresh} from "@element-plus/icons-vue";
 import AppHeader from "@/components/Header.vue";
-import EventPhaseStepper from "@/components/EventPhaseStepper.vue";
 import { useScenarioStore } from "@/stores/scenario";
 import { PHASE_EVENT, PHASE_STORAGE_KEY, ROUTE_TO_PHASE } from "@/constants/scnetPhase";
-import { routeToStepKey, useDuringFlowSteps } from "@/views/SCnet/composables/useDuringFlowSteps_uranium";
 
 const PRE_MAIN_MENU_ITEMS = Object.freeze([
   // 需求分析已从主流程移除(K2-FLOW):对话首页承担研判入口,页面/路由保留供直接访问
@@ -220,10 +209,9 @@ const PRE_TAIL_MENU_ITEMS = Object.freeze([
 ])
 
 const DURING_MAIN_MENU_ITEMS = Object.freeze([
-  // 铀场景事中主线与右侧流程栏一致：建模设定 → 想定生成 → 实体建模 → 实验推演 → 决策生成
+  // 铀场景事中主线：建模设定 → 想定生成 → 实验推演 → 决策生成（实体关系图作为想定生成的“下一步”流转，不展示在左侧菜单栏）
   { index: '/home/SCnet/modelingSetup', label: '建模设定', icon: Cpu, uraniumOnly: true },
   { path: 'scenario', key: 'scenario', label: '想定生成', icon: Edit },
-  { index: '/home/SCnet/agentSimulationStudio', label: '实体建模', icon: Connection, uraniumOnly: true, extraQuery: 'view=workflow' },
   { index: '/home/SCnet/experimentManager', label: '实验推演', icon: Monitor }
 ])
 
@@ -299,10 +287,10 @@ export default {
     Place,
     Edit,
     Cpu,
+    Connection,
     Refresh, Files, DataAnalysis, DataLine, DocumentDelete, House, Aim, Box, Collection,
     Document, Notification, Operation, Postcard, Promotion, ScaleToOriginal, SearchIcon, Setting,
     Coin, PieChart, FolderOpened, Grid, SwitchButton, Orange, TrendCharts, User, AppHeader, WarningFilled, ChatDotSquare, CircleCheck,
-    EventPhaseStepper
   },
   setup() {
     const route = useRoute()
@@ -330,17 +318,6 @@ export default {
     const scenarioLabel = computed(() => currentScenario.value === 'supply_chain' ? '🚗 汽车' : '☢️ 铀')
 
     const isUraniumScenario = computed(() => currentScenario.value === 'uranium')
-
-    // ── 事中（铀）流程进度栏 ──
-    const { steps: duringSteps, isStepCompleted: isDuringStepCompleted } = useDuringFlowSteps()
-    const duringStepKey = computed(() => routeToStepKey(route.path, route.query || {}))
-    const showDuringRail = computed(() => (
-      currentPhase.value === 'during' && isUraniumScenario.value && !!duringStepKey.value
-    ))
-    const onDuringStepClick = (step) => {
-      if (!step?.route) return
-      router.push({ path: step.route, query: { ...(step.query || {}), scenario: 'uranium' } })
-    }
 
     const handleStorageChange = (event) => {
       if (event.key === PHASE_STORAGE_KEY) {
@@ -409,11 +386,6 @@ export default {
       currentPhase,
       currentScenario,
       scenarioLabel,
-      duringSteps,
-      duringStepKey,
-      isDuringStepCompleted,
-      showDuringRail,
-      onDuringStepClick,
       preMainMenuItems,
       preAnalysisMenuItems,
       preTailMenuItems,
@@ -511,15 +483,6 @@ export default {
   box-sizing: border-box;
 }
 
-/* 事中（铀）流程进度栏固定在右侧（折叠 52px + 右距 18px），内容区让出这段宽度避免被遮挡 */
-.scnet-router-host.has-during-rail {
-  padding-right: 76px;
-}
-@media (max-width: 1280px) {
-  .scnet-router-host.has-during-rail {
-    padding-right: 0;
-  }
-}
 
 .fade-delay-enter-active {
   transition: opacity 0.3s ease 0.3s;

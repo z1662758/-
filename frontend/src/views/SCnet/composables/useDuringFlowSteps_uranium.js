@@ -9,7 +9,7 @@ export const DURING_FLOW_STEPS = [
   { key: 'setup', label: '建模设定', route: SCNET_ROUTES.modelingSetup, query: {} },
   // 与左侧菜单保持同名：菜单叫「想定生成」，这里不再另起「需求拆解」
   { key: 'analysis', label: '想定生成', route: SCNET_ROUTES.scenarioAnalysis, query: {} },
-  { key: 'workflow', label: '实体建模', route: SCNET_ROUTES.agentSimulationStudio, query: { view: 'workflow' } },
+  { key: 'workflow', label: '实体关系图', route: SCNET_ROUTES.agentSimulationStudio, query: { view: 'workflow' } },
   { key: 'experiment', label: '实验推演', route: SCNET_ROUTES.experimentManager, query: { view: 'run' } },
   { key: 'decision', label: '决策生成', route: SCNET_ROUTES.experimentManager, query: { view: 'decision' } },
 ]

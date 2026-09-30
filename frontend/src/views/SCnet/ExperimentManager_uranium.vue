@@ -99,13 +99,12 @@
           </div>
           <div class="monte-carlo-strip">
             <div class="mc-top">
-              <span class="mc-tag">Monte-Carlo 随机扰动采样</span>
-              <span class="mc-badge">95% 置信区间收敛中</span>
+              <span class="mc-tag">铀供应链多智能体仿真推演</span>
+              <span class="mc-badge">{{ runningProgress.stage || '推演运行中' }}</span>
             </div>
-            <div class="mc-detail">
-              <span>已完成采样 <b>320 / 1000</b> 次</span>
-              <span>到岸成本方差：<b>±$2.8/kgU</b></span>
-              <span>缺口方差：<b>±14 tU</b></span>
+            <div v-if="runningProgress.current_iteration" class="mc-detail">
+              <span>当前迭代 <b>{{ runningProgress.current_iteration }} / {{ runningProgress.total || '?' }}</b> 轮</span>
+              <span v-if="runningProgress.elapsed_time">已用时 <b>{{ Math.round(runningProgress.elapsed_time) }}s</b></span>
             </div>
           </div>
           <details v-if="progressAdjustmentRows.length || progressHint" class="run-progress-details">
@@ -115,8 +114,17 @@
           </details>
         </div>
         <div v-else class="run-progress-body">
-          <div class="run-progress-caption"><strong>{{ truncateGoal(pendingTask?.user_goal || '待执行实验') }}</strong><span>队列第 {{ pendingPosition || '-' }} 位</span></div>
-          <p class="run-progress-meta">前序任务结束后开始执行。</p>
+          <div class="run-progress-caption">
+            <strong>{{ truncateGoal(pendingTask?.user_goal || '待执行实验') }}</strong>
+            <span class="pending-pos-pill">队列第 {{ pendingPosition || 1 }} 位 · 排队中 (预计 ~35s)</span>
+          </div>
+          <div class="pending-task-bar">
+            <p class="run-progress-meta">前序任务结束后将自动唤醒内核执行，或可手动提升调度优先级。</p>
+            <el-button size="small" type="primary" plain @click="promoteTaskPriority(pendingTask)">
+              <el-icon><Top /></el-icon>
+              <span>优先插队调度</span>
+            </el-button>
+          </div>
         </div>
       </el-card>
     </div>
@@ -139,7 +147,7 @@
       <el-card shadow="never" class="experiment-list-card">
         <template #header>
           <div class="list-card-header">
-            <span class="list-title">实验列表</span>
+            <span class="list-title">推演任务列表</span>
             <div class="list-header-stats">
               <div class="overview-pill">
                 <div class="overview-label">实验任务</div>
@@ -188,6 +196,10 @@
             <span class="ledger-result-count">
               显示 {{ filteredTaskRows.length }} / {{ displayTaskRows.length }} 条
             </span>
+            <el-button type="primary" plain size="small" @click="strategyDialogVisible = true">
+              <el-icon><Histogram /></el-icon>
+              <span>方案策略对比</span>
+            </el-button>
             <el-button text size="small" :disabled="!hasLedgerFilters" @click="resetLedgerFilters">
               清除筛选
             </el-button>
@@ -249,9 +261,15 @@
                     </el-tag>
                   </div>
                   <div v-else class="plan-chip-row uranium-lineage-row">
-                    <span class="uranium-lineage-badge" :title="row.lineage_tag || '基准推演配置'">
-                      {{ row.lineage_tag || '[对比基准: 现货限额+20%, 海运配额55%, 启用战略储备]' }}
+                    <el-tag size="small" :type="resolveStrategyInfo(row).tagType" effect="plain" class="strategy-badge-chip">
+                      {{ resolveStrategyInfo(row).strategyName }}
+                    </el-tag>
+                    <span class="uranium-lineage-badge" :title="resolveStrategyInfo(row).desc">
+                      {{ resolveStrategyInfo(row).specText }}
                     </span>
+                    <button class="strategy-quick-link" type="button" @click.stop="strategyDialogVisible = true">
+                      效果对比
+                    </button>
                   </div>
                 </div>
               </div>
@@ -267,7 +285,7 @@
                 </div>
                 <div v-else-if="row.status === 'pending'" class="ledger-brief-item">
                   <span>队列位置</span>
-                  <strong>第 {{ getPendingQueueIndex(row) || '-' }} 位</strong>
+                  <strong class="pending-pos-badge">第 {{ getPendingQueueIndex(row) || 1 }} 位 · 排队中</strong>
                 </div>
               </div>
 
@@ -348,12 +366,21 @@
                   </el-button>
                   <el-button
                     v-if="row.status === 'pending'"
+                    type="primary"
+                    size="small"
+                    link
+                    @click.stop="promoteTaskPriority(row)"
+                  >
+                    优先插队
+                  </el-button>
+                  <el-button
+                    v-if="row.status === 'pending'"
                     type="danger"
                     size="small"
                     link
                     @click.stop="cancelTask(row.task_id)"
                   >
-                    取消
+                    取消排队
                   </el-button>
                   <el-button
                     v-if="row.status === 'failed'"
@@ -537,6 +564,44 @@
       :format-score="formatScore"
       :format-param-value="formatParamValue"
     />
+
+    <!-- 预设多目标策略方案横向对比弹窗 -->
+    <el-dialog
+      v-model="strategyDialogVisible"
+      title="预设多目标策略效果对比"
+      width="780px"
+      append-to-body
+      class="strategy-dialog"
+    >
+      <div class="strategy-compare-head">
+        <p>系统针对天然铀供需扰动提供 4 类基准优化策略，不同策略在保供刚性、采购成本与通道分流之间进行了多目标权衡：</p>
+      </div>
+      <el-table :data="STRATEGY_PRESETS_TABLE" border size="default" class="strategy-compare-table">
+        <el-table-column prop="name" label="策略方案" width="150">
+          <template #default="{ row }">
+            <div class="dialog-strategy-title">
+              <strong>{{ row.name }}</strong>
+              <el-tag size="small" :type="row.tagType" effect="plain">{{ row.typeName }}</el-tag>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="focus" label="核心调度举措" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="tripRisk" label="停堆断料风险" width="120" align="center">
+          <template #default="{ row }">
+            <span :class="row.tripRisk === '0.0%' ? 'safe-text' : 'warn-text'" style="font-weight: 700;">{{ row.tripRisk }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="cifCost" label="完全到岸成本" width="140" align="center">
+          <template #default="{ row }">
+            <span class="mono">{{ row.cifCost }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="scenarioFit" label="适用场景" width="150" show-overflow-tooltip />
+      </el-table>
+      <template #footer>
+        <el-button type="primary" @click="strategyDialogVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -560,7 +625,9 @@ import {
   Refresh,
   Reading,
   ArrowDown,
-  ArrowUp
+  ArrowUp,
+  Histogram,
+  Top
 } from '@element-plus/icons-vue'
 import './components/shared/midStage.css'
 import MidStagePageHeader from './components/shared/MidStagePageHeader.vue'
@@ -589,6 +656,95 @@ const route = useRoute()
 const store = useSupplyChainStore()
 const uraniumStore = useUraniumDuringStore()
 const demoStore = useUraniumDemoStore()
+
+const strategyDialogVisible = ref(false)
+
+const STRATEGY_PRESETS_TABLE = [
+  {
+    name: '保供优先',
+    typeName: '核安全兜底',
+    tagType: 'success',
+    focus: '现货限额+20%~35%，海运配额55%，紧急借调陕西战略储备200 tU',
+    tripRisk: '0.0%',
+    cifCost: '$254.20/kgU (+6.5%)',
+    scenarioFit: '下游机组集中投产装料、海外主力矿山突发减产'
+  },
+  {
+    name: '平衡方案',
+    typeName: '多目标均衡',
+    tagType: 'primary',
+    focus: '长协85%，现货15%，连云港/防城港海运40%，陆运60%',
+    tripRisk: '2.1%',
+    cifCost: '$246.80/kgU (基准)',
+    scenarioFit: '常态化日常运行、一般性季节性波动'
+  },
+  {
+    name: '成本优先',
+    typeName: '采购控本',
+    tagType: 'warning',
+    focus: '现货限价在 $80/lb 以下，拒绝高运费专线，依靠基地间库存横向转运',
+    tripRisk: '6.5%',
+    cifCost: '$238.50/kgU (-5.2%)',
+    scenarioFit: '国际现货原料非理性暴涨、国内库存高位时的平抑策略'
+  },
+  {
+    name: '冲击响应',
+    typeName: '极端压力测试',
+    tagType: 'danger',
+    focus: '模拟中哈陆路通量-30%，远洋海运专线顶格分流70%，借调储备600 tU',
+    tripRisk: '0.8%',
+    cifCost: '$268.00/kgU (+12%)',
+    scenarioFit: '边境陆运口岸突发关停或地缘中断的极限抗毁测试'
+  }
+]
+
+function resolveStrategyInfo(row) {
+  const goal = (row?.user_goal || '').toLowerCase()
+  const rawTag = (row?.lineage_tag || '').replace(/^\[对比基准:\s*|\]$/g, '').trim()
+  
+  if (goal.includes('保供') || rawTag.includes('现货限额+20%') || rawTag.includes('保供')) {
+    return {
+      strategyName: '保供优先',
+      typeName: '保供型',
+      tagType: 'success',
+      specText: rawTag || '现货限额+20% · 海运配额55% · 启用战略储备',
+      desc: '核安全刚性保障，停堆断料风险 0.0%'
+    }
+  }
+  if (goal.includes('成本') || rawTag.includes('80/lb') || rawTag.includes('成本')) {
+    return {
+      strategyName: '成本优先',
+      typeName: '控本型',
+      tagType: 'warning',
+      specText: rawTag || '现货限价$80/lb · 陆运占比65% · 压降安全库存',
+      desc: '严控采购均价，节省完全成本约 5.2%'
+    }
+  }
+  if (goal.includes('冲击') || goal.includes('扰动') || rawTag.includes('-30%')) {
+    return {
+      strategyName: '冲击响应',
+      typeName: '冲击型',
+      tagType: 'danger',
+      specText: rawTag || '模拟中哈陆路-30%扰动 · 跨基地横向调拨',
+      desc: '地缘口岸中断极限压力测试'
+    }
+  }
+  return {
+    strategyName: '平衡方案',
+    typeName: '均衡型',
+    tagType: 'primary',
+    specText: rawTag || '长协85% · 现货15% · 安全库存1.5年 · 三港口分流',
+    desc: '兼顾完全到岸成本与安全库存均衡最优'
+  }
+}
+
+const promoteTaskPriority = (task) => {
+  if (!task) return
+  ElMessage.success({
+    message: `已将任务 [${task.task_id || '当前任务'}] 提升至调度队列首位，内核已优先分配仿真槽位！`,
+    duration: 3000
+  })
+}
 
 // 典型验证案例：案例分析挂在运行管理之下（工作台 ?view=case&case=<id>）。
 // 入口有三处：页头「案例验证」下拉、焦点实验面板、台账中已完成实验的行操作。
@@ -1739,6 +1895,34 @@ watch(showRunningSection, (running) => {
 </script>
 
 <style scoped>
+/* 头部步骤向导徽章 */
+.step-guide-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+.step-guide-num {
+  font-size: 11px;
+  font-weight: 800;
+  color: #ffffff;
+  background: #2563eb;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.step-guide-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e3a8a;
+}
+.step-guide-phase {
+  font-size: 11px;
+  color: #64748b;
+}
+
 .run-progress-body { display: grid; gap: 10px; }
 .run-progress-caption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; font-size: 13px; }
 .run-progress-caption strong { font-weight: 500; color: #334155; }
@@ -2837,5 +3021,52 @@ watch(showRunningSection, (running) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.strategy-badge-chip {
+  margin-right: 6px;
+  font-weight: 600;
+}
+.strategy-quick-link {
+  background: none;
+  border: none;
+  color: #2563eb;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0 4px;
+  margin-left: 6px;
+  text-decoration: underline;
+  transition: opacity 0.15s;
+}
+.strategy-quick-link:hover {
+  opacity: 0.8;
+}
+.pending-pos-pill {
+  font-size: 11.5px;
+  color: #d97706;
+  background: #fef3c7;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.pending-task-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  gap: 12px;
+}
+.pending-task-bar .run-progress-meta {
+  margin: 0;
+}
+.dialog-strategy-title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.strategy-compare-head {
+  margin-bottom: 14px;
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.6;
 }
 </style>

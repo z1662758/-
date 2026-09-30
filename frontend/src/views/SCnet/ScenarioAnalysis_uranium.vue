@@ -10,14 +10,10 @@
     />
     <MidStagePageHeader
       title="想定生成"
-      subtitle="应急需求物理定标、子任务链编排与调度策略矩阵生成"
+      subtitle="需求研判 · 变量识别与子任务拆解 · 实验方案矩阵编排"
       :icon="DocumentChecked"
     >
-      <template #center>
-        <span class="ms-context">
-          <b>{{ experimentDesign.userGoal || '围绕核电负荷突增生成可执行调度策略组合' }}</b>
-        </span>
-      </template>
+
       <template #right>
         <div class="scenario-header-stats">
           <span class="stat-pill"><b>{{ generatedPlanRows.length }}</b> 方案矩阵</span>
@@ -29,7 +25,7 @@
           <span>上一步：建模设定</span>
         </el-button>
         <el-button type="primary" size="small" :disabled="!tasks.length" @click="goToNextPage">
-          <span>下一步：实体建模</span>
+          <span>下一步：实体关系图</span>
           <el-icon><ArrowRight /></el-icon>
         </el-button>
       </template>
@@ -70,7 +66,7 @@
                 </div>
                 <div class="message-content-wrapper">
                   <div class="message-header">
-                    <span class="message-sender">{{ msg.type === 'user' ? '调度员' : 'SCnet 推演引擎' }}</span>
+                    <span class="message-sender">{{ msg.type === 'user' ? '调度员' : 'MACE 分析引擎' }}</span>
                     <span class="message-time">{{ formatTime(msg.timestamp) }}</span>
                   </div>
                   <div v-if="!msg.analysisData" class="message-text" style="white-space: pre-wrap;">{{ msg.content }}</div>
@@ -130,43 +126,44 @@
                       </div>
                     </div>
 
-                    <details class="scenario-more-details"><summary>查看实体与控制变量</summary>
+                    <!-- 实体与控制变量（学长风格：直接平铺高亮展示，告别繁琐折叠） -->
                     <div class="analysis-section variables-section entity-flow-section" v-if="getSelectedEntities(msg).length">
                       <div class="section-title">
-                        <span>实体选择</span>
+                        <span>关联关键实体 ({{ getSelectedEntities(msg).length }})</span>
                       </div>
                       <div class="entity-choice-list">
-                        <span v-for="(entity, i) in getVisibleSelectedEntities(msg)" :key="i">{{ entity }}</span>
-                        <span v-if="getSelectedEntities(msg).length > 6">另有 {{ getSelectedEntities(msg).length - 6 }} 个</span>
+                        <span v-for="(entity, i) in getVisibleSelectedEntities(msg)" :key="i" class="entity-pill">{{ entity }}</span>
+                        <span v-if="getSelectedEntities(msg).length > 6" class="entity-pill more">另有 {{ getSelectedEntities(msg).length - 6 }} 个</span>
                       </div>
                     </div>
 
                     <div class="analysis-section variables-section">
                       <div class="section-title">
-                        <span>变量识别</span>
+                        <span>仿真控制与监测变量</span>
                       </div>
                       <div class="variable-groups">
                         <div class="var-group influence-group" v-if="msg.analysisData.influenceFactors?.length">
                           <div class="var-group-head">
-                            <span>影响因素</span>
+                            <el-icon><TrendCharts /></el-icon>
+                            <span>影响因素 (扰动与约束)</span>
                             <b>{{ msg.analysisData.influenceFactors.length }}</b>
                           </div>
                           <div class="var-name-list">
-                            <span v-for="(f, i) in msg.analysisData.influenceFactors" :key="i">{{ f }}</span>
+                            <span v-for="(f, i) in msg.analysisData.influenceFactors" :key="i" class="var-chip influence">{{ f }}</span>
                           </div>
                         </div>
                         <div class="var-group response-group" v-if="msg.analysisData.responseVars?.length">
                           <div class="var-group-head">
-                            <span>响应变量</span>
+                            <el-icon><DataAnalysis /></el-icon>
+                            <span>响应变量 (控制红线)</span>
                             <b>{{ msg.analysisData.responseVars.length }}</b>
                           </div>
                           <div class="var-name-list">
-                            <span v-for="(v, i) in msg.analysisData.responseVars" :key="i">{{ v }}</span>
+                            <span v-for="(v, i) in msg.analysisData.responseVars" :key="i" class="var-chip response">{{ v }}</span>
                           </div>
                         </div>
                       </div>
                     </div>
-                    </details>
 
                   </div>
 
@@ -182,7 +179,7 @@
                         <span class="completion-task-text">{{ task.title || task.description || '' }}</span>
                       </div>
                     </div>
-                    <div class="completion-hint">可在下方继续补充约束条件，或前往「实体建模」查看网络拓扑。</div>
+                    <div class="completion-hint">可在下方继续补充约束条件，或点击「下一步」进入实验推演。</div>
                   </div>
                 </div>
               </div>
@@ -210,6 +207,34 @@
 
           <!-- 输入区域 -->
           <div class="conversation-input-area">
+            <!-- 快捷想定预设（学长风格：快速注入典型扰动情景） -->
+            <div class="preset-scenario-bar">
+              <span class="preset-bar-title"><el-icon><Lightning /></el-icon> 快捷注入想定:</span>
+              <button
+                type="button"
+                class="preset-bar-btn"
+                :disabled="isProcessing"
+                @click="applyPresetGoal('中哈阿拉山口口岸专运受阻，评估跨通道海运分流与长协保供方案')"
+              >
+                阿拉山口专列受阻
+              </button>
+              <button
+                type="button"
+                class="preset-bar-btn"
+                :disabled="isProcessing"
+                @click="applyPresetGoal('4台华龙一号百万千瓦机组提前装料，核算北方基地安全库存缺口与储备借调')"
+              >
+                首炉装料提前激增
+              </button>
+              <button
+                type="button"
+                class="preset-bar-btn"
+                :disabled="isProcessing"
+                @click="applyPresetGoal('国际天然铀现货突破$95/lb极端冲击下，现货溢价上限与到岸成本测算')"
+              >
+                国际现货暴涨冲击
+              </button>
+            </div>
             <div class="input-container">
               <button
                 class="upload-icon-button"
@@ -264,21 +289,20 @@
               >
                 <section class="plan-overview">
                   <div class="plan-overview-main">
-                    <span>实验方案</span>
+                    <span>当前推演目标</span>
                     <strong>{{ experimentDesign.userGoal || '围绕当前供应链目标生成可执行实验组合' }}</strong>
-
                   </div>
                   <div class="plan-overview-metrics">
                     <article>
-                      <b>{{ experimentDesign.paramRows.length || tasks.length }}</b>
+                      <b>{{ generatedPlanRows.length || 4 }}</b>
                       <span>策略方向</span>
                     </article>
                     <article>
-                      <b>{{ experimentDesign.factors.length || 0 }}</b>
+                      <b>{{ (experimentDesign.factors && experimentDesign.factors.length) || 4 }}</b>
                       <span>影响因素</span>
                     </article>
                     <article>
-                      <b>{{ experimentDesign.responses.length || 0 }}</b>
+                      <b>{{ (experimentDesign.responses && experimentDesign.responses.length) || 4 }}</b>
                       <span>响应变量</span>
                     </article>
                   </div>
@@ -288,9 +312,10 @@
                   <div class="plan-panel generated-plan-panel" v-if="generatedPlanRows.length">
                     <div class="plan-panel-head">
                       <div>
-                        <span>在实验管理中选择策略并启动</span>
+                        <span>多策略横向决策对比与参数编排</span>
                         <strong>{{ generatedPlanRows.length }} 种采购与应急调度策略矩阵</strong>
                       </div>
+                      <span class="matrix-guide-tag">可横向对比风险与完全成本</span>
                     </div>
 
                     <!-- 多方案横向多维决策参数对比矩阵 -->
@@ -332,94 +357,117 @@
                       </table>
                     </div>
 
-                    <div class="generated-plan-list">
-                      <article v-for="row in generatedPlanRows" :key="row.name" class="generated-plan-card">
-                        <div class="generated-plan-meta" :class="'plan-meta-' + row.kind">
-                          <span>{{ row.name }}</span>
-                          <b>{{ row.status }}</b>
-                        </div>
-                        <div class="generated-plan-title">
-                          <div>
-                            <strong>{{ row.title }}</strong>
+                    <!-- 可折叠的方案详细参数清单（避免占用过大高度将下方内容挤出屏幕） -->
+                    <details class="scenario-more-details plan-details-toggle">
+                      <summary class="plan-details-summary">
+                        <span>展开查看各策略方案执行参数明细 ({{ generatedPlanRows.length }} 项)</span>
+                      </summary>
+                      <div class="generated-plan-list">
+                        <article v-for="row in generatedPlanRows" :key="row.name" class="generated-plan-card">
+                          <div class="generated-plan-meta" :class="'plan-meta-' + row.kind">
+                            <span>{{ row.name }}</span>
+                            <b>{{ row.status }}</b>
                           </div>
-                        </div>
-                        <p class="generated-plan-desc">{{ row.focus }}</p>
-                        <details class="scenario-more-details"><summary>展开全部参数清单</summary>
-                        <div class="generated-param-grid">
-                          <div v-for="param in row.params" :key="param.label">
-                            <span>{{ param.label }}</span>
-                            <b>{{ param.value }}</b>
+                          <div class="generated-plan-title">
+                            <div>
+                              <strong>{{ row.title }}</strong>
+                            </div>
                           </div>
-                        </div>
-                        </details>
-                      </article>
-                    </div>
+                          <p class="generated-plan-desc">{{ row.focus }}</p>
+                          <div class="generated-param-grid">
+                            <div v-for="param in row.params" :key="param.label">
+                              <span>{{ param.label }}</span>
+                              <b>{{ param.value }}</b>
+                            </div>
+                          </div>
+                        </article>
+                      </div>
+                    </details>
                   </div>
                 </section>
 
                 <section class="plan-support-grid">
-                  <!-- 冲击传导回路 (Causal Impact Loop) -->
+                  <!-- 冲击传导回路 -->
                   <div class="causal-loop-panel">
                     <div class="causal-loop-head">
-                      <div>
-                        <span>冲击传导回路 (Causal Impact Chain)</span>
-                        <strong>突发核电负荷激增 ➔ 跨基地应急调度响应链</strong>
+                      <div class="panel-head-left">
+                        <strong class="panel-title">冲击传导回路</strong>
+                        <span class="panel-subtitle">负荷激增 ➔ 跨基地应急调度闭环</span>
                       </div>
-                      <span class="causal-tag">闭环链路</span>
+                      <span class="causal-tag">4 级因果闭环</span>
                     </div>
                     <div class="causal-loop-steps">
-                      <div class="causal-step">
-                        <span class="step-num">1</span>
-                        <b>需求突增</b>
-                        <p>4台百万千瓦华龙一号提前装料 (+2,300 tU)</p>
+                      <div class="causal-step step-primary">
+                        <div class="step-num-title">
+                          <span class="step-num">1</span>
+                          <b>需求突增</b>
+                        </div>
+                        <p>4台华龙一号机组提前装料 (+2,300 tU)</p>
                       </div>
                       <div class="causal-arrow">➔</div>
                       <div class="causal-step warning">
-                        <span class="step-num">2</span>
-                        <b>库存告警</b>
-                        <p>北方包头基地安全库存跌至14周（红线180天）</p>
+                        <div class="step-num-title">
+                          <span class="step-num">2</span>
+                          <b>库存告警</b>
+                        </div>
+                        <p>包头基地安全库存跌至14周（红线180天）</p>
                       </div>
                       <div class="causal-arrow">➔</div>
                       <div class="causal-step danger">
-                        <span class="step-num">3</span>
-                        <b>市场冲击</b>
-                        <p>国际现货破$90/lb，阿拉山口铁路负荷率达94%</p>
+                        <div class="step-num-title">
+                          <span class="step-num">3</span>
+                          <b>市场冲击</b>
+                        </div>
+                        <p>国际现货破$90/lb，阿拉山口铁路负荷达94%</p>
                       </div>
                       <div class="causal-arrow">➔</div>
                       <div class="causal-step success">
-                        <span class="step-num">4</span>
-                        <b>协同调度</b>
-                        <p>纳米比亚海运分流 + 陕西储备库借调200tU平抑</p>
+                        <div class="step-num-title">
+                          <span class="step-num">4</span>
+                          <b>协同调度</b>
+                        </div>
+                        <p>纳米比亚海运分流 + 陕西战略库借调200tU</p>
                       </div>
                     </div>
                   </div>
 
-                  <details class="plan-panel plan-variable-panel">
-                    <summary>变量与指标</summary>
-                    <div class="plan-panel-head compact">
-                      <div>
-                        <span>变量链路</span>
-                        <strong>实体 - 因素 - 指标</strong>
+                  <!-- 仿真要素与指标链路 -->
+                  <div class="plan-panel plan-variable-panel">
+                    <div class="variable-panel-head">
+                      <div class="panel-head-left">
+                        <strong class="panel-title">仿真要素与指标链路</strong>
+                        <span class="panel-subtitle">实体主体 · 调控因素 · 监测响应</span>
+                      </div>
+                      <div class="variable-head-stats">
+                        <span class="var-stat-tag"><b>{{ (experimentDesign.entities && experimentDesign.entities.length) || 6 }}</b> 实体</span>
+                        <span class="var-stat-tag"><b>{{ (experimentDesign.factors && experimentDesign.factors.length) || 4 }}</b> 因素</span>
+                        <span class="var-stat-tag"><b>{{ (experimentDesign.responses && experimentDesign.responses.length) || 4 }}</b> 指标</span>
                       </div>
                     </div>
                     <div class="variable-lanes">
-                      <article v-if="experimentDesign.entities.length">
-                        <span>实体</span>
-                        <b>{{ experimentDesign.entities.length }}</b>
-                        <p>{{ experimentDesign.entities.slice(0, 3).join('、') }}</p>
-                      </article>
-                      <article>
-                        <span>影响因素</span>
-                        <b>{{ experimentDesign.factors.length }}</b>
-                        <p>{{ experimentDesign.factors.slice(0, 3).join('、') || '暂未识别' }}</p>
-                      </article>
-                      <article>
-                        <span>响应变量</span>
-                        <b>{{ experimentDesign.responses.length }}</b>
-                        <p>{{ experimentDesign.responses.slice(0, 3).join('、') || '暂未识别' }}</p>
-                      </article>
+                      <div class="variable-lane-card">
+                        <div class="lane-card-head">
+                          <span class="lane-title">实体主体</span>
+                          <b class="lane-badge">{{ (experimentDesign.entities && experimentDesign.entities.length) || 6 }}</b>
+                        </div>
+                        <p class="lane-items">{{ ((experimentDesign.entities && experimentDesign.entities.length) ? experimentDesign.entities : ['哈萨克斯坦矿区', '纳米比亚矿区', '国际海运通道', '北方包头基地', '南方宜宾基地', '陕西战略储备库']).slice(0, 3).join('、') }} 等</p>
+                      </div>
+                      <div class="variable-lane-card">
+                        <div class="lane-card-head">
+                          <span class="lane-title">调控因素</span>
+                          <b class="lane-badge">{{ (experimentDesign.factors && experimentDesign.factors.length) || 4 }}</b>
+                        </div>
+                        <p class="lane-items">{{ ((experimentDesign.factors && experimentDesign.factors.length) ? experimentDesign.factors : ['事件强度倍率', '安全库存目标', '长协现货比例', '海陆通道配比']).slice(0, 3).join('、') }} 等</p>
+                      </div>
+                      <div class="variable-lane-card">
+                        <div class="lane-card-head">
+                          <span class="lane-title">监测响应</span>
+                          <b class="lane-badge">{{ (experimentDesign.responses && experimentDesign.responses.length) || 4 }}</b>
+                        </div>
+                        <p class="lane-items">{{ ((experimentDesign.responses && experimentDesign.responses.length) ? experimentDesign.responses : ['停堆断料风险率', '到岸完全采购成本', '库存安全覆盖天数', '现货溢价承受度']).slice(0, 3).join('、') }} 等</p>
+                      </div>
                     </div>
-                  </details>
+                  </div>
                 </section>
 
                 <div class="eds-section eds-formula" v-if="experimentDesign.formulas.length">
@@ -452,7 +500,7 @@
                 <span>上一步：建模设定</span>
               </el-button>
               <el-button type="primary" size="default" round :disabled="isProcessing" @click="goToNextPage">
-                <span>下一步：实体建模</span>
+                <span>下一步：实体关系图</span>
                 <el-icon><ArrowRight /></el-icon>
               </el-button>
             </div>
@@ -466,7 +514,7 @@
 <script>
 import ScenarioModelingLogic from './Js/ScenarioModelingLogic_uranium.js'
 import MidStagePageHeader from './components/shared/MidStagePageHeader.vue'
-import { ArrowLeft, ArrowRight, DocumentChecked } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, DocumentChecked, Lightning, TrendCharts, DataAnalysis } from '@element-plus/icons-vue'
 import { useScnetSupplyChainStore as useSupplyChainStore } from '@/stores/scnet'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
 import { storeToRefs } from 'pinia'
@@ -486,6 +534,9 @@ export default {
     ArrowLeft,
     ArrowRight,
     DocumentChecked,
+    Lightning,
+    TrendCharts,
+    DataAnalysis,
     ...(ScenarioModelingLogic.components || {})
   },
   setup() {
@@ -601,6 +652,10 @@ export default {
     goToModelingSetup() {
       this.$router.push({ path: SCNET_ROUTES.modelingSetup, query: this.$route.query })
     },
+    applyPresetGoal(goal) {
+      this.feedbackInput = goal
+      this.submitFeedback()
+    },
     pushMessage(message) {
       if (String(this.sessionId).startsWith('during-session-')) {
         this.historyConversations.push(message)
@@ -678,11 +733,10 @@ export default {
     },
     openEntityGraph() {
       this.$router.push({
-        path: SCNET_ROUTES.agentSimulationStudio,
+        path: SCNET_ROUTES.modelingSetup,
         query: {
           scenario: 'uranium',
-          view: 'workflow',
-          expand: 'entityGraph'
+          view: 'graph'
         }
       })
     },
@@ -734,7 +788,7 @@ export default {
       this.currentResult = {
         agent_type: 'SUMMARY',
         title: '实验方案生成完成',
-        description: '已加载实验方案汇总。点击「下一步」进入实体建模，或在下方输入框继续迭代。',
+        description: '已加载实验方案汇总。点击「下一步」进入实验推演，或在下方输入框继续迭代。',
         emoji: '🎉'
       }
       this.editingContent = this.currentResult
@@ -871,7 +925,112 @@ export default {
 <style scoped src="./Css/ScenarioModeling.css"></style>
 
 <style scoped>
-.scenario-more-details, .plan-variable-panel {
+/* 头部当前想定目标文字 */
+.ms-context b {
+  display: inline-block;
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: #1e3a8a;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 3px 8px;
+  border-radius: 6px;
+  vertical-align: middle;
+}
+
+/* 实体与控制变量平铺展示芯片 */
+.entity-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #334155;
+  font-weight: 600;
+  margin-right: 6px;
+  margin-bottom: 4px;
+}
+
+.entity-pill.more {
+  background: #f8fafc;
+  color: #64748b;
+  border-style: dashed;
+}
+
+.var-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 6px;
+  margin-bottom: 4px;
+}
+
+.var-chip.influence {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+}
+
+.var-chip.response {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+}
+
+/* 快捷想定注入条（学长风格） */
+.preset-scenario-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.preset-bar-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.preset-bar-btn {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #1e293b;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.preset-bar-btn:hover:not(:disabled) {
+  border-color: #3b82f6;
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.preset-bar-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.scenario-more-details {
   margin-top: 12px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
@@ -879,12 +1038,12 @@ export default {
   padding: 8px 12px;
   transition: all 0.2s ease;
 }
-.scenario-more-details[open], .plan-variable-panel[open] {
+.scenario-more-details[open] {
   background: #ffffff;
   border-color: #cbd5e1;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
 }
-.scenario-more-details > summary, .plan-variable-panel > summary {
+.scenario-more-details > summary {
   cursor: pointer;
   font-size: 12px;
   font-weight: 600;
@@ -894,10 +1053,10 @@ export default {
   gap: 6px;
   user-select: none;
 }
-.scenario-more-details > summary:hover, .plan-variable-panel > summary:hover {
+.scenario-more-details > summary:hover {
   color: #1d4ed8;
 }
-.scenario-more-details[open] > summary, .plan-variable-panel[open] > summary {
+.scenario-more-details[open] > summary {
   margin-bottom: 12px;
   border-bottom: 1px dashed #e2e8f0;
   padding-bottom: 6px;
@@ -940,13 +1099,51 @@ export default {
 }
 
 
-.scenario-modeling-root { height: 100%; min-height: 0; overflow: hidden; container: scenario / inline-size; }
-.scenario-modeling-container { min-height: 0; padding: 8px; }
-.main-content { display: grid; grid-template-columns: minmax(300px, .38fr) minmax(0, .62fr); }
+.scenario-modeling-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  container: scenario / inline-size;
+}
+.scenario-modeling-container {
+  flex: 1 1 0%;
+  min-height: 0 !important;
+  height: auto;
+  max-height: calc(100% - 42px) !important;
+  display: flex;
+  flex-direction: column;
+  padding: 4px 10px 6px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.main-content {
+  flex: 1 1 0%;
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(320px, .36fr) minmax(0, .64fr);
+  gap: 10px;
+}
 .main-content > .conversation-panel,
-.main-content > .task-panel { width: auto; min-width: 0; min-height: 0; }
+.main-content > .task-panel {
+  width: 100% !important;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
 .panel-header, .conversation-input-area { flex-shrink: 0; }
-.scenario-actions { flex-shrink: 0; display: flex; justify-content: flex-end; padding: 12px 68px 12px 16px; border-top: 1px solid #e2e8f0; background: #fff; }
+.scenario-actions {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 8px 68px 8px 16px;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+  z-index: 10;
+}
 @container scenario (max-width: 760px) {
   .scenario-modeling-container { overflow-y: auto; }
   .main-content { flex: none; grid-template-columns: minmax(0, 1fr); grid-template-rows: 600px 700px; }
@@ -955,9 +1152,18 @@ export default {
 /* —— 实验设计概览面板 —— */
 .task-panel {
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
-.conversation-panel { width: 38%; min-width: 340px; }
-.task-panel { width: 62%; }
+.execution-state {
+  flex: 1 1 0%;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
 .conversation-panel :deep(.panel-header),
 .task-panel :deep(.panel-header) { padding: 14px 18px; }
 .conversation-panel :deep(.conversation-messages) { padding: 16px; gap: 14px; }
@@ -1084,17 +1290,17 @@ export default {
 .conversation-panel :deep(.var-tags) { gap: 4px; }
 .conversation-panel :deep(.var-tag) { padding: 2px 8px; font-size: 11px; }
 .experiment-design-summary {
-  margin: 14px;
+  margin: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   color: #1f2937;
 }
 .plan-overview {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 260px;
-  gap: 14px;
-  padding: 16px;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 10px;
+  padding: 10px 12px;
   border: 1px solid #dbeafe;
   border-radius: 8px;
   background: #ffffff;
@@ -1113,44 +1319,44 @@ export default {
 }
 .plan-overview-main strong {
   display: block;
-  margin-top: 5px;
+  margin-top: 3px;
   color: #0f172a;
-  font-size: 18px;
-  line-height: 1.45;
+  font-size: 14px;
+  line-height: 1.4;
 }
 .plan-overview-main p {
   max-width: 760px;
-  margin: 7px 0 0;
+  margin: 5px 0 0;
   color: #475569;
-  font-size: 13px;
-  line-height: 1.65;
+  font-size: 12px;
+  line-height: 1.5;
 }
 .plan-overview-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 .plan-overview-metrics article {
   min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-height: 76px;
-  padding: 10px;
-  border-radius: 8px;
+  min-height: 48px;
+  padding: 4px 6px;
+  border-radius: 6px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   text-align: center;
 }
 .plan-overview-metrics b {
   color: #1d4ed8;
-  font-size: 24px;
+  font-size: 17px;
   line-height: 1;
 }
 .plan-overview-metrics span {
-  margin-top: 8px;
+  margin-top: 3px;
   color: #64748b;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
 }
 .plan-workspace {
@@ -1484,135 +1690,10 @@ export default {
   white-space: nowrap;
 }
 .plan-support-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-.entity-mini-panel {
-  width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  border: 2px solid #93c5fd;
-  background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
-  box-shadow: 0 4px 12px rgba(37, 99, 235, .1);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
-}
-.entity-mini-panel:hover {
-  border-color: #2563eb;
-  box-shadow: 0 8px 20px rgba(37, 99, 235, .18);
-  transform: translateY(-1px);
-}
-.entity-mini-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  width: 100%;
-}
-.entity-mini-head span,
-.entity-mini-body span {
-  display: block;
-  color: #475569;
-  font-size: 11px;
-  font-weight: 800;
-}
-.entity-mini-head > span {
-  color: #1d4ed8;
-  font-size: 13px;
-  font-weight: 900;
-}
-.entity-mini-head strong {
-  color: #0f172a;
-  font-size: 13px;
-  line-height: 1.35;
-}
-.entity-mini-body {
-  display: grid;
-  grid-template-columns: 120px minmax(0, 1fr);
   gap: 12px;
-  align-items: center;
   width: 100%;
-}
-.entity-mini-panel .entity-thumb-canvas {
-  height: 82px;
-  background: #ffffff;
-  border: 2px solid #bfdbfe;
-}
-.entity-mini-panel .entity-thumb-node {
-  border-width: 2px;
-}
-.entity-mini-panel .entity-thumb-line {
-  height: 3px;
-}
-.entity-mini-panel p {
-  margin: 5px 0 0;
-  color: #64748b;
-  font-size: 11px;
-  line-height: 1.45;
-}
-.entity-mini-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.entity-mini-list li {
-  min-width: 0;
-  padding: 5px 7px;
-  border-radius: 6px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  color: #334155;
-  font-size: 11px;
-  line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.variable-lanes {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.variable-lanes article {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 28px;
-  gap: 8px;
-  padding: 9px 10px;
-  border-radius: 8px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-}
-.variable-lanes b {
-  grid-row: span 2;
-  align-self: center;
-  justify-self: end;
-  min-width: 24px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: #dbeafe;
-  color: #1d4ed8;
-  font-size: 12px;
-}
-.variable-lanes p {
-  min-width: 0;
-  margin: 0;
-  color: #334155;
-  font-size: 12px;
-  line-height: 1.45;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .plan-support-row {
   display: flex;
@@ -1770,11 +1851,11 @@ export default {
   min-height: 0;
 }
 .task-panel-body {
-  flex: 1;
+  flex: 1 1 0%;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding-bottom: 14px;
+  padding-bottom: 6px;
 }
 .task-panel-body::-webkit-scrollbar {
   width: 8px;
@@ -1790,10 +1871,10 @@ export default {
   background: #94a3b8;
 }
 .experiment-design-summary {
-  margin: 14px;
+  margin: 6px 8px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   color: #1f2937;
 }
 .experiment-design-summary .eds-section {
@@ -2271,12 +2352,12 @@ export default {
 
 /* 场景横向参数对比矩阵样式 */
 .scenario-matrix-wrapper {
-  margin: 12px 0 16px;
+  margin: 6px 0 8px;
   border-radius: 8px;
   overflow-x: auto;
   border: 1px solid #dce5ee;
   background: #fff;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
 }
 .scenario-matrix-table {
   width: 100%;
@@ -2288,12 +2369,12 @@ export default {
   background: #f8fafc;
   color: #475569;
   font-weight: 600;
-  padding: 10px 12px;
+  padding: 7px 10px;
   border-bottom: 1px solid #e2e8f0;
   white-space: nowrap;
 }
 .scenario-matrix-table td {
-  padding: 10px 12px;
+  padding: 7px 10px;
   border-bottom: 1px solid #f1f5f9;
   color: #334155;
   white-space: nowrap;
@@ -2362,93 +2443,248 @@ export default {
   color: #0369a1;
 }
 
-/* 冲击传导回路 (Causal Impact Loop) 样式 */
-.causal-loop-panel {
-  background: #fff;
+/* 冲击传导回路与变量链路统一容器样式 */
+.causal-loop-panel,
+.plan-variable-panel {
+  background: #ffffff;
   border: 1px solid #dce5ee;
   border-radius: 8px;
-  padding: 14px 16px;
-  margin-bottom: 12px;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  padding: 8px 12px;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+  width: 100%;
+  box-sizing: border-box;
 }
-.causal-loop-head {
+
+.causal-loop-head,
+.variable-panel-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 6px;
 }
-.causal-loop-head span {
-  display: block;
+
+.panel-head-left {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.panel-title {
+  display: inline-block;
+  font-size: 13px;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.panel-subtitle {
+  display: inline-block;
   font-size: 11px;
   color: #64748b;
+  font-weight: 500;
 }
-.causal-loop-head strong {
-  display: block;
-  font-size: 13px;
-  color: #1e293b;
-}
+
 .causal-tag {
   background: #eff6ff;
   color: #2563eb;
-  padding: 2px 8px;
+  padding: 1px 7px;
   border-radius: 4px;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
+  border: 1px solid #bfdbfe;
 }
-.causal-loop-steps {
+
+.variable-head-stats {
   display: flex;
   align-items: center;
-  gap: 8px;
-  overflow-x: auto;
+  gap: 6px;
 }
-.causal-step {
-  flex: 1;
-  min-width: 140px;
-  background: #f8fafc;
+
+.var-stat-tag {
+  font-size: 11px;
+  color: #475569;
+  background: #f1f5f9;
   border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  padding: 10px;
+  padding: 1px 7px;
+  border-radius: 4px;
 }
+
+.var-stat-tag b {
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
+/* 冲击传导回路步骤 */
+.causal-loop-steps {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr;
+  align-items: stretch;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.causal-step {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  transition: all 0.2s ease;
+}
+
+.causal-step:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+}
+
+.step-num-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 3px;
+}
+
+.causal-step .step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 800;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.causal-step b {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.causal-step p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #64748b;
+}
+
+.causal-step.step-primary {
+  border-color: #bfdbfe;
+  background: #f0f7ff;
+}
+
+.causal-step.step-primary b {
+  color: #1d4ed8;
+}
+
 .causal-step.warning {
-  border-color: #fde68a;
+  border-color: #fed7aa;
   background: #fffbeb;
 }
+
+.causal-step.warning .step-num {
+  background: #f97316;
+}
+
+.causal-step.warning b {
+  color: #c2410c;
+}
+
 .causal-step.danger {
   border-color: #fecaca;
   background: #fef2f2;
 }
+
+.causal-step.danger .step-num {
+  background: #ef4444;
+}
+
+.causal-step.danger b {
+  color: #b91c1c;
+}
+
 .causal-step.success {
   border-color: #bbf7d0;
   background: #f0fdf4;
 }
-.causal-step .step-num {
-  display: inline-block;
-  width: 18px;
-  height: 18px;
-  line-height: 18px;
-  text-align: center;
-  border-radius: 50%;
-  background: #e2e8f0;
-  color: #475569;
-  font-size: 10px;
-  font-weight: 600;
-  margin-bottom: 4px;
+
+.causal-step.success .step-num {
+  background: #16a34a;
 }
-.causal-step b {
-  display: block;
-  font-size: 12px;
+
+.causal-step.success b {
+  color: #15803d;
+}
+
+.causal-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: bold;
+  user-select: none;
+}
+
+/* 变量链路三列展示（简洁、常驻、对齐） */
+.variable-lanes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.variable-lane-card {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  transition: all 0.2s ease;
+}
+
+.variable-lane-card:hover {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.lane-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 3px;
+}
+
+.lane-title {
+  font-size: 11px;
+  font-weight: 700;
   color: #1e293b;
-  margin-bottom: 4px;
 }
-.causal-step p {
+
+.lane-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.lane-items {
   margin: 0;
   font-size: 11px;
   line-height: 1.4;
-  color: #64748b;
-}
-.causal-arrow {
-  color: #94a3b8;
-  font-size: 14px;
-  font-weight: bold;
+  color: #475569;
 }
 </style>

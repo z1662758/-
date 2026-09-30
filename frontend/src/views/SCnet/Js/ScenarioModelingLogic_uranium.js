@@ -1234,7 +1234,7 @@ export default {
 
       this.pushMessage({
         type: 'system',
-        content: `✅ 推演任务已生成，已形成 ${this.tasks.length} 项子任务。请点击「下一步」进入实体建模。`,
+        content: `✅ 推演任务已生成，已形成 ${this.tasks.length} 项子任务。请点击「下一步」进入实验推演。`,
         timestamp: new Date(),
         completionData: {
           totalTasks: this.tasks.length,
@@ -1787,7 +1787,7 @@ export default {
 
       const pinia = this.store
       pinia.setCurrentSessionId(this.sessionId)
-      this.$router.push({ path: SCNET_ROUTES.agentSimulationStudio, query: { view: 'workflow' } })
+      this.$router.push({ path: SCNET_ROUTES.agentSimulationStudio, query: { ...this.$route.query, view: 'workflow' } })
     },
 
     async modifyPlan() {

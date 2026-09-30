@@ -1,5 +1,27 @@
 <template>
-  <div class="decision-page">
+  <div class="decision-page mid-stage-bg">
+    <MidStagePageHeader
+      title="决策生成"
+      subtitle="基于多目标优化与地缘风险评价的铀供应链应急调度指令方案"
+      :icon="Promotion"
+    >
+      <template #right>
+        <div class="scenario-header-stats">
+          <span class="stat-pill"><b>4</b> 项应急调度令</span>
+          <span class="stat-pill"><b>79</b> 综合加权评分</span>
+          <span class="stat-pill"><b>4</b> 种备选方案</span>
+        </div>
+        <el-button size="small" @click="goToRun">
+          <el-icon><ArrowLeft /></el-icon>
+          <span>上一步：实验推演</span>
+        </el-button>
+        <el-button type="primary" size="small" @click="goToAnalysis">
+          <span>下一步：情景分析</span>
+          <el-icon><ArrowRight /></el-icon>
+        </el-button>
+      </template>
+    </MidStagePageHeader>
+
     <div v-if="reportVm" class="decision-scroll">
       <section class="decision-summary">
         <div class="decision-heading">
@@ -88,13 +110,55 @@
 
       <section class="decision-panel">
         <MidStagePanelHeader title="国家/集团级应急调度令清单" description="按优先顺序下达供应定向、通道提速与储备借调调度指令" />
-        <ol class="action-list">
-          <li v-for="(item, index) in actionRows" :key="item" class="action-row">
-            <span class="action-number">{{ index + 1 }}</span>
-            <div><strong>{{ actionTitles[index] || `行动 ${index + 1}` }}</strong><p>{{ item }}</p></div>
-            <el-tag :type="actionTagType(index)" size="small" effect="plain">{{ actionTagText(index) }}</el-tag>
-          </li>
-        </ol>
+        <div class="dispatch-order-grid">
+          <article v-for="(item, index) in actionRows" :key="item" class="dispatch-order-card" :class="'order-' + actionTagType(index)">
+            <div class="doc-header">
+              <div class="doc-badge-row">
+                <span class="doc-num">调度令 #2026-U-0{{ index + 1 }}</span>
+                <el-tag :type="actionTagType(index)" size="small" effect="dark">{{ actionTagText(index) }}</el-tag>
+              </div>
+              <strong class="doc-title">{{ actionTitles[index] || `应急调度令 ${index + 1}` }}</strong>
+            </div>
+            <p class="doc-content">{{ item }}</p>
+            <div class="doc-footer">
+              <span class="doc-dept">签发：供应链应急联合指挥部</span>
+              <span class="doc-status">时效：72 小时内响应闭环</span>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- 多通道替代物流走廊与来源国推荐 -->
+      <section class="decision-panel">
+        <MidStagePanelHeader
+          title="多通道替代物流走廊与来源国推荐"
+          description="基于低风险(30%)、可用容量(20%)、断链韧性(20%)、分散度(15%)与舆情清洁度(15%)算法加权输出"
+          :count="`${alternativeRoutes.length} 条走廊`"
+        />
+        <div class="route-cards-list">
+          <div v-for="item in alternativeRoutes" :key="item.route_id" class="route-card-item">
+            <div class="route-card-head">
+              <span class="route-rank">0{{ item.rank }}</span>
+              <div class="route-title-wrap">
+                <div class="route-name-row">
+                  <strong>{{ item.name }}</strong>
+                  <el-tag :type="item.tagType" size="small" effect="plain">{{ item.level }}</el-tag>
+                </div>
+                <span class="route-path">{{ item.path }}</span>
+              </div>
+              <div class="route-score-badge">
+                <small>算法评分</small>
+                <b>{{ item.score }}</b>
+              </div>
+            </div>
+            <div class="route-meta-row">
+              <span>可用容量：<b>{{ item.capacity }}</b></span>
+              <span>路径风险指数：<b>{{ item.risk }}</b></span>
+              <span>断链冗余度：<b>{{ item.resilience }}</b></span>
+            </div>
+            <p class="route-adv"><strong>决策评估：</strong>{{ item.advantages }}</p>
+          </div>
+        </div>
       </section>
 
       <section class="decision-panel">
@@ -135,7 +199,10 @@
 <script setup>
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import MidStagePageHeader from './components/shared/MidStagePageHeader.vue'
 import MidStagePanelHeader from './components/shared/MidStagePanelHeader.vue'
+import { ArrowLeft, ArrowRight, Promotion } from '@element-plus/icons-vue'
+import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 import { storeToRefs } from 'pinia'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
@@ -147,6 +214,82 @@ function goToRun() {
   const query = { ...route.query, view: 'run' }
   router.replace({ query })
 }
+function goToAnalysis() {
+  router.push({ path: SCNET_ROUTES.expAnalysisScenario, query: { ...route.query, scenario: 'uranium' } })
+}
+
+const alternativeRoutes = [
+  {
+    rank: 1,
+    route_id: 'namibia',
+    name: '纳米比亚西非远洋航线 (鲸湾港-连云港/广州港)',
+    country: '纳米比亚',
+    capacity: '6,504 tU',
+    risk: '56.2',
+    resilience: '1.0',
+    score: '73.6分',
+    level: '强烈推荐',
+    tagType: 'success',
+    path: '湖山/罗辛矿区 → 鲸湾港(Walvis Bay) → 南非好望角/东亚海运段 → 中国沿海接收港 → 国内核燃料转运网络',
+    advantages: '中广核独资大矿直控；可用容量充足；与欧亚大陆中断路线无共同脆弱瓶颈；海运走廊无负面舆情干预'
+  },
+  {
+    rank: 2,
+    route_id: 'uzbekistan',
+    name: '乌兹别克斯坦中亚铁路直达班列',
+    country: '乌兹别克斯坦',
+    capacity: '3,500 tU',
+    risk: '51.3',
+    resilience: '1.0',
+    score: '64.6分',
+    level: '推荐',
+    tagType: 'primary',
+    path: '纳沃伊矿区 → 中亚跨国铁路走廊 → 霍尔果斯/阿拉山口口岸 → 兰州/包头核燃料元件基地',
+    advantages: '陆路直达，规避地中海/红海狭窄海峡风险；中乌双边本币结算通道稳定；常态化专运列车保障'
+  },
+  {
+    rank: 3,
+    route_id: 'australia',
+    name: '澳大利亚西太平洋远洋航线 (奥林匹克坝)',
+    country: '澳大利亚',
+    capacity: '3,800 tU',
+    risk: '51.4',
+    resilience: '0.85',
+    score: '60.8分',
+    level: '推荐',
+    tagType: 'warning',
+    path: '奥林匹克坝矿区 → 阿德莱德/达尔文港 → 西太平洋海运航线 → 连云港/防城港',
+    advantages: '副产物规模化生产成本低；海运周期仅18-22天；受地缘政策许可波动影响需保持长协跟踪'
+  },
+  {
+    rank: 4,
+    route_id: 'niger',
+    name: '尼日尔西非多式联运走廊 (Somaïr / Arlit)',
+    country: '尼日尔',
+    capacity: '2,000 tU',
+    risk: '47.4',
+    resilience: '0.7',
+    score: '58.3分',
+    level: '备选',
+    tagType: 'info',
+    path: '阿利特矿区 → 贝宁科托努港 → 远洋海运段 → 连云港',
+    advantages: '高品位原料来源；但受西非政局与萨赫勒地缘局势扰动，需配置陆运安保冗余'
+  },
+  {
+    rank: 5,
+    route_id: 'canada',
+    name: '加拿大萨斯喀彻温北太平洋航线 (Cameco / Cigar Lake)',
+    country: '加拿大',
+    capacity: '5,800 tU',
+    risk: '51.9',
+    resilience: '0.75',
+    score: '56.9分',
+    level: '备选',
+    tagType: 'info',
+    path: '阿萨巴斯卡盆地 → 蒙特利尔/温哥华港 → 北太平洋海运 → 沿海港口',
+    advantages: '世界最高品位优质矿石；作为全球现货压舱石，但出口许可受西方双重管制制约'
+  }
+]
 
 const uraniumStore = useUraniumDemoStore()
 const snapshotStore = useAnalysisSnapshotStore()
@@ -198,6 +341,118 @@ onMounted(() => uraniumStore.ensureInitialized())
 </script>
 
 <style scoped>
+/* 头部步骤向导徽章 */
+.step-guide-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+.step-guide-num {
+  font-size: 11px;
+  font-weight: 800;
+  color: #ffffff;
+  background: #2563eb;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.step-guide-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e3a8a;
+}
+.step-guide-phase {
+  font-size: 11px;
+  color: #64748b;
+}
+
+/* 调度令卡片网格 */
+.dispatch-order-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 14px 18px 18px;
+}
+
+.dispatch-order-card {
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s ease;
+  border-left-width: 4px;
+}
+
+.dispatch-order-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.dispatch-order-card.order-danger { border-left-color: #ef4444; }
+.dispatch-order-card.order-warning { border-left-color: #f59e0b; }
+.dispatch-order-card.order-primary { border-left-color: #3b82f6; }
+.dispatch-order-card.order-success { border-left-color: #10b981; }
+
+.doc-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.doc-badge-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.doc-num {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.02em;
+}
+
+.doc-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.doc-content {
+  margin: 0;
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.doc-footer {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px dashed #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.doc-status {
+  font-weight: 600;
+  color: #2563eb;
+}
+
+@media (max-width: 960px) {
+  .dispatch-order-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .decision-page { height: 100%; min-height: 0; background: var(--mid-stage-bg); color: #1e293b; }
 .decision-scroll { height: 100%; overflow-y: auto; box-sizing: border-box; padding: 16px; }
 .decision-summary, .decision-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; }
@@ -316,4 +571,97 @@ dd { margin: 0; }
     grid-template-columns: 1fr;
   }
 }
+
+/* 替代走廊推荐卡片列表 */
+.route-cards-list {
+  padding: 12px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.route-card-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 14px;
+  transition: all 0.2s ease;
+}
+.route-card-item:hover {
+  background: #fff;
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+.route-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.route-rank {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  color: #2563eb;
+  background: #eff6ff;
+  flex-shrink: 0;
+}
+.route-title-wrap {
+  flex: 1;
+  min-width: 0;
+}
+.route-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.route-name-row strong {
+  font-size: 13px;
+  color: #1e293b;
+}
+.route-path {
+  display: block;
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 3px;
+}
+.route-score-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin-right: 6px;
+}
+.route-score-badge small {
+  font-size: 10px;
+  color: #94a3b8;
+}
+.route-score-badge b {
+  font-size: 14px;
+  color: #2563eb;
+}
+.route-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed #e2e8f0;
+  font-size: 11px;
+  color: #64748b;
+}
+.route-meta-row b {
+  color: #1e293b;
+}
+.route-adv {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.5;
+}
+.route-adv strong {
+  color: #334155;
+}
 </style>
+

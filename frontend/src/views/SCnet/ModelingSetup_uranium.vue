@@ -1,6 +1,6 @@
 <template>
   <div class="modeling-setup mid-stage-bg">
-    <MidStagePageHeader title="建模设定" :icon="Cpu">
+    <MidStagePageHeader title="建模设定" subtitle="实体层级定义 · 仿真规则与认知循环 · 扰动基线配置" :icon="Cpu">
       <template #center>
         <span class="ms-context">
           <b>{{ userGoalText }}</b>
@@ -15,7 +15,11 @@
         </div>
         <el-button size="small" @click="goDuringEntry">
           <el-icon><ChatDotRound /></el-icon>
-          <span>回到对话入口</span>
+          <span>回到对话</span>
+        </el-button>
+        <el-button type="primary" size="small" @click="goNext">
+          <span>下一步：想定生成</span>
+          <el-icon><ArrowRight /></el-icon>
         </el-button>
       </template>
     </MidStagePageHeader>
@@ -60,7 +64,7 @@
         </el-scrollbar>
         <div class="ms-left-foot">
           <div class="ms-foot-title">建模范围</div>
-          <p class="ms-note">供给方提供可用量与报价，制造方负责采购和库存；运输与需求节点表示年度环境和业务关系。</p>
+          <p class="ms-note">供给方 · 物流通道 · 采购方三层实体结构，依托历史数据设定仿真基线与约束边界。</p>
         </div>
       </aside>
 
@@ -189,7 +193,7 @@
                 </li>
               </ul>
               <el-empty v-else description="该层级暂无关联关系" :image-size="48" />
-              <p class="ms-note">完整实体图与实例参数在下一步「实体建模」中查看。</p>
+              <p class="ms-note">完整实体图与实例参数可在想定生成阶段进一步调整与确认。</p>
             </el-collapse-item>
           </el-collapse>
         </section>
@@ -342,6 +346,12 @@ import {
   URANIUM_PLANNER,
   resolveUraniumAgentRole
 } from '@/views/SCnet/mock/uraniumAgentRoleLibrary'
+import {
+  getUraniumSuppliers,
+  getUraniumManufacturers,
+  getUraniumEnvironmentEvents,
+  checkBackendHealth
+} from '@/api/uraniumBackend'
 
 defineOptions({ name: 'ModelingSetupUranium' })
 
@@ -350,6 +360,38 @@ const router = useRouter()
 const scenarioStore = useScnetScenarioStore()
 const uraniumStore = useUraniumDuringStore()
 const snapshotStore = useAnalysisSnapshotStore()
+
+// 真实后端连通状态与实体
+const backendConnected = ref(false)
+const backendSuppliers = ref([])
+const backendManufacturers = ref([])
+const backendEvents = ref([])
+
+async function fetchBackendData() {
+  try {
+    const health = await checkBackendHealth()
+    if (health) backendConnected.value = true
+
+    const [supRes, mfrRes, evtRes] = await Promise.allSettled([
+      getUraniumSuppliers(),
+      getUraniumManufacturers(),
+      getUraniumEnvironmentEvents()
+    ])
+
+    if (supRes.status === 'fulfilled' && supRes.value?.suppliers?.length) {
+      backendSuppliers.value = supRes.value.suppliers
+      backendConnected.value = true
+    }
+    if (mfrRes.status === 'fulfilled' && Array.isArray(mfrRes.value) && mfrRes.value.length) {
+      backendManufacturers.value = mfrRes.value
+    }
+    if (evtRes.status === 'fulfilled' && evtRes.value?.events?.length) {
+      backendEvents.value = evtRes.value.events
+    }
+  } catch (err) {
+    console.warn('Backend load error, using baseline actors:', err)
+  }
+}
 
 // 后端 configs/uranium_agent_config.yaml 中的实体容量（entity_types.count）
 const TIER_CAPACITY = Object.freeze({ supply: 16, manufacturing: 5 })
@@ -377,7 +419,7 @@ const nextButtonText = computed(() => (
   isFresh.value || hasSessionState.value ? '下一步：想定生成' : '去对话入口提交需求'
 ))
 
-// ---------- Agent 列表（按层级分组，成员与实验运行数据同源） ----------
+// ---------- Agent 列表（按层级分组，支持真实后端数据与回落基准同源） ----------
 const referenceAgents = URANIUM_REFERENCE_GRAPH.agents || []
 const transportAgents = referenceAgents.filter((item) => item.category === 'transport')
 const demandAgents = referenceAgents.filter((item) => item.category === 'sales')
@@ -386,41 +428,61 @@ function member(tier, id, name, note) {
   return { key: `${tier}:${id}`, tier, id, name, note }
 }
 
-const agentGroups = computed(() => [
-  {
-    tier: 'supply',
-    label: URANIUM_AGENT_ROLE_LIBRARY.supply.label,
-    icon: TIER_ICONS.supply,
-    capacity: TIER_CAPACITY.supply,
-    members: URANIUM_SUPPLIER_ACTORS.map((item) => member('supply', item.id, item.name, `${item.country} · ${item.mining_method}`))
-  },
-  {
-    tier: 'transport',
-    label: URANIUM_AGENT_ROLE_LIBRARY.transport.label,
-    icon: TIER_ICONS.transport,
-    capacity: 0,
-    members: [
-      ...transportAgents.map((item) => member('transport', item.id, item.name, item.description)),
-      ...URANIUM_SUPPLIER_ACTORS
-        .filter((item) => item.route_type === 'land_route')
-        .map((item) => member('transport', `route-${item.id}`, item.reference_route_name, item.reference_path))
-    ]
-  },
-  {
-    tier: 'manufacturing',
-    label: URANIUM_AGENT_ROLE_LIBRARY.manufacturing.label,
-    icon: TIER_ICONS.manufacturing,
-    capacity: TIER_CAPACITY.manufacturing,
-    members: URANIUM_MANUFACTURER_ACTORS.map((item) => member('manufacturing', item.id, item.name, `${item.city_cluster} · ${item.port_name}`))
-  },
-  {
-    tier: 'sales',
-    label: URANIUM_AGENT_ROLE_LIBRARY.sales.label,
-    icon: TIER_ICONS.sales,
-    capacity: 0,
-    members: demandAgents.map((item) => member('sales', item.id, item.name, item.description))
-  }
-])
+const agentGroups = computed(() => {
+  const supplyMembers = backendSuppliers.value.length
+    ? backendSuppliers.value.map(item => member(
+        'supply',
+        item.id,
+        item.country || item.id,
+        `${item.country} · 产能~${item.capacity_tU || '-'}tU/年 · 成本${item.cost_tier || ''}`
+      ))
+    : URANIUM_SUPPLIER_ACTORS.map((item) => member('supply', item.id, item.name, `${item.country} · ${item.mining_method}`))
+
+  const manufacturingMembers = backendManufacturers.value.length
+    ? backendManufacturers.value.map(item => member(
+        'manufacturing',
+        item.id,
+        item.name,
+        `${item.location || '中国'} · 年需求${item.annual_demand_tU || '-'}tU · 目标库存${item.inventory_target_years || 3}年`
+      ))
+    : URANIUM_MANUFACTURER_ACTORS.map((item) => member('manufacturing', item.id, item.name, `${item.city_cluster} · ${item.port_name}`))
+
+  return [
+    {
+      tier: 'supply',
+      label: URANIUM_AGENT_ROLE_LIBRARY.supply.label,
+      icon: TIER_ICONS.supply,
+      capacity: TIER_CAPACITY.supply,
+      members: supplyMembers
+    },
+    {
+      tier: 'transport',
+      label: URANIUM_AGENT_ROLE_LIBRARY.transport.label,
+      icon: TIER_ICONS.transport,
+      capacity: 0,
+      members: [
+        ...transportAgents.map((item) => member('transport', item.id, item.name, item.description)),
+        ...URANIUM_SUPPLIER_ACTORS
+          .filter((item) => item.route_type === 'land_route')
+          .map((item) => member('transport', `route-${item.id}`, item.reference_route_name, item.reference_path))
+      ]
+    },
+    {
+      tier: 'manufacturing',
+      label: URANIUM_AGENT_ROLE_LIBRARY.manufacturing.label,
+      icon: TIER_ICONS.manufacturing,
+      capacity: TIER_CAPACITY.manufacturing,
+      members: manufacturingMembers
+    },
+    {
+      tier: 'sales',
+      label: URANIUM_AGENT_ROLE_LIBRARY.sales.label,
+      icon: TIER_ICONS.sales,
+      capacity: 0,
+      members: demandAgents.map((item) => member('sales', item.id, item.name, item.description))
+    }
+  ]
+})
 
 const searchKeyword = ref('')
 const filteredGroups = computed(() => {

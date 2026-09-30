@@ -129,6 +129,7 @@
                   <span class="chat-preset-body">
                     <span class="chat-preset-title">
                       {{ q.title }}
+                      <span v-if="q.tag" class="chat-preset-tag">{{ q.tag }}</span>
                       <em v-if="currentMode === 'auto'" class="chat-preset-phase" :class="'is-' + q.phase">{{ phaseShortLabels[q.phase] }}</em>
                     </span>
                     <span class="chat-preset-text">{{ q.text }}</span>
@@ -279,9 +280,62 @@
         <template v-if="activeRun?.phase !== 'during' || execActiveTab === 'steps'">
         <div class="chat-exec-sections">
           <span v-for="s in SECTION_ORDER" :key="s" class="chat-exec-section-chip"
-            :class="{ active: execSections.includes(s) }">
+            :class="{ active: execSections.includes(s) || execState === 'done' }">
             {{ SECTION_LABELS[s] }}
           </span>
+        </div>
+
+        <!-- 事中需求分析步骤流水线 -->
+        <div v-if="activeRun?.kind === 'requirement'" class="chat-exec-step-timeline">
+          <div class="chat-step-item" :class="{ done: execSections.includes('一') || execState === 'done' }">
+            <div class="step-line-col">
+              <span class="step-num-dot">1</span>
+              <span class="step-vertical-line"></span>
+            </div>
+            <div class="step-card-content">
+              <div class="step-card-header">
+                <strong>需求意图识别与定标</strong>
+                <el-tag size="small" :type="(execSections.includes('一') || execState === 'done') ? 'success' : 'info'" effect="plain">
+                  {{ (execSections.includes('一') || execState === 'done') ? '已完成' : '执行中' }}
+                </el-tag>
+              </div>
+              <p class="step-card-desc">自动解析用户输入，定标全国基线需求 11,500 tU，识别出 +2,300 tU 峰值缺口敞口。</p>
+            </div>
+          </div>
+
+          <div class="chat-step-item" :class="{ done: execSections.includes('二') || execState === 'done' }">
+            <div class="step-line-col">
+              <span class="step-num-dot">2</span>
+              <span class="step-vertical-line"></span>
+            </div>
+            <div class="step-card-content">
+              <div class="step-card-header">
+                <strong>网络映射与策略生成</strong>
+                <el-tag size="small" :type="(execSections.includes('二') || execState === 'done') ? 'success' : 'info'" effect="plain">
+                  {{ (execSections.includes('二') || execState === 'done') ? '已完成' : '计算中' }}
+                </el-tag>
+              </div>
+              <p class="step-card-desc">匹配全球矿山与口岸物流，生成【保供优先】、【成本优先】、【平衡方案】3 大对比策略。</p>
+            </div>
+          </div>
+
+          <div class="chat-step-item" :class="{ done: execSections.includes('三') || execState === 'done' }">
+            <div class="step-line-col">
+              <span class="step-num-dot">3</span>
+            </div>
+            <div class="step-card-content">
+              <div class="step-card-header">
+                <strong>参数绑定与下一步安排</strong>
+                <el-tag size="small" :type="(execSections.includes('三') || execState === 'done') ? 'success' : 'info'" effect="plain">
+                  {{ (execSections.includes('三') || execState === 'done') ? '就绪' : '等待' }}
+                </el-tag>
+              </div>
+              <p class="step-card-desc">绑定 Monte-Carlo 采样约束，决策参数已持久化，可直接载入建模设定开展实盘推演。</p>
+              <div v-if="execSections.includes('三') || execState === 'done'" class="step-card-btn-wrap">
+                <button class="chat-mini-action-btn" @click="goVisualization">查看建模设定 →</button>
+              </div>
+            </div>
+          </div>
         </div>
         </template>
         <div v-else-if="execActiveTab === 'parameters'" class="chat-exec-parameters">
@@ -1445,6 +1499,15 @@ export default {
 .chat-preset-phase.is-pre { background: #eff6ff; color: #2563eb; }
 .chat-preset-phase.is-during { background: #fff7ed; color: #ea580c; }
 .chat-preset-phase.is-post { background: #f0fdf4; color: #16a34a; }
+.chat-preset-tag {
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 500;
+  line-height: 16px;
+}
 .chat-preset-text {
   color: #6b7280; font-size: 12px; line-height: 1.5;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
@@ -1682,6 +1745,94 @@ export default {
   transition: all 0.25s;
 }
 .chat-exec-section-chip.active { background: #eef2ff; color: #4f46e5; font-weight: 600; }
+.chat-exec-step-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+.chat-step-item {
+  display: flex;
+  gap: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  transition: all 0.2s ease;
+}
+.chat-step-item.done {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.step-line-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 20px;
+  flex-shrink: 0;
+}
+.step-num-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.chat-step-item.done .step-num-dot {
+  background: #dcfce7;
+  color: #15803d;
+}
+.step-vertical-line {
+  flex: 1;
+  width: 2px;
+  background: #e2e8f0;
+  margin-top: 6px;
+  min-height: 18px;
+}
+.step-card-content {
+  flex: 1;
+  min-width: 0;
+}
+.step-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.step-card-header strong {
+  font-size: 12.5px;
+  color: #1e293b;
+}
+.step-card-desc {
+  font-size: 11.5px;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0;
+}
+.step-card-btn-wrap {
+  margin-top: 8px;
+}
+.chat-mini-action-btn {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.chat-mini-action-btn:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
 .chat-exec-tools { display: flex; flex-direction: column; gap: 6px; }
 .chat-exec-tool {
   display: flex; align-items: center; gap: 8px;

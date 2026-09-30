@@ -29,8 +29,12 @@
     </main>
 
     <!-- 独立操作栏预留空间，不覆盖图表、地图时间轴和结果内容 -->
-    <div v-if="nextViewMeta || prevViewMeta" class="workbench-next-fab workbench-flow-footer">
-      <el-button v-if="prevViewMeta" class="workbench-prev-button" size="large" @click="switchView(prevViewMeta.value)">
+    <div v-if="nextViewMeta || prevViewMeta || activeView === 'run'" class="workbench-next-fab workbench-flow-footer">
+      <el-button v-if="activeView === 'run'" class="workbench-prev-button" size="large" @click="goToStudio">
+        <el-icon class="prev-icon"><ArrowLeft /></el-icon>
+        <span class="prev-text">上一步：实体关系图</span>
+      </el-button>
+      <el-button v-else-if="prevViewMeta" class="workbench-prev-button" size="large" @click="switchView(prevViewMeta.value)">
         <el-icon class="prev-icon"><ArrowLeft /></el-icon>
         <span class="prev-text">上一步：{{ prevViewMeta.label }}</span>
       </el-button>
@@ -132,6 +136,10 @@ function backToRun() {
   const query = { ...route.query, view: 'run' }
   delete query.case
   router.replace({ query })
+}
+
+function goToStudio() {
+  router.push({ path: SCNET_ROUTES.agentSimulationStudio, query: { ...route.query, scenario: 'uranium', view: 'workflow' } })
 }
 </script>
 

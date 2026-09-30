@@ -509,3 +509,39 @@ details.decision-handoff-strip > summary { grid-column: 1 / -1; }
   .workbench-next-fab .workbench-prev-button .prev-text { display: none; }
   .workbench-next-fab .workbench-prev-button { padding: 9px 12px; }
 }
+
+/* 后端连接状态指示徽标 */
+.backend-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #059669;
+  background: rgba(236, 253, 245, 0.9);
+  border: 1px solid #a7f3d0;
+  box-shadow: 0 1px 2px rgba(16, 185, 129, 0.08);
+  white-space: nowrap;
+}
+.backend-live-badge.is-warning {
+  color: #d97706;
+  background: rgba(254, 243, 199, 0.9);
+  border-color: #fde68a;
+}
+.backend-live-badge .status-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+  animation: live-dot-pulse 1.8s ease-in-out infinite;
+  display: inline-block;
+  flex-shrink: 0;
+}
+@keyframes live-dot-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3); transform: scale(1); }
+  50% { box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); transform: scale(1.1); }
+}
+
