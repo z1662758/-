@@ -7,6 +7,16 @@
     </div>
 
     <template v-if="!error && chartData">
+      <section v-if="chartData.scenarioAssessment" class="pred-section" style="padding: 18px; margin-bottom: 16px; background: #f4f8ff; border: 1px solid #cddff9; border-radius: 10px">
+        <h2 style="margin: 0 0 10px; font-size: 17px">本场景风险展望</h2>
+        <p><strong>研判问题：</strong>{{ chartData.scenarioAssessment.question }}</p>
+        <p v-if="chartData.forecastAssessment"><strong>预测结果：</strong>{{ chartData.forecastAssessment.outlook }}</p>
+        <p><strong>相关路线：</strong>{{ chartData.scenarioAssessment.riskRoutes?.length || 0 }} 条；<strong>相关情报：</strong>{{ chartData.scenarioAssessment.relatedEventCount }} 条</p>
+        <p v-if="chartData.scenarioAssessment.judgmentConclusion">{{ chartData.scenarioAssessment.judgmentConclusion }}</p>
+        <p v-for="(item, index) in chartData.scenarioAssessment.recommendations" :key="index">{{ item }}</p>
+        <p v-if="chartData.forecastAssessment" style="color: #64748b">{{ chartData.forecastAssessment.limit }}</p>
+        <p style="color: #64748b">{{ chartData.scenarioAssessment.note }}</p>
+      </section>
       <!-- 第一部分：顶部核心指标 -->
       <div class="sj-dashboard">
         <div v-for="item in dashboardSummary" :key="item.label"
@@ -20,9 +30,8 @@
         </div>
       </div>
 
-      <!-- 第二部分：态势预测分析结果（真实算法：趋势/拐点/周期） -->
-      <!-- 临时隐藏：态势预测分析结果 整块（含周期特征分析）。如需恢复，把下面 v-if 改为 true（内部趋势/拐点是否显示见各自 v-if） -->
-      <div class="pred-section" v-if="false">
+      <!-- 第二部分：态势预测分析结果（真实算法：周期位置 + 拐点，纯文字卡片） -->
+      <div class="pred-section">
         <div class="pred-section-title">
           <span class="pred-section-mark"></span>态势预测分析结果
           <span class="pred-section-sub" v-if="analysisOk">算法真实计算结果 · 基于 {{ analysis.series?.label || '历史序列' }}</span>
@@ -33,7 +42,116 @@
           <el-empty :description="analysis?.reason || '暂无足够的真实数据执行态势分析'" :image-size="80" />
         </div>
 
-        <div v-else class="analysis">
+        <!-- 周期与拐点态势：纯文字结论，点击展开依据 -->
+        <div v-else class="ana-card cyc-brief">
+          <div class="ana-card-head ana-card-head--wrap">
+            <span class="ana-card-title">周期与拐点态势</span>
+            <el-tag v-if="cycle" size="small" :type="cycleStatusMeta(cycleStatus).type">{{ cycleStatusMeta(cycleStatus).label }}</el-tag>
+            <el-tag v-if="cyclePos && cyclePos.extrapolated" size="small" type="warning" effect="plain">模型外推，非实测</el-tag>
+          </div>
+
+          <template v-if="cyclePos || turningFull.length">
+            <p class="cb-lead" v-if="cyclePos">
+              当前（{{ cyclePos.reference_year }} 年）处于约 <b>{{ num(cycle.dominant_period) }} 年</b>主导周期的
+              <b class="cb-stage" :class="cyclePos.stage">{{ stageLabel(cyclePos.stage) }}</b>阶段：
+              自上一个模型波峰已行进 <b>{{ pct(cyclePos.phase_progress) }}</b>（0% = 波峰，50% = 波谷）<template v-if="cyclePosNextPeak">，
+              按该周期推算，距下一波峰约 <b>{{ cyclePosNextPeak.years.toFixed(1) }} 年</b>（约 {{ cyclePosNextPeak.year }} 年）</template>。
+            </p>
+
+            <p class="cb-lead" v-if="turningFull.length">
+              已识别的历史拐点共 <b>{{ turningCount }}</b> 个：<span
+                v-for="(p, i) in turningFull" :key="p.date + '-' + i" class="cb-tp" :class="p.type">{{ p.date }} 年{{ p.type === 'peak' ? '高点' : '低点' }} {{ num(p.value) }}<em v-if="i < turningFull.length - 1">、</em></span>。
+              最近一次在 <b>{{ turningInfo?.latest?.date }}</b> 年<template v-if="turningLatestAge != null">（距今 {{ turningLatestAge }} 年）</template>，此后无新增极值。
+            </p>
+
+            <p class="cb-lead" v-if="cycle">
+              周期模型给出的下一<b>低点</b>窗口为 <b class="cb-win">{{ cycleWindowText(cycle.next_trough_window) }}</b>，
+              下一<b>高点</b>窗口为 <b class="cb-win">{{ cycleWindowText(cycle.next_peak_window) }}</b>
+              —— 来自周期外推，非拐点检测器输出。
+            </p>
+
+            <div class="cb-algo" v-if="cycle">
+              算法：周期 = {{ cycle.method }}；拐点 = 局部极值 + 均线交叉 + 动量（signal_strength / confidence 为启发式评分，非统计概率）。
+            </div>
+
+            <div class="cb-caveat" v-if="cyclePos">
+              价格序列止于 {{ cycle.sample_end }} 年，以上位置已外推 {{ cyclePos.years_beyond_data }} 年；
+              回测显示叠加周期后样本外误差未优于单用趋势线（改善 {{ signPct(cycle.backtest?.improvement) }}），
+              本卡仅作候选参考，<b>不构成采购时机建议</b>。
+            </div>
+
+            <details class="ana-evidence">
+              <summary>点击查看依据 / 数据口径 / 算法细节</summary>
+              <div class="ae-body">
+                <div class="ae-sec">
+                  <div class="ae-h">一、数据口径</div>
+                  <ul>
+                    <li>序列：{{ analysis.series?.label }}（{{ analysis.series?.unit }}），年度粒度</li>
+                    <li>区间：{{ cycle?.sample_start }}–{{ cycle?.sample_end }} 年，共 {{ cycle?.sample_size }} 个观测；缺失年直接跳过，<b>不做插值、不做平滑</b></li>
+                    <li>来源：{{ analysis.series?.source }}</li>
+                  </ul>
+                </div>
+
+                <div class="ae-sec" v-if="cycle">
+                  <div class="ae-h">二、周期位置模型 <code>{{ cycle.algorithm }}</code></div>
+                  <ol>
+                    <li><b>去趋势</b>：用 OLS 最小二乘在原始序列上拟合一条直线（趋势），取残差，再减去残差均值得到 <code>res_c</code>，实现趋势与周期分离</li>
+                    <li><b>找候选周期</b>：对 <code>res_c</code> 做 FFT 周期图（<code>np.fft.rfft</code>），谱功率取 <code>|FFT|²</code>；只保留周期 ≥ 2 年、且 ≤ 序列长度 85% 的谱峰（排除零频与不足一个完整周期的长度），按功率降序、周期去重后取前 5 个</li>
+                    <li><b>ACF 辅助验证</b>：在主导周期 P 对应的滞后 P−1 / P / P+1 上计算自相关，取其中<b>最大的正相关</b>作为支持度（负相关不计为支持）——ACF 只做佐证，不单独否决周期</li>
+                    <li><b>谐波回归</b>：在主导周期 P 上用最小二乘拟合 <code>res_c ≈ c + a·cos(2πx/P) + b·sin(2πx/P)</code>，得到拟合优度 <code>R²</code> 与振幅 <code>√(a²+b²)</code></li>
+                    <li><b>周期综合强度</b>（0–1，<b>证据强度而非概率</b>）：<code>0.35×归一化谱峰占比 + 0.25×归一化ACF支持 + 0.25×归一化R² + 0.15×归一化周期覆盖数</code>，四项各自的归一化系数为 3.2 / 3.0 / 2.5 / 2.0</li>
+                    <li><b>当前位置的相位</b>：把同一谐波外推到目标年份得到相位 θ；用归一化值 <code>h=cos θ</code> 与导数 <code>d=−sin θ</code> 判阶段——<code>d &gt; 0.35</code> 上行、<code>d &lt; −0.35</code> 下行、<code>h ≥ 0</code> 高位、其余低位；周期内进度 = <code>θ/2π</code>（0 = 波峰，0.5 = 波谷）</li>
+                    <li><b>未来峰/谷窗口</b>：由模型相位推出下一个峰值所在年份，窗口半宽 = <code>max(0.5, min(P/4, 2))</code> 年</li>
+                    <li><b>样本外回测</b>：前 80% 训练、后 20% 验证，分别外推"单趋势线"与"趋势+周期"，比较 RMSE；改善 ≤ 2% 时预测可靠性降为 low</li>
+                  </ol>
+                  <ul>
+                    <li>状态判定阈值：样本少于 8 步不做分析；满足「覆盖 ≥ 2 个完整周期 且 综合强度 ≥ 0.50 且 ACF 支持 &gt; 0.10 且 R² ≥ 0.06」→ <b>stable</b>；综合强度 ≥ 0.24 → <b>candidate</b>；有谱峰但更弱 → <b>weak</b>；无可用谱峰 → <b>no_cycle</b></li>
+                  </ul>
+                </div>
+
+                <div class="ae-sec" v-if="turningInfo">
+                  <div class="ae-h">三、拐点识别模型 <code>{{ turningInfo.algorithm || 'turning_point.detection.v1' }}</code></div>
+                  <ol>
+                    <li><b>局部极值</b>：逐点与左右邻居严格比较找局部峰/谷（等值平台取中点），再剔除序列首 2 点与末 1 点，只保留序列内部的极值作为历史拐点</li>
+                    <li><b>近期方向</b>：用最后 3 个点判定 up / down / flat，避免长窗口把历史主导方向误当当前方向</li>
+                    <li><b>均线交叉</b>：短均线 k=3、长均线 L=6（按序列长度自动收紧）；短线上穿长线记 <b>−0.3</b>（见底信号），短线跌破长线记 <b>+0.3</b>（见顶信号）；两线贴住且动能背离再记 ±0.2</li>
+                    <li><b>动量与减速度</b>：最近 4 步净变化 对比 前 4 步净变化；斜率方向反转记 ±0.5，动能递减/跌幅收窄记 ±0.25，动量低于（或高于）前 4 步记 ±0.2</li>
+                    <li><b>新极值提示</b>：创近期新高后回落 <b>+0.15</b>，创近期新低后反弹 <b>−0.15</b></li>
+                    <li><b>评分与信号</b>：各项累加后截断到 [−1, 1]；<code>≥ 0.3</code> → possible_peak，<code>≤ −0.3</code> → possible_trough，否则 none。<code>signal_strength = |score|</code>；<code>confidence_score</code> 由样本长度与触发项数启发式给出（<code>0.3 + 0.3×min(1, n/24) + …</code>），<b>两者都是启发式评分，不是概率</b></li>
+                  </ol>
+                  <ul>
+                    <li>本检测器<b>只识别已经发生的局部极值</b>，不预测未来拐点日期；卡片里的未来峰/谷窗口来自上面的周期模型外推，两者算法不同，不可混读</li>
+                  </ul>
+                </div>
+
+                <div class="ae-sec" v-if="cycle">
+                  <div class="ae-h">四、本序列实际算出的中间量</div>
+                  <ul>
+                    <li>主导周期 <b>{{ num(cycle.dominant_period) }} 年</b>，谱功率 {{ cycle.dominant_spectral_power }}，占有效谱能量 {{ pct(cycle.spectral_strength) }}</li>
+                    <li>候选周期：<span v-for="(cp, i) in (cycle.candidate_periods || [])" :key="'cp' + i">{{ cp.period }} 年（{{ pct(cp.relative_strength) }}）<em v-if="i < (cycle.candidate_periods || []).length - 1">、</em></span></li>
+                    <li>ACF 支持度 {{ cycle.acf_support }} · 谐波拟合 R² {{ cycle.fit_r2 }} · 覆盖 {{ num(cycle.cycles_covered) }} 个周期 · 综合强度 {{ pct(cycle.cycle_strength) }}</li>
+                    <li v-if="cyclePos">周期位置口径：{{ cyclePos.note }}</li>
+                    <li v-if="cycle.backtest && cycle.backtest.trend_only_rmse != null">回测（前 {{ cycle.backtest.split_index }} / {{ cycle.sample_size }} 训练）：单趋势线 RMSE {{ cycle.backtest.trend_only_rmse }}，趋势+周期 RMSE {{ cycle.backtest.trend_cycle_rmse }}，改善 {{ signPct(cycle.backtest.improvement) }} → 预测可靠性 {{ relLabel(cycle.forecast_reliability) }}</li>
+                    <li v-if="turningInfo">拐点当前方向 {{ turningInfo.direction }} · 信号强度 signal_strength = {{ turningInfo.strength }} · 置信度评分 confidence_score = {{ turningInfo.confidence }}（两者均为启发式，非概率）</li>
+                  </ul>
+                </div>
+
+                <div class="ae-sec" v-if="(cycle?.evidence || []).length || (turningInfo?.evidence || []).length">
+                  <div class="ae-h">五、算法原始输出（evidence 原文）</div>
+                  <ul>
+                    <li v-for="(e, i) in (cycle?.evidence || [])" :key="'ce' + i">周期：{{ e }}</li>
+                    <li v-for="(e, i) in (turningInfo?.evidence || [])" :key="'te' + i">拐点：{{ e }}</li>
+                  </ul>
+                </div>
+              </div>
+            </details>
+          </template>
+
+          <div v-else class="ana-msg">{{ cycle?.message || '当前序列未检测到具有预测价值的周期，无法给出周期位置' }}</div>
+        </div>
+
+        <!-- 原有图表版趋势/拐点/周期卡片：本次不展示，保留代码以便恢复（把下行 v-if 改回 v-else 即可） -->
+        <div v-if="false" class="analysis">
           <!-- 临时隐藏：趋势分析 + 关键拐点识别。如需恢复，删除下行开头的 <template v-if="false"> 与对应 </template> -->
           <template v-if="false">
           <div class="ana-row">
@@ -524,7 +642,7 @@
       </div>
 
       <!-- 第四部分：详细预测模型结果（原有真实图表保留） -->
-      <div class="pred-section">
+      <div v-if="chartData.gprPrediction?.series?.length && chartData.supplyDemandGap?.series?.length" class="pred-section">
         <div class="pred-section-title"><span class="pred-section-mark"></span>详细预测模型结果</div>
 
         <!-- GPR 铀价格预测（整行，已去除右侧预测结论） -->
@@ -575,6 +693,12 @@
           </div>
         </div>
       </div>
+      <div v-else class="pred-section">
+        <div class="pred-section-title"><span class="pred-section-mark"></span>详细预测模型结果</div>
+        <div class="pred-card" style="padding: 20px; color: #64748b">
+          {{ chartData.gprPrediction?.reason || '当前任务暂无可验证的详细预测模型结果。' }}
+        </div>
+      </div>
     </template>
 
     <!-- 详细验证报告抽屉 -->
@@ -591,7 +715,8 @@ import { getResearchData, calculateLoss } from '@/api/situation'
 import VerificationReport from './VerificationReport.vue'
 
 const props = defineProps({
-  scenario: { type: String, default: 'uranium' }
+  scenario: { type: String, default: 'uranium' },
+  initialData: { type: Object, default: null }
 })
 
 const gprChart = ref(null)
@@ -631,7 +756,12 @@ const trendInfo = computed(() => {
 const turningInfo = computed(() => {
   const t = analysis.value?.turningPoint
   if (!t || t.status !== 'success') return null
-  return { signal: t.turning_signal, strength: t.signal_strength, evidence: t.evidence }
+  return {
+    signal: t.turning_signal, strength: t.signal_strength, evidence: t.evidence,
+    direction: t.current_direction, candidate: t.candidate_turning_point || null,
+    latest: t.latest_turning_point || null, algorithm: t.algorithm || null,
+    confidence: t.confidence_score,
+  }
 })
 const turningPoints = computed(() => (analysis.value?.turningPoint?.historical_turning_points || []).slice(-8))
 const turningFull = computed(() => (analysis.value?.turningPoint?.historical_turning_points || []))
@@ -640,11 +770,26 @@ const turningMaxTxt = computed(() => {
   const peak = [...turningFull.value].filter(p => p.type === 'peak').sort((a, b) => (b.value || 0) - (a.value || 0))[0]
   return peak ? `${peak.date}·${num(peak.value)}` : '—'
 })
+// 最近一次检测到的拐点距今多少年（检测器可能已多年无新极值，需如实告知）
+const turningLatestAge = computed(() => {
+  const d = turningInfo.value?.latest?.date
+  return d ? new Date().getFullYear() - Number(d) : null
+})
 
 // 周期（多方法：FFT主周期 + ACF辅助 + Harmonic，稳定/候选/弱/无 四态）
 const cycle = computed(() => analysis.value?.cycle || null)
 const cycleStatus = computed(() => cycle.value?.cycle_status || 'no_cycle')
 const cycleShown = computed(() => ['stable', 'candidate', 'weak'].includes(cycleStatus.value) && !!cycle.value && cycle.value.dominant_period)
+// 周期位置：后端把同一谐波外推到「当前日历年」得到，与末次观测点的相位(current_stage)不是一回事
+const cyclePos = computed(() => cycle.value?.current_position || null)
+// 距下一模型波峰 ≈ P·(1-进度)；进度口径 0=波峰, 0.5=波谷
+const cyclePosNextPeak = computed(() => {
+  const p = cyclePos.value
+  const period = cycle.value?.dominant_period
+  if (!p || !period || p.phase_progress == null) return null
+  const years = period * (1 - p.phase_progress)
+  return { years, year: Math.round(p.reference_year + years) }
+})
 const stageLabel = (p) => ({ rising: '上行阶段', high: '高位附近', falling: '下行阶段', low: '低位附近', uncertain: '不确定' })[p] || p || '—'
 const cycleStatusMeta = (s) => ({
   stable: { label: '稳定周期', type: 'success' },
@@ -1056,6 +1201,13 @@ async function fetchData() {
   loading.value = true
   error.value = null
   try {
+    if (props.initialData) {
+      chartData.value = props.initialData
+      initLossFromAnalysis()
+      await nextTick()
+      initAllCharts()
+      return
+    }
     const res = await getResearchData(props.scenario)
     if (res.success) {
       chartData.value = res.data
@@ -1508,6 +1660,7 @@ function initAllCharts() {
 let resizeObserver = null
 
 watch(() => props.scenario, () => { fetchData() })
+watch(() => props.initialData, () => fetchData(), { deep: true })
 
 onMounted(() => {
   fetchData()
@@ -1633,9 +1786,38 @@ onUnmounted(() => {
 .ana-msg { color: #64748b; font-size: 0.82rem; padding: 1rem 0.2rem; line-height: 1.6; }
 .ana-muted { color: #94a3b8; font-size: 0.75rem; }
 .ana-note { font-size: 0.7rem; color: #94a3b8; line-height: 1.5; }
+
+/* 周期与拐点态势（纯文字卡，无图表） */
+.cyc-brief { gap: 0.6rem; }
+.cb-lead { font-size: 0.85rem; color: #334155; line-height: 1.8; margin: 0; }
+.cb-lead b { color: #1e293b; }
+.cb-stage { font-size: 0.95rem; padding: 1px 9px; border-radius: 8px; margin: 0 2px; }
+.cb-stage.rising { color: #059669; background: #ecfdf5; }
+.cb-stage.high { color: #b45309; background: #fef9ef; }
+.cb-stage.falling { color: #dc2626; background: #fef2f2; }
+.cb-stage.low { color: #1d4ed8; background: #eff6ff; }
+.cb-stage.uncertain { color: #64748b; background: #f1f5f9; }
+.cb-tp { white-space: nowrap; }
+.cb-tp em { font-style: normal; color: #94a3b8; }
+.cb-tp.peak { color: #dc2626; }
+.cb-tp.trough { color: #059669; }
+.cb-win { color: #b45309; }
+.cb-algo { font-size: 0.74rem; color: #475569; background: #f8fafc; border: 1px solid #eef2f7; border-radius: 8px; padding: 7px 10px; line-height: 1.7; }
+.cb-caveat { font-size: 0.72rem; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 7px 10px; line-height: 1.7; }
+.cb-caveat b { color: #b45309; }
 .ana-evidence { margin-top: auto; font-size: 0.72rem; color: #64748b; }
 .ana-evidence summary { cursor: pointer; color: #2563eb; user-select: none; }
 .ana-evidence ul { margin: 6px 0 0; padding-left: 16px; color: #64748b; }
+
+/* 展开后的算法细节 */
+.ae-body { margin-top: 8px; display: flex; flex-direction: column; gap: 10px; }
+.ae-sec { border-left: 2px solid #e2e8f0; padding-left: 10px; }
+.ae-h { font-size: 0.74rem; font-weight: 800; color: #334155; margin-bottom: 4px; }
+.ae-body ul, .ae-body ol { margin: 4px 0 0; padding-left: 18px; color: #64748b; line-height: 1.75; }
+.ae-body li { margin-bottom: 3px; }
+.ae-body b { color: #334155; }
+.ae-body em { font-style: normal; color: #94a3b8; }
+.ae-body code { font-family: Consolas, Monaco, monospace; font-size: 0.7rem; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; padding: 0 4px; color: #0f766e; }
 
 /* 周期 */
 .cycle-body { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; padding: 0.4rem 0; }

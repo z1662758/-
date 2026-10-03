@@ -28,7 +28,7 @@
       </button>
       <button class="chat-sidebar-tab-btn" :class="{ active: isKnowledgeActive }" @click="$emit('open-knowledge')">
         <el-icon :size="15"><Memo /></el-icon>
-        <span>知识库</span>
+        <span>知识平台</span>
       </button>
     </div>
     <div v-show="collapsed" class="chat-sidebar-mini-actions">

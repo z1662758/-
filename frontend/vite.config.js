@@ -22,6 +22,9 @@ export default defineConfig({
     port: 8080, // 本地开发端口（对应 Vue CLI 的 devServer.port）
     strictPort: true, // 端口被占用时直接报错，不静默顺延到别的端口
     open: false,
+    watch: {
+      ignored: ['**/__edge-profile/**'],
+    },
     proxy: {
       // 长链路 LLM 端点（需求三段式 / 实验设计）：单独拉高超时，避免多段分析触发代理 502
       '/api/v1/requirement': {
@@ -70,6 +73,11 @@ export default defineConfig({
         changeOrigin: true,
         timeout: 600000,
         proxyTimeout: 600000
+      },
+      // 专家研讨蓝图自身带 /api 前缀，保留完整路径。
+      '/api/expert-seminars': {
+        target: 'http://localhost:9091/',
+        changeOrigin: true
       },
       // 其他 /api 开头的请求，移除 /api 前缀（后端路由不含 /api）
       '/api': {

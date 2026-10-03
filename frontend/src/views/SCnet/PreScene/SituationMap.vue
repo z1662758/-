@@ -15,6 +15,13 @@
       </div>
     </header>
 
+    <!-- 研判视角子标签:独立成行,位于顶部任务信息栏之下、供应来源占比栏之上。
+         与页面内容同左右边距;窄屏时标签在本行内折行,不挤占地图与其他控件。
+         三个视角共用下面这一张地图与路线筛选,只切换注入的数据口径。 -->
+    <div class="judgment-mode-row">
+      <JudgmentModeTabs :mode="viewMode" @update:mode="onJudgmentModeChange" />
+    </div>
+
     <ChinaCurrentSituationBar v-if="mode === 'real'" />
 
     
@@ -55,19 +62,23 @@
 
         <div ref="chartRef" class="chart"></div>
 
+        <!-- 图例随研判视角切换:颜色含义不同,不能让用户以为是同一份结果 -->
         <div class="legend">
-          <span><i class="node low"></i>低风险</span>
-          <span><i class="node medium"></i>中风险</span>
-          <span><i class="node high"></i>高风险</span>
+          <span v-for="item in legendItems" :key="item.level">
+            <i class="node" :class="item.level"></i>{{ item.text }}
+          </span>
           <span><i class="line"></i>供应链路径</span>
+        </div>
+
+        <!-- 地图上的数据来源标识:当前这张图到底是谁的结果 -->
+        <div class="map-source-badge" :style="{ borderColor: modeInfo.accent, color: modeInfo.accent }">
+          {{ modeInfo.sourceLabel }}
         </div>
       </section>
 
       <aside class="side-panel">
-        <!-- K2-UI-RISK-1:非 REAL 快照警告(§58-59) -->
-        <div v-if="snapshotData && !snapshotIsReal" class="mode-warning">
-          ⚠ 非正式模拟数据(osint_mode={{ snapshotMode }});不作为当前态势
-        </div>
+        <!-- 只在确实不是当前任务真实结果时提示,且不暴露内部字段 -->
+        
 
         <!-- 当前研判:全局 / 当前路线(§17-19/§51) -->
         <section class="panel k2-head-panel">
@@ -76,24 +87,62 @@
             <span class="k2-sub">{{ activeRouteId === 'all' ? '全局态势' : currentRouteName + ' → 中国' }}</span>
             <button v-if="activeRouteId !== 'all'" class="k2-back-btn" @click="changeRoute('all')">← 全局</button>
           </div>
+          <!-- 当前视角的数据来源:三种研判展示的不是同一份结果 -->
+          <div class="k2-source-row" :style="{ color: modeInfo.accent, background: modeInfo.accentSoft }">
+            {{ modeInfo.sourceLabel }}
+            <span v-if="viewMode === 'llm'" class="k2-source-note">（大模型不给风险分数，数值位为 —）</span>
+          </div>
+          <div v-if="viewMode === 'dual'" class="k2-dual-brief">
+            <div class="k2-dual-brief-row">
+              <span>双驱动最终判断</span>
+              <b v-if="dualOn" class="risk-tag" :class="dualJudgment.risk_level">{{ riskText(dualJudgment.risk_level) }}</b>
+              <b v-else>暂无双驱动研判结果</b>
+            </div>
+            <div v-if="dualOn && llmOn" class="k2-dual-brief-row">
+              <span>独立大模型对照</span>
+              <b>{{ riskText(llm.risk_level) }}</b>
+              <em v-if="dualJudgment.risk_level !== llm.risk_level">判断不同</em>
+            </div>
+            <p>地图着色和路线统计来自领域模型计算。</p>
+            <button v-if="dualOn" class="k2-dual-detail-link" type="button" @click="scrollToDualResult">
+              查看完整双驱动结论与三方对比 ↓
+            </button>
+          </div>
 
           <!-- 全局态势(§20-21) -->
           <div v-if="activeRouteId === 'all'" class="k2-global-overview">
             <div class="k2-route-stats">
-              <span>路线 <b>{{ routes.length }}</b></span>
+              <span v-if="viewMode === 'dual'">领域模型路线统计</span>
+              <span>路线 <b>{{ viewRoutes.length }}</b></span>
               <span>高风险 <b class="high">{{ routeStats.high }}</b></span>
               <span>中风险 <b class="medium">{{ routeStats.medium }}</b></span>
               <span>低风险 <b class="low">{{ routeStats.low }}</b></span>
+              <span v-if="routeStats.unknown">未研判 <b class="unknown">{{ routeStats.unknown }}</b></span>
             </div>
-            <div v-if="routeRanking.length" class="k2-top-route">
-              最高风险路线:<b>{{ routeRanking[0].country }}</b>
-              <span :class="['risk-tag', routeRanking[0].level]">{{ riskText(routeRanking[0].level) }}</span>
-              <b class="k2-top-risk">{{ num(routeRanking[0].displayRisk) }}</b>
-            </div>
-            <div class="k2-osint-sum">
-              REAL OSINT:<b>{{ osintSummary.effective }}</b> Effective /
-              <b>{{ osintSummary.registered }}</b> Registered
-            </div>
+
+            <!-- 大模型视角:没有分数,只有定性等级与点名情况 -->
+            <template v-if="viewMode === 'llm'">
+              <div v-if="routeRanking.length" class="k2-top-route">
+                大模型判定最高等级:<b>{{ routeRanking[0].country }}</b>
+                <span :class="['risk-tag', routeRanking[0].level]">{{ riskText(routeRanking[0].level) }}</span>
+              </div>
+              <div class="k2-osint-sum">
+                大模型点名路线 <b>{{ llmPickedRouteCount }}</b> / {{ viewRoutes.length }} 条
+                <template v-if="!llmOn"> · {{ llmEmptyReason }}</template>
+              </div>
+            </template>
+
+            <template v-else>
+              <div v-if="routeRanking.length" class="k2-top-route">
+                {{ viewMode === 'dual' ? '领域模型最高风险路线' : '最高风险路线' }}:<b>{{ routeRanking[0].country }}</b>
+                <span :class="['risk-tag', routeRanking[0].level]">{{ riskText(routeRanking[0].level) }}</span>
+                <b class="k2-top-risk">{{ num(routeRanking[0].displayRisk) }}</b>
+              </div>
+              <div class="k2-osint-sum">
+                REAL OSINT:<b>{{ osintSummary.effective }}</b> Effective /
+                <b>{{ osintSummary.registered }}</b> Registered
+              </div>
+            </template>
           </div>
 
           <!-- 当前路线(§26/§29/§34) -->
@@ -101,28 +150,69 @@
             <div class="k2-route-tags">
               <span :class="['risk-tag', currentRoute.riskLevel]">{{ riskText(currentRoute.riskLevel) }}</span>
               <span class="k2-transport">运输:{{ currentRoute.transport }}</span>
+              <span v-if="viewMode === 'dual' && currentRoute.llmLevel" class="k2-agree" :class="'agree-' + currentRoute.agreement">
+                大模型{{ agreementText(currentRoute.agreement) }}
+              </span>
             </div>
-            <div class="k2-scores">
-              <span>展示风险<b>{{ num(currentRoute.display_risk_score ?? currentRoute.risk_score ?? 0) }}</b></span>
-              <span>原始风险<b>{{ num(currentRoute.raw_risk_score ?? currentRoute.risk_score ?? 0) }}</b></span>
-              <span>校准<b>{{ routeCalibrationMethod(currentRoute) }}</b></span>
-            </div>
-            <div class="k2-route-meta">
-              <span>OSINT:{{ routeOsintEventCount(currentRoute) }}</span>
-              <span>关键节点:{{ routeKeyRiskPoints(currentRoute).length }}</span>
-              <span v-if="routeEvidenceMap[currentRoute.id]">证据:{{ routeEvidenceMap[currentRoute.id].evidence_level }}</span>
-            </div>
-            <!-- K2-RISK-REAL-1:经验校准概率(§45-49) -->
-            <div class="k2-empirical" v-if="currentRoute.empirical_probability_90d != null">
-              <span>经验 90 天扰动概率</span>
-              <b>{{ (currentRoute.empirical_probability_90d * 100).toFixed(0) }}%</b>
-              <span class="k2-emp-method">校准:经验分箱 · n={{ empiricalSampleNote }}</span>
-            </div>
-            <div v-else class="k2-empirical k2-emp-accum">
-              <span>经验 90 天扰动概率</span>
-              <b>数据积累中</b>
-              <span class="k2-emp-method">历史实证校准未就绪(样本不足),不显示假 0%(§49)</span>
-            </div>
+
+            <!-- 领域模型 / 双驱动:展示真实风险数值(双驱动地图着色同样来自领域模型) -->
+            <template v-if="viewMode !== 'llm'">
+              <div class="k2-scores">
+                <span>展示风险<b>{{ num(currentRoute.display_risk_score ?? currentRoute.risk_score) }}</b></span>
+                <span>原始风险<b>{{ num(currentRoute.raw_risk_score ?? currentRoute.risk_score) }}</b></span>
+                <span>校准<b>{{ routeCalibrationMethod(currentRoute) }}</b></span>
+              </div>
+              <div class="k2-route-meta">
+                <span>OSINT:{{ routeOsintEventCount(currentRoute) }}</span>
+                <span>关键节点:{{ routeKeyRiskPoints(currentRoute).length }}</span>
+                <span v-if="routeEvidenceMap[currentRoute.id]">证据:{{ routeEvidenceMap[currentRoute.id].evidence_level }}</span>
+              </div>
+              <!-- K2-RISK-REAL-1:经验校准概率(§45-49) -->
+              <div class="k2-empirical" v-if="currentRoute.empirical_probability_90d != null">
+                <span>经验 90 天扰动概率</span>
+                <b>{{ (currentRoute.empirical_probability_90d * 100).toFixed(0) }}%</b>
+                <span class="k2-emp-method">校准:经验分箱 · n={{ empiricalSampleNote }}</span>
+              </div>
+              <div v-else class="k2-empirical k2-emp-accum">
+                <span>经验 90 天扰动概率</span>
+                <b>数据积累中</b>
+                <span class="k2-emp-method">历史实证校准未就绪(样本不足),不显示假 0%(§49)</span>
+              </div>
+
+              <!-- 双驱动:把大模型对该路线的判断与领域模型并排摆出来 -->
+              <div v-if="viewMode === 'dual'" class="k2-dual-line">
+                <div class="k2-dual-row">
+                  <span>大模型判断</span>
+                  <template v-if="currentRoute.llmLevel">
+                    <span class="risk-tag" :class="currentRoute.llmLevel">{{ riskText(currentRoute.llmLevel) }}</span>
+                    <em class="k2-dual-reason">{{ currentRoute.llmReason }}</em>
+                  </template>
+                  <em v-else class="k2-dual-none">暂无大模型对该路线的判断</em>
+                </div>
+                <div class="k2-dual-row">
+                  <span>领域模型评分</span>
+                  <b class="k2-dual-score">{{ num(currentRoute.display_risk_score ?? currentRoute.risk_score) }} / 100</b>
+                  <span class="risk-tag" :class="currentRoute.riskLevel">{{ riskText(currentRoute.riskLevel) }}</span>
+                </div>
+              </div>
+            </template>
+
+            <!-- 大模型视角:只给定性判断与理由,不给任何分数 -->
+            <template v-else>
+              <div class="k2-llm-block">
+                <div class="k2-llm-row">
+                  <span>大模型判断</span>
+                  <b>{{ currentRoute.llmLevel ? riskText(currentRoute.llmLevel) : '未研判该路线' }}</b>
+                </div>
+                <p v-if="currentRoute.llmReason" class="k2-llm-reason">{{ currentRoute.llmReason }}</p>
+                <p v-else class="k2-llm-none">
+                  大模型本次没有点名这条路线,因此这里不显示风险等级 —— 不会借用领域模型的计算结果。
+                </p>
+                <div v-if="currentRoute.domainRiskHint" class="k2-llm-trace">
+                  （追溯说明：该路线的领域模型结果为 {{ riskText(currentRoute.domainRiskHint) }}，仅供对照，不作为大模型结论）
+                </div>
+              </div>
+            </template>
           </div>
         </section>
 
@@ -132,9 +222,9 @@
           <div class="k2-route-chips">
             <button :class="['k2-chip', { active: activeRouteId === 'all' }]" @click="changeRoute('all')">全局</button>
             <button
-              v-for="r in routes"
+              v-for="r in viewRoutes"
               :key="r.id"
-              :class="['k2-chip', { active: activeRouteId === r.id }]"
+              :class="['k2-chip', { active: activeRouteId === r.id }, r.riskLevel]"
               @click="changeRoute(r.id)"
             >{{ r.country }}</button>
           </div>
@@ -156,9 +246,21 @@
 
           <!-- Tab1 风险解释 -->
           <div v-if="activeTab === 'risk'" class="tab-body">
+            <!-- 视角说明:同一份地图,三种口径 -->
+            <div class="k2-view-note" :style="{ borderLeftColor: modeInfo.accent }">
+              <b>{{ riskSectionTitle }}</b>
+              <span>{{ modeInfo.sourceLabel }}</span>
+            </div>
+
+            <div v-if="viewMode === 'llm' && !llmOn" class="k2-view-empty">
+              {{ llmEmptyReason }}。本标签不使用领域模型的风险等级或分数填充大模型结果。
+            </div>
+
             <!-- 全局态势:路线风险排行榜(§21-23/§48) -->
             <div v-if="activeRouteId === 'all'" class="k2-risk-global">
-              <div class="k2-sec-title">路线风险排行榜</div>
+              <div class="k2-sec-title">
+                {{ viewMode === 'llm' ? '大模型路线判断' : '路线风险排行榜' }}
+              </div>
               <div class="k2-ranking">
                 <div
                   v-for="(r, i) in showAllRanking ? routeRanking : routeRankingTop"
@@ -170,61 +272,103 @@
                   <span class="k2-rank-no">{{ i + 1 }}</span>
                   <span class="k2-rank-country">{{ r.country }}</span>
                   <span :class="['risk-tag', r.level]">{{ riskText(r.level) }}</span>
-                  <span class="k2-rank-risk">{{ num(r.displayRisk) }}</span>
-                  <span class="k2-rank-ev">{{ r.evidenceLevel }}</span>
+                  <span v-if="showScores" class="k2-rank-risk">{{ num(r.displayRisk) }}</span>
+                  <span v-else class="k2-rank-risk k2-rank-none">—</span>
+                  <span v-if="viewMode === 'dual'" class="k2-rank-agree" :class="'agree-' + r.agreement">
+                    {{ agreementText(r.agreement) }}
+                  </span>
+                  <span v-else class="k2-rank-ev">{{ r.evidenceLevel }}</span>
                 </div>
                 <div v-if="routeRanking.length > 5" class="k2-rank-more" @click="showAllRanking = !showAllRanking">
                   {{ showAllRanking ? '收起' : '查看全部 ' + routeRanking.length + ' 条' }}
                 </div>
               </div>
-              <div class="k2-sec-title">高风险节点(节点风险,非网络关键性 §10-12)</div>
+
+              <div v-if="viewMode === 'llm'" class="k2-llm-reasons">
+                <div v-for="r in llmRouteReasons" :key="r.id" class="k2-llm-reason-row">
+                  <strong>{{ r.country }}</strong>
+                  <span :class="['risk-tag', r.level]">{{ riskText(r.level) }}</span>
+                  <p>{{ r.reason || '大模型未给出理由' }}</p>
+                </div>
+                <p v-if="!llmRouteReasons.length" class="k2-risk-note">大模型本次没有点名任何路线。</p>
+              </div>
+
+              <div class="k2-sec-title">
+                {{ viewMode === 'llm' ? '大模型点名的风险节点' : '高风险节点(节点风险,非网络关键性 §10-12)' }}
+              </div>
               <div class="k2-critical-nodes">
                 <div v-for="n in highRiskNodesTop" :key="n.name" class="k2-cnode" @click="focusNode(n.routeId, n.name)">
                   <span :class="['dot', n.level]"></span>
                   <span class="k2-cnode-name">{{ n.name }}</span>
                   <span class="k2-cnode-route">{{ n.route }}</span>
-                  <span v-if="n.osintCount" class="k2-cnode-osint">OSINT {{ n.osintCount }}</span>
-                  <b>{{ num(n.score) }}</b>
+                  <span v-if="showScores && n.osintCount" class="k2-cnode-osint">OSINT {{ n.osintCount }}</span>
+                  <b v-if="showScores">{{ num(n.score) }}</b>
+                  <b v-else class="k2-rank-none">已点名</b>
                 </div>
+                <p v-if="viewMode === 'llm' && !highRiskNodesTop.length" class="k2-risk-note">
+                  大模型本次没有点名任何节点。
+                </p>
               </div>
 
-              <div class="k2-sec-title">网络关键节点</div>
-              <div class="k2-crit-toggle">
-                <button :class="{ active: criticalityView === 'network' }" @click="criticalityView = 'network'">全网关键</button>
-                <button :class="{ active: criticalityView === 'external' }" @click="criticalityView = 'external'">外部供应关键</button>
-              </div>
-              <div class="k2-critical-nodes">
-                <div
-                  v-for="n in criticalityView === 'external' ? externalSupplyCriticalNodes : networkCriticalNodes"
-                  :key="n.name" class="k2-cnode"
-                >
-                  <span :class="['dot', n.type.includes('接收') ? 'medium' : 'low']"></span>
-                  <span class="k2-cnode-name">{{ n.name }}</span>
-                  <span class="k2-cnode-route">{{ n.type }}</span>
-                  <b>{{ num(n.score) }}</b>
+              <!-- 网络关键性是领域模型的结构指标,大模型视角不展示,避免误当大模型结论 -->
+              <template v-if="viewMode !== 'llm'">
+                <div class="k2-sec-title">网络关键节点</div>
+                <div class="k2-crit-toggle">
+                  <button :class="{ active: criticalityView === 'network' }" @click="criticalityView = 'network'">全网关键</button>
+                  <button :class="{ active: criticalityView === 'external' }" @click="criticalityView = 'external'">外部供应关键</button>
                 </div>
-              </div>
-              <p class="k2-risk-note">高风险节点 = 当前 node risk 高;网络关键节点 = 网络结构重要。两者不同(§12)。展示风险分为 snapshot 内相对校准值(§34)。</p>
+                <div class="k2-critical-nodes">
+                  <div
+                    v-for="n in criticalityView === 'external' ? externalSupplyCriticalNodes : networkCriticalNodes"
+                    :key="n.name" class="k2-cnode"
+                  >
+                    <span :class="['dot', n.type.includes('接收') ? 'medium' : 'low']"></span>
+                    <span class="k2-cnode-name">{{ n.name }}</span>
+                    <span class="k2-cnode-route">{{ n.type }}</span>
+                    <b>{{ num(n.score) }}</b>
+                  </div>
+                </div>
+                <p class="k2-risk-note">高风险节点 = 当前 node risk 高;网络关键节点 = 网络结构重要。两者不同(§12)。展示风险分为 snapshot 内相对校准值(§34)。</p>
+              </template>
+              <p v-else class="k2-risk-note">
+                网络关键性由复杂网络模型计算，不属于大模型输出，因此在本视角下不展示。
+              </p>
             </div>
 
+            <!-- 节点详情:领域模型视角看数值,大模型视角看是否被点名 -->
             <div v-if="selectedNodeDetail" class="node-detail">
               <div class="nd-head">
                 <strong>{{ selectedNodeDetail.name }}</strong>
                 <span :class="['risk-tag', selectedNodeDetail.risk]">{{ riskText(selectedNodeDetail.risk) }}</span>
               </div>
-              <div class="nd-grid">
-                <div><span>综合风险</span><b>{{ num(selectedNodeDetail.combined) }}</b></div>
-                <div><span>当前脆弱性</span><b>{{ num(selectedNodeDetail.vul) }}</b></div>
-                <div><span>供应后果</span><b>{{ num(selectedNodeDetail.cons) }}</b></div>
-                <div><span>旧模型风险</span><b>{{ num(selectedNodeDetail.legacy) }}</b></div>
-                <div><span>OSINT 增量</span><b :class="{ pos: selectedNodeDetail.delta > 0 }">{{ selectedNodeDetail.delta }}</b></div>
-                <div><span>网络关键性</span><b>{{ num(selectedNodeDetail.criticality) }}</b></div>
-                <div><span>供应覆盖</span><b>{{ selectedNodeDetail.supplyShare }}%</b></div>
-                <div><span>涉及路线</span><b>{{ selectedNodeDetail.routeCount }}</b></div>
-              </div>
-              <p class="nd-reason">{{ reasonText(selectedNodeDetail.reason) }}</p>
-              <p v-if="selectedNodeDetail.delta <= 0" class="nd-none">当前无直接 OSINT 风险事件</p>
-              <p v-else class="nd-desc">{{ selectedNodeDetail.description }}</p>
+              <template v-if="viewMode !== 'llm'">
+                <div class="nd-grid">
+                  <div><span>综合风险</span><b>{{ num(selectedNodeDetail.combined) }}</b></div>
+                  <div><span>当前脆弱性</span><b>{{ num(selectedNodeDetail.vul) }}</b></div>
+                  <div><span>供应后果</span><b>{{ num(selectedNodeDetail.cons) }}</b></div>
+                  <div><span>旧模型风险</span><b>{{ num(selectedNodeDetail.legacy) }}</b></div>
+                  <div><span>OSINT 增量</span><b :class="{ pos: selectedNodeDetail.delta > 0 }">{{ num(selectedNodeDetail.delta) }}</b></div>
+                  <div><span>网络关键性</span><b>{{ num(selectedNodeDetail.criticality) }}</b></div>
+                  <div><span>供应覆盖</span><b>{{ num(selectedNodeDetail.supplyShare) }}%</b></div>
+                  <div><span>涉及路线</span><b>{{ num(selectedNodeDetail.routeCount) }}</b></div>
+                </div>
+                <p class="nd-reason">{{ reasonText(selectedNodeDetail.reason) }}</p>
+                <p v-if="selectedNodeDetail.delta <= 0" class="nd-none">当前无直接 OSINT 风险事件</p>
+                <p v-else class="nd-desc">{{ selectedNodeDetail.description }}</p>
+              </template>
+              <template v-else>
+                <div class="nd-grid">
+                  <div><span>大模型是否点名</span><b>{{ selectedNodeDetail.llmMentioned ? '已点名' : '未点名' }}</b></div>
+                  <div><span>该路线大模型等级</span><b>{{ selectedNodeDetail.risk ? riskText(selectedNodeDetail.risk) : '—' }}</b></div>
+                </div>
+                <p v-if="selectedNodeDetail.llmMentioned" class="nd-desc">
+                  大模型在本次研判中把该节点列入影响范围。具体等级以大模型对该路线的定性判断为准；大模型不产出节点风险分数。
+                </p>
+                <p v-else class="nd-none">大模型本次没有点名该节点。</p>
+                <p v-if="selectedNodeDetail.domainLevel" class="nd-trace">
+                  追溯说明：该节点的领域模型等级为 {{ riskText(selectedNodeDetail.domainLevel) }}（仅供对照，不作为大模型结论）。
+                </p>
+              </template>
             </div>
             <div v-else class="tab-hint">点击地图节点查看节点风险详情</div>
 
@@ -239,36 +383,60 @@
                 <div class="re-head">
                   <strong>{{ route.country }}</strong>
                   <span :class="['risk-tag', route.riskLevel]">{{ riskText(route.riskLevel) }}</span>
+                  <span v-if="viewMode === 'dual' && route.llmLevel" class="k2-rank-agree" :class="'agree-' + route.agreement">
+                    大模型 {{ agreementText(route.agreement) }}
+                  </span>
                 </div>
-                <div class="re-scores">
-                  <span>展示 <b>{{ num(route.display_risk_score ?? route.risk_score ?? 0) }}</b></span>
-                  <span>原始 <b>{{ num(route.raw_risk_score ?? route.risk_score ?? 0) }}</b></span>
-                </div>
-                <div class="re-bd">
-                  <div
-                    v-for="item in breakdownItems(route.risk_breakdown)"
-                    :key="item.key"
-                    class="re-bd-item"
-                  >
-                    <span class="re-label">{{ item.label }}</span>
-                    <div class="re-bar"><i :style="{ width: Math.min(100, item.value) + '%' }"></i></div>
-                    <b>{{ item.value }}</b>
+
+                <!-- 大模型视角:只给理由,不给分数与构成 -->
+                <template v-if="viewMode === 'llm'">
+                  <p class="re-note">
+                    {{ route.llmLevel
+                      ? (route.llmReason || '大模型未给出该路线的判断理由。')
+                      : '大模型本次没有点名这条路线，因此不显示风险等级，也不会借用领域模型的计算结果。' }}
+                  </p>
+                  <p class="re-note k2-trace-note">
+                    数据来源：大模型研判。大模型只给定性等级，不产出风险分数。
+                  </p>
+                </template>
+
+                <template v-else>
+                  <div class="re-scores">
+                    <span>展示 <b>{{ num(route.display_risk_score ?? route.risk_score) }}</b></span>
+                    <span>原始 <b>{{ num(route.raw_risk_score ?? route.risk_score) }}</b></span>
                   </div>
-                </div>
-                <div class="re-krp">
-                  <span class="krp-label">关键风险点</span>
-                  <div
-                    v-for="p in routeKeyRiskPoints(route)"
-                    :key="p.name + p.type"
-                    class="krp-item"
-                  >
-                    <span :class="['dot', p.risk_level]"></span>
-                    <span class="krp-name">{{ p.name }}</span>
-                    <span class="krp-type">{{ p.type }}</span>
-                    <b>{{ num(p.risk_score) }}</b>
+                  <div class="re-bd">
+                    <div
+                      v-for="item in breakdownItems(route.risk_breakdown)"
+                      :key="item.key"
+                      class="re-bd-item"
+                    >
+                      <span class="re-label">{{ item.label }}</span>
+                      <div class="re-bar"><i :style="{ width: Math.min(100, item.value) + '%' }"></i></div>
+                      <b>{{ item.value }}</b>
+                    </div>
                   </div>
-                </div>
-                <p class="re-note">展示风险分用于当前态势图颜色比较，经过 snapshot 内校准，不代表绝对概率。</p>
+                  <div class="re-krp">
+                    <span class="krp-label">关键风险点</span>
+                    <div
+                      v-for="p in routeKeyRiskPoints(route)"
+                      :key="p.name + p.type"
+                      class="krp-item"
+                    >
+                      <span :class="['dot', p.risk_level]"></span>
+                      <span class="krp-name">{{ p.name }}</span>
+                      <span class="krp-type">{{ p.type }}</span>
+                      <b>{{ num(p.risk_score) }}</b>
+                    </div>
+                  </div>
+                  <p class="re-note">展示风险分用于当前态势图颜色比较，经过 snapshot 内校准，不代表绝对概率。</p>
+                  <p v-if="viewMode === 'dual' && route.llmLevel" class="re-note k2-trace-note">
+                    大模型判断：{{ riskText(route.llmLevel) }}{{ route.llmReason ? ' —— ' + route.llmReason : '' }}
+                  </p>
+                  <p v-else-if="viewMode === 'dual'" class="re-note k2-trace-note">
+                    大模型本次没有点名这条路线，暂无可比对的定性判断。
+                  </p>
+                </template>
               </div>
             </div>
           </div>
@@ -336,53 +504,118 @@
 
           <!-- Tab3 模型链 -->
           <div v-if="activeTab === 'chain'" class="tab-body">
+            <div v-if="viewMode === 'llm'" class="chain-empty">
+              大模型独立研判没有领域模型执行链
+              <span>本视图仅展示大模型基于 OSINT 情报、知识库和用户问题形成的判断。领域模型的运行记录请切换到“领域模型研判”查看。</span>
+            </div>
+            <template v-else>
             <div v-if="modelChainSummary" class="chain-summary">
               <span>模型 <b>{{ modelChainSummary.total_models }}</b></span>
               <span>成功 <b class="ok">{{ modelChainSummary.successful_models }}</b></span>
               <span>失败 <b :class="modelChainSummary.failed_models ? 'bad' : 'ok'">{{ modelChainSummary.failed_models }}</b></span>
               <span>总耗时 <b>{{ modelChainSummary.total_duration_ms }}ms</b></span>
             </div>
-            <p class="chain-hint">
-              注册中心共 {{ modelCards.length || 11 }} 张模型卡；本次实际执行 {{ modelRuns.length }} 个模型（stage 0 组合模型不在本次执行中）。
-            </p>
-            <div class="chain-flow">
-              <template v-for="(run, i) in modelRuns" :key="run.model_id">
-                <div
-                  class="chain-node"
-                  :class="modelStatusClass(run.status, run.registry_status)"
-                  @click="toggleModelDetail(run.model_id)"
-                >
-                  <div class="cn-head">
-                    <strong>{{ modelName(run.model_id) }}</strong>
-                    <span class="cn-dur">{{ run.duration_ms }}ms</span>
-                  </div>
-                  <div class="cn-meta">
-                    <span v-if="run.registry_status === 'missing'" class="cn-warn">未注册</span>
-                    <span>{{ run.status }}</span>
-                    <span>v{{ run.model_version }}</span>
-                  </div>
-                </div>
-                <div v-if="i < modelRuns.length - 1" class="chain-arrow">↓</div>
 
-                <div v-if="expandedModelRun === run.model_id" class="model-detail">
-                  <div class="md-row"><span>model_id</span><b>{{ run.model_id }}</b></div>
-                  <div class="md-row"><span>model_card_id</span><b>{{ run.model_card_id }}</b></div>
-                  <div class="md-row"><span>version</span><b>{{ run.model_version }}</b></div>
-                  <div class="md-row"><span>model_type</span><b>{{ run.model_type }}</b></div>
-                  <div class="md-row"><span>pipeline_stage</span><b>{{ run.pipeline_stage }}</b></div>
-                  <div class="md-row"><span>started_at</span><b>{{ run.started_at }}</b></div>
-                  <div class="md-row"><span>finished_at</span><b>{{ run.finished_at }}</b></div>
-                  <div class="md-row"><span>duration_ms</span><b>{{ run.duration_ms }}</b></div>
-                  <div class="md-row"><span>upstream</span><b>{{ (run.upstream_models || []).join(', ') || '—' }}</b></div>
-                  <div class="md-row"><span>input</span><b>{{ run.input_summary || '—' }}</b></div>
-                  <div class="md-row"><span>output</span><b>{{ run.output_summary || '—' }}</b></div>
-                  <div v-if="run.error" class="md-error">error: {{ run.error }}</div>
-                  <button class="md-card-btn" @click="viewModelCard(run.model_id)">查看模型卡</button>
-                </div>
-              </template>
+            <!-- 完全没有执行记录:如实说明,不拿注册表里的模型卡冒充"本次已使用" -->
+            <div v-if="!modelChainView.hasRuns" class="chain-empty">
+              暂无模型运行记录
+              <span>本次任务没有留下模型执行记录，无法说明哪些模型真的参与了研判。</span>
             </div>
 
-            <div v-if="showModelCard && selectedModelCard" class="model-card">
+            <template v-else>
+              <!-- 本次到底用了哪些模型(名称/作用/输入输出/版本/状态) -->
+              <div class="chain-source">
+                关联快照实际运行 <b>{{ modelChainView.summary.usedCount }}</b> 个模型
+                <template v-if="!modelRegistryError">
+                  · 注册中心登记 <b>{{ modelChainView.summary.registeredCount }}</b> 个模型卡
+                  <template v-if="modelChainView.summary.unusedCount">
+                    ，其中 <b class="cn-unused">{{ modelChainView.summary.unusedCount }}</b> 个本任务未运行
+                  </template>
+                </template>
+                <template v-else>· 模型注册表暂不可用</template>
+              </div>
+              <p class="chain-hint">
+                模型名称与作用取自模型注册表，运行状态与耗时取自本次研判关联快照的执行记录。
+                下表顺序是该快照的真实执行顺序（stage 从低到高），不代表大模型逐个调用了这些模型。
+              </p>
+
+              <!-- 节点风险计算 / 边风险传导 / 路线风险聚合 分别由哪个模型完成 -->
+              <div class="chain-steps">
+                <div v-for="step in modelChainView.keySteps" :key="step.key" class="chain-step" :class="step.tone">
+                  <div class="cs-label">{{ step.label }}</div>
+                  <div class="cs-model">{{ step.name }}</div>
+                  <div class="cs-meta">
+                    <span v-if="step.version">v{{ step.version }}</span>
+                    <span class="cs-status" :class="step.tone">{{ step.statusText }}</span>
+                  </div>
+                  <div class="cs-id">{{ step.modelId }}</div>
+                </div>
+              </div>
+
+              <div class="chain-flow">
+                <template v-for="(run, i) in modelChainView.used" :key="run.modelId">
+                  <div
+                    class="chain-node"
+                    :class="run.tone"
+                    @click="toggleModelDetail(run.modelId)"
+                  >
+                    <div class="cn-head">
+                      <strong>{{ run.name }}</strong>
+                      <span class="cn-dur">{{ run.durationMs != null ? run.durationMs + 'ms' : '—' }}</span>
+                    </div>
+                    <div class="cn-purpose">{{ run.purpose || '暂无模型卡描述' }}</div>
+                    <div class="cn-meta">
+                      <span v-if="!run.hasCard" class="cn-warn">未注册</span>
+                      <span class="cs-status" :class="run.tone">{{ run.statusText }}</span>
+                      <span>v{{ run.version || '—' }}</span>
+                    </div>
+                    <div class="cn-io">
+                      <span><em>入</em>{{ run.inputEntities.join('、') || '—' }}</span>
+                      <span><em>出</em>{{ run.outputEntities.join('、') || '—' }}</span>
+                    </div>
+                  </div>
+                  <div v-if="i < modelChainView.used.length - 1" class="chain-arrow">↓</div>
+
+                  <div v-if="expandedModelRun === run.modelId" class="model-detail">
+                    <div class="md-row"><span>model_id</span><b>{{ run.modelId }}</b></div>
+                    <div class="md-row"><span>model_card_id</span><b>{{ run.cardId || '—' }}</b></div>
+                    <div class="md-row"><span>version</span><b>{{ run.version || '—' }}</b></div>
+                    <div class="md-row"><span>model_type</span><b>{{ run.type || '—' }}</b></div>
+                    <div class="md-row"><span>pipeline_stage</span><b>{{ run.stage ?? '—' }}</b></div>
+                    <div class="md-row"><span>started_at</span><b>{{ run.startedAt || '—' }}</b></div>
+                    <div class="md-row"><span>finished_at</span><b>{{ run.finishedAt || '—' }}</b></div>
+                    <div class="md-row"><span>duration_ms</span><b>{{ run.durationMs ?? '—' }}</b></div>
+                    <div class="md-row"><span>upstream</span><b>{{ run.upstream.join(', ') || '—' }}</b></div>
+                    <div class="md-row"><span>input</span><b>{{ run.inputSummary || '—' }}</b></div>
+                    <div class="md-row"><span>output</span><b>{{ run.outputSummary || '—' }}</b></div>
+                    <div v-if="run.error" class="md-error">error: {{ run.error }}</div>
+                    <button class="md-card-btn" @click="viewModelCard(run.modelId)">查看模型卡</button>
+                  </div>
+                </template>
+              </div>
+
+              <!-- 注册表登记但本次没跑:单列,不能算作"已使用" -->
+              <div v-if="modelChainView.unused.length" class="chain-unused">
+                <div class="chain-unused-title">
+                  注册中心登记但本任务未运行的模型（{{ modelChainView.unused.length }} 个）
+                </div>
+                <div class="chain-unused-list">
+                  <span v-for="m in modelChainView.unused" :key="m.modelId" class="chain-unused-chip">
+                    {{ m.name }}
+                    <em>v{{ m.version || '—' }} · {{ m.reason }}</em>
+                  </span>
+                </div>
+                <p class="chain-unused-note">
+                  这些模型没有出现在本次执行记录里，因此不参与本次研判，也不计为「已使用」。
+                </p>
+              </div>
+              <p v-else-if="modelRegistryError" class="chain-hint">
+                模型注册表暂不可用，无法列出未运行的模型；上方清单是本次真实的执行记录。
+              </p>
+            </template>
+            </template>
+
+            <div v-if="viewMode !== 'llm' && showModelCard && selectedModelCard" class="model-card">
               <div class="mc-head">
                 <strong>{{ selectedModelCard.model_name || selectedModelCard.model_id }}</strong>
                 <button class="mc-close" @click="showModelCard = false">✕</button>
@@ -434,13 +667,30 @@
 
 <script setup>
 import * as echarts from 'echarts'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import worldAtlas from 'world-atlas/countries-110m.json'
 import { feature } from 'topojson-client'
-import { getLatestSnapshot, recomputeSnapshot, getModelRegistry } from '@/api/uraniumSituationSnapshot'
+import { getLatestSnapshot, recomputeSnapshot } from '@/api/uraniumSituationSnapshot'
 import { getChinaSourceAllocation } from '@/api/powerGame/uraniumKnowledge'
+import { buildModelChainView } from '@/views/SCnet/components/judgment/modelChainView'
+import { useModelRegistry } from '@/views/SCnet/components/judgment/useModelRegistry'
+import {
+  JUDGMENT_MODES,
+  UNKNOWN_LEVEL,
+  agreementText,
+  isLlmAvailable,
+  judgeAgreement,
+  levelRank,
+  llmImpactNodeSet,
+  llmImpactRouteSet,
+  llmRouteLevelMap,
+  llmRouteReasonMap,
+  modeLegend,
+  modeMeta,
+} from '@/constants/judgmentModes'
 import ChinaCurrentSituationBar from './ChinaCurrentSituationBar.vue'
+import JudgmentModeTabs from '@/views/SCnet/components/JudgmentModeTabs.vue'
 import { getChinaEvidenceBackedNetwork } from '@/api/powerGame/uraniumKnowledge'
 
 const chartRef = ref(null)
@@ -876,6 +1126,48 @@ const MOCK_ROUTES = [
   }
 ]
 
+// ── 态势视图范围(与本次需求相关 / 全局态势) ─────────────
+// 两种视图共用同一套网络:聚焦视图只是把无关路线与节点降低视觉权重,
+// 不另造一份网络数据,也不改动任何风险颜色语义。
+const props = defineProps({
+  /**
+   * 外部注入的网络数据。传入时不再自行拉取 live 快照 ——
+   * 案例模式必须展示案例包里的那一份快照,而不是当前 live 快照。
+   * 形如 { routes: [], nodes: [], events: [], metrics: {} }
+   */
+  networkOverride: { type: Object, default: null },
+  /** 与本次需求相关的路线 ID(snapshot 稳定 slug,如 kazakhstan) */
+  focusedRouteIds: { type: Array, default: () => [] },
+  /** 是否处于「与本次需求相关」视图 */
+  focusedMode: { type: Boolean, default: false },
+  /**
+   * 当前研判视角:'llm' 大模型研判 | 'domain' 领域模型研判 | 'dual' 双驱动研判。
+   * 三个视角共用本组件,只切换注入的等级/数值口径与来源标识。
+   */
+  judgmentMode: { type: String, default: 'dual' },
+  /**
+   * 大模型研判结果(artifact.result.llm)。缺失时为 null ——
+   * 大模型视角显示"暂无大模型研判结果",绝不用领域模型分数顶替。
+   */
+  llmJudgment: { type: Object, default: null },
+  dualJudgment: { type: Object, default: null },
+})
+
+/**
+ * 研判视角状态不落在本组件里:由 useExpertWorkflowStore 持有,
+ * 本组件只把标签行的点击原样上报,保证与页面其他部分同一份状态。
+ */
+const emit = defineEmits(['update:judgmentMode'])
+
+const focusedSet = computed(() => new Set(props.focusedRouteIds || []))
+
+/** 该路线在当前视图下是否应被淡化(无关路线不与关注路线同权重) */
+function isFocusDimmed(routeId) {
+  if (!props.focusedMode) return false
+  if (!focusedSet.value.size) return false
+  return !focusedSet.value.has(routeId)
+}
+
 // 当前展示数据源:默认用 mock 兜底,后端 latest 快照加载成功后替换
 const routes = ref(MOCK_ROUTES)
 const loadingSnapshot = ref(false)
@@ -894,22 +1186,149 @@ const selectedEventId = ref('')
 const emphasizedNodeNames = ref([])
 const emphasizedEdgeKeys = ref([])
 const expandedModelRun = ref('')
-const modelCards = ref([])
+/** 模型注册表(模型卡)由共享 composable 提供,与「领域模型研判」结果区共用同一份缓存 */
+const { cards: modelCards, error: modelRegistryError, ensureLoaded: ensureModelCards } = useModelRegistry()
 const showModelCard = ref(false)
 const selectedModelCard = ref(null)
 
 const currentRouteName = computed(() => {
-  const route = routes.value.find(item => item.id === activeRouteId.value)
+  const route = viewRoutes.value.find(item => item.id === activeRouteId.value)
   return route ? route.country : '全部'
 })
 
 const visibleRoutes = computed(() => {
-  if (activeRouteId.value === 'all') return routes.value
-  return routes.value.filter(item => item.id === activeRouteId.value)
+  if (activeRouteId.value === 'all') return viewRoutes.value
+  return viewRoutes.value.filter(item => item.id === activeRouteId.value)
+})
+
+/* ══════════════════════════════════════════════════════════
+   研判视角视图模型
+   ──────────────────────────────────────────────────────────
+   三个子标签(大模型 / 领域模型 / 双驱动)共用这一个地图组件、
+   这一套路线绘制方式与这一套节点交互,只在下面这一层把
+   「喂给 createLineData / createNodeData 的等级与数值」换掉。
+
+   着色口径:
+     domain —— 领域模型算出的真实等级与分数,原样透传,一个字不改
+     dual   —— 地图仍用领域模型等级(领域模型负责计算),额外挂上大模型
+               的定性判断与一致性,供右侧面板与排行展示
+     llm    —— 只用大模型点名过的定性等级;大模型没提的路线记为
+               'unknown'(未研判),绝不借用领域模型的风险等级来顶上。
+               大模型不给风险分数,因此数值位一律为空(显示为 —)。
+   ══════════════════════════════════════════════════════════ */
+const viewMode = computed(() =>
+  JUDGMENT_MODES.includes(props.judgmentMode) ? props.judgmentMode : 'dual')
+const modeInfo = computed(() => modeMeta(viewMode.value))
+
+/** 标签行切换视角:只上报,不在这里改数据 —— 上层换口径后再传回来 */
+function onJudgmentModeChange(mode) {
+  if (JUDGMENT_MODES.includes(mode)) emit('update:judgmentMode', mode)
+}
+
+const llm = computed(() => props.llmJudgment || null)
+const llmOn = computed(() => isLlmAvailable(llm.value))
+const dualOn = computed(() => Boolean(props.dualJudgment?.status === 'completed'
+  && props.dualJudgment?.tool_calls?.length && props.dualJudgment?.model_runs?.length
+  && props.dualJudgment?.conclusion))
+function scrollToDualResult() {
+  document.getElementById('dual-judgment-result')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+const llmEmptyReason = computed(() =>
+  llm.value?.status === 'completed' && llm.value?.prompt_version !== 'llm_judgment_v2'
+    ? '旧版结果曾使用领域模型分数，需重新生成独立大模型研判'
+    : '暂无大模型研判结果')
+const llmLevels = computed(() => llmRouteLevelMap(llm.value))
+const llmReasons = computed(() => llmRouteReasonMap(llm.value))
+const llmImpactNodes = computed(() => llmImpactNodeSet(llm.value))
+const llmImpactRoutes = computed(() => llmImpactRouteSet(llm.value))
+
+const viewRoutes = computed(() => {
+  const source = routes.value || []
+  if (viewMode.value === 'domain') return source
+
+  if (viewMode.value === 'dual') {
+    return source.map(route => ({
+      ...route,
+      llmLevel: llmLevels.value[route.id] || null,
+      llmReason: llmReasons.value[route.id] || '',
+      agreement: judgeAgreement(route.riskLevel || route.risk_level, llmLevels.value[route.id] || null)
+    }))
+  }
+
+  // 大模型视角
+  return source.map(route => {
+    const llmLevel = llmLevels.value[route.id] || null
+    const level = llmLevel || UNKNOWN_LEVEL
+    return {
+      ...route,
+      riskLevel: level,
+      risk_level: level,
+      // 大模型不产出风险分数,数值位留空,不能沿用领域模型的分
+      display_risk_score: null,
+      raw_risk_score: null,
+      risk_score: null,
+      llmLevel,
+      llmReason: llmReasons.value[route.id] || '',
+      llmInScope: llmImpactRoutes.value.has(route.id),
+      // 领域模型等级只作为"追溯说明"保留,不参与着色与排序
+      domainRiskHint: route.riskLevel || route.risk_level || null,
+      nodes: (route.nodes || []).map(node => ({
+        ...node,
+        risk: level,
+        risk_level: level,
+        // 领域模型等级/分数只保留在 domainRisk / domainScore 里供追溯说明,
+        // 原来的数值字段一律清空 —— 否则会顺着 tooltip 与节点详情漏成大模型的风险分数
+        domainRisk: node.risk,
+        domainScore: node.score ?? node.risk_score ?? null,
+        score: null,
+        risk_score: null,
+        combined_risk_score: null,
+        vulnerability_score: null,
+        consequence_score: null,
+        criticality_score: null,
+        osint_risk_delta: null,
+        osint_event_count: null,
+        llmMentioned: llmImpactNodes.value.has(node.name)
+      }))
+    }
+  })
+})
+
+/** 大模型视角下路线/节点都没有真实分数,用于隐藏所有数值位 */
+const showScores = computed(() => viewMode.value !== 'llm')
+
+/** 地图图例:每个视角的颜色含义不同 */
+const legendItems = computed(() => modeLegend(viewMode.value))
+
+/** 大模型点名过的路线数(用于"当前研判"面板说明覆盖面) */
+const llmPickedRouteCount = computed(() =>
+  viewRoutes.value.filter(r => r.llmLevel).length)
+
+/** 大模型对各条路线的判断与理由(仅大模型真实点名过的路线) */
+const llmRouteReasons = computed(() => {
+  if (!llmOn.value) return []
+  return (llm.value.key_routes || [])
+    .map(item => {
+      const route = viewRoutes.value.find(r => r.id === item.route_id)
+      return {
+        id: item.route_id,
+        country: item.country || (route ? route.country : item.route_id),
+        level: item.llm_risk_level || 'medium',
+        reason: item.reason || ''
+      }
+    })
+    .sort((a, b) => levelRank(b.level) - levelRank(a.level))
+})
+
+/** 风险解释 tab:标题与说明随视角变化 */
+const riskSectionTitle = computed(() => {
+  if (viewMode.value === 'llm') return '大模型路线/节点判断'
+  if (viewMode.value === 'dual') return '融合风险解释'
+  return '领域模型风险解释'
 })
 
 const allRiskNodes = computed(() => {
-  return routes.value.flatMap(route =>
+  return viewRoutes.value.flatMap(route =>
     route.nodes.map(node => ({
       routeId: route.id,
       route: route.country,
@@ -937,29 +1356,32 @@ const visibleRiskEvents = computed(() => {
   return allRiskNodes.value
     .filter(item => activeIds.includes(item.routeId))
     .filter(item => item.level !== 'low')
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => (b.score || 0) - (a.score || 0))
 })
 
 function riskText(level) {
   return {
     low: '低风险',
     medium: '中风险',
-    high: '高风险'
-  }[level]
+    high: '高风险',
+    [UNKNOWN_LEVEL]: '未研判'
+  }[level] || level
 }
 
 function riskColor(level) {
   return {
     low: '#16A34A',
     medium: '#F59E0B',
-    high: '#DC2626'
-  }[level]
+    high: '#DC2626',
+    // 未研判:中性灰,既不是"低风险"也不是"无数据"以外的任何推断
+    [UNKNOWN_LEVEL]: '#94A3B8'
+  }[level] || '#94A3B8'
 }
 
 // 路线风险语义色:high→red / medium→orange / low→green
 // 所有路线主线必须使用此函数,选中/高亮只能改变宽度/透明度/glow,不能改变风险色
 const ROUTE_RISK_COLOR = { high: '#DC2626', medium: '#F59E0B', low: '#16A34A' }
-const ROUTE_RISK_DEFAULT_COLOR = '#64748B'
+const ROUTE_RISK_DEFAULT_COLOR = '#94A3B8'
 
 function getRouteRiskColor(route) {
   const level = route.riskLevel || route.risk_level
@@ -982,7 +1404,9 @@ const osintEvents = computed(() => {
 
 const modelRuns = computed(() => {
   // K2-UI-RISK-2:优先本次真实 execution_trace(§42),回退 meta.model_runs
-  const runs = snapshotData.value?.execution_trace || snapshotData.value?.meta?.model_runs || []
+  const runs = snapshotData.value?.execution_trace?.length
+    ? snapshotData.value.execution_trace
+    : snapshotData.value?.meta?.model_runs || []
   return [...runs].sort(
     (a, b) => (a.pipeline_stage ?? 99) - (b.pipeline_stage ?? 99)
   )
@@ -990,12 +1414,25 @@ const modelRuns = computed(() => {
 
 const modelChainSummary = computed(() => snapshotData.value?.model_chain || null)
 
+/**
+ * 本次研判实际使用了哪些模型 —— 执行记录 + 模型注册表的合并视图。
+ * 注册表里有、执行记录里没有的模型会单列并标"未运行",不会混进"已使用"。
+ * 完全没有执行记录时 hasRuns=false,模板显示"暂无模型运行记录"。
+ */
+const modelChainView = computed(() => buildModelChainView({
+  runs: modelRuns.value,
+  cards: modelCards.value,
+  cardsLoaded: !modelRegistryError.value,
+  chain: modelChainSummary.value
+}))
+
 const routeStats = computed(() => {
-  const arr = routes.value
+  const arr = viewRoutes.value
   return {
     high: arr.filter(r => r.riskLevel === 'high').length,
     medium: arr.filter(r => r.riskLevel === 'medium').length,
-    low: arr.filter(r => r.riskLevel === 'low').length
+    low: arr.filter(r => r.riskLevel === 'low').length,
+    unknown: arr.filter(r => r.riskLevel === UNKNOWN_LEVEL).length
   }
 })
 
@@ -1033,38 +1470,94 @@ async function loadSourceAllocation() {
   } catch (e) { /* 降级为空 */ }
 }
 function routeShare(routeId) { return routeShareMap.value[routeId] }
+/**
+ * 数据来源判定。
+ *
+ * 关键修正:osint_mode=REAL **不能**单独证明结果是当前任务的正式结果。
+ * 之前这里只检查 osint_mode + is_official_runtime_view,而由 artifact 注入的网络
+ * 没有这两个字段,于是当前任务的真实结果被误判成"非正式模拟数据"。
+ * 现在优先看 artifact 的 provenance.sourceType / isOfficialResult,
+ * 没有 provenance 的历史数据才退回旧口径(并且大小写不敏感)。
+ * 判定结果只用于「背景数据」告警,界面不再展示来源徽标。
+ */
+function normalizeOsintMode(value) {
+  const text = String(value || '').trim().toLowerCase()
+  if (['real', 'official', 'live'].includes(text)) return 'real'
+  if (['example', 'demo', 'sample'].includes(text)) return 'example'
+  if (['mock', 'simulation', 'simulated', 'test'].includes(text)) return 'simulation'
+  if (text === 'fallback') return 'fallback'
+  return 'fallback'
+}
+
+const sourceProvenance = computed(() => snapshotData.value?.provenance || null)
+
+const sourceType = computed(() => {
+  const declared = sourceProvenance.value?.sourceType
+  if (declared) return declared
+  // 没有 provenance 时退回旧口径,但只把它当作弱证据
+  const mode = normalizeOsintMode(snapshotData.value?.osint_info?.osint_mode)
+  if (mode === 'real' && snapshotData.value?.is_official_runtime_view) return 'current_task'
+  if (mode === 'example') return 'example'
+  if (mode === 'simulation') return 'simulation'
+  return 'fallback'
+})
+
+const isOfficialResult = computed(() => {
+  const provenance = sourceProvenance.value
+  if (provenance && typeof provenance.isOfficialResult === 'boolean') {
+    return provenance.isOfficialResult
+  }
+  return sourceType.value === 'current_task' && !!snapshotData.value?.is_official_runtime_view
+})
+
 const empiricalCalibration = computed(() => snapshotData.value?.empirical_calibration || null)
 const empiricalSampleNote = computed(() => {
   const c = empiricalCalibration.value
   return c ? (c.horizon_days + ' 天 · ' + (c.method || '经验分箱')) : '样本积累中'
 })
-const snapshotIsReal = computed(() => {
-  const oi = snapshotData.value?.osint_info || {}
-  return mode.value === 'real' && oi.osint_mode === 'REAL' && !!snapshotData.value?.is_official_runtime_view
-})
-const snapshotMode = computed(() => (snapshotData.value?.osint_info || {}).osint_mode || 'REAL')
 const dataProvenance = computed(() => snapshotData.value?.data_provenance || null)
 
 // K2-UI-RISK-1:路线风险排行榜(§22-23),按 display risk 降序
+// 大模型视角没有风险分数,改为按大模型定性等级排序,数值位留空(显示 —)
 const routeRanking = computed(() => {
-  return [...routes.value]
+  return [...viewRoutes.value]
     .map(r => ({
       id: r.id,
       country: r.country,
       level: r.riskLevel || r.risk_level || 'low',
-      displayRisk: Number(r.display_risk_score ?? r.risk_score ?? 0),
-      rawRisk: Number(r.raw_risk_score ?? r.risk_score ?? 0),
+      displayRisk: r.display_risk_score ?? r.risk_score ?? null,
+      rawRisk: r.raw_risk_score ?? r.risk_score ?? null,
+      llmLevel: r.llmLevel || null,
+      llmReason: r.llmReason || '',
+      agreement: r.agreement || null,
       osintCount: routeOsintEventCount(r),
       evidenceLevel: routeEvidenceMap.value[r.id]?.evidence_level || '—',
       transport: r.transport || ''
     }))
-    .sort((a, b) => b.displayRisk - a.displayRisk)
+    .sort((a, b) => {
+      const diff = Number(b.displayRisk ?? 0) - Number(a.displayRisk ?? 0)
+      if (diff !== 0) return diff
+      return levelRank(b.level) - levelRank(a.level)
+    })
 })
 const routeRankingTop = computed(() => routeRanking.value.slice(0, 5))
 const showAllRanking = ref(false)
-const currentRoute = computed(() => routes.value.find(r => r.id === activeRouteId.value) || null)
-// K2-UI-RISK-2:高风险节点(来自 node risk 输出,非 criticality;按 name 去重 §10-12)
-const highRiskNodesTop = computed(() => {
+const currentRoute = computed(() => viewRoutes.value.find(r => r.id === activeRouteId.value) || null)
+
+/** 大模型视角:节点名 → 该节点所在路线被大模型判定的等级 */
+const nodeLevelOverride = computed(() => {
+  if (viewMode.value !== 'llm') return null
+  const map = {}
+  for (const route of viewRoutes.value) {
+    for (const n of route.nodes || []) {
+      map[n.name] = { level: n.risk, mentioned: Boolean(n.llmMentioned) }
+    }
+  }
+  return map
+})
+
+/** 去重后的节点风险列表(来自快照真实节点输出) */
+const uniqueNodeRisk = computed(() => {
   const byName = {}
   ;(snapshotData.value?.nodes || []).forEach(n => {
     const score = Number(n.combined_risk_score ?? n.risk_score ?? 0)
@@ -1079,7 +1572,22 @@ const highRiskNodesTop = computed(() => {
       }
     }
   })
-  return Object.values(byName).sort((a, b) => b.score - a.score).slice(0, 5)
+  return Object.values(byName)
+})
+
+// K2-UI-RISK-2:高风险节点(来自 node risk 输出,非 criticality;按 name 去重 §10-12)
+const highRiskNodesTop = computed(() => {
+  const override = nodeLevelOverride.value
+  if (override) {
+    // 大模型视角:只列大模型真实点名过的节点,等级用大模型的定性判断,不带任何分数
+    return uniqueNodeRisk.value
+      .filter(n => override[n.name])
+      .map(n => ({ ...n, level: override[n.name].level, score: null, llmMentioned: true }))
+      .sort((a, b) => levelRank(b.level) - levelRank(a.level))
+      .slice(0, 8)
+  }
+  // 复制后再排序:uniqueNodeRisk 是 computed,不能就地改动它的数组
+  return [...uniqueNodeRisk.value].sort((a, b) => b.score - a.score).slice(0, 5)
 })
 // K2-UI-RISK-2:网络关键节点(全网 criticality,按 name 去重 §20)
 const networkCriticalNodes = computed(() => {
@@ -1146,21 +1654,31 @@ function runtimeStatusClass(s) {
 }
 
 function nodeOsintDetail(node) {
+  // 大模型视角下这些领域模型数值已被清空 → 统一落到 null,由 num() 显示为 —,
+  // 不能落回 0(0 会被读成"低风险")。
+  const pick = (...vals) => {
+    for (const v of vals) if (v !== null && v !== undefined) return v
+    return null
+  }
   return {
     name: node.name,
     type: node.type || '',
     risk: node.risk || node.risk_level || 'low',
-    combined: node.combined_risk_score ?? node.risk_score ?? node.score ?? 0,
-    vul: node.vulnerability_score ?? node.base_risk_score ?? node.score ?? 0,
-    cons: node.consequence_score ?? 0,
-    legacy: node.legacy_risk_score ?? node.risk_score ?? 0,
-    delta: Number(node.osint_risk_delta ?? 0),
-    count: Number(node.osint_event_count ?? 0),
-    criticality: node.criticality_score ?? 0,
-    supplyShare: node.supply_share ?? 0,
-    routeCount: node.route_count ?? 0,
+    combined: pick(node.combined_risk_score, node.risk_score, node.score),
+    vul: pick(node.vulnerability_score, node.base_risk_score, node.score),
+    cons: pick(node.consequence_score),
+    legacy: pick(node.legacy_risk_score, node.risk_score),
+    delta: pick(node.osint_risk_delta, 0),
+    count: pick(node.osint_event_count, 0),
+    criticality: pick(node.criticality_score),
+    supplyShare: pick(node.supply_share),
+    routeCount: pick(node.route_count),
     reason: node.risk_level_reason || '',
-    description: node.description || node.reason || ''
+    description: node.description || node.reason || '',
+    // 大模型视角:该节点是否被大模型点名,以及它的领域模型等级(仅作追溯说明)
+    llmMentioned: Boolean(node.llmMentioned),
+    domainLevel: node.domainRisk || null,
+    llmReason: node.llmReason || ''
   }
 }
 
@@ -1287,27 +1805,8 @@ function breakdownItems(obj) {
   }))
 }
 
-function modelName(id) {
-  return {
-    uranium_supply_graph_builder_v1: '图谱构建',
-    uranium_dependency_model_v1: '依赖度',
-    uranium_osint_event_model_v1: 'OSINT 事件',
-    uranium_event_mapping_model_v1: '事件映射',
-    uranium_osint_risk_model_v1: 'OSINT 风险',
-    uranium_network_criticality_model_v1: '关键节点',
-    uranium_node_risk_model_v1: '节点风险',
-    uranium_edge_risk_model_v1: '边风险',
-    uranium_route_risk_model_v1: '路径风险',
-    uranium_snapshot_builder_v1: '快照生成',
-    uranium_supply_situation_snapshot_v1: '态势快照(组合)'
-  }[id] || id
-}
-
-function modelStatusClass(status, registryStatus) {
-  if (status === 'failed') return 'failed'
-  if (registryStatus === 'missing') return 'warning'
-  return 'success'
-}
+// 模型显示名与运行状态档由 modelChainView 适配层统一给出
+// (注册表 model_name 优先 + 本次执行记录的真实状态),这里不再各写一份。
 
 function selectEvent(ev) {
   selectedEventId.value = ev.event_id
@@ -1345,16 +1844,7 @@ function toggleModelDetail(runId) {
 }
 
 async function viewModelCard(modelId) {
-  if (!modelCards.value.length) {
-    try {
-      const res = await getModelRegistry()
-      if (res.success && res.data?.model_groups?.length) {
-        modelCards.value = res.data.model_groups.flatMap(g => g.models || [])
-      }
-    } catch (e) {
-      console.warn('加载模型卡失败:', e)
-    }
-  }
+  await ensureModelCards()
   selectedModelCard.value = modelCards.value.find(c => c.model_id === modelId) || null
   showModelCard.value = true
 }
@@ -1387,6 +1877,9 @@ function buildHighlightedEdges() {
 }
 
 function num(v) {
+  // null / undefined / 空串 = 该视角没有这个数值(例如大模型不产出风险分数),
+  // 不能落回 0 —— 那会被读成"低风险"。
+  if (v === null || v === undefined || v === '') return '—'
   const n = Number(v)
   if (!Number.isFinite(n)) return '—'
   return Number.isInteger(n) ? n : n.toFixed(1)
@@ -1396,6 +1889,10 @@ function num(v) {
 // 后端 latest 快照接入(不触发 recompute)
 // ═══════════════════════════════════════════════
 async function loadLatestSnapshot() {
+  // 已有外部注入的网络(案例包)时不再拉 live 快照,避免案例视图混入当前真实数据
+  if (props.networkOverride && Array.isArray(props.networkOverride.routes) && props.networkOverride.routes.length) {
+    return
+  }
   loadingSnapshot.value = true
   snapshotError.value = ''
   try {
@@ -1513,7 +2010,7 @@ function focusNode(routeId, nodeName) {
   activeRouteId.value = routeId
   renderChart()
 
-  const route = routes.value.find(item => item.id === routeId)
+  const route = viewRoutes.value.find(item => item.id === routeId)
   const node = route?.nodes.find(item => item.name === nodeName)
 
   if (!node || !chart) return
@@ -1530,28 +2027,36 @@ function createLineData(route) {
   const isAnyActive = activeRouteId.value !== 'all'
   const baseColor = getRouteRiskColor(route)
   const high = route.riskLevel === 'high'
+  const dimmed = isFocusDimmed(route.id)
   return {
     name: `${route.country}供应链`,
     coords: route.nodes.map(node => node.coord),
     routeId: route.id,
     country: route.country,
     riskLevel: route.riskLevel,
+    llmLevel: route.llmLevel || null,
+    llmReason: route.llmReason || '',
+    sourceLabel: modeInfo.value.sourceShort,
     lineStyle: {
-      // 风险语义色(high红/medium橙/low绿),选中只改宽度/透明度/glow,不改颜色
+      // 风险语义色(high红/medium橙/low绿/未研判灰),选中只改宽度/透明度/glow,不改颜色
       color: baseColor,
-      width: isActive ? (high ? 5.6 : 4.6) : high ? 4.2 : 3.0,
-      opacity: isAnyActive ? (isActive ? 1 : 0.42) : 0.74,
-      shadowBlur: isActive ? 28 : 16,
+      width: dimmed ? 1.6 : isActive ? (high ? 5.6 : 4.6) : high ? 4.2 : 3.0,
+      // 聚焦视图下无关路线显著降低权重;全局视图保持原有表现
+      opacity: dimmed ? 0.14 : isAnyActive ? (isActive ? 1 : 0.42) : 0.74,
+      shadowBlur: dimmed ? 0 : isActive ? 28 : 16,
       shadowColor: baseColor
     }
   }
 }
 
 function createNodeData(route) {
+  const dimmed = isFocusDimmed(route.id)
   return route.nodes.map(node => {
-    const emphasized = emphasizedNodeNames.value.includes(node.name)
+    // OSINT 事件高亮(既有)与大模型点名高亮(大模型视角)共用同一套描边语义
+    const llmPicked = viewMode.value === 'llm' && Boolean(node.llmMentioned)
+    const emphasized = emphasizedNodeNames.value.includes(node.name) || llmPicked
     const baseSize = node.risk === 'high' ? 18 : node.risk === 'medium' ? 14 : 10
-    // 填充色始终用节点风险色;OSINT 高亮仅加橙色描边 + glow,不覆盖风险色语义
+    // 填充色始终用节点风险色;高亮仅加橙色描边 + glow,不覆盖风险色语义
     const baseColor = riskColor(node.risk)
     const meta = nodeEvidenceMeta(node, route.id)
     return {
@@ -1573,20 +2078,28 @@ function createNodeData(route) {
       cons: node.consequence_score ?? 0,
       osintDelta: Number(node.osint_risk_delta ?? 0),
       osintCount: Number(node.osint_event_count ?? 0),
+      // 大模型视角:该节点是否被大模型点名;以及它的领域模型等级(仅供追溯说明)
+      llmMentioned: Boolean(node.llmMentioned),
+      llmReason: route.llmReason || '',
+      domainLevel: node.domainRisk || null,
       itemStyle: {
         color: baseColor,
+        // 聚焦视图下无关节点同步降低权重
+        opacity: dimmed ? 0.2 : 1,
         borderColor: emphasized ? '#F97316' : '#ffffff',
         borderWidth: emphasized ? 3 : 2,
-        shadowBlur: emphasized
-          ? 32
-          : node.risk === 'high'
-            ? 26
-            : node.risk === 'medium'
-              ? 18
-              : 10,
+        shadowBlur: dimmed
+          ? 0
+          : emphasized
+            ? 32
+            : node.risk === 'high'
+              ? 26
+              : node.risk === 'medium'
+                ? 18
+                : 10,
         shadowColor: emphasized ? '#F97316' : baseColor
       },
-      symbolSize: emphasized ? baseSize + 6 : baseSize
+      symbolSize: dimmed ? baseSize * 0.65 : emphasized ? baseSize + 6 : baseSize
     }
   })
 }
@@ -1726,19 +2239,27 @@ function renderChart() {
         formatter(params) {
           if (params.seriesType === 'effectScatter') {
             const d = params.data
-            const osintLine =
-              d.osintCount > 0
-                ? `OSINT 增量：+${d.osintDelta}（${d.osintCount} 事件）<br/>`
-                : '当前无直接 OSINT 风险事件<br/>'
-            const dimLine =
-              typeof d.vul !== 'undefined'
-                ? `脆弱性：${d.vul}　/　供应后果：${d.cons}<br/>`
-                : ''
-            const entityLine = d.realEntity
-              ? `真实实体：${d.realEntity}<br/>`
+            // 领域模型侧的口径(脆弱性/后果/OSINT 增量/证据等级)只属于领域模型视角,
+            // 大模型视角不产出这些量,不显示 —— 免得被读成大模型的风险判断。
+            const domainLines = showScores.value
+              ? [
+                  typeof d.vul === 'number' ? `脆弱性：${d.vul}　/　供应后果：${d.cons}<br/>` : '',
+                  d.realEntity ? `真实实体：${d.realEntity}<br/>` : '',
+                  d.evidenceLevel
+                    ? `证据等级：${d.evidenceLevel}　/　来源数：${d.evidenceCount}<br/>`
+                    : '',
+                  d.osintCount > 0
+                    ? `OSINT 增量：+${d.osintDelta}（${d.osintCount} 事件）<br/>`
+                    : '当前无直接 OSINT 风险事件<br/>',
+                ].join('')
               : ''
-            const evLine = d.evidenceLevel
-              ? `证据等级：${d.evidenceLevel}　/　来源数：${d.evidenceCount}<br/>`
+            // 大模型视角只显示大模型的定性判断与"是否被点名"
+            const scoreLine =
+              showScores.value && d.score != null ? `综合风险：${d.score}/100<br/>` : ''
+            const llmLine = viewMode.value === 'llm'
+              ? (d.llmMentioned
+                  ? '大模型研判：已点名该节点<br/>'
+                  : '大模型研判：未点名该节点<br/>')
               : ''
 
             return `
@@ -1750,21 +2271,29 @@ function renderChart() {
                   所属路线：${d.country}<br/>
                   节点类型：${d.nodeType}<br/>
                   风险等级：${riskText(d.risk)}<br/>
-                  综合风险：${d.score}/100<br/>
-                  ${entityLine}${evLine}${dimLine}${osintLine}
+                  ${scoreLine}${domainLines}${llmLine}
                 </div>
                 <div style="margin-top:8px;color:#475569;line-height:1.55;">
                   ${d.reason}
+                </div>
+                <div style="margin-top:8px;font-size:11px;color:#94A3B8;">
+                  ${modeInfo.value.sourceLabel}
                 </div>
               </div>
             `
           }
 
           if (params.seriesType === 'lines') {
+            const d = params.data
+            const llmLine = viewMode.value === 'llm'
+              ? (d.llmLevel ? `大模型判断：${riskText(d.llmLevel)}<br/>` : '大模型未研判该路线<br/>')
+              : ''
             return `
               <div>
-                <b>${params.data.country} → 中国</b><br/>
-                风险等级：${riskText(params.data.riskLevel)}
+                <b>${d.country} → 中国</b><br/>
+                风险等级：${riskText(d.riskLevel)}<br/>
+                ${llmLine}
+                <span style="font-size:11px;color:#94A3B8;">${modeInfo.value.sourceLabel}</span>
               </div>
             `
           }
@@ -1951,7 +2480,8 @@ function initChart() {
   chart.on('click', params => {
     if (params?.data?.routeId) {
       if (params.seriesType === 'effectScatter' && params.data.name) {
-        const route = routes.value.find(r => r.id === params.data.routeId)
+        // 从视图模型取节点:大模型视角下节点带有 llmMentioned / 覆盖后的等级
+        const route = viewRoutes.value.find(r => r.id === params.data.routeId)
         const node = route?.nodes.find(n => n.name === params.data.name)
         if (node) {
           selectNodeOnMap(node, route)
@@ -1973,9 +2503,72 @@ onMounted(async () => {
   await nextTick()
   initChart()
   loadEvidenceNetwork()  // 证据背书节点名称(K2-C3E)
+  ensureModelCards()  // 模型链要展示模型名称/作用,进页面就把模型卡取回来
+  applyNetworkOverride()
   await loadLatestSnapshot()
   loadSourceAllocation()  // K2-SUPPLY-SHARE-3F-R:路线供应占比
 })
+
+/**
+ * 外部注入网络(案例包/situationJudge 传入)时,用它替换当前网络并跳过 live 拉取。
+ * 聚焦/全局切换只影响视觉权重,不重取数据。
+ */
+function applyNetworkOverride() {
+  const override = props.networkOverride
+  if (!override || !Array.isArray(override.routes) || !override.routes.length) return false
+  routes.value = override.routes
+  snapshotData.value = {
+    ...(snapshotData.value || {}),
+    routes: override.routes,
+    nodes: override.nodes || [],
+    osint_events: override.events || [],
+    summary: override.metrics?.summary || undefined,
+    execution_trace: override.metrics?.executionTrace || [],
+    model_chain: override.metrics?.modelChain || null,
+    edges: override.metrics?.edges || [],
+    critical_nodes: override.metrics?.criticalNodes || [],
+    data_provenance: override.metrics?.dataProvenance || null,
+    // 来源必须跟着注入的数据一起进来,否则会被误判成非正式数据
+    provenance: override.provenance || null,
+    is_official_runtime_view: Boolean(override.provenance?.isOfficialResult),
+    osint_info: {
+      ...((snapshotData.value || {}).osint_info || {}),
+      osint_mode: override.provenance?.osintMode || 'real',
+    },
+  }
+  if (override.metrics?.snapshotId) {
+    snapshotMeta.value = {
+      ...(snapshotMeta.value || {}),
+      snapshot_id: override.metrics.snapshotId,
+      generated_at: override.metrics.generatedAt || '',
+    }
+  }
+  if (override.metrics?.summary) {
+    summary.value = { ...summary.value, ...override.metrics.summary }
+  }
+  renderChart()
+  return true
+}
+
+watch(
+  () => props.networkOverride,
+  () => { applyNetworkOverride() },
+  { deep: false },
+)
+
+// 聚焦/全局切换:只重绘,不改数据、不改风险色语义
+watch(
+  () => [props.focusedMode, props.focusedRouteIds],
+  () => { renderChart() },
+  { deep: false },
+)
+
+// 研判视角切换:地图容器不变,只换注入的数据口径与颜色语义,因此只需重绘
+watch(
+  () => [props.judgmentMode, props.llmJudgment],
+  () => { renderChart() },
+  { deep: false },
+)
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
@@ -2009,6 +2602,18 @@ onBeforeUnmount(() => {
   gap: 18px;
   align-items: center;
   margin-bottom: none;
+}
+
+/* 研判视角子标签的独立一行:位于顶部信息栏与供应来源占比栏之间。
+   左右边距由 .supply-page 的 padding 决定,和下面那张地图、右侧面板严格对齐;
+   本行只负责上下留白与窄屏折行,不再挤压任何地图/面板控件。 */
+.judgment-mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 10px 0 12px;
+  /* 允许标签行在窄屏下收缩,内部自行折行而不是顶宽整页 */
+  min-width: 0;
 }
 
 .eyebrow {
@@ -2372,6 +2977,7 @@ onBeforeUnmount(() => {
   font-size: 12px;
   font-weight: 700;
 }
+
 .k2-head-panel { padding: 12px 14px; }
 .k2-head-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .k2-head-row h2 { margin: 0; font-size: 15px; }
@@ -2381,7 +2987,16 @@ onBeforeUnmount(() => {
 }
 .k2-global-overview, .k2-route-overview { margin-top: 10px; }
 .k2-route-stats { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: #475569; }
+.k2-dual-brief { margin-top: 9px; padding: 9px 11px; border: 1px solid #bae6fd; border-radius: 10px; background: #f0f9ff; }
+.k2-dual-brief-row { display: flex; align-items: center; gap: 9px; margin-bottom: 5px; font-size: 12px; }
+.k2-dual-brief-row > span { color: #64748b; }
+.k2-dual-brief-row > b { color: #0f172a; }
+.k2-dual-brief-row > em { color: #b45309; font-style: normal; font-size: 11px; }
+.k2-dual-brief p { margin: 4px 0; color: #64748b; font-size: 11px; line-height: 1.5; }
+.k2-dual-detail-link { padding: 0; border: 0; background: transparent; color: #0369a1; font-size: 11.5px; cursor: pointer; }
+.k2-dual-detail-link:hover { text-decoration: underline; }
 .k2-route-stats b.high { color: #DC2626; } .k2-route-stats b.medium { color: #F59E0B; } .k2-route-stats b.low { color: #16A34A; }
+.k2-route-stats b.unknown { color: #94A3B8; }
 .k2-top-route { margin-top: 8px; font-size: 12.5px; color: #334155; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .k2-top-risk { color: #DC2626; font-size: 14px; }
 .k2-osint-sum { margin-top: 8px; font-size: 12px; color: #64748b; }
@@ -2899,6 +3514,145 @@ onBeforeUnmount(() => {
   background: #dc2626;
 }
 
+/* 'unknown' = 当前研判视角没有对这条路线/节点给出等级(例如大模型没有点名)。
+   中性灰,既不是"低风险",也不代表"无风险"。 */
+.node.unknown,
+.dot.unknown {
+  background: #94a3b8;
+}
+
+.risk-tag.unknown {
+  color: #475569;
+  background: #f1f5f9;
+}
+
+/* ══════════ 研判视角:数据来源标识与各视角专属区块 ══════════ */
+
+/* 地图内的来源标识:当前这张图到底是谁的结果 */
+.map-source-badge {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 8;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  font-size: 11.5px;
+  font-weight: 700;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
+}
+
+/* 右侧面板顶部的来源行 */
+.k2-source-row {
+  margin: 8px 0 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.k2-source-note { font-weight: 400; opacity: 0.8; }
+
+/* 风险解释 tab 顶部的视角说明 */
+.k2-view-note {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+  padding: 7px 10px;
+  background: #f8fafc;
+  border-left: 3px solid #2563eb;
+  border-radius: 6px;
+  font-size: 11.5px;
+  color: #475569;
+}
+.k2-view-note b { color: #1e293b; font-size: 12px; }
+
+.k2-view-empty {
+  margin-bottom: 10px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  font-size: 11.5px;
+  color: #92400e;
+  line-height: 1.7;
+}
+
+/* 一致性标签 */
+.k2-agree,
+.k2-rank-agree {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 2px 8px;
+  align-self: flex-start;
+}
+.agree-consistent { color: #15803d; background: rgba(22, 163, 74, 0.12); }
+.agree-partial { color: #b45309; background: rgba(245, 158, 11, 0.14); }
+.agree-divergent { color: #b91c1c; background: rgba(220, 38, 38, 0.1); }
+.agree-unknown { color: #64748b; background: #f1f5f9; }
+
+.k2-rank-none { color: #94a3b8; }
+
+/* 双驱动:路线级大模型 vs 领域模型并排 */
+.k2-dual-line {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.k2-dual-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: #64748b;
+  padding: 3px 0;
+}
+.k2-dual-row > span:first-child { width: 76px; flex-shrink: 0; }
+.k2-dual-score { font-size: 13px; color: #1e293b; font-weight: 800; }
+.k2-dual-reason { font-size: 11.5px; color: #475569; font-style: normal; line-height: 1.6; flex: 1 1 100%; }
+.k2-dual-none { font-size: 11.5px; color: #94a3b8; font-style: normal; }
+
+/* 大模型视角:当前路线区块 */
+.k2-llm-block { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.k2-llm-row {
+  display: flex; align-items: baseline; gap: 8px; font-size: 12px; color: #64748b;
+}
+.k2-llm-row b { color: #1e293b; font-size: 13px; }
+.k2-llm-reason { margin: 0; font-size: 11.5px; color: #475569; line-height: 1.7; }
+.k2-llm-none { margin: 0; font-size: 11.5px; color: #94a3b8; line-height: 1.7; }
+.k2-llm-trace,
+.nd-trace {
+  margin: 6px 0 0;
+  padding: 6px 9px;
+  border-radius: 7px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.65;
+}
+
+/* 大模型路线理由列表 */
+.k2-llm-reasons { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.k2-llm-reason-row {
+  padding: 7px 9px;
+  background: #f8fafc;
+  border-radius: 8px;
+  font-size: 11.5px;
+}
+.k2-llm-reason-row strong { color: #1e293b; margin-right: 6px; }
+.k2-llm-reason-row p { margin: 4px 0 0; color: #64748b; line-height: 1.65; }
+
+.k2-trace-note { color: #94a3b8; }
+
+
 .krp-main {
   flex: 1;
   min-width: 0;
@@ -3346,6 +4100,124 @@ onBeforeUnmount(() => {
   color: #b45309;
   font-weight: 700;
 }
+
+/* ── 模型链:本次实际使用的模型(名称/作用/输入输出/版本/状态) ── */
+
+.chain-source {
+  font-size: 11.5px;
+  color: #475569;
+  margin-bottom: 6px;
+  line-height: 1.7;
+}
+.chain-source b { color: #0f172a; }
+.chain-source b.cn-unused { color: #b45309; }
+
+.chain-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 1.4rem 1rem;
+  text-align: center;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 650;
+  color: #475569;
+}
+.chain-empty span {
+  font-size: 11px;
+  font-weight: 400;
+  color: #94a3b8;
+  line-height: 1.6;
+}
+
+/* 三个关键环节由哪个模型完成 */
+.chain-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.chain-step {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-left: 3px solid #2563eb;
+  border-radius: 9px;
+  padding: 7px 10px;
+  background: #fbfdff;
+}
+.chain-step.success { border-left-color: #16a34a; }
+.chain-step.failed { border-left-color: #dc2626; background: #fffafa; }
+.chain-step.warning { border-left-color: #f59e0b; background: #fffdf7; }
+.chain-step.unknown { border-left-color: #cbd5e1; background: #fafafa; }
+.cs-label { font-size: 10.5px; font-weight: 700; color: #64748b; }
+.cs-model { font-size: 12px; font-weight: 700; color: #1e293b; margin: 2px 0 3px; line-height: 1.45; }
+.cs-meta { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; font-size: 10.5px; color: #64748b; }
+.cs-id {
+  margin-top: 3px;
+  font-size: 9.5px;
+  color: #94a3b8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  word-break: break-all;
+}
+
+.cs-status {
+  font-size: 10.5px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 1px 7px;
+  color: #475569;
+  background: #f1f5f9;
+  white-space: nowrap;
+}
+.cs-status.success { color: #15803d; background: rgba(22, 163, 74, 0.12); }
+.cs-status.failed { color: #b91c1c; background: rgba(220, 38, 38, 0.1); }
+.cs-status.warning { color: #b45309; background: rgba(245, 158, 11, 0.14); }
+
+.cn-purpose {
+  margin-top: 3px;
+  font-size: 11px;
+  color: #475569;
+  line-height: 1.6;
+}
+.cn-io {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 4px;
+  font-size: 10.5px;
+  color: #64748b;
+}
+.cn-io em {
+  font-style: normal;
+  color: #94a3b8;
+  margin-right: 4px;
+}
+
+/* 注册表登记但本次未运行 */
+.chain-unused {
+  margin-top: 12px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+}
+.chain-unused-title { font-size: 11.5px; font-weight: 700; color: #92400e; margin-bottom: 6px; }
+.chain-unused-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.chain-unused-chip {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #fde68a;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #475569;
+}
+.chain-unused-chip em { font-style: normal; font-size: 10px; font-weight: 400; color: #b45309; }
+.chain-unused-note { margin: 7px 0 0; font-size: 10.5px; color: #92400e; line-height: 1.6; }
 
 .chain-arrow {
   color: #94a3b8;

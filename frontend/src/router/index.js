@@ -98,6 +98,16 @@ const routes = [
         component: EXreport
       },
       {
+        path: 'scenarioSetting',
+        name: 'SCnet_ScenarioSetting',
+        component: () => import("../views/SCnet/PreScene/ScenarioSetting.vue")
+      },
+      {
+        path: 'planConfirmation',
+        name: 'SCnet_PlanConfirmation',
+        component: () => import("../views/SCnet/PreScene/ExpertPlanConfirmation.vue")
+      },
+      {
         path: 'situationAnalysis',
         name: 'situationAnalysis',
         component: situationAnalysis
@@ -136,17 +146,23 @@ const routes = [
       {
         path: 'openSourceIntelligence',
         name: 'SCnet_OpenSourceIntelligence',
-        component: () => import("../views/SCnet/PreScene/OpenSourceIntelligence.vue")
+        component: () => import("../views/SCnet/PreScene/OpenSourceIntelligenceWrapper.vue")
       },
       {
         path: 'reportGeneration',
         name: 'SCnet_ReportGeneration',
-        component: () => import("../views/SCnet/PreScene/ReportGeneration.vue")
+        component: () => import("../views/SCnet/PreScene/ReportGenerationWrapper.vue")
       },
       {
         path: 'situationResearch-main',
         name: 'situationResearch-main',
         component: () => import("../views/SCnet/PreScene/situationResearchWrapper.vue")
+      },
+      {
+        // 独立研讨工具，不属于事前工作流
+        path: 'expertSeminar',
+        name: 'SCnet_ExpertSeminar',
+        component: () => import("../views/SCnet/PreScene/ExpertSeminarLive.vue")
       },
       {
         path: 'DisruptRisk',

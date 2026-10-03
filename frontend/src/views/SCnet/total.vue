@@ -5,6 +5,9 @@
       <div v-for="i in 20" :key="i" class="particle" :style="getParticleStyle(i)"></div>
     </div>
 
+    <!-- 右上角：知识平台入口（全屏打开事前知识库） -->
+    
+
     <div class="entrance-content">
       <!-- 头部 -->
       <div class="entrance-header">
@@ -34,16 +37,25 @@
         </el-card>
       </div>
     </div>
+
+    <!-- 全屏知识平台：数据治理 / 知识库 / 本体与知识图谱 三个模块 -->
+    <Teleport to="body">
+      <component :is="KnowledgePlatform" v-if="showKnowledgePlatform" @close="closeKnowledgePlatform" />
+    </Teleport>
   </div>
 </template>
 
 <script>
 import { useRouter } from 'vue-router'
+import { ArrowRight, Collection } from '@element-plus/icons-vue'
 import { writeScnetPhase } from '@/constants/scnetPhase'
 import { SCNET_ROUTES } from '@/constants/scnetRoutes'
+import { useKnowledgePlatform } from './composables/useKnowledgePlatform'
 
 const PHASE_ROUTES = {
-  pre: SCNET_ROUTES.situationAnalysis,
+  // 事前入口为「场景设定」：与 scnetStageMeta.js 及各页面的统一入口保持一致，
+  // 知识库改由右下角「知识平台」浮层承载。
+  pre: SCNET_ROUTES.scenarioSetting,
   // 事中入口是「对话首页 · 事中决策」：输入问题后直接进入想定生成分析
   during: SCNET_ROUTES.duringEntry,
   post: SCNET_ROUTES.counterfactualExperiment
@@ -51,8 +63,19 @@ const PHASE_ROUTES = {
 
 export default {
   name: 'TotalPage',
+  components: { ArrowRight, Collection },
   setup() {
     const router = useRouter()
+
+    // ── 全屏知识平台 ──
+    // 浮层铺满视口，锁滚动 / Esc 关闭 / 卸载清理都在 composable 里，
+    // 左侧栏常驻的「知识库」入口打开的是同一个浮层。
+    const {
+      KnowledgePlatform,
+      visible: showKnowledgePlatform,
+      open: openKnowledgePlatform,
+      close: closeKnowledgePlatform
+    } = useKnowledgePlatform()
 
     const getParticleStyle = (i) => ({
       left: `${(i * 37) % 100}%`,
@@ -66,7 +89,14 @@ export default {
       router.push(PHASE_ROUTES[phase] || PHASE_ROUTES.pre)
     }
 
-    return { getParticleStyle, navigateToPhase }
+    return {
+      getParticleStyle,
+      navigateToPhase,
+      KnowledgePlatform,
+      showKnowledgePlatform,
+      openKnowledgePlatform,
+      closeKnowledgePlatform
+    }
   },
   data() {
     return {
@@ -187,5 +217,41 @@ export default {
 @media (max-width: 768px) {
   .entrance-cards { grid-template-columns: 1fr; }
   .entrance-title { font-size: 1.5rem; }
+}
+
+/* ===== 右上角：知识平台入口 ===== */
+.knowledge-platform-btn {
+  position: absolute; top: 1.5rem; right: 2rem; z-index: 3;
+  display: inline-flex; align-items: center; gap: 0.85rem;
+  padding: 0.8rem 1.4rem 0.8rem 1rem;
+  border-radius: 16px; border: 1px solid #bfdbfe; cursor: pointer;
+  background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+  box-shadow: 0 10px 26px -14px rgba(37, 99, 235, 0.55);
+  font-family: inherit; text-align: left;
+  transition: all 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+}
+.knowledge-platform-btn:hover {
+  transform: translateY(-2px);
+  border-color: #60a5fa;
+  box-shadow: 0 16px 34px -14px rgba(37, 99, 235, 0.65);
+}
+.knowledge-platform-btn:active { transform: translateY(0); }
+
+.kp-btn-icon {
+  display: flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; border-radius: 13px; flex-shrink: 0;
+  color: #fff; background: linear-gradient(140deg, #3B82F6, #2563EB);
+  box-shadow: 0 6px 14px -6px rgba(37, 99, 235, 0.9);
+}
+.kp-btn-text { display: flex; flex-direction: column; gap: 2px; }
+.kp-btn-title { font-size: 1.05rem; font-weight: 800; color: #1E293B; letter-spacing: 2px; }
+.kp-btn-sub { font-size: 0.72rem; font-weight: 500; color: #64748B; letter-spacing: 0.5px; }
+.kp-btn-arrow { display: flex; align-items: center; color: #93C5FD; transition: transform 0.25s ease, color 0.25s ease; }
+.knowledge-platform-btn:hover .kp-btn-arrow { color: #2563EB; transform: translateX(3px); }
+
+@media (max-width: 768px) {
+  .knowledge-platform-btn { top: 1rem; right: 1rem; padding: 0.6rem 0.9rem 0.6rem 0.7rem; gap: 0.6rem; }
+  .kp-btn-icon { width: 36px; height: 36px; border-radius: 11px; }
+  .kp-btn-sub { display: none; }
 }
 </style>
