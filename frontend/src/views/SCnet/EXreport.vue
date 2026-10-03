@@ -1,8 +1,12 @@
 <template>
   <div class="post-report-page">
+    <ChatHandoffStrip>
+      <template #hint>可把本轮复盘结论并入报告后再导出。</template>
+    </ChatHandoffStrip>
+
     <section class="report-head">
       <div>
-        <h1>实验报告生成</h1>
+        <h1>复盘报告</h1>
         <p class="subtitle">
           <el-tag size="small" effect="plain" type="info" class="scene-tag">{{ sceneText.systemLabel }}</el-tag>
           基于事中仿真与反事实分析结果，汇总关键指标对比与因素总结。
@@ -293,6 +297,7 @@
 import { ref, computed, nextTick, onMounted, watch } from 'vue';
 import { ElButton, ElCard, ElIcon, ElTag, ElEmpty, ElMessage } from 'element-plus';
 import html2canvas from 'html2canvas';
+import ChatHandoffStrip from '@/components/SCnet/ChatHandoffStrip.vue'
 import { jsPDF } from 'jspdf';
 import {
   ArrowDown,
@@ -880,7 +885,7 @@ const generateReportHtml = (data) => {
 <html>
 <head>
   <meta charset="utf-8">
-  <title>${sceneText.value.systemLabel}实验报告_${safeGetValue(data, 'experiment_id', '-')}</title>
+  <title>${sceneText.value.systemLabel}复盘报告_${safeGetValue(data, 'experiment_id', '-')}</title>
   <style>
     body { font-family: "Microsoft YaHei", Arial, sans-serif; color: #0f172a; line-height: 1.6; padding: 24px; }
     section, article { break-inside: avoid; }
@@ -894,7 +899,7 @@ const generateReportHtml = (data) => {
   </style>
 </head>
 <body>
-  <h1>${sceneText.value.systemLabel}实验报告</h1>
+  <h1>${sceneText.value.systemLabel}复盘报告</h1>
   <p>生成时间：${new Date().toLocaleString('zh-CN')}</p>
   ${content}
 </body>
@@ -922,7 +927,7 @@ const exportReport = (format = 'html') => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${sceneText.value.systemLabel}_实验报告_${reportData.value.experiment_id}.${isHtml ? 'html' : 'txt'}`;
+    link.download = `${sceneText.value.systemLabel}_复盘报告_${reportData.value.experiment_id}.${isHtml ? 'html' : 'txt'}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1023,7 +1028,7 @@ const exportReportPdf = async () => {
     }
 
     const safeName = String(reportData.value?.experiment_id || 'report').replace(/[\\/:*?"<>|]/g, '_');
-    pdf.save(`${sceneText.value.systemLabel}_实验报告_${safeName}.pdf`);
+    pdf.save(`${sceneText.value.systemLabel}_复盘报告_${safeName}.pdf`);
     ElMessage.success(`报告已导出为 PDF（共 ${pageIndex} 页）`);
   } catch (error) {
     if (import.meta.env.DEV) {
@@ -1042,7 +1047,7 @@ const generateReportText = (data) => {
   const paramText = params.map(p => `${p.label}：${p.value}`).join('\n') || '无';
 
   return `
-${sceneText.value.systemLabel}实验报告
+${sceneText.value.systemLabel}复盘报告
 ==========================================
 
 一、实验概览

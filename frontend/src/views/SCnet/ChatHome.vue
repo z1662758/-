@@ -168,12 +168,54 @@
               <span class="chat-spinner-verb">推演中&hellip;</span>
             </div>
           </div>
-          <!-- K2-FLOW:分析成功后进入可视化 -->
+          <!-- K5-PIPELINE:带着本次研判继续 —— 事后走实验闭环(确认目的→设计方案→运行→三阶段分析),事前走态势去向 -->
           <div v-if="analysisSuccess" class="chat-visualize-zone">
-            <button class="chat-visualize-btn" @click="goVisualization">
-              <span>进入可视化界面</span>
-              <b class="chat-visualize-arrow">&rarr;</b>
-            </button>
+            <!-- 事后复盘:实验方案设计(实验目的 + 干预变量 + 目标指标 + 轮次都收敛到方案设计页,对话里只留一个入口) -->
+            <div v-if="isPostPhase" class="chat-plan-step">
+              <p class="chat-plan-title">实验方案设计</p>
+              <p class="chat-plan-desc">实验目的已按本次研判拟好；干预变量、目标指标与观测轮次在方案设计页里配置，保存后直接写入反事实实验平台的参数面板。</p>
+              <p class="chat-plan-preview">{{ planPurpose || '（尚未生成实验目的，可在方案设计页手填）' }}</p>
+              <div class="chat-plan-actions">
+                <button class="chat-visualize-btn" @click="openPlanDesign">
+                  <span>进入实验方案设计</span>
+                  <b class="chat-visualize-arrow">&rarr;</b>
+                </button>
+                <el-popover trigger="click" placement="top" :width="330" popper-class="chat-model-popover">
+                  <template #reference>
+                    <button class="chat-handoff-more">跳过方案，去别处</button>
+                  </template>
+                  <div class="chat-handoff-menu">
+                    <button v-for="t in postSideTargets" :key="t.path" class="chat-handoff-item" @click="goVisualization(t)">
+                      <span class="chat-handoff-item-label">{{ t.label }}</span>
+                      <span class="chat-handoff-item-hint">{{ t.hint }}</span>
+                    </button>
+                  </div>
+                </el-popover>
+              </div>
+            </div>
+
+            <!-- 事前研判:态势研判 / 态势预测 -->
+            <div v-else class="chat-handoff-zone">
+              <span class="chat-handoff-lead">带着这次研判继续：</span>
+              <button class="chat-visualize-btn" @click="goVisualization(primaryHandoffTarget)">
+                <span>进入{{ primaryHandoffTarget.label }}</span>
+                <b class="chat-visualize-arrow">&rarr;</b>
+              </button>
+              <el-popover v-if="handoffTargets.length > 1" trigger="click" placement="top"
+                :width="330" popper-class="chat-model-popover">
+                <template #reference>
+                  <button class="chat-handoff-more">其它去向</button>
+                </template>
+                <div class="chat-handoff-menu">
+                  <button v-for="t in handoffTargets" :key="t.path" class="chat-handoff-item"
+                    :class="{ active: t.path === primaryHandoffTarget.path }" @click="goVisualization(t)">
+                    <span class="chat-handoff-item-label">{{ t.label }}</span>
+                    <span class="chat-handoff-item-hint">{{ t.hint }}</span>
+                  </button>
+                </div>
+              </el-popover>
+            </div>
+            <p class="chat-handoff-note">跳转会带上本次问题与阶段，落地页顶部可一键回到本对话</p>
           </div>
         </div>
         <div class="chat-input-area">
@@ -330,7 +372,10 @@ import { SCENARIO_VALUES, SCENARIO_LABELS } from '@/constants/scnetScenario'
 import { getPresetQuestions, PHASE_SHORT_LABELS } from '@/constants/scnetPresetQuestions'
 import { writeScnetPhase } from '@/constants/scnetPhase'
 import { SCNET_ROUTES } from '@/constants/scnetRoutes'
+import { toolDisplayName as toolLabelOf } from '@/constants/scnetToolLabels'
 import { unwrapApiData } from '@/utils/session'
+import { inferAutoPhase } from '@/utils/phaseInfer'
+import { PLAN_QUERY_KEY, PLAN_CONTROL_LABEL, composePlanPurpose, newExperimentPlanId, saveExperimentPlan } from '@/constants/scnetExperimentPlan'
 import { getSessions, getSessionDetail, createSession, addChatMessage } from '@/api/scenarioSession'
 import { startAgentChat, streamAgentTask, cancelAgentTask, getAgentModels, getAgentConversations, getAgentConversation, markConversationPdf } from '@/api/scnet/chatAgent'
 
@@ -340,16 +385,8 @@ const SPINNER_GLYPHS = ['✽', '✢', '✦', '✧']
 const SECTION_ORDER = ['一', '二', '三']
 const SECTION_LABELS = { 一: '① 事实梳理', 二: '② 风险评估', 三: '③ 应对策略' }
 
-// 工具 → 展示名 / 执行状态文案(§67-68)
-const TOOL_DISPLAY_NAMES = {
-  skill: '加载研判技能',
-  uranium_supply_overview: '供应概览',
-  uranium_route_network: '路线网络',
-  uranium_current_risk: '当前风险',
-  uranium_osint_events: 'OSINT 事件',
-  uranium_knowledge_search: '知识检索',
-  uranium_scenario_analysis: '情景分析',
-}
+// 工具 → 展示名(与交接条共用,见 @/constants/scnetToolLabels)
+// 执行状态文案(§67-68)仍是对话页自己的语义
 const TOOL_STATUS_TEXT = {
   skill: '正在制定分析计划',
   uranium_supply_overview: '正在筛选供应链数据',
@@ -478,6 +515,16 @@ export default {
     const applyModeFromRoute = (mode) => {
       const next = String(mode || '').trim()
       if (['pre', 'during', 'post'].includes(next)) selectMode(next)
+    }
+
+    // 恢复历史对话时一并恢复阶段:会话文档里没有存阶段字段,用最后一条用户问题按
+    // auto 模式同一套口径反推。不这么做的话,事后复盘的对话重新打开会回落到事前,
+    // 「实验方案设计」入口(以及执行面板的"事后复盘"标题)都会消失,用户找不到下一步。
+    const restorePhaseFromHistory = (msgs) => {
+      const lastUser = [...msgs].reverse().find((m) => m.role === 'user')
+      const phase = inferAutoPhase(lastUser ? lastUser.content : '')
+      runPhase.value = phase
+      selectMode(phase)
     }
     const selectScenario = (value) => scenarioStore.setScenario(value)
 
@@ -659,6 +706,7 @@ export default {
           content: '该历史会话记录为空：经审计未发现当时保存的分析正文（当时未生成或未落盘），未重新生成。' })
       }
       execState.value = 'done'; execStatus.value = '历史对话加载成功(scenario 会话)'
+      restorePhaseFromHistory(messages.value)
       scrollToBottom()
     }
 
@@ -707,6 +755,7 @@ export default {
             }
           })
           messages.value = msgs
+          restorePhaseFromHistory(msgs)
           // 恢复最近研判状态(分析完成/PDF/可视化入口)
           const lastJ = [...msgs].reverse().find(m => m.role === 'assistant' && m._meta && m._meta.message_type === 'judgment')
           if (lastJ && lastJ.content) {
@@ -801,11 +850,21 @@ export default {
 
       // 当前阶段透传给后端 Agent：事后复盘必须带 post，
       // 否则后端按事前研判的提示词与工具集回答，答案与用户意图不符。
-      const currentAgentPhase = () => (['post', 'during'].includes(currentMode.value) ? currentMode.value : 'pre')
+      // 智能识别(auto)下没有用户选定的阶段，按问题意图推断：归因/机理/反事实类问题
+      // 走事后闭环（确认实验目的 → 设计实验方案 → 反事实实验 → 三阶段分析），
+      // 其余仍按事前研判。显式选过模式的，一律以用户选择为准，不被推断覆盖。
+      const currentAgentPhase = () => {
+        if (currentMode.value === 'during' || currentMode.value === 'post' || currentMode.value === 'pre') {
+          return currentMode.value
+        }
+        return inferAutoPhase(text)
+      }
 
       // K3-CHAT-1:事前/智能识别/事后不再跳需求分析页,在对话首页内 Agent 研判。
       // 事中(during)流程保持兼容,仍走原想定生成页。
       const isDuring = currentMode.value === 'during'
+      // 阶段只在这里解析一次：占位文案、后端 phase、落地页去向都用同一份判断
+      const agentPhase = currentAgentPhase()
       const fileInfo = attachments.value.length > 0 ? '\n[附件: ' + attachments.value.map(a => a.name).join(', ') + ']' : ''
       inputText.value = ''; attachments.value = []
       messages.value.push({ id: 'u' + Date.now(), role: 'user', content: text + fileInfo })
@@ -814,7 +873,7 @@ export default {
         role: 'assistant',
         content: isDuring
           ? '🚨 正在建立事中会话并进入想定生成...'
-          : currentMode.value === 'post'
+          : agentPhase === 'post'
             ? '📈 正在进入事后复盘（反事实实验）...'
             : '🔍 正在建立会话并进入态势分析...',
         _streaming: true,
@@ -843,7 +902,7 @@ export default {
           await enterDuringFlow(sid, text, sc)
         } else {
           // 不跳页:在本对话页内运行 Agent 研判
-          await runAgentChat(text, sid, currentAgentPhase())
+          await runAgentChat(text, sid, agentPhase)
         }
       } catch (e) {
         messages.value.pop()
@@ -917,6 +976,8 @@ export default {
           modelId: currentModelOption.value?.modelId || selectedModel.value,
           mode: 'agent',
           phase,
+          // 场景跟着走:后端的实验证据工具按场景取最新实验
+          scenario: scenarioStore.currentScenario || 'uranium',
         })
         const data = unwrapApiData(res) || res?.data || res || {}
         const taskId = data?.task_id
@@ -1097,29 +1158,139 @@ export default {
       }
     }
 
-    // ── K2-FLOW:进入可视化(按阶段分流) ──
-    // 此前不管什么阶段都跳到「态势研判」,而那是左侧「事前」分组里的页面:
-    // 事后复盘点进来就会出现"面包屑写着事后、内容全是事前全局态势"的错位。
-    // 与 total.vue 的 PHASE_ROUTES 保持同一套约定。
-    const VISUALIZATION_ROUTE_BY_PHASE = {
-      // 事前:态势研判(供应链网络地图 + 路线风险排行榜)
-      pre: '/home/SCnet/situationJudge',
-      // 事后:事后分组里的第一个页面「反事实实验」,与 total.vue 事后入口一致
-      post: SCNET_ROUTES.counterfactualExperiment
+    // ── K4-HANDOFF:研判决完之后的去向 ──
+    // 之前的问题:不管阶段都跳同一个页面,且按钮只写"进入可视化界面" ——
+    // 用户既不知道要去哪、也不知道去了和自己刚才那轮对话有什么关系。
+    // 现在每个去向都带一句"去看什么",并按阶段给默认项。
+    const HANDOFF_TARGETS = {
+      pre: [
+        {
+          path: SCNET_ROUTES.situationJudge,
+          label: '态势研判',
+          hint: '看路线风险排行榜、关键节点与 OSINT 事件（与本次研判同一份 REAL 快照）'
+        },
+        {
+          path: SCNET_ROUTES.situationResearch,
+          label: '态势预测',
+          hint: '看风险/中断在时间轴上的演进与转折点'
+        }
+      ],
+      // 事后走 K5-PIPELINE 的实验闭环向导(见 postSideTargets),这里不再列平行去向
+      post: []
     }
 
-    const goVisualization = () => {
-      const phase = runPhase.value === 'post' ? 'post' : 'pre'
-      const query = { from_chat: '1' }
-      if (activeRun.value && activeRun.value.conversation_id) {
-        query.session_id = activeRun.value.conversation_id
+    const handoffTargets = computed(() => {
+      // during(事中)没有专属落点,复用事前那组
+      return HANDOFF_TARGETS[runPhase.value] || HANDOFF_TARGETS.pre
+    })
+    const primaryHandoffTarget = computed(() => handoffTargets.value[0] || HANDOFF_TARGETS.pre[0])
+
+    const goVisualization = (target) => {
+      const dest = target || primaryHandoffTarget.value || HANDOFF_TARGETS.pre[0]
+      // 没有 path 就说明去向表配错了:router.push({path: undefined}) 只会改 query、
+      // 页面不动,表现成"点了没反应",所以这里显式拦住并提示。
+      if (!dest || !dest.path) {
+        ElMessage.error('该去向未配置页面路径，跳转已取消')
+        return
       }
-      // 反事实实验按 ?scenario= 切铀/汽车,不带就会落回默认场景
-      if (phase === 'post') query.scenario = scenarioStore.currentScenario || 'uranium'
-      router.push({ path: VISUALIZATION_ROUTE_BY_PHASE[phase], query })
+      const query = { from_chat: '1' }
+      // 会话 id 优先取本次运行,其次取当前打开的会话(历史会话没有 activeRun,
+      // 不带 id 落地页的交接条就不渲染、也回不到本对话)
+      const conversationId = (activeRun.value && activeRun.value.conversation_id) || currentConversationId.value || ''
+      if (conversationId) {
+        query.session_id = conversationId
+      } else {
+        delete query.from_chat
+      }
+      // 阶段必须带上:落地页的交接条靠它显示"事前研判/事后复盘"
+      query.phase = runPhase.value === 'post' ? 'post' : 'pre'
+      // 铀/汽车场景也跟着走,否则落地页会落回默认场景
+      query.scenario = scenarioStore.currentScenario || 'uranium'
+      router.push({ path: dest.path, query })
     }
 
-    const toolDisplayName = (t) => TOOL_DISPLAY_NAMES[t] || t
+    // ── K5-PIPELINE:事后复盘的实验闭环 ──
+    // 用户要的链路是:先确认目的 → 设计实验方案 → 进反事实实验平台运行 → 拿到实验数据
+    // → 观察分析 / 干预分析 / 机制分析。
+    // 此前从结论直接跳页面,目的与方案都要在平台上重新想一遍,闭环是断的。现在把
+    // 「实验目的 + 实验方案」收敛成独立的方案设计页(views/SCnet/ExperimentPlanDesign.vue),
+    // 对话里只留一个入口,方案用 plan_id 一路带到平台(见 scnetExperimentPlan)。
+    // 实验闭环之外的旁路去向:只想看结构/出报告,或直接去平台自己设参数
+    const POST_SIDE_TARGETS = [
+      {
+        path: SCNET_ROUTES.counterfactualExperiment,
+        label: '反事实实验平台（自定义参数）',
+        hint: '不预设方案，直接上平台手动设干预变量与产能参数'
+      },
+      {
+        path: SCNET_ROUTES.EXreport,
+        label: '供应链实验报告',
+        hint: '汇总结论与关键指标，导出可交付的实验报告'
+      }
+    ]
+
+    const isPostPhase = computed(() => runPhase.value === 'post')
+    const postSideTargets = computed(() => POST_SIDE_TARGETS)
+
+    // 事后复盘 → 「实验方案设计」页的交接:对话里只保留实验目的的自动拟稿与本页入口,
+    // 干预变量 / 目标指标 / 观测轮次全部收敛到方案设计页(views/SCnet/ExperimentPlanDesign.vue),
+    // 草稿通过 sessionStorage 用同一个 plan_id 带过去,两个页面不各存一份状态。
+    const planPurpose = ref('')
+    const planPurposeBasis = ref({ question: '', conclusion: '' })
+
+    // 实验目的不是凭空写的:由本次问题 + 研判结论首句拼出,用户可在方案设计页改
+    const derivePlanPurpose = () => {
+      const lastUser = [...messages.value].reverse().find((m) => m.role === 'user')
+      const question = String(lastUser ? lastUser.content : '').replace(/^\[附件[\s\S]*$/m, '').trim()
+      const conclusionMsg = messages.value.find((m) => m.id === lastAnalysisMsgId.value)
+      const conclusion = String(conclusionMsg ? conclusionMsg.content : '')
+      // 跳过"我将使用工具…请稍等"这类过程性话术,取第一句有信息量的结论
+      const NOISE = ['请稍等', '我将', '我需要先', '为了回答', '以上', '以下是', '调用以下工具', '我需要调用', '为了进行', '正在进行']
+      const firstLine = conclusion
+        .split('\n')
+        .map((line) => line.replace(/^[#>\-*\s]+/, '').replace(/\*\*/g, '').trim())
+        .find((line) => line.length > 10 && !NOISE.some((kw) => line.includes(kw))) || ''
+      planPurposeBasis.value = { question, conclusion: firstLine }
+      return composePlanPurpose({ question, conclusion: firstLine })
+    }
+
+    // 带着草稿去方案设计页:目的 / 生成依据 / 来源对话一起带过去,页面加载参数目录后再选变量
+    const openPlanDesign = () => {
+      const purpose = planPurpose.value.trim() || derivePlanPurpose()
+      planPurpose.value = purpose
+      const conversationId = (activeRun.value && activeRun.value.conversation_id) || currentConversationId.value || ''
+      const draft = {
+        id: newExperimentPlanId(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        scenario: scenarioStore.currentScenario,
+        scenarioLabel: SCENARIO_LABELS[scenarioStore.currentScenario] || '',
+        purpose,
+        purposeConfirmed: false,
+        purposeBasis: { ...planPurposeBasis.value },
+        control: PLAN_CONTROL_LABEL,
+        levers: [],
+        metrics: [],
+        rounds: null,
+        conversationId
+      }
+      // 草稿写不进去(例如浏览器禁用了 sessionStorage)也照常跳转:方案设计页支持手填
+      saveExperimentPlan(draft)
+      const query = { phase: 'post', scenario: draft.scenario }
+      query[PLAN_QUERY_KEY] = draft.id
+      if (conversationId) { query.from_chat = '1'; query.session_id = conversationId }
+      router.push({ path: SCNET_ROUTES.experimentPlan, query })
+    }
+
+    // 新一轮研判出结论时重新拟稿:目的按新结论生成
+    watch(analysisSuccess, (ok) => {
+      if (!ok) return
+      planPurpose.value = derivePlanPurpose()
+      // 入口是研判结论的下一步,别让用户还停在结论中间去找它
+      scrollToBottom()
+    })
+
+    const toolDisplayName = (t) => toolLabelOf(t)
     const isSectionDone = (k) => execSections.value.includes(k)
 
     const abortStream = () => {
@@ -1174,7 +1345,8 @@ export default {
       analysisSuccess, lastAnalysisMsgId, pdfGenerating, pdfReady, pdfStateText,
       SECTION_ORDER, SECTION_LABELS, RESULT_CARDS,
       toolDisplayName, isSectionDone,
-      exportPdf, goVisualization,
+      exportPdf, goVisualization, handoffTargets, primaryHandoffTarget, postSideTargets,
+      isPostPhase, planPurpose, openPlanDesign,
       goToMainPage, selectMode, openKnowledge,
       handleModeGlassPointer, resetModeGlassPointer,
       triggerFileInput, handleFileChange, removeAttachment,
@@ -1355,6 +1527,36 @@ export default {
 }
 .chat-visualize-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(79,70,229,0.36); }
 .chat-visualize-arrow { font-size: 15px; }
+.chat-plan-step {
+  padding: 12px 14px; border: 1px solid #e0e7ff; border-left: 3px solid #4f46e5;
+  border-radius: 10px; background: linear-gradient(135deg, #eef2ff 0%, #faf5ff 100%);
+}
+.chat-plan-title { margin: 0 0 4px; color: #312e81; font-size: 13.5px; font-weight: 700; }
+.chat-plan-desc { margin: 0 0 8px; color: #6b7280; font-size: 12px; line-height: 1.5; }
+.chat-plan-preview {
+  margin: 0; padding: 8px 10px; border: 1px solid #e0e7ff; border-radius: 8px;
+  background: #f8faff; color: #3730a3; font-size: 12.5px; line-height: 1.6;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.chat-plan-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.chat-handoff-zone { display: flex; align-items: center; gap: 8px; }
+.chat-handoff-lead { color: #6b7280; font-size: 12.5px; }
+.chat-handoff-more {
+  padding: 6px 12px; border: 1px solid #ddd6fe; border-radius: 999px;
+  background: #fff; color: #5b21b6; font-size: 12.5px; font-weight: 600; cursor: pointer;
+  transition: all 0.2s;
+}
+.chat-handoff-more:hover { background: #f5f3ff; border-color: #c4b5fd; }
+.chat-handoff-note { margin: 6px 0 0; text-align: right; color: #9ca3af; font-size: 11.5px; }
+.chat-handoff-menu { display: flex; flex-direction: column; gap: 2px; }
+.chat-handoff-item {
+  display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 8px 10px;
+  border: none; border-radius: 8px; background: transparent; text-align: left; cursor: pointer;
+}
+.chat-handoff-item:hover { background: #f5f3ff; }
+.chat-handoff-item.active { background: #ede9fe; }
+.chat-handoff-item-label { color: #1f2937; font-size: 13px; font-weight: 600; }
+.chat-handoff-item-hint { color: #6b7280; font-size: 11.5px; line-height: 1.45; }
 .chat-result-cards { display: flex; gap: 6px; margin-bottom: 8px; }
 .chat-result-card {
   flex: 1; display: flex; align-items: center; gap: 5px;

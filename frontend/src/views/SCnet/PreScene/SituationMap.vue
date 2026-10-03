@@ -711,6 +711,12 @@ async function loadEvidenceNetwork() {
     evidenceNetwork.value = r.data || null
   } catch (e) {
     evidenceNetwork.value = null
+  } finally {
+    // 证据背书的节点显示名是异步回填的,而本组件没有 watch、只有 renderChart() 主动重绘。
+    // 此前这里不触发重绘,于是最终节点名取决于「证据接口 vs 快照接口」谁先返回:
+    // 先到就显示"沃尔维斯湾港/多斯特克—阿拉山口铁路口岸",后到就停留在快照原名
+    // ("西非出海港/中哈边境口岸"),同一页面两次打开名字都不一样。这里补齐重绘。
+    renderChart()
   }
 }
 

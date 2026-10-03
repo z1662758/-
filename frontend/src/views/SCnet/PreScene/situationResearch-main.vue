@@ -1,5 +1,8 @@
 <template>
   <div class="pred-root" v-loading="loading">
+    <ChatHandoffStrip>
+      <template #hint>下方为风险与中断在时间轴上的演进预测。</template>
+    </ChatHandoffStrip>
     <!-- Error state -->
     <div v-if="error" class="pred-error">
       <p>⚠️ 数据加载失败：{{ error }}</p>
@@ -712,6 +715,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import { getResearchData, calculateLoss } from '@/api/situation'
+import ChatHandoffStrip from '@/components/SCnet/ChatHandoffStrip.vue'
 import VerificationReport from './VerificationReport.vue'
 
 const props = defineProps({

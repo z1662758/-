@@ -23,6 +23,30 @@
       </div>
     </section>
 
+    <ChatHandoffStrip>
+      <template #hint>把结论里的薄弱环节设成干预变量，即可做对照验证。</template>
+    </ChatHandoffStrip>
+
+    <!-- K5-PIPELINE:对话里确认过的实验方案(目的 + 干预变量 + 指标 + 轮次) -->
+    <ExperimentPlanStrip
+      v-if="activePlan"
+      :plan="activePlan"
+      :running="Boolean(currentRunState.running)"
+      :loading="autoBaselineLoading"
+      :status="planStatus"
+      :current-rounds="activeCounterfactualExperiment ? simTotalSteps : 0"
+      :unlanded-levers="planUnlandedLabels"
+      :panel-values="planPanelValues"
+      :blocked-reason="planRunBlockedReason"
+      @apply="applyPlanToPanelSafe"
+      @run="runPlanNow"
+      @edit="editActivePlan"
+      @dismiss="dismissPlan"
+    />
+
+    <!-- 实验闭环导航:运行实验 → 观察分析 → 干预分析 → 机制分析 -->
+    <ExperimentStageNav :experiment-id="stageExperimentId" :plan-id="activePlanId" current="run" />
+
     <div class="top-row">
       <section class="control-panel panel-card panel-card--blue">
         <header class="panel-header">
@@ -51,11 +75,15 @@
           </div>
 
           <div class="control-params parameter-control-panel" v-if="activeCounterfactualExperiment">
-            <div class="control-params__head">
+            <button type="button" class="control-params__head fold-head"
+              :aria-expanded="collapse.controlParams ? 'true' : 'false'"
+              @click="collapse.controlParams = !collapse.controlParams">
+              <el-icon class="fold-arrow" :class="{ 'is-open': collapse.controlParams }"><ArrowRight /></el-icon>
               <label>可修改实验参数</label>
               <span class="badge-tag">来自：{{ activeCounterfactualExperiment.label }}</span>
-            </div>
-            <div class="parameter-control-list">
+              <span class="fold-toggle">{{ collapse.controlParams ? '收起' : '展开' }}</span>
+            </button>
+            <div class="parameter-control-list" v-show="collapse.controlParams">
               <div v-for="parameter in activeCounterfactualParams" :key="parameter.key" class="parameter-control-item">
                 <div class="parameter-control-meta">
                   <label>{{ parameter.label }}</label>
@@ -105,7 +133,7 @@
                 <strong>{{ formatPercentValue(currentRunState.result.backlogRate) }}</strong>
               </div>
               <div>
-                <span>综合评分</span>
+                <span>综合评分（本次）</span>
                 <strong>{{ formatNullableNumber(currentRunState.result.overallScore, 3) }}</strong>
               </div>
               <div v-if="currentRunState.result.isUranium && currentRunState.result.networkStability != null">
@@ -120,12 +148,16 @@
           </div>
 
           <div class="during-adjust block">
-            <div class="during-adjust-header">
+            <button type="button" class="during-adjust-header fold-head"
+              :aria-expanded="collapse.decision ? 'true' : 'false'"
+              @click="collapse.decision = !collapse.decision">
+              <el-icon class="fold-arrow" :class="{ 'is-open': collapse.decision }"><ArrowRight /></el-icon>
               <span>反事实实验决策</span>
               <span class="during-adjust-tip">切换后可编辑参数</span>
-            </div>
+              <span class="fold-toggle">{{ collapse.decision ? '收起' : '展开' }}</span>
+            </button>
 
-            <div class="simulation-progress-section">
+            <div class="simulation-progress-section" v-show="collapse.decision">
               <div class="progress-header">
                 <span class="progress-label">仿真进度</span>
                 <span class="progress-time">{{ simStep }} / {{ simTotalSteps }} 轮</span>
@@ -147,7 +179,7 @@
               </div>
             </div>
 
-            <div class="during-adjust-grid">
+            <div class="during-adjust-grid" v-show="collapse.decision">
               <div class="adjust-item">
                 <label class="adjust-label">当前状态</label>
                 <div class="event-summary-value">{{ eventStatusLabel }}</div>
@@ -158,21 +190,21 @@
               </div>
             </div>
 
-            <div class="during-adjust-actions">
+            <div class="during-adjust-actions" v-show="collapse.decision">
               <el-button type="primary" size="default" @click="openEventDecisionDialog" :disabled="!eventTriggered || eventResolved">进行事件决策</el-button>
               <el-button size="default" @click="forceTriggerEvent">立即触发下一事件</el-button>
             </div>
           </div>
 
-          <div class="confirmed-panel" v-if="activeCounterfactualExperiment">
-            <h4>反事实实验对象摘要</h4>
+          <CollapseBlock v-if="activeCounterfactualExperiment" v-model="collapse.summary"
+            title="反事实实验对象摘要">
             <div class="confirmed-summary-row">
               <div><strong>名称：</strong>{{ activeCounterfactualExperiment.label }}</div>
               <div><strong>干预变量：</strong>{{ activeCounterfactualExperiment.arguments.intervention }}</div>
               <div><strong>产能方案：</strong>{{ activeCounterfactualExperiment.arguments.capacityPlan }}</div>
               <div v-if="autoBaselineMeta && !isUraniumScene"><strong>知识库基线：</strong>{{ autoBaselineMeta.filename }}（{{ autoBaselineMeta.iterations }} 轮）</div>
             </div>
-          </div>
+          </CollapseBlock>
         </div>
       </section>
 
@@ -223,15 +255,18 @@
                 </div>
                 <span class="report-status">已导入</span>
               </div>
-              <p class="report-background">{{ selectedExperiment.report.background }}</p>
+              <CollapseBlock v-model="collapse.reportBackground" title="报告背景" hint="基线报告原文摘要">
+                <p class="report-background">{{ selectedExperiment.report.background }}</p>
+              </CollapseBlock>
               <div class="report-metrics">
                 <div v-for="metric in selectedExperiment.report.keyMetrics" :key="metric.label">
                   <span>{{ metric.label }}</span>
                   <strong>{{ metric.value }}</strong>
                 </div>
               </div>
-              <div class="parameter-section">
-                <div class="section-title">需要修改的参数</div>
+              <p v-if="baselineScoreScaleNote" class="report-scale-note">{{ baselineScoreScaleNote }}</p>
+              <CollapseBlock v-model="collapse.paramsToModify" title="需要修改的参数"
+                :badge="String((selectedExperiment.report.parametersToModify || []).length) + ' 项'">
                 <div class="parameter-list">
                   <div v-for="parameter in selectedExperiment.report.parametersToModify" :key="parameter.key" class="parameter-item">
                     <div>
@@ -241,12 +276,12 @@
                     <span>{{ parameter.current }}</span>
                   </div>
                 </div>
-              </div>
+              </CollapseBlock>
             </div>
 
             <el-form v-if="selectedExperiment.hasReport" label-width="92px" label-position="left" class="group-form" size="default">
-              <div class="form-section">
-                <div class="section-title">Arguments</div>
+              <CollapseBlock v-model="collapse.args" title="Arguments"
+                hint="实验名称、基准实验、目标问题、干预变量、产能方案">
                 <el-form-item label="名称">
                   <el-input v-model="selectedExperiment.arguments.name" placeholder="实验名称" />
                 </el-form-item>
@@ -275,12 +310,10 @@
                     <el-option v-for="item in presetOptions.demands" :key="item" :label="item" :value="item" />
                   </el-select>
                 </el-form-item>
-              </div>
+              </CollapseBlock>
 
-              <div class="form-divider"></div>
-
-              <div class="form-section">
-                <div class="section-title">Status</div>
+              <CollapseBlock v-model="collapse.status" title="Status"
+                hint="观测轮次、窗口标签、积压水平、完成率、风险类型">
                 <el-form-item label="观测轮次">
                   <el-input v-model="selectedExperiment.status.observedRound" placeholder="例如 12" />
                 </el-form-item>
@@ -309,7 +342,7 @@
                 <el-form-item label="待运行">
                   <el-switch v-model="selectedExperiment.status.isPending" active-text="是" inactive-text="否" />
                 </el-form-item>
-              </div>
+              </CollapseBlock>
             </el-form>
           </el-card>
         </el-scrollbar>
@@ -357,7 +390,7 @@
                 <strong class="results-metric-value">{{ formatPercentValue(currentRunState.result.backlogRate) }}</strong>
               </div>
               <div class="results-metric">
-                <span class="results-metric-label">综合评分</span>
+                <span class="results-metric-label">综合评分（本次）</span>
                 <strong class="results-metric-value">{{ formatNullableNumber(currentRunState.result.overallScore, 3) }}</strong>
               </div>
             </div>
@@ -395,6 +428,26 @@
               <span>任务ID：{{ currentRunState.taskId }}</span>
               <span class="results-task-time" v-if="currentRunState.completedAt">完成于 {{ currentRunState.completedAt }}</span>
             </div>
+
+            <!-- 数据出来之后的默认落点:观察分析是唯一"不需要先选策略、先有假设"的一步,
+                 在这里显式给出口,省得用户只看到指标却不知道下一步去哪。 -->
+            <div class="results-next-stage block" v-if="stageExperimentId">
+              <div class="results-next-head">
+                <span>下一步：进入实验分析</span>
+                <em class="results-next-id">实验 {{ stageExperimentId }}</em>
+              </div>
+              <p class="results-next-hint">
+                建议从「观察分析」开始 —— 先看指标分布与滚动基线（均值±MAD）的偏离、异常判定，
+                再带着异常去「干预分析」比较策略效果，最后到「机制分析」看因果路径与传导。
+              </p>
+              <div class="results-next-actions">
+                <button type="button" class="results-next-primary" @click="goAnalysisStage('observe')">
+                  进入观察分析 <span aria-hidden="true">&rarr;</span>
+                </button>
+                <button type="button" class="results-next-ghost" @click="goAnalysisStage('intervention')">直接去干预分析</button>
+                <button type="button" class="results-next-ghost" @click="goAnalysisStage('mechanism')">直接去机制分析</button>
+              </div>
+            </div>
           </template>
         </div>
       </section>
@@ -425,9 +478,9 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, toRaw, watch } from 'vue'
-import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { Upload } from '@element-plus/icons-vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Upload, ArrowRight } from '@element-plus/icons-vue'
 import { runExperiment } from '@/api/scenarioModeling'
 import { getQueueHistory } from '@/api/queue'
 import {
@@ -438,13 +491,46 @@ import {
 } from '@/api/supplyChain'
 import { getAutomotiveKnowledgeSummary, getAutomotiveLibrary } from '@/api/powerGame/automotiveKnowledge'
 import { useScenarioStore } from '@/stores/scenario'
+import ChatHandoffStrip from '@/components/SCnet/ChatHandoffStrip.vue'
+import ExperimentPlanStrip from '@/components/SCnet/ExperimentPlanStrip.vue'
+import CollapseBlock from '@/components/SCnet/CollapseBlock.vue'
+import ExperimentStageNav from '@/components/SCnet/ExperimentStageNav.vue'
+import {
+  PLAN_QUERY_KEY, readExperimentPlan, resolveLeverWrites,
+  markExperimentPlanApplied, isExperimentPlanApplied, PLAN_CONTEXT_KEYS
+} from '@/constants/scnetExperimentPlan'
+import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 import { SCENARIO_VALUES } from '@/constants/scnetScenario'
 import { unwrapApiData } from '@/utils/apiEnvelope'
 import { resolveExperimentIdFromTask } from '@/utils/scnetTaskUtils'
+import { filterExperimentsByScenario, sortExperimentsByRecency } from '@/composables/useSupplyChainScenario'
+// 参数面板口径（面板键 / 取值 / 单位）与「实验方案设计」页共用同一份实现，
+// 详见 src/utils/scnetPanelParams.js 顶部说明。
+import {
+  toFiniteNumber, normalizeRate, roundNumber, detectUraniumReport,
+  buildCatalogIndex, AUTO_FACTOR_NAMES,
+  buildCounterfactualParameterControls as buildPanelControls
+} from '@/utils/scnetPanelParams'
 
 const SIM_TOTAL_STEPS_DEFAULT = 15
 const EMPTY_TEXT = '无内容，需导入实验报告'
-const simTotalSteps = ref(15)  // 动态：根据实际实验轮数设定
+// 观测轮次 = 基线实验自身的轮次（铀网络演化 28 轮 / 铀资源评估 7 轮 / 汽车 21 轮），
+// 方案里的「观测轮次」在写入参数面板时覆盖它。
+// 拆成「基线轮次 + 方案轮次」两个来源，是为了让进度条、方案条提示、提交给后端的
+// iterations 读同一个值——此前三者各算一套，铀场景会出现"提示 21 轮、实际跑 7 轮"。
+const planRounds = ref(0)
+
+// 反事实实验页的区块默认收起，整页高度从 2000+px 压到一屏左右，需要看细节时点标题行展开。
+// 默认值按"是不是要动手操作的核心区"来定：要动手的摊开，纯信息/长表单的收起。
+const collapse = reactive({
+  controlParams: true,      // 可修改实验参数：核心操作区，默认展开
+  decision: true,           // 反事实实验决策：进度与事件入口，默认展开
+  summary: false,           // 实验对象摘要：纯信息，默认收起
+  reportBackground: false,  // 报告背景长文
+  paramsToModify: false,    // 需要修改的参数
+  args: false,              // Arguments 表单
+  status: false             // Status 表单
+})
 // 本地状态按场景分桶存放。旧版本只有一把 key：在汽车场景自动载入的知识库基线报告
 // 会被恢复进铀场景，而本页场景又由「当前报告」反推，于是出现「已切到铀供应链、
 // 页面却仍是汽车文案」。分桶后两个场景的状态互不可见。
@@ -469,41 +555,17 @@ const deepClone = (value) => {
   }
 }
 
-const toFiniteNumber = (value, fallback = 0) => {
-  const numberValue = Number(value)
-  return Number.isFinite(numberValue) ? numberValue : fallback
-}
-
-const normalizeRate = (value, fallback = 0) => {
-  const numberValue = toFiniteNumber(value, fallback)
-  return numberValue > 1.5 ? numberValue / 100 : numberValue
-}
-
-const roundNumber = (value, digits = 2) => Number(toFiniteNumber(value).toFixed(digits))
 const formatPercent = (value, digits = 1) => `${(normalizeRate(value) * 100).toFixed(digits)}%`
 const formatNumber = (value, digits = 1) => toFiniteNumber(value).toFixed(digits)
 const formatRange = (range) => Array.isArray(range) && range.length >= 2
   ? `${formatNumber(range[0])}-${formatNumber(range[1])}`
   : '--'
 
-/**
- * 判断报告是否为铀供应链场景：
- * 优先使用报告自带的 scenario 字段（后端 run.py 已写入），
- * 其次按文件名/标题关键词兜底（兼容旧报告）。
- */
-const detectUraniumReport = (report = {}) => {
-  const scenario = report?.scenario
-  if (scenario === 'uranium') return true
-  if (scenario === 'supply_chain' || scenario === 'automotive') return false
-  const source = String(report?.source || '').toLowerCase()
-  const title = String(report?.title || '').toLowerCase()
-  return source.includes('uranium') || title.includes('uranium')
-}
-
 // ===== 场景选择（全局 store，与对话首页同一份选择）=====
 const scenarioStore = useScenarioStore()
 // 从对话首页/其它入口带 ?scenario= 跳进来时以 URL 为准，避免与首页选择不一致
 const route = useRoute()
+const router = useRouter()
 const routeScenario = String(route?.query?.scenario || '').trim()
 if ([SCENARIO_VALUES.URANIUM, SCENARIO_VALUES.SUPPLY_CHAIN].includes(routeScenario)) {
   scenarioStore.setScenario(routeScenario)
@@ -528,6 +590,7 @@ const autoBaselineError = ref('')
 // 场景渲染（buildImportedReport / applyReportToExperiment），两者不再互相污染。
 const activeScenario = computed(() => scenarioStore.currentScenario)
 const isUraniumScene = computed(() => activeScenario.value === SCENARIO_VALUES.URANIUM)
+const sceneName = computed(() => SCENE_LABELS[activeScenario.value] || '')
 
 const sceneEyebrow = computed(() => isUraniumScene.value ? 'Uranium Supply Chain' : 'Automotive Supply Chain')
 const decisionDialogTitle = computed(() => isUraniumScene.value ? '铀供应链反事实事件决策' : '汽车供应链反事实事件决策')
@@ -535,216 +598,12 @@ const pageSubtitle = computed(() => isUraniumScene.value
   ? '基于事中供应链仿真结果设定干预变量与产能方案，运行反事实实验并对比评估策略效果。支持矿山产能调整、新矿投产阈值、需求波动等参数。'
   : '基于事中汽车供应链仿真结果设定干预变量与产能方案，运行反事实实验并对比评估策略效果。参数取值范围取自参数目录，事件决策取自汽车知识库规则库与 OSINT 事件库。')
 
-// 把参数目录（多来源：实体参数 / Planner 参数 / 系统参数 / 实验参数）合并成 key → 规格 的索引
-const parseCatalogRange = (range) => {
-  if (Array.isArray(range) && range.length >= 2) {
-    const lo = toFiniteNumber(range[0], null)
-    const hi = toFiniteNumber(range[1], null)
-    return lo !== null && hi !== null ? [lo, hi] : null
-  }
-  const match = String(range || '').match(/^\[?\s*(-?\d+(?:\.\d+)?)\s*[,\-~]\s*(-?\d+(?:\.\d+)?)\s*\]?$/)
-  return match ? [toFiniteNumber(match[1]), toFiniteNumber(match[2])] : null
-}
+// 面板构造统一走共享口径(src/utils/scnetPanelParams.js)：方案设计页的落地对账调用的是同一份判定，
+// 两边不可能再对「本场景面板到底有哪些输入框」给出不同答案。
+// 默认目录取当前已载入的参数目录(与报告构造时的取值来源保持一致)。
+const buildCounterfactualParameterControls = (report, catalog = autoCatalog.value) =>
+  buildPanelControls(report, catalog)
 
-const buildCatalogIndex = (catalog) => {
-  const index = new Map()
-  const put = (entry) => {
-    if (!entry || !entry.key) return
-    const prev = index.get(entry.key) || {}
-    const bounds = parseCatalogRange(entry.range)
-      || (Number.isFinite(entry.min) && Number.isFinite(entry.max) ? [entry.min, entry.max] : null)
-    index.set(entry.key, {
-      key: entry.key,
-      label: entry.displayName || entry.label || entry.name || prev.label || entry.key,
-      description: entry.description || prev.description || '',
-      unit: entry.unit || prev.unit || '',
-      min: Number.isFinite(entry.min) ? entry.min : (bounds ? bounds[0] : (prev.min ?? null)),
-      max: Number.isFinite(entry.max) ? entry.max : (bounds ? bounds[1] : (prev.max ?? null)),
-      step: Number.isFinite(entry.step) ? entry.step : (prev.step ?? null),
-      source: entry.source || prev.source || '',
-      default: entry.defaultValue !== undefined ? entry.defaultValue : (entry.default !== undefined ? entry.default : prev.default)
-    })
-  }
-  if (!catalog) return index
-  const agents = catalog?.agent_graph?.agents || catalog?.entities?.agents || []
-  agents.forEach((agent) => (agent.configurableParams || agent.configurable_params || []).forEach(put))
-  ;(catalog.system_parameters || []).forEach(put)
-  ;(catalog.exp_params?.params || []).forEach(put)
-  ;(catalog.planner_parameters || []).forEach(put)
-  Object.values(catalog.fishbone_templates || {}).forEach((group) => {
-    (Array.isArray(group) ? group : []).forEach(put)
-  })
-  return index
-}
-
-
-/**
- * 汽车供应链反事实参数控件：取值来自参数目录（源头 configs/agent_config.yaml），
- * 基线值优先用报告实际值，缺失时用目录默认值，保证每个数字都能溯源。
- */
-// 展示名（口径固定，取值/区间/描述仍全部来自参数目录）
-const AUTO_CONTROL_LABELS = {
-  order_multiplier: '市场需求强度',
-  factory_capacity_min: '工厂产能下限',
-  factory_capacity_max: '工厂产能上限',
-  reproduction_threshold: '企业扩张触发阈值',
-  collaboration_radius: '工厂协作半径'
-}
-
-const AUTO_FACTOR_NAMES = {
-  order_multiplier: '市场需求强度',
-  factory_capacity_range: '工厂产能范围',
-  reproduction_threshold: '企业扩张触发阈值',
-  collaboration_radius: '工厂协作半径'
-}
-
-const buildAutoParameterControls = (report, catalog) => {
-  const index = buildCatalogIndex(catalog)
-  const params = report?.parameters || {}
-  const capacityRange = Array.isArray(params.factoryCapacityRange) ? params.factoryCapacityRange : []
-  const controls = []
-
-  const orderSpec = index.get('order_multiplier')
-  const capSpec = index.get('factory_capacity_range')
-  const thresholdSpec = index.get('reproduction_threshold')
-  const collabSpec = index.get('collaboration_radius')
-
-  if (orderSpec) {
-    controls.push({
-      key: 'order_multiplier',
-      label: AUTO_CONTROL_LABELS.order_multiplier,
-      value: roundNumber(toFiniteNumber(params.orderMultiplier, toFiniteNumber(orderSpec.default, 1)), 2),
-      current: roundNumber(toFiniteNumber(params.orderMultiplier, toFiniteNumber(orderSpec.default, 1)), 2),
-      unit: orderSpec.unit || '倍',
-      min: orderSpec.min,
-      max: orderSpec.max,
-      step: orderSpec.step ?? 0.01,
-      description: orderSpec.description || '订单生成率倍数，控制市场需求强度'
-    })
-  }
-
-  if (capSpec) {
-    const capDefault = Array.isArray(capSpec.default) ? capSpec.default : []
-    const capMin = capacityRange.length >= 1 ? toFiniteNumber(capacityRange[0], capDefault[0]) : toFiniteNumber(capDefault[0], null)
-    const capMax = capacityRange.length >= 2 ? toFiniteNumber(capacityRange[1], capDefault[1]) : toFiniteNumber(capDefault[1], null)
-    controls.push({
-      key: 'factory_capacity_min',
-      label: AUTO_CONTROL_LABELS.factory_capacity_min,
-      value: roundNumber(capMin, 2),
-      current: roundNumber(capMin, 2),
-      unit: '件/月',
-      min: capSpec.min,
-      max: capSpec.max,
-      step: capSpec.step ?? 1,
-      description: capSpec.description || '总厂下属工厂月产能范围下限'
-    })
-    controls.push({
-      key: 'factory_capacity_max',
-      label: AUTO_CONTROL_LABELS.factory_capacity_max,
-      value: roundNumber(capMax, 2),
-      current: roundNumber(capMax, 2),
-      unit: '件/月',
-      min: capSpec.min,
-      max: capSpec.max,
-      step: capSpec.step ?? 1,
-      description: capSpec.description || '总厂下属工厂月产能范围上限'
-    })
-  }
-
-  if (thresholdSpec) {
-    controls.push({
-      key: 'reproduction_threshold',
-      label: AUTO_CONTROL_LABELS.reproduction_threshold,
-      value: roundNumber(toFiniteNumber(params.reproductionThreshold, toFiniteNumber(thresholdSpec.default, 0)), 0),
-      current: roundNumber(toFiniteNumber(params.reproductionThreshold, toFiniteNumber(thresholdSpec.default, 0)), 0),
-      unit: thresholdSpec.unit || '',
-      min: thresholdSpec.min,
-      max: thresholdSpec.max,
-      step: thresholdSpec.step ?? 1,
-      description: thresholdSpec.description || '控制企业扩张触发门槛'
-    })
-  }
-
-  if (collabSpec) {
-    controls.push({
-      key: 'collaboration_radius',
-      label: AUTO_CONTROL_LABELS.collaboration_radius,
-      value: roundNumber(toFiniteNumber(params.collaborationRadius, toFiniteNumber(collabSpec.default, 0)), 0),
-      current: roundNumber(toFiniteNumber(params.collaborationRadius, toFiniteNumber(collabSpec.default, 0)), 0),
-      unit: collabSpec.unit || '',
-      min: collabSpec.min,
-      max: collabSpec.max,
-      step: collabSpec.step ?? 10,
-      description: collabSpec.description || '总厂调度可联动工厂的空间范围'
-    })
-  }
-
-  return controls
-}
-
-const buildCounterfactualParameterControls = (report, catalog = autoCatalog.value) => {
-  const capacityRange = Array.isArray(report.parameters.factoryCapacityRange)
-    ? report.parameters.factoryCapacityRange
-    : [0, 0]
-  // 检测场景 → 使用专用单位与描述
-  const isUranium = detectUraniumReport(report)
-
-  // 汽车供应链：全部取值来自参数目录（真实 config 口径）
-  if (!isUranium && catalog) {
-    const controls = buildAutoParameterControls(report, catalog)
-    if (controls.length) return controls
-  }
-
-  return [
-    {
-      key: 'order_multiplier',
-      label: isUranium ? '需求强度' : '市场需求强度',
-      value: roundNumber(report.parameters.orderMultiplier, 2),
-      unit: '倍',
-      min: 0.5,
-      max: 2.5,
-      step: 0.05,
-      description: isUranium ? '全球核电反应堆需求倍数，基准为当前~123,860 tU/年' : '需求上升压力输入'
-    },
-    {
-      key: 'factory_capacity_min',
-      label: isUranium ? '矿山产能下限' : '工厂产能下限',
-      value: roundNumber(capacityRange[0], 2),
-      unit: isUranium ? 'tU/年' : '件/月',
-      min: 0,
-      step: isUranium ? 100 : 0.01,
-      description: isUranium ? '全球矿山年产能下限(吨/年)，对应已承诺矿山最低产出' : '制造能力区间的保底值'
-    },
-    {
-      key: 'factory_capacity_max',
-      label: isUranium ? '矿山产能上限' : '工厂产能上限',
-      value: roundNumber(capacityRange[1], 2),
-      unit: isUranium ? 'tU/年' : '件/月',
-      min: 0,
-      step: isUranium ? 100 : 0.01,
-      description: isUranium ? '全球矿山年产能峰值上限(吨/年)，含计划与潜在矿山满产产能' : '制造能力区间的峰值上限'
-    },
-    {
-      key: 'reproduction_threshold',
-      label: isUranium ? '新矿投产阈值' : '企业扩张触发阈值',
-      value: roundNumber(report.parameters.reproductionThreshold, 0),
-      unit: isUranium ? 'tU/年' : '',
-      min: 0,
-      step: isUranium ? 50 : 10,
-      description: isUranium ? '触发新矿山开发的最低供需缺口(吨/年)，影响Dasa/Wheeler River等新矿投产时机' : '影响产能扩张触发时点'
-    },
-    {
-      key: 'adjustment_ratio',
-      label: isUranium ? '产能爬坡速率' : '产能调整比例',
-      value: roundNumber(normalizeRate(report.parameters.adjustmentRatio), 4),
-      unit: '比例',
-      min: 0,
-      max: 1,
-      step: 0.0001,
-      description: isUranium ? '矿山扩产/减产的年度调整速率，反映矿山重启(Langer Heinrich)或关停的响应速度' : '事中报告中识别到的产能调整幅度'
-    }
-  ]
-}
 
 const buildImportedReport = (report) => {
   const completionRate = normalizeRate(report.bestMetrics.orderCompletionRate)
@@ -756,14 +615,14 @@ const buildImportedReport = (report) => {
 
   const baseMetrics = isUranium ? [
     { label: '最佳轮次', value: `第 ${report.bestIteration} 轮` },
-    { label: '综合评分', value: report.bestScore.toFixed(3) },
+    { label: '综合评分（基线）', value: report.bestScore.toFixed(3) },
     { label: '订单完成率', value: formatPercent(completionRate) },
     { label: '供应缺口率', value: formatPercent(backlogRate) },
     { label: '系统总利润', value: report.bestMetrics.totalNetProfit.toFixed(1) },
     { label: '网络稳定性', value: report.avgRobustness.toFixed(3) }
   ] : [
     { label: '最佳轮次', value: `第 ${report.bestIteration} 轮` },
-    { label: '综合评分', value: report.bestScore.toFixed(3) },
+    { label: '综合评分（基线）', value: report.bestScore.toFixed(3) },
     { label: '完成率', value: formatPercent(completionRate) },
     { label: '订单积压', value: formatPercent(backlogRate) },
     { label: '净利润', value: report.bestMetrics.totalNetProfit.toFixed(1) },
@@ -998,36 +857,62 @@ const applyReportToExperiment = (experiment, rawReport) => {
   }
 }
 
-// ===== 汽车供应链知识库基线 =====
+// ===== 场景知识库基线（铀 / 汽车共用一条链路）=====
+// 两个场景都从 /SCnet/supplyChain/experiments 按场景过滤出「已完成」实验，
+// 再用它的真实 summary 统计拼出反事实基线报告，填进一个空实验槽。
+// 汽车场景一直有这条链路；铀场景此前只有「手动导入实验报告」一条路，
+// 于是从对话带着实验方案（?plan_id=）进来时参数面板是空的：方案既写不进面板
+// （点「写入参数面板」只弹一句"请先导入实验报告"），也提交不了后端，
+// 表现就是「绿色方案条点了没反应」。
+const SCENE_LABELS = {
+  [SCENARIO_VALUES.URANIUM]: '铀供应链',
+  [SCENARIO_VALUES.SUPPLY_CHAIN]: '汽车供应链'
+}
+
 // 事件触发轮次（与仿真进度条上的三处标记对应）
 const AUTO_EVENT_TRIGGER_STEPS = [4, 8, 12]
 
 const AUTO_RULE_TYPES = ['EVENT_MAPPING', 'EVENT_MAPPING_RULE']
 
-const pickAutomotiveExperiment = (list) => {
-  const automotive = (list || []).filter((item) => /汽车|automotive/i.test(String(item?.goal || '')))
-  if (!automotive.length) return null
-  return automotive
-    .slice()
-    .sort((a, b) => toFiniteNumber(b.feature_score) - toFiniteNumber(a.feature_score))[0]
+// 铀场景优先用平台自己声明的两条铀基线（见 URANIUM_PRESET_OPTIONS.baseExperiments）。
+// 2026-09 之后新跑的铀实验 summary.avg_completion_rate 全是 0（一条订单都没完成，
+// 见 results/multi_agent 里 20260918_* 系列），拿它们当反事实基线没有任何可对比的信号，
+// 因此这里不按「取最新一条」的规则挑，而是显式指回那两条有真实完成率的基线。
+const URANIUM_BASELINE_FILES = [
+  'multi_agent_report_uranium_network_20260702_173720.json',
+  'multi_agent_report_uranium2024_20260702_172322.json'
+]
+
+const pickSceneBaseline = (completedList) => {
+  const list = completedList || []
+  if (scenarioStore.currentScenario === SCENARIO_VALUES.URANIUM) {
+    const declared = list.filter((item) => URANIUM_BASELINE_FILES.includes(String(item?.filename || '')))
+    if (declared.length) return declared[0]
+  }
+  return list[0] || null
 }
 
 /**
- * 用「真实汽车供应链实验详情 + 参数目录」拼出反事实基线报告。
- * 指标来自实验 summary（多轮汇总统计），参数基线来自参数目录默认值，
- * 两者都是后端真实数据，不做任何前端造数。
+ * 用「真实实验详情 + 该场景参数目录」拼出反事实基线报告。
+ * 指标一律来自实验 summary（多轮汇总统计），不做任何前端造数。
  */
-const buildAutomotiveBaseline = (meta, detail, catalog) => {
-  const normalized = normalizeUploadedReport(
-    { ...detail, scenario: SCENARIO_VALUES.SUPPLY_CHAIN },
-    meta.filename
-  )
-  normalized.scenario = SCENARIO_VALUES.SUPPLY_CHAIN
+const buildKnowledgeBaseline = (meta, detail, catalog, scenario) => {
+  const normalized = normalizeUploadedReport({ ...detail, scenario }, meta.filename)
+  normalized.scenario = scenario
   normalized.source = meta.filename
-  normalized.title = `汽车供应链实验报告：${meta.experiment_id}`
+  normalized.title = `${SCENE_LABELS[scenario] || ''}实验报告：${meta.experiment_id}`
 
+  const iterations = toFiniteNumber(meta.iterations, normalized.totalIterations)
   const index = buildCatalogIndex(catalog)
   const capSpec = index.get('factory_capacity_range') || {}
+
+  // 铀场景保留报告自身的参数取值：矿山产能是 tU/年 量纲（实测 42000~78000），
+  // 参数目录返回的是汽车口径（工厂产能范围 250~400），覆盖过去会把量纲写串。
+  if (scenario !== SCENARIO_VALUES.SUPPLY_CHAIN) {
+    normalized.knowledgeNote = `指标取自该实验 ${iterations} 轮仿真的汇总统计，参数基线取自报告自身参数（铀供应链 tU/年 口径）。`
+    return normalized
+  }
+
   const orderSpec = index.get('order_multiplier') || {}
   const thresholdSpec = index.get('reproduction_threshold') || {}
   const collabSpec = index.get('collaboration_radius') || {}
@@ -1048,7 +933,7 @@ const buildAutomotiveBaseline = (meta, detail, catalog) => {
     ? toFiniteNumber(collabSpec.default, null)
     : null
 
-  normalized.knowledgeNote = `参数基线取自参数目录（源头 ${capSpec.source || 'configs/agent_config.yaml'}），指标取自该实验 ${toFiniteNumber(meta.iterations, normalized.totalIterations)} 轮仿真的汇总统计。`
+  normalized.knowledgeNote = `参数基线取自参数目录（源头 ${capSpec.source || 'configs/agent_config.yaml'}），指标取自该实验 ${iterations} 轮仿真的汇总统计。`
   return normalized
 }
 
@@ -1064,39 +949,58 @@ const loadAutomotiveKnowledge = async () => {
   autoOsintEvents.value = unwrapApiData(osint)?.items || []
 }
 
+// 同一时刻只跑一条载入链路：页面挂载时会自动载一次，用户点方案条时可能又触发一次，
+// 两处必须等同一个 Promise，否则会往两个空实验槽里各写一份基线。
+let baselineLoadPromise = null
+
 /**
- * 汽车供应链场景下自动装载真实基线：只在还没有汽车场景报告时执行一次，
- * 已存在的铀场景报告不会被覆盖。
+ * 当前场景下确保有一份可用的基线报告（铀 / 汽车同一套逻辑）。
+ * 已经有报告（含用户手动导入的）时不覆盖，只把选中项切到有报告的那个。
+ * @returns {Promise<boolean>} 是否拿到了可用的基线报告
  */
-const ensureAutomotiveBaseline = async () => {
-  if (!scenarioStore.isSupplyChain) return
-  if (experiments.value.some((item) => item.hasReport && !detectUraniumReport(item.report))) return
-  if (autoBaselineLoading.value) return
+const ensureKnowledgeBaseline = async () => {
+  if (activeCounterfactualExperiment.value) return true
+  const existing = experiments.value.find((item) => item?.hasReport)
+  if (existing) {
+    selectedExperimentId.value = existing.id
+    applyCounterfactualObject(existing)
+    return true
+  }
+  if (baselineLoadPromise) return baselineLoadPromise
+  baselineLoadPromise = loadKnowledgeBaseline().finally(() => { baselineLoadPromise = null })
+  return baselineLoadPromise
+}
+
+const loadKnowledgeBaseline = async () => {
+  if (autoBaselineLoading.value) return false
+  const scenario = scenarioStore.currentScenario
+  const sceneName = SCENE_LABELS[scenario] || ''
   autoBaselineLoading.value = true
   autoBaselineError.value = ''
   try {
-    const [catalogResp, listResp] = await Promise.all([
-      getParameterCatalog(SCENARIO_VALUES.SUPPLY_CHAIN),
-      getExperiments()
-    ])
-    const catalog = unwrapApiData(catalogResp)
+    const catalog = unwrapApiData(await getParameterCatalog(scenario))
     if (!catalog) throw new Error('参数目录不可用')
     autoCatalog.value = catalog
-    autoExperiments.value = unwrapApiData(listResp) || []
 
-    const meta = pickAutomotiveExperiment(autoExperiments.value)
-    if (!meta) throw new Error('后端暂无可用的汽车供应链实验')
+    const list = filterExperimentsByScenario(unwrapApiData(await getExperiments()) || [], scenario)
+    const completed = sortExperimentsByRecency(list.filter((item) => item?.status === 'completed'))
+    if (!completed.length) throw new Error(`后端暂无可用的${sceneName}实验`)
+    autoExperiments.value = completed
+
+    const meta = pickSceneBaseline(completed)
+    if (!meta?.experiment_id) throw new Error('未能定位可用的基线实验')
 
     const detail = unwrapApiData(await getExperimentDetail(meta.experiment_id))
     if (!detail?.summary) throw new Error('实验详情不完整')
 
-    const baseline = buildAutomotiveBaseline(meta, detail, catalog)
+    const baseline = buildKnowledgeBaseline(meta, detail, catalog, scenario)
     autoBaselineMeta.value = {
       experimentId: meta.experiment_id,
       filename: meta.filename,
       goal: meta.goal,
       iterations: meta.iterations,
-      timestamp: meta.timestamp
+      timestamp: meta.timestamp,
+      scenario
     }
 
     let target = experiments.value.find((item) => !item.hasReport)
@@ -1107,18 +1011,21 @@ const ensureAutomotiveBaseline = async () => {
     applyReportToExperiment(target, baseline)
     selectedExperimentId.value = target.id
     applyCounterfactualObject(target)
-    simTotalSteps.value = toFiniteNumber(baseline.totalIterations, SIM_TOTAL_STEPS_DEFAULT)
 
-    try {
-      await loadAutomotiveKnowledge()
-    } catch (error) {
-      console.warn('汽车知识库规则/OSINT 加载失败:', error?.message)
+    if (scenario === SCENARIO_VALUES.SUPPLY_CHAIN) {
+      try {
+        await loadAutomotiveKnowledge()
+      } catch (error) {
+        console.warn('汽车知识库规则/OSINT 加载失败:', error?.message)
+      }
     }
-    ElMessage.success(`已载入汽车供应链基线：${meta.filename}（${meta.iterations} 轮）`)
+    ElMessage.success(`已载入${sceneName}基线：${meta.filename}（${meta.iterations} 轮）`)
+    return true
   } catch (error) {
-    autoBaselineError.value = error?.message || '汽车供应链基线加载失败'
-    console.warn('汽车供应链基线加载失败:', autoBaselineError.value)
-    ElMessage.warning(`汽车供应链基线加载失败：${autoBaselineError.value}`)
+    autoBaselineError.value = error?.message || `${sceneName}基线加载失败`
+    console.warn(`${sceneName}基线加载失败:`, autoBaselineError.value)
+    ElMessage.warning(`${sceneName}基线加载失败：${autoBaselineError.value}`)
+    return false
   } finally {
     autoBaselineLoading.value = false
   }
@@ -1289,6 +1196,16 @@ const restoreCounterfactualState = (scenario = scenarioStore.currentScenario) =>
         applyCounterfactualObject(exp)
       }
     })
+    // 刷新页面后没有任何轮询在跑，restore 回来的 running 是个"僵尸"标记：
+    // 方案条和顶部「运行」会一直是灰的，点了也不会有反应（startSim 见到 rs.running 直接 return）。
+    // 这里把它落回 false，并把真实情况说清楚，让用户可以直接重跑。
+    experiments.value.forEach((exp) => {
+      const restoredRun = exp?.runState
+      if (!restoredRun?.running) return
+      restoredRun.running = false
+      restoredRun.status = restoredRun.status || 'interrupted'
+      restoredRun.message = `上次提交的任务${restoredRun.taskId ? '（' + restoredRun.taskId + '）' : ''}在页面刷新时还没有返回结果：刷新后不再自动轮询，可在队列历史里查看，或直接重新运行本实验。`
+    })
     // 加载选中实验的参数到控件
     const sel = selectedExperiment.value
     if (sel?.counterfactualParameters?.length) {
@@ -1399,22 +1316,31 @@ const buildAutoPresetOptions = (catalog, experimentList) => {
 }
 
 const autoKnowledgeSourceText = computed(() => {
-  if (isUraniumScene.value) return ''
-  if (autoBaselineLoading.value) return '正在从 SCnet 后端载入汽车供应链基线实验…'
+  if (autoBaselineLoading.value) return `正在从 SCnet 后端载入${sceneName.value}基线实验…`
   if (!autoBaselineMeta.value) return ''
   const knowledge = autoKnowledge.value || {}
-  const parts = [
-    `知识库基线：${autoBaselineMeta.value.filename}（${autoBaselineMeta.value.iterations} 轮）`,
-    `参数目录 ${autoCatalog.value ? '已载入' : '未载入'}`
-  ]
-  if (knowledge.evidenceLayer) parts.push(`证据 ${knowledge.evidenceLayer.evidence}`)
-  if (knowledge.rules) parts.push(`规则 ${knowledge.rules.active}/${knowledge.rules.total}`)
-  if (knowledge.osint) parts.push(`OSINT 事件 ${knowledge.osint.active}`)
+  const parts = [`知识库基线：${autoBaselineMeta.value.filename}（${autoBaselineMeta.value.iterations} 轮）`]
+  // 知识库规则 / OSINT 事件只有汽车侧有数据源；铀侧只报基线文件，不做任何补齐
+  if (!isUraniumScene.value) {
+    parts.push(`参数目录 ${autoCatalog.value ? '已载入' : '未载入'}`)
+    if (knowledge.evidenceLayer) parts.push(`证据 ${knowledge.evidenceLayer.evidence}`)
+    if (knowledge.rules) parts.push(`规则 ${knowledge.rules.active}/${knowledge.rules.total}`)
+    if (knowledge.osint) parts.push(`OSINT 事件 ${knowledge.osint.active}`)
+  }
   return parts.join(' · ')
 })
 
 const autoPresetOptions = computed(() => buildAutoPresetOptions(autoCatalog.value, autoExperiments.value))
-const presetOptions = computed(() => isUraniumScene.value ? URANIUM_PRESET_OPTIONS : autoPresetOptions.value)
+const presetOptions = computed(() => {
+  const base = isUraniumScene.value ? URANIUM_PRESET_OPTIONS : autoPresetOptions.value
+  // 对话里确认过的实验目的并入「目标问题」候选:否则程序化赋值匹配不到选项,
+  // 下拉会显示空白,user_goal 也就带不到后端。
+  const purpose = activePlan.value && activePlan.value.purpose
+  if (!purpose) return base
+  const goals = Array.isArray(base.goals) ? base.goals : []
+  if (goals.includes(purpose)) return base
+  return { ...base, goals: [purpose, ...goals] }
+})
 
 // ===== 事件配置：铀场景沿用原有扰动；汽车场景取自知识库规则库(EVENT_MAPPING)，备选为 OSINT 事件标题 =====
 const URANIUM_EVENT_CONFIGS = [
@@ -1467,9 +1393,29 @@ const stateLabel = computed(() => {
 })
 
 const simProgress = computed(() => Math.min(100, (simStep.value / Math.max(simTotalSteps.value, 1)) * 100))
+
+// 基线报告的「综合评分」与本次结果的「综合评分」来自两套评分链路，数量级可能差很多。
+// 这里只在两者明显不可比时提示一句，不修改任何一方的数值。
+const baselineScoreScaleNote = computed(() => {
+  const baseline = Number(selectedExperiment.value && selectedExperiment.value.report && selectedExperiment.value.report.bestScore)
+  const current = Number(currentRunState.value && currentRunState.value.result && currentRunState.value.result.overallScore)
+  if (!Number.isFinite(baseline) || !Number.isFinite(current) || baseline <= 0 || current <= 0) return ''
+  const ratio = baseline / current
+  if (ratio < 10 && ratio > 0.1) return ''
+  return '基线综合评分 ' + baseline.toFixed(3) + ' 与本次综合评分 ' + current.toFixed(3) + ' 口径不同，数量级相差较大，请勿直接比大小。'
+})
 const selectedExperiment = computed(() => experiments.value.find((item) => item.id === selectedExperimentId.value) || experiments.value[0])
 // 选中即激活：当选中实验有报告时，它就是反事实实验对象
 const activeCounterfactualExperiment = computed(() => selectedExperiment.value?.hasReport ? selectedExperiment.value : null)
+
+// 基线实验自己的观测轮次口径，来自报告里真实记录的 total_iterations
+const baselineRounds = computed(() => {
+  const total = toFiniteNumber(activeCounterfactualExperiment.value?.report?.totalIterations, 0)
+  return total > 0 ? total : SIM_TOTAL_STEPS_DEFAULT
+})
+// 本次真正提交给后端的轮次（方案写入后以方案为准）
+const simTotalSteps = computed(() => planRounds.value || baselineRounds.value)
+
 const activeCounterfactualParams = computed(() => {
   const exp = selectedExperiment.value
   // 优先使用每个实验独立保存的参数
@@ -1553,7 +1499,9 @@ const buildCounterfactualRunPayload = () => {
   return {
     scenario,
     data_dir: dataDir,
-    iterations: isUranium ? (isNetworkBaseline ? 28 : 7) : simTotalSteps.value,
+    // 铀场景此前固定 7 / 28 轮，方案的观测轮次落不下来；现在两个场景都按
+    // 「基线轮次（方案写入后为方案轮次）」提交，方案条上的轮次提示才不是空话。
+    iterations: simTotalSteps.value,
     model: 'qwen',
     planner_strategy: 'native',
     use_decompose: false,
@@ -1782,6 +1730,26 @@ const startSim = async () => {
   const rs = getOrCreateRunState()
   if (rs.running) return
 
+  // 带着对话方案进来时，顶部「运行」读的是参数面板，方案可能压根没生效。
+  // 与其静默跑成面板旧值，不如在这里把两者摆在用户面前让他自己选一次。
+  if (activePlan.value && planExpectedWrites.value.length && planStatus.value !== 'applied') {
+    try {
+      await ElMessageBox.confirm(
+        '参数面板当前值与对话方案不一致，本次提交将使用哪一套参数？',
+        '本次提交与实验方案不一致',
+        {
+          confirmButtonText: '按方案运行',
+          cancelButtonText: '按面板现值运行',
+          distinguishCancelAndClose: true,
+          type: 'warning'
+        }
+      )
+      applyPlanToPanel()
+    } catch (action) {
+      if (action === 'close') return
+    }
+  }
+
   // 参数有效性校验：防止零产能等无效参数提交导致后端进程卡死
   const paramOverrides = buildCounterfactualParamOverrides()
   const capMin = paramOverrides.factory_capacity_range?.[0] || 0
@@ -1800,8 +1768,6 @@ const startSim = async () => {
   if (timer) clearInterval(timer)
   resetRunState('正在提交后端反事实实验任务...')
   const payload = buildCounterfactualRunPayload()
-  // 用实际实验轮数替换硬编码的 15
-  simTotalSteps.value = payload.iterations || SIM_TOTAL_STEPS_DEFAULT
   rs.running = true
   rs.status = 'queued'
   rs.submittedPayload = payload
@@ -2245,6 +2211,245 @@ const applyCounterfactualObject = (experiment) => {
   demandMultiplierInput.value = demandParameter ? demandParameter.value : 1
 }
 
+// ── K5-PIPELINE:对话里确认的实验方案(?plan_id=)在本页落地 ──
+// 方案由 ChatHome 的向导写入 sessionStorage,这里只读取、不重写;
+// 干预变量的 key 与取值区间都来自后端参数目录,前端不补任何默认值。
+const activePlanId = ref(String(route?.query?.[PLAN_QUERY_KEY] || '').trim())
+const activePlan = ref(readExperimentPlan(activePlanId.value))
+
+// 三阶段分析页只在拿到真实后端实验 id 后才可进入(合成兜底结果没有 experiment id)
+const stageExperimentId = computed(() => {
+  const result = currentRunState.value && currentRunState.value.result
+  return String((result && result.experimentId) || '').trim()
+})
+
+// 实验结果区的去向按钮:三阶段分析页要的是「同一份实验数据 + 同一套闭环上下文」,
+// 所以 query 的拼法必须与 ExperimentStageNav.buildQuery 完全一致(实验 id + 方案 id
+// + 来源对话 + 阶段 + 场景),否则跳过去是空页面或丢场景。
+const ANALYSIS_STAGE_PATHS = {
+  observe: SCNET_ROUTES.expAnalysisObserve,
+  intervention: SCNET_ROUTES.expAnalysisIntervention,
+  mechanism: SCNET_ROUTES.expAnalysisMechanism
+}
+const goAnalysisStage = (stage) => {
+  const path = ANALYSIS_STAGE_PATHS[stage]
+  if (!path) return
+  if (!stageExperimentId.value) {
+    ElMessage.warning('还没有拿到后端实验 ID，先点「运行」跑一次实验再进入分析')
+    return
+  }
+  const query = {}
+  PLAN_CONTEXT_KEYS.forEach((key) => {
+    const value = route.query[key]
+    if (value !== undefined && value !== '') query[key] = value
+  })
+  query.experiment_id = stageExperimentId.value
+  if (activePlanId.value) query.plan_id = activePlanId.value
+  router.push({ path, query })
+}
+
+const dismissPlan = () => {
+  activePlan.value = null
+  planRounds.value = 0
+}
+
+// 回到「实验方案设计」页改这份方案（同一个 plan_id 往返，改完再回平台写入面板）
+const editActivePlan = () => {
+  if (!activePlanId.value) return
+  const query = { phase: 'post', scenario: scenarioStore.currentScenario }
+  query[PLAN_QUERY_KEY] = activePlanId.value
+  const sessionId = String(route.query.session_id || '').trim()
+  if (sessionId) {
+    query.from_chat = '1'
+    query.session_id = sessionId
+  }
+  router.push({ path: SCNET_ROUTES.experimentPlan, query })
+}
+
+// 方案是否已经写进过参数面板：没写过就是 pending，写过又被手改就是 drifted
+const planAppliedOnce = ref(isExperimentPlanApplied(activePlanId.value))
+
+/**
+ * 方案干预变量在当前场景参数面板上的落地对账。
+ *
+ * 面板里没有对应输入框的变量（例如铀场景的 collaboration_radius：铀场景没有
+ * manufacturing_corporation 这个实体）既写不进去，也不能拿去判「面板是否已按方案写入」，
+ * 否则状态会永远停在"面板尚未按方案写入"——这正是绿色方案条看起来"没生效"的第二个原因。
+ */
+const planLeverLanding = computed(() => {
+  const known = new Set(activeCounterfactualParams.value.map((item) => item.key))
+  const landed = []
+  const unlanded = []
+  ;(Array.isArray(activePlan.value?.levers) ? activePlan.value.levers : []).forEach((lever) => {
+    const writes = resolveLeverWrites(lever)
+    if (!writes.length) { unlanded.push(lever); return }
+    if (writes.every((write) => known.has(write.key))) landed.push(lever)
+    else unlanded.push(lever)
+  })
+  return { landed, unlanded }
+})
+
+// 方案里真正能落地到面板的写入动作（key + 目标值），用于判断面板是否仍与方案一致
+const planExpectedWrites = computed(() => {
+  const writes = []
+  planLeverLanding.value.landed.forEach((lever) => {
+    resolveLeverWrites(lever).forEach((write) => writes.push(write))
+  })
+  return writes
+})
+
+// 干预变量在面板上的当前值：只在确实与方案值不同时给出，
+// 用来暴露"方案取值不是本场景量纲"这类问题（面板上直接对比，不做任何自动纠正）。
+const formatPanelNumber = (value) => {
+  const number = toFiniteNumber(value)
+  return Number.isInteger(number) ? String(number) : number.toFixed(2)
+}
+const planPanelValues = computed(() => {
+  const params = activeCounterfactualParams.value
+  const map = {}
+  planLeverLanding.value.landed.forEach((lever) => {
+    const writes = resolveLeverWrites(lever)
+    const targets = writes.map((write) => params.find((item) => item.key === write.key))
+    if (!targets.length || targets.some((item) => !item)) return
+    const same = targets.every((item, index) => Number(item.value) === Number(writes[index].value))
+    if (same) return
+    const unit = targets[0].unit || ''
+    map[lever.key] = targets.map((item) => formatPanelNumber(item.value)).join(' ~ ') + (unit ? ' ' + unit : '')
+  })
+  return map
+})
+
+// 方案条上「还不能运行」的真实原因；空串表示可以运行
+// 面板还是空的时候（基线没载入）不列"未落地的变量"：那一刻所有变量都落不了地，
+// 列出来会被读成"这些变量在本场景不存在"，真正的原因交给 planRunBlockedReason 说。
+const planUnlandedLabels = computed(() => (
+  activeCounterfactualParams.value.length
+    ? planLeverLanding.value.unlanded.map((lever) => lever.label || lever.key)
+    : []
+))
+
+const planRunBlockedReason = computed(() => {
+  if (!activePlan.value) return ''
+  if (autoBaselineLoading.value) return ''
+  const sceneName = SCENE_LABELS[scenarioStore.currentScenario] || ''
+  if (!activeCounterfactualExperiment.value) {
+    return `还没有载入${sceneName}的基线实验报告，参数面板是空的。点「按方案运行实验」会先从后端实验库载入基线，再写入方案`
+  }
+  if (!activeCounterfactualParams.value.length) {
+    return '当前实验报告里没有可调参数，方案无法写入参数面板'
+  }
+  if (activePlan.value && !planLeverLanding.value.landed.length) {
+    return `方案里的干预变量都不在${sceneName}的参数面板内，需要回对话改用本场景的变量`
+  }
+  return ''
+})
+
+const planStatus = computed(() => {
+  if (!activePlan.value) return ''
+  const params = activeCounterfactualParams.value
+  const writes = planExpectedWrites.value
+  if (!params.length) return 'pending'
+  // 只要面板现值与方案逐个对上，就算已写入（刷新页面后同样成立），
+  // 否则再区分是"还没写过"还是"写过又被手动改动"。
+  const allMatch = writes.length > 0 && writes.every((write) => {
+    const target = params.find((item) => item.key === write.key)
+    return target && Number(target.value) === Number(write.value)
+  })
+  if (allMatch) return 'applied'
+  return planAppliedOnce.value ? 'drifted' : 'pending'
+})
+
+// 面板已经与方案一致时（含刷新页面后 restore 回来的情况），方案的观测轮次同样要生效：
+// 否则方案条写着 21 轮、点运行却按基线的 28 轮跑。
+watch(planStatus, (status) => {
+  const rounds = Number(activePlan.value?.rounds)
+  if (status === 'applied' && Number.isFinite(rounds) && rounds > 0) planRounds.value = rounds
+}, { immediate: true })
+
+/** 把方案的干预变量写进「可修改实验参数」面板 */
+const applyPlanToPanel = () => {
+  const plan = activePlan.value
+  if (!plan) return 0
+  const params = activeCounterfactualParams.value
+  if (!params.length) {
+    ElMessage.warning('请先导入 / 载入事中实验报告，参数面板有变量后才能写入方案')
+    return 0
+  }
+  const applied = []
+  const skipped = []
+  const levers = Array.isArray(plan.levers) ? plan.levers : []
+  levers.forEach((lever) => {
+    const writes = resolveLeverWrites(lever)
+    if (!writes.length) { skipped.push(lever.label || lever.key); return }
+    const written = []
+    writes.forEach((write) => {
+      const target = params.find((item) => item.key === write.key)
+      if (!target) return
+      target.value = write.value
+      syncCounterfactualParameter(target)
+      written.push(write.value)
+    })
+    if (!written.length) { skipped.push(lever.label || lever.key); return }
+    applied.push((lever.label || lever.key) + '=' + written.join(' ~ '))
+  })
+  // 实验目的 → 平台的「目标问题」,随 param_overrides 一起提交后端 user_goal
+  if (plan.purpose && selectedExperiment.value && selectedExperiment.value.arguments) {
+    selectedExperiment.value.arguments.goal = plan.purpose
+  }
+  // 方案的「观测轮次」在这里生效：simTotalSteps 会随提交给后端的 iterations 一起变
+  if (plan.rounds) planRounds.value = Number(plan.rounds) || 0
+  planAppliedOnce.value = true
+  markExperimentPlanApplied(plan.id)
+  if (applied.length) ElMessage.success('已按方案写入参数面板：' + applied.join('，'))
+  if (skipped.length) ElMessage.warning('以下变量未写入（面板无对应参数或取值无效）：' + skipped.join('，'))
+  return applied.length
+}
+
+/**
+ * 「写入参数面板」的可执行入口：当前场景还没有基线报告时先把基线载进来。
+ * 铀场景此前没有这一步，面板是空的，点写入只会弹一句"请先导入实验报告"，没有任何出路。
+ */
+const applyPlanToPanelSafe = async () => {
+  if (!activePlan.value) return 0
+  if (!activeCounterfactualParams.value.length) {
+    const loaded = await ensureKnowledgeBaseline()
+    if (!loaded) {
+      ElMessage.error(`还没能载入基线实验（${autoBaselineError.value || '后端实验库不可用'}），方案无法写入参数面板`)
+      return 0
+    }
+  }
+  return applyPlanToPanel()
+}
+
+const runPlanNow = async () => {
+  if (!activePlan.value) return
+  // 顺序：补齐基线报告 → 按方案写入面板 → 连接后端 → 提交。
+  // 每一步失败都要有明确原因，不能像以前那样"点了没反应"。
+  const applied = await applyPlanToPanelSafe()
+  if (!applied) return
+  // 平台未连接后端时会静默降级成"合成推算"，那样拿不到真实实验 id、三阶段分析页也就进不去。
+  // 从对话带着方案过来时先自动连一次，连不上就明确报错，不假装跑过。
+  if (!isConnected.value) {
+    await connectSim()
+  }
+  if (!isConnected.value) {
+    ElMessage.error('后端未连接，无法运行真实反事实实验；方案已保留，连接后可在本页重试')
+    return
+  }
+  startSim()
+}
+
+// 从对话里再次带着新方案跳进来时(同一路由复用组件)重新读取
+watch(() => route.query[PLAN_QUERY_KEY], (next) => {
+  const id = String(next || '').trim()
+  if (id === activePlanId.value) return
+  activePlanId.value = id
+  activePlan.value = readExperimentPlan(id)
+  planAppliedOnce.value = isExperimentPlanApplied(id)
+  // 换了方案就回到基线轮次，直到按新方案写入面板
+  planRounds.value = 0
+})
+
 const forceTriggerEvent = () => {
   const nextEvent = eventConfigs.value.find((item) => !triggeredEventIds.value.has(item.id))
   if (!nextEvent) return ElMessage.info('所有事件已完成')
@@ -2353,7 +2558,7 @@ const removeExperiment = () => {
 onMounted(() => {
   migrateLegacyCounterfactualState()
   restoreCounterfactualState()
-  ensureAutomotiveBaseline()
+  ensureKnowledgeBaseline()
 })
 
 // 首页切换场景后本页立即切到对应分桶：先把旧状态落盘到旧场景，再恢复目标场景。
@@ -2366,6 +2571,8 @@ watch(
     stopRunPolling()
     stopLocalProgressTicker()
     restoreCounterfactualState(next)
+    planRounds.value = 0
+    ensureKnowledgeBaseline()
   }
 )
 
@@ -2412,12 +2619,14 @@ watch(
   --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.05);
   --shadow-md: 0 6px 16px rgba(15, 23, 42, 0.06);
   --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  /* 整页滚动模式：根容器随内容增长（不再锁死视口高度），
+     滚动交给外层 .scnet-router-host，三个卡片因此不会被压扁裁切。 */
   width: 100%;
-  height: 100%;
-  min-height: 0;
+  height: auto;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
   padding: 16px;
   box-sizing: border-box;
   background-color: var(--bg-page);
@@ -2483,11 +2692,11 @@ watch(
 }
 
 .scnet-counterfactual-cockpit .top-row {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
-  min-height: 0;
+  min-height: auto;
 }
 
 .scnet-counterfactual-cockpit .panel-card {
@@ -2740,6 +2949,74 @@ watch(
   font-size: 11px;
 }
 
+.scnet-counterfactual-cockpit .results-next-stage {
+  padding: 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+}
+
+.scnet-counterfactual-cockpit .results-next-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.scnet-counterfactual-cockpit .results-next-id {
+  color: #60a5fa;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 500;
+}
+
+.scnet-counterfactual-cockpit .results-next-hint {
+  margin: 6px 0 10px;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.scnet-counterfactual-cockpit .results-next-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.scnet-counterfactual-cockpit .results-next-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: none;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.scnet-counterfactual-cockpit .results-next-primary:hover { background: #1d4ed8; }
+
+.scnet-counterfactual-cockpit .results-next-ghost {
+  padding: 6px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  background: #fff;
+  color: #1d4ed8;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.scnet-counterfactual-cockpit .results-next-ghost:hover { border-color: #2563eb; color: #1e40af; }
+
 .scnet-counterfactual-cockpit .eyebrow {
   margin: 0 0 4px 0;
   color: var(--text-muted);
@@ -2758,8 +3035,8 @@ watch(
 .scnet-counterfactual-cockpit .panel-body {
   flex: 1 1 auto;
   padding: 14px;
-  overflow-y: auto;
-  min-height: 0;
+  overflow: visible;
+  min-height: auto;
 }
 
 .scnet-counterfactual-cockpit .stack {
@@ -2882,6 +3159,26 @@ watch(
   color: var(--text-main);
   font-size: 13px;
   font-weight: 700;
+}
+
+/* 折叠标题行：整行可点，箭头指示展开状态 */
+.scnet-counterfactual-cockpit .fold-head {
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  gap: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+.scnet-counterfactual-cockpit .fold-head:hover { color: var(--primary-color); }
+.scnet-counterfactual-cockpit .fold-head .badge-tag { white-space: nowrap; }
+.scnet-counterfactual-cockpit .fold-arrow {
+  flex: none; color: #94a3b8; font-size: 12px; transition: transform 0.2s;
+}
+.scnet-counterfactual-cockpit .fold-arrow.is-open { transform: rotate(90deg); }
+.scnet-counterfactual-cockpit .fold-toggle {
+  margin-left: auto; color: #94a3b8; font-size: 11.5px; font-weight: 500;
 }
 
 .scnet-counterfactual-cockpit .badge-tag {
@@ -3455,8 +3752,14 @@ watch(
 
 .settings-scroll {
   flex: 1 1 auto;
-  min-height: 0;
+  min-height: auto;
   padding: 16px 20px;
+  overflow: visible;
+}
+
+.settings-scroll .el-scrollbar__wrap {
+  overflow: visible;
+  height: auto;
 }
 
 .group-card {
@@ -3551,6 +3854,10 @@ watch(
   line-height: 1.75;
 }
 
+.report-scale-note {
+  margin: 8px 0 0; padding: 6px 10px; border-radius: 6px;
+  background: #fffbeb; color: #92400e; font-size: 12px; line-height: 1.5;
+}
 .report-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

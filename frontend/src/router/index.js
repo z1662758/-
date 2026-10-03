@@ -229,9 +229,10 @@ const routes = [
         component: () => import("../views/SCnet/CounterfactualExperiment.vue")
       },
       {
-        path: 'expAnalysisMap',
-        name: 'SCnet_ExpAnalysisMap',
-        component: () => import("../views/SCnet/ExpAnalysisMap.vue")
+        // 事后闭环第一步：实验目的 + 实验方案设计（对话里的 ①② 两张向导卡合并到这里）
+        path: 'experimentPlan',
+        name: 'SCnet_ExperimentPlan',
+        component: () => import("../views/SCnet/ExperimentPlanDesign.vue")
       }
 
     ]

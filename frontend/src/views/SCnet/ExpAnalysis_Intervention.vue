@@ -1,5 +1,8 @@
 <template>
   <div class="post-intervention-page">
+    <!-- K5-PIPELINE:实验闭环导航(运行实验 → 观察 → 干预 → 机制),实验 id 从 URL 带入 -->
+    <ExperimentStageNav :experiment-id="routeExperimentId" current="intervention" />
+
     <section class="page-head">
       <div>
         <h1>干预分析与异常检测</h1>
@@ -222,6 +225,12 @@
       </section>
     </div>
 
+    <!-- ===== 供应链态势地图：铀 / 汽车各自的网络拓扑与演化（原独立页面已并入本页）===== -->
+    <section class="situation-map-section">
+      <!-- :experiment-id 让地图锁定与下方策略库 / 异常事件同一个实验，避免两处各看一份数据 -->
+      <SupplyChainSituationMap :experiment-id="currentExperimentId" />
+    </section>
+
     <!-- ===== 异常检测区域 ===== -->
     <section class="anomaly-section" v-if="anomaliesData">
       <div class="anomaly-grid">
@@ -279,7 +288,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, reactive, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   ArrowDown, ArrowRight, DataAnalysis, DataLine, Document, Download, Folder,
@@ -291,11 +300,17 @@ import { getQueueHistory } from '@/api/queue'
 import { getExperimentDetail, getInterventionStrategies, compareInterventions, getAnomalies, getAnomalyDetail } from '@/api/supplyChain'
 import { unwrapApiData } from '@/utils/apiEnvelope'
 import { resolveExperimentIdFromTask } from '@/utils/scnetTaskUtils'
+import ExperimentStageNav from '@/components/SCnet/ExperimentStageNav.vue'
 import { useSupplyChainScenario } from '@/composables/useSupplyChainScenario'
+
+// 供应链态势地图：由原独立页面抽成的面板（场景跟随全局选择，铀/汽车各自一张）
+const SupplyChainSituationMap = defineAsyncComponent(
+  () => import('@/components/SCnet/SupplyChainSituationMap.vue')
+)
 
 // ---- 场景（铀供应链 / 汽车供应链）：与对话首页共用同一份选择 ----
 // ?scenario= 进入时以 URL 为准；策略名/目标/指标单位等口径统一走 sceneText
-const { scenarioStore, isUraniumScene, sceneText, loadScenarioExperiments } = useSupplyChainScenario()
+const { scenarioStore, isUraniumScene, sceneText, routeExperimentId, loadScenarioExperiments } = useSupplyChainScenario()
 
 // 后端加载的策略数据
 const backendStrategies = ref([])
@@ -2309,6 +2324,9 @@ function clearRunOutputForSelectionChange() {
 .metric-value { font-size: 14px; font-weight: 900; color: #0f172a; }
 .empty-hint, .detail-empty { padding: 30px 0; text-align: center; color: #94a3b8; font-size: 12px; font-weight: 600; }
 .detail-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 60px 0; }
+/* 供应链态势地图（原独立页面并入本页后作为页尾的态势底图） */
+.situation-map-section { flex: 0 0 auto; margin-top: 10px; }
+
 /* 统计对比与路径模型 */
 .stats-hint { font-size: 12px; color: #b45309; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 8px 10px; }
 .score-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }

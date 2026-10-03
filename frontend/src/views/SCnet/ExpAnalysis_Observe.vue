@@ -1,5 +1,12 @@
 <template>
   <div class="post-observe-page">
+    <ChatHandoffStrip>
+      <template #hint>下面按实验逐轮汇总的指标分布与异常判定，可与本次结论对照。</template>
+    </ChatHandoffStrip>
+
+    <!-- K5-PIPELINE:实验闭环导航(运行实验 → 观察 → 干预 → 机制),实验 id 从 URL 带入 -->
+    <ExperimentStageNav :experiment-id="routeExperimentId" current="observe" />
+
     <section class="page-head">
       <div>
         <h1>观察分析与案例对比</h1>
@@ -31,6 +38,11 @@
           <el-input v-model="searchQuery" placeholder="搜索..." size="small" clearable class="search-input" />
         </div>
         <div class="panel-body-fill">
+          <div v-if="libraryLoading" class="library-progress">
+            <el-icon class="is-loading"><Refresh /></el-icon>
+            正在加载案例库 {{ libraryProgress.done }}/{{ libraryProgress.total }}
+          </div>
+          <div v-if="libraryNotice" class="library-notice">{{ libraryNotice }}</div>
           <div v-for="folder in filteredFolders" :key="folder.id" class="tree-folder">
             <div class="tree-folder-head" :class="{ expanded: folder.expanded }" @click="folder.expanded = !folder.expanded">
               <el-icon><component :is="folder.expanded ? ArrowDown : ArrowRight" /></el-icon>
@@ -114,8 +126,8 @@
             <div class="compare-head-tabs">
               <button class="tab-btn" :class="{ active: activeTab === 'metrics' }" @click="activeTab = 'metrics'">指标对比</button>
               <button class="tab-btn" :class="{ active: activeTab === 'deep' }" @click="activeTab = 'deep'">深度分析</button>
-              <button class="tab-btn" :class="{ active: activeTab === 'distribution' }" @click="activeTab = 'distribution'">概率分布</button>
-              <button class="tab-btn" :class="{ active: activeTab === 'counterfactual' }" @click="activeTab = 'counterfactual'">反事实推演</button>
+              <button v-if="SHOW_EXTRA_TABS" class="tab-btn" :class="{ active: activeTab === 'distribution' }" @click="activeTab = 'distribution'">概率分布</button>
+              <button v-if="SHOW_EXTRA_TABS" class="tab-btn" :class="{ active: activeTab === 'counterfactual' }" @click="activeTab = 'counterfactual'">反事实推演</button>
             </div>
             <div class="compare-head-actions">
               <el-tooltip content="关闭时按报告全部轮次对比（每侧样本=轮次数，可做显著性检验）；开启后只对比案例所属的那一轮（样本=1，无法检验）" placement="bottom">
@@ -272,6 +284,12 @@
                       <span>生成于 {{ provenance.generated_at }}</span>
                     </div>
                   </div>
+                  <el-alert
+                    v-if="sameSourceCase"
+                    type="warning" :closable="false" show-icon class="analysis-alert"
+                    title="实验 A / B 是同一份实验报告的两个轮次（受控对照）"
+                    description="两侧网络与产能口径一致，变量是干预本身，属于最可比的一组对照。同一份报告只有一条逐轮曲线，因此趋势图只画一条线并标出两轮位置；指标对比已锁定到各自轮次取值。"
+                  />
                 </section>
 
                 <!-- 可比性校验 -->
@@ -367,8 +385,17 @@
                     <el-select v-model="trendMetricKey" size="small" class="trend-select">
                       <el-option v-for="opt in trendOptions" :key="opt.key" :label="opt.label" :value="opt.key" />
                     </el-select>
+                    <el-tag v-if="trendUnavailable" type="warning" size="small" effect="light" round class="h3-tag">该指标无有效产出</el-tag>
                   </h3>
-                  <div ref="trendChartRef" class="trend-chart"></div>
+                  <div ref="trendChartRef" v-show="!trendUnavailable" class="trend-chart"></div>
+                  <div v-if="trendUnavailable" class="trend-unavailable">
+                    <el-icon class="trend-unavailable-icon"><WarningFilled /></el-icon>
+                    <div class="trend-unavailable-body">
+                      <b>{{ trendMetricLabel }}：两组实验都没有可用于对比的逐轮取值</b>
+                      <p>{{ trendUnavailable }}</p>
+                    </div>
+                  </div>
+                  <p v-if="trendNote && !trendUnavailable" class="trend-note">{{ trendNote }}</p>
                 </section>
 
                 <!-- 加权相似度 -->
@@ -377,6 +404,12 @@
                     <el-icon><Odometer /></el-icon>加权多维相似度
                     <el-tag size="small" effect="light" round class="h3-tag">权重按指标重要度归一化</el-tag>
                   </h3>
+                  <el-alert
+                    v-if="zeroFlatLabels"
+                    type="warning" :closable="false" show-icon class="analysis-alert"
+                    :title="zeroFlatMetrics.length + ' 项指标在两组实验中均恒为 0：' + zeroFlatLabels"
+                    description="这些指标没有产出有效取值（仿真未生成对应统计）。它们参与相似度计算时，“两边都没有数据”会被算成“高度相似”，请以其余有取值的指标为准。"
+                  />
                   <div class="similarity-card">
                     <div class="similarity-main">
                       <div class="similarity-score">
@@ -666,10 +699,12 @@ import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick, watch } 
 import { ElMessage } from 'element-plus'
 import {
   ArrowDown, ArrowRight, ArrowUp, Collection, DataAnalysis, DataLine, Document, Download, Folder,
-  FolderOpened, Odometer, Refresh, Setting, TrendCharts, VideoPlay
+  FolderOpened, Odometer, Refresh, Setting, TrendCharts, VideoPlay, WarningFilled
 } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import { getExperimentDetail, compareCases, getExperimentDistribution, postObserveCounterfactual } from '@/api/supplyChain'
+import ChatHandoffStrip from '@/components/SCnet/ChatHandoffStrip.vue'
+import ExperimentStageNav from '@/components/SCnet/ExperimentStageNav.vue'
 import { unwrapApiData } from '@/utils/apiEnvelope'
 import { useSupplyChainScenario } from '@/composables/useSupplyChainScenario'
 
@@ -677,6 +712,8 @@ import { useSupplyChainScenario } from '@/composables/useSupplyChainScenario'
 const loading = ref(false)
 const searchQuery = ref('')
 const activeTab = ref('metrics')
+// 概率分布 / 反事实推演两个页签暂时下线（功能代码保留，把这里改回 true 即可恢复显示）
+const SHOW_EXTRA_TABS = false
 const caseAId = ref(null)
 const caseBId = ref(null)
 const comparison = ref(null)
@@ -685,6 +722,8 @@ const analysis = ref(null)
 const resolvedIds = ref(null)
 const analysisLoading = ref(false)
 const analysisError = ref('')
+// 案例库提示：说明被过滤掉的“仿真未产出指标”的实验
+const libraryNotice = ref('')
 // 是否把对比聚焦到案例所属的那一轮（默认关闭：按报告全部轮次对比，才有足够样本做显著性检验）
 const focusIteration = ref(false)
 const trendChartRef = ref(null)
@@ -699,7 +738,7 @@ const CF_VARIABLE_OPTIONS = ['产能水平', '库存容量', '订单倍数', '�
 const CF_CHANGE_OPTIONS = ['-50%', '-30%', '-20%', '+10%', '+20%', '+30%', '+50%', '+100%']
 // ---- 场景（铀供应链 / 汽车供应链）：与对话首页共用同一份选择 ----
 // ?scenario= 进入时以 URL 为准；场景文案取 sceneText（汽车侧口径来自参数目录与知识库）
-const { isUraniumScene, sceneText, loadScenarioExperiments } = useSupplyChainScenario()
+const { isUraniumScene, sceneText, routeExperimentId, loadScenarioExperiments } = useSupplyChainScenario()
 
 const caseFolders = reactive([
   { id: 'f1', label: sceneText.value.duringFolder, expanded: true, children: [] },
@@ -1297,8 +1336,37 @@ const comparabilityLevelMeta = computed(() => {
 })
 
 // ---- 演化趋势图 ----
-const trendMetricKey = ref('')
+const trendMetricKey = ref('') // probe
 const trendOptions = computed(() => (analysis.value?.trend || []).map(t => ({ key: t.key, label: t.label })))
+
+// 判定一条曲线的“信号”：有点、且取值不全为同一个常数。
+// 恒定曲线（尤其全为 0）画出来是一条水平线，A/B 叠加会完全重合，看着像“两组表现一致”，
+// 实际是仿真根本没产出这项统计（铀场景的完成率/利润全为 0 就是这个情况）。
+const seriesStats = (pts) => {
+  const values = (Array.isArray(pts) ? pts : [])
+    .map(p => Number(p?.value))
+    .filter(v => Number.isFinite(v))
+  if (!values.length) return { count: 0, empty: true, allZero: false, constant: false, hasSignal: false }
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const allZero = values.every(v => Math.abs(v) < 1e-12)
+  const constant = (max - min) <= 1e-12
+  return { count: values.length, empty: false, allZero, constant, hasSignal: !constant }
+}
+
+const trendUnavailable = ref('')
+const trendNote = ref('')
+const trendMetricLabel = computed(
+  () => (analysis.value?.trend || []).find(t => t.key === trendMetricKey.value)?.label || '该指标')
+const sameSourceCase = computed(() => {
+  const a = caseA.value
+  const b = caseB.value
+  return !!(a && b && a.experimentId && a.experimentId === b.experimentId)
+})
+// 两侧都没有有效波动的指标：会被相似度算成“完全一致”，需要显式提示
+const zeroFlatMetrics = computed(() => (analysis.value?.trend || [])
+  .filter(t => !seriesStats(t.series_a).hasSignal && !seriesStats(t.series_b).hasSignal))
+const zeroFlatLabels = computed(() => zeroFlatMetrics.value.map(m => m.label).join('、'))
 
 watch(trendOptions, (opts) => {
   if (!opts.length) { trendMetricKey.value = ''; return }
@@ -1318,15 +1386,47 @@ watch(focusIteration, () => {
 })
 
 const renderTrendChart = () => {
-  const container = trendChartRef.value
-  if (!container) return
-  if (trendChartInstance) { trendChartInstance.dispose(); trendChartInstance = null }
   const trend = (analysis.value?.trend || []).find(t => t.key === trendMetricKey.value)
+  trendUnavailable.value = ''
+  trendNote.value = ''
+  if (trendChartInstance) { trendChartInstance.dispose(); trendChartInstance = null }
   if (!trend) return
-  trendChartInstance = echarts.init(container)
 
   const ptsA = trend.series_a || []
   const ptsB = trend.series_b || []
+  const statA = seriesStats(ptsA)
+  const statB = seriesStats(ptsB)
+
+  // 两侧都没有有效波动：不画重合线，直接说明原因
+  if (!statA.hasSignal && !statB.hasSignal) {
+    if (statA.empty && statB.empty) {
+      trendUnavailable.value = '两组实验报告里都没有这项指标的逐轮取值。'
+    } else if (statA.allZero && statB.allZero) {
+      trendUnavailable.value = '两组实验该指标的逐轮取值全部为 0，说明仿真没有产出这项统计，并不代表“两组表现一致”。请换看其它指标，或回到反事实实验平台重跑一次能产出该指标的实验。'
+    } else {
+      trendUnavailable.value = '两组实验该指标的逐轮取值恒定不变，无法体现两组之间的演化差异。'
+    }
+    return
+  }
+  // A/B 同属一份实验时，后端按整份报告返回的 series_a 与 series_b 本来就是同一条曲线
+  const sameSource = sameSourceCase.value
+  const sourceExpId = caseA.value?.experimentId || ''
+  if (sameSource) {
+    trendNote.value = `A、B 同属一份实验报告（${sourceExpId}）：两侧逐轮序列本就相同，图中改为这一份报告的逐轮曲线，并标出第 ${caseA.value?.iteration ?? '--'} 轮（事中·基准）与第 ${caseB.value?.iteration ?? '--'} 轮（反事实·干预）；指标对比已锁到这两个轮次取值。`
+  } else if (!statA.hasSignal) {
+    trendNote.value = '实验 A 该指标无有效波动（恒定或全为 0），图中只显示实验 B 的演化。'
+  } else if (!statB.hasSignal) {
+    trendNote.value = '实验 B 该指标无有效波动（恒定或全为 0），图中只显示实验 A 的演化。'
+  }
+
+  const container = trendChartRef.value
+  // 容器为 null 说明「深度分析」页签此刻没被渲染（v-else-if），必须直接返回。
+  // 原先这里是 nextTick 自我重试：容器永远为 null → 无限微任务循环，主线程被
+  // 一直占住，整页表现为「点不动、滚动条也不动」。切到深度分析页签时
+  // watch(activeTab) 会再次调用本函数，届时容器已就绪。
+  if (!container) return
+  trendChartInstance = echarts.init(container)
+
   const xs = Array.from(new Set([...ptsA, ...ptsB].map(p => p.iteration))).sort((x, y) => x - y)
   const pick = (pts) => {
     const map = new Map(pts.map(p => [p.iteration, p.value]))
@@ -1334,13 +1434,38 @@ const renderTrendChart = () => {
   }
   const isRate = trend.kind === 'rate'
   const axisLabel = isRate ? { formatter: (v) => `${(v * 100).toFixed(0)}%` } : {}
+  // 图例带上实验 ID：A/B 是否来自同一份报告一眼可见
+  const nameA = resolvedIds.value?.case_a?.experiment_id
+    ? `实验 A · ${resolvedIds.value.case_a.experiment_id}` : '实验 A'
+  const nameB = resolvedIds.value?.case_b?.experiment_id
+    ? `实验 B · ${resolvedIds.value.case_b.experiment_id}` : '实验 B'
+  // 同源时只画一条曲线，用标记点标出 A / B 各自所在轮次
+  const sameSourceName = `逐轮演化 · ${sourceExpId}`
+  const lineValues = sameSource ? pick(ptsA) : null
+  const markPoints = []
+  if (sameSource) {
+    ;[
+      { tag: 'A', iter: caseA.value?.iteration, color: '#3b82f6' },
+      { tag: 'B', iter: caseB.value?.iteration, color: '#22c55e' }
+    ].forEach(({ tag, iter, color }) => {
+      const idx = xs.indexOf(Number(iter))
+      if (idx < 0 || !lineValues || lineValues[idx] == null) return
+      markPoints.push({
+        name: tag,
+        coord: [`第${xs[idx]}轮`, lineValues[idx]],
+        value: tag,
+        itemStyle: { color },
+        label: { formatter: tag, fontSize: 11, fontWeight: 600 }
+      })
+    })
+  }
 
   trendChartInstance.setOption({
     tooltip: {
       trigger: 'axis',
       valueFormatter: (v) => (v == null ? '--' : isRate ? `${(v * 100).toFixed(2)}%` : Number(v).toFixed(2))
     },
-    legend: { data: ['实验 A', '实验 B'], bottom: 0, textStyle: { fontSize: 11, color: '#64748b' } },
+    legend: { data: sameSource ? [sameSourceName] : [nameA, nameB], bottom: 0, type: 'scroll', textStyle: { fontSize: 11, color: '#64748b' } },
     grid: { left: 56, right: 20, top: 18, bottom: 40 },
     xAxis: {
       type: 'category',
@@ -1354,21 +1479,33 @@ const renderTrendChart = () => {
       splitLine: { lineStyle: { color: '#f1f5f9' } },
       axisLabel: { fontSize: 10, color: '#94a3b8', ...axisLabel }
     },
-    series: [
-      {
-        name: '实验 A', type: 'line', data: pick(ptsA), smooth: true,
-        symbol: 'circle', symbolSize: 7, connectNulls: false,
-        lineStyle: { color: '#3b82f6', width: 2.5 }, itemStyle: { color: '#3b82f6' },
-        areaStyle: { color: 'rgba(59,130,246,0.10)' }
-      },
-      {
-        name: '实验 B', type: 'line', data: pick(ptsB), smooth: true,
-        symbol: 'diamond', symbolSize: 7, connectNulls: false,
-        lineStyle: { color: '#22c55e', width: 2.5 }, itemStyle: { color: '#22c55e' },
-        areaStyle: { color: 'rgba(34,197,94,0.10)' }
-      }
-    ]
+    series: sameSource
+      ? [
+          {
+            name: sameSourceName, type: 'line', data: lineValues, smooth: true,
+            symbol: 'circle', symbolSize: 6, connectNulls: false,
+            lineStyle: { color: '#3b82f6', width: 2.5 }, itemStyle: { color: '#3b82f6' },
+            areaStyle: { color: 'rgba(59,130,246,0.10)' },
+            markPoint: { symbol: 'pin', symbolSize: 42, data: markPoints }
+          }
+        ]
+      : [
+          {
+            name: nameA, type: 'line', data: pick(ptsA), smooth: true,
+            symbol: 'circle', symbolSize: 7, connectNulls: false,
+            lineStyle: { color: '#3b82f6', width: 2.5 }, itemStyle: { color: '#3b82f6' },
+            areaStyle: { color: 'rgba(59,130,246,0.10)' }
+          },
+          {
+            name: nameB, type: 'line', data: pick(ptsB), smooth: true,
+            symbol: 'diamond', symbolSize: 7, connectNulls: false,
+            lineStyle: { color: '#22c55e', width: 2.5 }, itemStyle: { color: '#22c55e' },
+            areaStyle: { color: 'rgba(34,197,94,0.10)' }
+          }
+        ]
   })
+  // 空态用 v-show 切换容器，重新显示后需要重算尺寸
+  nextTick(() => { if (trendChartInstance) trendChartInstance.resize() })
 }
 
 const disposeTrendChart = () => {
@@ -1423,9 +1560,11 @@ const runComparison = async () => {
   cfResult.value = null
   cfError.value = ''
   try {
-    // 传纯实验ID；默认对比报告全部轮次（每侧样本 = 轮次数），开启聚焦后才锁定到该案例所属轮次
-    const iterA = focusIteration.value ? (a.iteration ?? null) : null
-    const iterB = focusIteration.value ? (b.iteration ?? null) : null
+    // 传纯实验ID；默认对比报告全部轮次（每侧样本 = 轮次数），开启聚焦后才锁定到该案例所属轮次。
+    // A/B 同属一份实验时必须锁轮次：否则后端拿同一份报告自我对比，差异恒为 0、相似度恒为 100%。
+    const lockIteration = focusIteration.value || (!!a.experimentId && a.experimentId === b.experimentId)
+    const iterA = lockIteration ? (a.iteration ?? null) : null
+    const iterB = lockIteration ? (b.iteration ?? null) : null
     const res = await compareCases(
       a.experimentId || a.id,
       b.experimentId || b.id,
@@ -1595,9 +1734,46 @@ const interventionText = (p = {}) => {
   if (adj === 'reproduction_threshold') return `阈值 ${formatRate(ratio)}`
   return '不干预'
 }
-const findBestIteration = (arr = []) => {
-  if (!Array.isArray(arr) || !arr.length) return null
-  return arr.reduce((b, i) => (toNumber(i?.feedback?.overall_score, -1) > toNumber(b?.feedback?.overall_score, -1) ? i : b), arr[0])
+// ---- 案例可用性与“是否施加干预”的判定 ----
+// 某项指标恒为 0 说明仿真没产出这项统计（铀场景 94 份报告里有 92 份如此），
+// 这类轮次不能作为事中/反事实案例参与对比。
+const iterationHasSignal = (iteration) => {
+  const m = iteration?.simulation_result?.metrics || {}
+  const ocr = toNumber(m.order_completion_rate)
+  const profit = toNumber(m.total_net_profit)
+  return ocr > 0 || profit !== 0
+}
+const demandMultiplierOf = (iteration) => {
+  const n = toNumber(iteration?.task?.parameters?.order_multiplier)
+  return n > 0 ? n : 1
+}
+const capacityKeyOf = (iteration) => {
+  const range = iteration?.task?.parameters?.factory_capacity_range
+  return Array.isArray(range) ? range.map(v => toNumber(v)).join(',') : ''
+}
+// 是否施加了干预：默认看需求倍数（≈1 为基准轮，偏离即需求冲击）。
+// 产能逐轮增长是实验自身的优化过程，不据此判定干预，只在配对时用来配平两侧口径。
+const isDemandShockIteration = (iteration) => Math.abs(demandMultiplierOf(iteration) - 1) > 1e-6
+// 兜底：若整个案例库都没有需求冲击轮（例如只做产能扫描的实验），退化为“产能偏离基准档”也算干预
+const isCapacityShiftIteration = (iteration, baselineCapacityKey = '') => {
+  const key = capacityKeyOf(iteration)
+  return !!baselineCapacityKey && key !== '' && key !== baselineCapacityKey
+}
+// 默认配对：优先“同一实验、同一产能档”的干预轮 —— 两侧网络规模与产能完全相同，
+// 唯一变量是需求倍数，才是受控的反事实对照；找不到再放宽到同一实验，最后跨实验。
+const pickCounterfactualFor = (caseA, candidates) => {
+  if (!candidates.length) return null
+  if (!caseA) return candidates[0]
+  const sameExp = candidates.filter(c => c.experimentId === caseA.experimentId)
+  if (!sameExp.length) return candidates[0]
+  const sameCapacity = sameExp.filter(c => c.capacityKey && c.capacityKey === caseA.capacityKey)
+  const pool = sameCapacity.length ? sameCapacity : sameExp
+  const base = toNumber(caseA.metrics?.order_completion_rate)
+  return pool.reduce((best, c) => {
+    const diff = Math.abs(toNumber(c.metrics?.order_completion_rate) - base)
+    const bestDiff = Math.abs(toNumber(best.metrics?.order_completion_rate) - base)
+    return diff > bestDiff ? c : best
+  }, pool[0])
 }
 const buildEventNodes = (iteration = {}) => {
   const m = iteration.simulation_result?.metrics || {}
@@ -1635,6 +1811,11 @@ const buildCaseFromIteration = (iteration, experiment, index, prefix = 'Exp') =>
     backlogRate: summarizeBacklog(m),
     collaboration: `${m.cooperation_count ?? 0} 次`,
     resilience: score ? score.toFixed(2) : '--',
+    // 供案例库筛选与受控配对使用
+    hasSignal: iterationHasSignal(iteration),
+    capacityKey: capacityKeyOf(iteration),
+    demandMultiplier: demandMultiplierOf(iteration),
+    isIntervention: isDemandShockIteration(iteration),
     demandLevel: `需求 ${Number(p.order_multiplier || 1).toFixed(2)}x`,
     capacityPlan: factoryCapacityText(p),
     intervention: interventionText(p),
@@ -1650,73 +1831,172 @@ const buildCaseFromIteration = (iteration, experiment, index, prefix = 'Exp') =>
     eventNodes: buildEventNodes(iteration)
   }
 }
+// 案例库加载预算：results/multi_agent 下有 100+ 份报告（共 170MB+，单份最大 13MB），
+// 后端每份详情都要完整解析一次 JSON（实测 ~2.6 秒）。原先串行拉取全部报告，首屏要等
+// 5 分钟以上且期间界面全空 —— 用户体验上就是「点不动、滚动条也不动」。
+// 这里改为：只取当前场景最新的 MAX_LIBRARY_EXPERIMENTS 份，并按固定并发拉取详情。
+const MAX_LIBRARY_EXPERIMENTS = 24
+const DETAIL_CONCURRENCY = 6
+const DETAIL_TIMEOUT_MS = 20000
+const libraryLoading = ref(false)
+const libraryProgress = reactive({ done: 0, total: 0 })
+
+// 给单个请求加超时：某一份报告解析卡住时，不能让整个案例库一直等
+const withTimeout = (promise, ms, label) => new Promise((resolve, reject) => {
+  const timer = setTimeout(() => reject(new Error(`${label} 请求超时（${ms}ms）`)), ms)
+  Promise.resolve(promise).then(
+    (value) => { clearTimeout(timer); resolve(value) },
+    (error) => { clearTimeout(timer); reject(error) }
+  )
+})
+
+// 有限并发映射：并发数固定，结果按输入顺序返回，单个失败不影响其余
+const mapWithConcurrency = async (items, limit, worker) => {
+  const results = new Array(items.length).fill(null)
+  let cursor = 0
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor
+      cursor += 1
+      results[index] = await worker(items[index], index)
+    }
+  })
+  await Promise.all(runners)
+  return results
+}
+
+// 取最新 N 份；URL 带了 experiment_id（对话闭环入口）时把它换进来，保证三阶段看的是同一次实验
+const selectLibraryExperiments = (list) => {
+  const scoped = list.slice(0, MAX_LIBRARY_EXPERIMENTS)
+  const preferred = String(routeExperimentId.value || '').trim()
+  if (!preferred || scoped.some(e => String(e.experiment_id || e.id || '') === preferred)) return scoped
+  const hit = list.find(e => String(e.experiment_id || e.id || '') === preferred)
+  if (hit && scoped.length) scoped[scoped.length - 1] = hit
+  return scoped
+}
+
 const buildLocalCases = async () => {
   try {
     // 只加载当前场景（铀 / 汽车）的已完成实验，并按时间倒序取最新
-    const experiments = await loadScenarioExperiments({ completedOnly: true })
-    if (!experiments.length) return
+    const allExperiments = await loadScenarioExperiments({ completedOnly: true })
+    if (!allExperiments.length) return
+    const experiments = selectLibraryExperiments(allExperiments)
+    const skippedByCap = allExperiments.length - experiments.length
 
-    // 加载所有已完成实验（不再限制 4 个）
-    const details = []
-    for (const experiment of experiments) {
+    libraryLoading.value = true
+    libraryProgress.total = experiments.length
+    libraryProgress.done = 0
+    const loaded = await mapWithConcurrency(experiments, DETAIL_CONCURRENCY, async (experiment) => {
       try {
-        const detailPayload = await getExperimentDetail(experiment.experiment_id)
-        details.push({ meta: experiment, detail: unwrapApiData(detailPayload) })
-      } catch { /* skip failed loads */ }
-    }
+        const detailPayload = await withTimeout(
+          getExperimentDetail(experiment.experiment_id),
+          DETAIL_TIMEOUT_MS,
+          experiment.experiment_id
+        )
+        const detail = unwrapApiData(detailPayload)
+        // 该实验的基准产能档（首轮），用于判定后续轮次是否做了产能干预
+        experiment.baselineCapacityKey = capacityKeyOf((detail?.iterations || [])[0])
+        return { meta: experiment, detail }
+      } catch (e) {
+        console.warn(`[ObserveAnalysis] 实验 ${experiment.experiment_id} 详情加载失败：`, e?.message || e)
+        return null
+      } finally {
+        libraryProgress.done += 1
+      }
+    })
+    const details = loaded.filter(Boolean)
     if (!details.length) return
 
-    // 事中案例：每个实验取最佳迭代
-    const duringCases = details
-      .map(({ meta, detail }, idx) => {
-        const best = findBestIteration(detail?.iterations || [])
-        return best ? buildCaseFromIteration(best, meta, idx, 'Exp') : null
+    // ---- 先按“有没有产出真实指标”筛实验：完成率与利润恒为 0 的实验无法参与对比 ----
+    const usable = details.filter(({ detail }) => (detail?.iterations || []).some(iterationHasSignal))
+    const degradedCount = details.length - usable.length
+    const scoped = usable.length ? usable : details
+    const degradedNote = !degradedCount
+      ? ''
+      : usable.length
+        ? `已过滤 ${degradedCount} 份“仿真未产出指标”的实验（完成率与利润恒为 0），它们无法参与对比。`
+        : `当前 ${degradedCount} 份实验的完成率/利润均为 0（仿真未产出），仅可查看、不能作为对比结论。`
+    // 说明加载上限，避免用户误以为案例库里只有这么多实验
+    const capNote = skippedByCap > 0
+      ? `本场景共 ${allExperiments.length} 份已完成实验，为快速加载仅取最新 ${experiments.length} 份。`
+      : ''
+    libraryNotice.value = [degradedNote, capNote].filter(Boolean).join(' ')
+
+    // ---- 事中 / 反事实按“有没有施加干预”切分（此前按“最佳迭代 / 剩下的轮次”切分，
+    //      只是把同一批数据分成两堆，不构成对照）----
+    // 事中库   = 基准轮次：需求倍数 ≈1（需求未被冲击）
+    // 反事实库 = 干预轮次：需求倍数偏离 1；若整个库都没有需求冲击轮，才退化为“产能偏离基准档”
+    // 产能档不参与干预判定（它是实验自身的逐轮优化结果），只在配对时用来配平两侧口径
+    const duringCases = []
+    const counterfactualCases = []
+    let cfIndex = 0
+    // 先判断本场景有没有需求冲击轮，决定干预口径
+    const hasDemandShock = scoped.some(({ detail }) =>
+      (detail?.iterations || []).some((it) => isDemandShockIteration(it)))
+    const classifyIntervention = hasDemandShock
+      ? (it) => isDemandShockIteration(it)
+      : (it, meta) => isCapacityShiftIteration(it, meta.baselineCapacityKey)
+    scoped.forEach(({ meta, detail }) => {
+      const countable = (detail?.iterations || []).filter(iterationHasSignal)
+      const baselineIters = countable.filter((it) => !classifyIntervention(it, meta))
+      const intervened = countable.filter((it) => classifyIntervention(it, meta))
+      // 事中库按“实验 × 产能档”留档：同一产能档只保留完成率最高的一轮基准。
+      // 保留每个产能档，是为了让干预轮能找到“同产能档”的基准轮做受控对照（第 7 轮 ↔ 第 8 轮这种）。
+      const baselineByCapacity = new Map()
+      baselineIters.forEach((it) => {
+        const key = capacityKeyOf(it)
+        const prev = baselineByCapacity.get(key)
+        const ocr = toNumber(it?.simulation_result?.metrics?.order_completion_rate)
+        const prevOcr = toNumber(prev?.simulation_result?.metrics?.order_completion_rate)
+        if (!prev || ocr > prevOcr) baselineByCapacity.set(key, it)
       })
-      .filter(Boolean)
-
-    // 反事实案例：从所有实验的所有迭代中收集（不再只取最新实验）
-    const rawCfCases = []
-    details.forEach(({ meta, detail }) => {
-      const iters = detail?.iterations || []
-      iters.forEach((iter) => {
-        const cf = buildCaseFromIteration(iter, meta, 0, 'CF')
-        if (cf) rawCfCases.push({ cf, meta, iter })
+      if (!baselineByCapacity.size && countable[0]) {
+        baselineByCapacity.set(capacityKeyOf(countable[0]), countable[0])
+      }
+      baselineByCapacity.forEach((it) => {
+        duringCases.push(buildCaseFromIteration(it, meta, duringCases.length, 'Exp'))
+      })
+      intervened.forEach((it) => {
+        counterfactualCases.push(buildCaseFromIteration(it, meta, cfIndex, 'CF'))
+        cfIndex += 1
       })
     })
 
-    // ---- 去重：仅剔除已在事中库展示过的同一（实验, 轮次），其余迭代全部保留 ----
-    // 此前按 experiment_id 整实验剔除，而事中库覆盖了全部实验，导致反事实库被清空、
-    // 只能落到 buildStaticCases('CF') 的 2 条静态兜底。这里改为按 (experiment_id, 轮次) 精确去重。
-    const duringKeys = new Set(duringCases.map((c) => {
-      const m = c.id?.match(/^exp-(.+?)-(\d+)$/)
-      return m ? `${m[1]}:${m[2]}` : null
-    }).filter(Boolean))
-    const cfDeduped = rawCfCases.filter(({ cf }) => {
-      const m = cf.id?.match(/^cf-(.+?)-(\d+)$/)
-      return m ? !duringKeys.has(`${m[1]}:${m[2]}`) : true
-    })
+    const dedupedDuring = duringCases.slice(0, 30)
 
-    // 重新连续编号 + 按韧性排序，最多保留 30 个
-    let counterfactualCases = cfDeduped
-      .map(({ meta, iter }, idx) => buildCaseFromIteration(iter, meta, idx, 'CF'))
-      .sort((a, b) => Number(b.resilience || 0) - Number(a.resilience || 0))
-      .slice(0, 30)
+    // 默认选一组受控对照：优先“同一实验 + 同一产能档”的基准轮 vs 干预轮 ——
+    // 两侧网络规模与产能完全一致，唯一变量是需求倍数，才能谈因果；
+    // 有多个候选时取完成率差异最大的那一对（信息量最大）。
+    const matchedPairs = dedupedDuring
+      .map((aCase) => ({ a: aCase, b: pickCounterfactualFor(aCase, counterfactualCases) }))
+      .filter(({ a, b }) => b && b.experimentId === a.experimentId
+        && b.capacityKey && b.capacityKey === a.capacityKey)
+    const ocrDiff = ({ a, b }) => Math.abs(
+      toNumber(a.metrics?.order_completion_rate) - toNumber(b.metrics?.order_completion_rate))
+    const bestPair = matchedPairs.reduce(
+      (top, cur) => (!top || ocrDiff(cur) > ocrDiff(top) ? cur : top), null)
+    const defaultPair = bestPair || {
+      a: dedupedDuring[0] || null,
+      b: pickCounterfactualFor(dedupedDuring[0] || null, counterfactualCases)
+    }
 
-    // ---- 事中案例内部去重（同 experiment_id 只保留最佳） ----
-    const seenDuring = new Set()
-    const dedupedDuring = []
-    duringCases.forEach(c => {
-      const m = c.id?.match(/^exp-(.+?)-\d+$/); const key = m ? m[1] : c.id
-      if (!seenDuring.has(key)) { seenDuring.add(key); dedupedDuring.push(c) }
-    })
+    // 把默认选中那一对提到各自列表最前：列表只显示前几条，否则高亮的案例会被折叠掉
+    if (defaultPair.a) {
+      const idx = dedupedDuring.findIndex(c => c.id === defaultPair.a.id)
+      if (idx > 0) dedupedDuring.unshift(dedupedDuring.splice(idx, 1)[0])
+    }
+    let cappedCf = counterfactualCases.slice(0, 40)
+    if (defaultPair.b) {
+      cappedCf = [defaultPair.b, ...cappedCf.filter(c => c.id !== defaultPair.b.id)]
+    }
 
     if (dedupedDuring.length) {
       caseFolders[0].children = dedupedDuring
-      caseAId.value = dedupedDuring[0].id
+      caseAId.value = defaultPair.a?.id || dedupedDuring[0].id
     }
-    if (counterfactualCases.length) {
-      caseFolders[1].children = counterfactualCases
-      caseBId.value = counterfactualCases[0]?.id || null
+    if (cappedCf.length) {
+      caseFolders[1].children = cappedCf
+      caseBId.value = defaultPair.b?.id || null
       if (caseBId.value && caseAId.value) runComparison()
     }
     // 确保两个库都有数据
@@ -1759,6 +2039,9 @@ const loadAllCases = async () => {
     caseFolders[1].children = buildStaticCases('CF')
   } finally {
     loading.value = false
+    libraryLoading.value = false
+    libraryProgress.done = 0
+    libraryProgress.total = 0
   }
 }
 
@@ -2047,6 +2330,13 @@ onBeforeUnmount(() => { disposeDistChart(); disposeMetricsLineChart(); disposeTr
 
 .trend-select { margin-left: auto; width: 170px; }
 .trend-chart { width: 100%; height: 300px; }
+.trend-unavailable { display: flex; gap: 10px; align-items: flex-start; padding: 14px 16px; border: 1px dashed #f0c36d; border-radius: 10px; background: #fffbeb; }
+.trend-unavailable-icon { font-size: 18px; color: #d97706; margin-top: 2px; }
+.trend-unavailable-body b { display: block; font-size: 13px; color: #92400e; margin-bottom: 4px; }
+.trend-unavailable-body p { margin: 0; font-size: 12px; line-height: 1.6; color: #a16207; }
+.trend-note { margin: 8px 0 0; font-size: 12px; color: #b45309; }
+.library-notice { margin: 0 0 8px; padding: 6px 8px; font-size: 11px; line-height: 1.5; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; }
+.library-progress { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; padding: 6px 8px; font-size: 11px; font-weight: 600; color: #1d4ed8; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; }
 
 .shape-block { margin-left: 24px; padding-left: 20px; border-left: 1px solid #e2e8f0; }
 .shape-title { font-size: 11px; font-weight: 800; color: #94a3b8; }

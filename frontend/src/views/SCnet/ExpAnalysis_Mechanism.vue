@@ -1,5 +1,8 @@
 <template>
   <div class="post-causal-mechanism-page">
+    <!-- K5-PIPELINE:实验闭环导航(运行实验 → 观察 → 干预 → 机制),实验 id 从 URL 带入 -->
+    <ExperimentStageNav :experiment-id="routeExperimentId" current="mechanism" />
+
     <section class="page-head">
       <div>
         <h1>因果分析</h1>
@@ -231,6 +234,7 @@ import {
 import { getMechanismAnalysis, getExperimentDetail } from '@/api/supplyChain'
 import { unwrapApiData } from '@/utils/apiEnvelope'
 import VerticalCausalGraph from './components/VerticalCausalGraph.vue'
+import ExperimentStageNav from '@/components/SCnet/ExperimentStageNav.vue'
 import { useSupplyChainScenario } from '@/composables/useSupplyChainScenario'
 
 const selectedWorkflowStepId = ref('phenomenon')
@@ -256,7 +260,7 @@ const analysisData = ref(null)
 
 // ---- 场景（铀供应链 / 汽车供应链）：与对话首页共用同一份选择 ----
 // ?scenario= 进入时以 URL 为准；场景文案与变量口径取 sceneText
-const { isUraniumScene, sceneText, loadScenarioExperiments } = useSupplyChainScenario()
+const { isUraniumScene, sceneText, routeExperimentId, loadScenarioExperiments } = useSupplyChainScenario()
 
 // 概览数据
 const overviewItems = computed(() => {

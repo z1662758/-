@@ -32,6 +32,8 @@ export const SCNET_ROUTES = Object.freeze({
   situationJudge: `${SCNET_BASE}/situationJudge`,
   reportGeneration: `${SCNET_BASE}/reportGeneration`,
   situationResearch: `${SCNET_BASE}/situationResearch-main`,
+  // 事前落点:态势研判(NetworkMap 包装页)
+  situationJudge: `${SCNET_BASE}/situationJudge`,
   disruptRisk: `${SCNET_BASE}/DisruptRisk`,
 
   expAnalysisGameTheory: `${SCNET_BASE}/expAnalysisGameTheory`,
@@ -42,6 +44,8 @@ export const SCNET_ROUTES = Object.freeze({
   expAnalysisObserve: `${SCNET_BASE}/expAnalysisObserve`,
   expAnalysisIntervention: `${SCNET_BASE}/expAnalysisIntervention`,
   expAnalysisMechanism: `${SCNET_BASE}/expAnalysisMechanism`,
+  // 事后第一步：把对话研判的结论落成实验目的 + 实验方案（干预变量 / 指标 / 轮次）
+  experimentPlan: `${SCNET_BASE}/experimentPlan`,
   counterfactualExperiment: `${SCNET_BASE}/counterfactualExperiment`,
 })
 
