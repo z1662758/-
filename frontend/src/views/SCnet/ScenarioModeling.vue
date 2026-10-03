@@ -343,9 +343,10 @@
                       <div class="task-chips">
                         <div v-for="(task, i) in msg.analysisData.subtasks" :key="i" class="task-chip">
                           <span class="chip-number">{{ i + 1 }}</span>
-                          <span class="chip-emoji">{{ task.emoji }}</span>
-                          <span class="chip-text">{{ (task.title || task.description || '').substring(0, 35) }}{{ (task.title || task.description || '').length > 35 ? '...' : '' }}</span>
-                          <span class="chip-agent">{{ getAgentDisplayName(task.agent_type || task.assigned_agent) }}</span>
+                          <div class="task-chip-main">
+                            <span class="chip-text">{{ task.title || task.description || '' }}</span>
+                            <span v-if="getSubtaskDescription(task)" class="chip-desc">{{ getSubtaskDescription(task) }}</span>
+                          </div>
                         </div>
                       </div>
                     </div>

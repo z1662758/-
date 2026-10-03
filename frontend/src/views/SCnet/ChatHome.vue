@@ -28,28 +28,17 @@
               <img :src="logoUrl" alt="SCnet" class="chat-welcome-logo" />
               <span class="chat-welcome-text">使用供应链助手开始对话</span>
             </div>
-            <p class="chat-welcome-hint">本系统支持 <b>铀供应链</b> 与 <b>汽车供应链</b> 两大场景。</p>
+            <p class="chat-welcome-hint">本系统支持 <b>铀供应链</b> 与 <b>汽车供应链</b> 两大场景，请先<b>手动选择</b>场景，再选择分析阶段直接提问，即可进入对应的推演分析。</p>
 
-            <!-- 场景指示器（自动识别 + 可手动切换） -->
-            <div class="chat-scenario-row">
-              <div class="chat-scenario-badge" :class="scenarioStore.isSupplyChain ? 'is-auto' : 'is-uranium'">
+            <!-- 场景切换（手动） -->
+            <div class="chat-scenario-switch" role="radiogroup" aria-label="选择供应链场景">
+              <button v-for="opt in scenarioOptions" :key="opt.value" type="button"
+                class="chat-scenario-option" :class="[opt.className, { active: scenarioStore.currentScenario === opt.value }]"
+                role="radio" :aria-checked="scenarioStore.currentScenario === opt.value"
+                @click="selectScenario(opt.value)">
                 <span class="chat-scenario-dot"></span>
-                <span>当前场景：{{ scenarioStore.label }}</span>
-              </div>
-              <el-popover trigger="click" placement="bottom" :width="160" popper-class="chat-popover">
-                <template #reference>
-                  <button class="chat-scenario-switch-btn" title="切换场景">
-                    <el-icon :size="12"><Switch /></el-icon>
-                    <span>切换</span>
-                  </button>
-                </template>
-                <div class="chat-scenario-menu">
-                  <button v-for="s in scenarioOptions" :key="s.value" class="chat-scenario-item"
-                    :class="{ active: scenarioStore.currentScenario === s.value }" @click="selectScenario(s.value)">
-                    {{ s.label }}
-                  </button>
-                </div>
-              </el-popover>
+                <span>{{ opt.label }}</span>
+              </button>
             </div>
 
             <!-- Mode selector -->
@@ -105,7 +94,10 @@
                         </template>
                         <div class="chat-model-menu">
                           <button v-for="m in chatModels" :key="m.value" class="chat-model-item"
-                            :class="{ active: selectedModel === m.value }" @click="selectedModel = m.value">{{ m.label }}</button>
+                            :class="{ active: selectedModel === m.value }"
+                            :disabled="m.configured === false"
+                            :title="m.configured === false ? '后端未配置该 provider 的 API Key' : ''"
+                            @click="selectedModel = m.value">{{ m.configured === false ? m.label + '（未配置 Key）' : m.label }}</button>
                         </div>
                       </el-popover>
                     </div>
@@ -119,12 +111,24 @@
               </div>
             </div>
 
-            <!-- 建议问题 -->
-            <div class="chat-welcome-suggests">
-              <button v-for="s in SUGGEST_QUESTIONS" :key="s" class="chat-suggest-btn" @click="useSuggestion(s)">
-                <el-icon :size="13"><TrendCharts /></el-icon>
-                <span>{{ s }}</span>
-              </button>
+            <!-- 预设问题：按当前场景 × 阶段展示，点击后填入输入框 -->
+            <div class="chat-preset-wrap">
+              <div class="chat-preset-head">
+                <span>{{ presetTitle }}</span>
+              </div>
+              <div class="chat-preset-grid">
+                <button v-for="(q, i) in presetQuestions" :key="q.phase + '-' + i" type="button"
+                  class="chat-preset-card" :title="q.text" @click="applyPreset(q)">
+                  <span class="chat-preset-icon">{{ q.icon }}</span>
+                  <span class="chat-preset-body">
+                    <span class="chat-preset-title">
+                      {{ q.title }}
+                      <em v-if="currentMode === 'auto'" class="chat-preset-phase" :class="'is-' + q.phase">{{ phaseShortLabels[q.phase] }}</em>
+                    </span>
+                    <span class="chat-preset-text">{{ q.text }}</span>
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -215,14 +219,18 @@
                   </el-popover>
                   <el-popover trigger="click" placement="top" :width="200" popper-class="chat-model-popover">
                     <template #reference>
-                      <button class="chat-composer-tag-btn" :disabled="isStreaming" title="选择模型">
+                      <button class="chat-composer-tag-btn" :class="{ 'is-unconfigured': currentModelOption && currentModelOption.configured === false }"
+                        :disabled="isStreaming" title="选择模型">
                         <el-icon :size="15"><Cpu /></el-icon>
                         <span>{{ currentModelLabel }}</span>
                       </button>
                     </template>
                     <div class="chat-model-menu">
                       <button v-for="m in chatModels" :key="m.value" class="chat-model-item"
-                        :class="{ active: selectedModel === m.value }" @click="selectedModel = m.value">{{ m.label }}</button>
+                        :class="{ active: selectedModel === m.value }"
+                        :disabled="m.configured === false"
+                        :title="m.configured === false ? '后端未配置该 provider 的 API Key' : ''"
+                        @click="selectedModel = m.value">{{ m.configured === false ? m.label + '（未配置 Key）' : m.label }}</button>
                     </div>
                   </el-popover>
                 </div>
@@ -243,7 +251,7 @@
     <!-- 右侧：Agent 研判执行面板 -->
     <aside v-if="execPanelVisible" class="chat-exec-panel">
       <div class="chat-exec-header">
-        <span class="chat-exec-title">事前态势研判 · Agent 执行</span>
+        <span class="chat-exec-title">{{ execPanelTitle }}</span>
         <button class="chat-exec-close" @click="execPanelVisible = false" title="收起">&times;</button>
       </div>
       <div class="chat-exec-body">
@@ -308,6 +316,7 @@
 <script>
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import {
   Switch, Cpu, Position, MagicStick, TrendCharts, Aim, DataAnalysis,
   Link, Document, View, ChatDotRound, List, Monitor
@@ -317,24 +326,15 @@ import ChatSidebar from './ChatSidebar.vue'
 import logoUrl from '@/assets/images/logo.png'
 import { useScenarioStore } from '@/stores/scenario'
 import { useScnetScenarioStore } from '@/stores/scnet/useScenarioStore'
-
+import { SCENARIO_VALUES, SCENARIO_LABELS } from '@/constants/scnetScenario'
+import { getPresetQuestions, PHASE_SHORT_LABELS } from '@/constants/scnetPresetQuestions'
 import { writeScnetPhase } from '@/constants/scnetPhase'
 import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 import { unwrapApiData } from '@/utils/session'
 import { getSessions, getSessionDetail, createSession, addChatMessage } from '@/api/scenarioSession'
 import { startAgentChat, streamAgentTask, cancelAgentTask, getAgentModels, getAgentConversations, getAgentConversation, markConversationPdf } from '@/api/scnet/chatAgent'
-import { detectScenario, SCENARIO_VALUES, SCENARIO_LABELS } from '@/constants/scnetScenario'
 
 const SPINNER_GLYPHS = ['✽', '✢', '✦', '✧']
-
-// K3-CHAT-1:事前研判建议问题(§72)
-const SUGGEST_QUESTIONS = [
-  '分析未来90天中国铀供应链风险',
-  '当前最值得关注的供应路线是什么？',
-  '结合最新OSINT进行研判',
-  '如果哈萨克斯坦路线中断会怎样？',
-  '生成当前事前态势研判方案',
-]
 
 // 三部分 section(§74)
 const SECTION_ORDER = ['一', '二', '三']
@@ -373,6 +373,11 @@ const MODE_OPTIONS = [
   { label: '事中决策', value: 'during', icon: Aim },
   { label: '事后复盘', value: 'post', icon: DataAnalysis },
 ]
+// 场景由用户手动切换，不再按输入关键词自动识别
+const SCENARIO_OPTIONS = [
+  { label: SCENARIO_LABELS[SCENARIO_VALUES.URANIUM], value: SCENARIO_VALUES.URANIUM, className: 'is-uranium' },
+  { label: SCENARIO_LABELS[SCENARIO_VALUES.SUPPLY_CHAIN], value: SCENARIO_VALUES.SUPPLY_CHAIN, className: 'is-auto' },
+]
 const PLACEHOLDERS = {
   auto: '描述您的情况，AI 将自动识别分析阶段...',
   pre: '描述您想研判的供应链态势...',
@@ -384,16 +389,13 @@ const EXEC_MODES = [
   { label: '规划模式', value: 'plan', icon: List, desc: '先规划再执行' },
   { label: 'Agent模式', value: 'agent', icon: Monitor, desc: '多智能体协作执行' },
 ]
+// 兜底模型列表：/api/agent/models 拉取失败时才用。
+// 真实列表由 loadAgentModels() 从后端覆盖，并带上 provider_id 与"是否已配置 Key"。
 const CHAT_MODELS = [
-  { label: 'Qwen-Turbo', value: 'qwen-turbo' },
-  { label: 'Qwen-Plus', value: 'qwen-plus' },
-  { label: 'Qwen-Max', value: 'qwen-max' },
+  { label: 'Qwen-Turbo', value: 'qwen::qwen-turbo', providerId: 'qwen', modelId: 'qwen-turbo', configured: true },
+  { label: 'Qwen-Plus', value: 'qwen::qwen-plus', providerId: 'qwen', modelId: 'qwen-plus', configured: true },
+  { label: 'Qwen-Max', value: 'qwen::qwen-max', providerId: 'qwen', modelId: 'qwen-max', configured: true },
 ]
-const SCENARIO_OPTIONS = [
-  { value: SCENARIO_VALUES.URANIUM, label: SCENARIO_LABELS.uranium },
-  { value: SCENARIO_VALUES.SUPPLY_CHAIN, label: SCENARIO_LABELS.supply_chain },
-]
-
 export default {
   name: 'ChatHome',
   components: { ChatSidebar, Switch, Cpu, Position, MagicStick, TrendCharts, Aim, DataAnalysis, Link, Document, View, ChatDotRound, List, Monitor },
@@ -411,7 +413,9 @@ export default {
 
     const messages = ref([])
     const inputText = ref('')
-    const selectedModel = ref('qwen-turbo')
+    const selectedModel = ref('qwen::qwen-turbo')
+    // 模型选项（含 provider）由 loadAgentModels() 从后端覆盖
+    const chatModels = ref(CHAT_MODELS)
     const isStreaming = ref(false)
     const currentConversationId = ref('')
     const conversations = ref([])
@@ -431,6 +435,9 @@ export default {
     const execStatus = ref('')
     const execState = ref('idle') // idle | running | done | error
     const execSections = ref([])
+    // 本次 Agent 任务的分析阶段(pre/during/post):决定执行面板标题,
+    // 否则事后复盘时面板仍写着"事前态势研判"。
+    const runPhase = ref('pre')
     // K2-FLOW:分析完成状态(用于导出PDF/进入可视化)
     const analysisSuccess = ref(false)
     const lastAnalysisMsgId = ref('')
@@ -444,7 +451,18 @@ export default {
       return '导出 PDF'
     })
 
-    const currentModelLabel = computed(() => { const m = CHAT_MODELS.find(o => o.value === selectedModel.value); return m ? m.label : 'Qwen-Turbo' })
+    const currentModelOption = computed(() => chatModels.value.find(o => o.value === selectedModel.value) || null)
+    const currentModelLabel = computed(() => {
+      const m = currentModelOption.value
+      if (!m) return selectedModel.value || '未选择模型'
+      return m.configured === false ? `${m.label} · 未配置 Key` : m.label
+    })
+    const EXEC_PANEL_TITLES = {
+      pre: '事前态势研判 · Agent 执行',
+      during: '事中决策 · Agent 执行',
+      post: '事后复盘 · Agent 执行'
+    }
+    const execPanelTitle = computed(() => EXEC_PANEL_TITLES[runPhase.value] || EXEC_PANEL_TITLES.pre)
     const spinnerGlyph = computed(() => SPINNER_GLYPHS[spinnerGlyphIdx.value] || '✽')
     const modeIndex = computed(() => ({ auto: 0, pre: 1, during: 2, post: 3 }[currentMode.value] || 0))
     const inputPlaceholder = computed(() => PLACEHOLDERS[currentMode.value] || PLACEHOLDERS.auto)
@@ -461,8 +479,24 @@ export default {
       const next = String(mode || '').trim()
       if (['pre', 'during', 'post'].includes(next)) selectMode(next)
     }
-    
-    const selectScenario = (value) => { scenarioStore.setScenario(value) }
+    const selectScenario = (value) => scenarioStore.setScenario(value)
+
+    // 预设问题：跟随当前场景与阶段；智能识别模式下三阶段混排并标注阶段
+    const presetQuestions = computed(() => getPresetQuestions(scenarioStore.currentScenario, currentMode.value))
+    const presetTitle = computed(() => {
+      const modeLabel = currentMode.value === 'auto' ? '' : (MODE_OPTIONS.find(o => o.value === currentMode.value)?.label || '')
+      return `${scenarioStore.label}${modeLabel ? ' · ' + modeLabel : ''} · 试试这样问`
+    })
+    const applyPreset = (q) => {
+      if (!q) return
+      // 智能识别下点了带阶段的预设，顺带切到对应阶段，后续跳转才落到正确页面
+      if (currentMode.value === 'auto' && q.phase) selectMode(q.phase)
+      inputText.value = q.text
+      nextTick(() => {
+        autoResizeWelcome()
+        welcomeTextarea.value?.focus()
+      })
+    }
     const openKnowledge = () => router.push('/chatKnowledge')
 
     const handleModeGlassPointer = (event) => {
@@ -494,6 +528,16 @@ export default {
     const historyLoaded = ref(false)
     const historyError = ref(false)
     let historyRequestSeq = 0
+    const apiBody = (resp) => (resp && typeof resp === 'object' && resp.data && typeof resp.data === 'object') ? resp.data : resp
+    const asArray = (value) => Array.isArray(value) ? value : []
+    const normalizeAgentConversations = (resp) => {
+      const body = apiBody(resp) || {}
+      return asArray(body.conversations || body.items || body.list || body.records)
+    }
+    const normalizeScenarioSessions = (resp) => {
+      const body = apiBody(resp) || {}
+      return asArray(body.sessions || body.items || body.list || body.records)
+    }
 
     const fetchConversations = async () => {
       const requestId = ++historyRequestSeq
@@ -501,28 +545,33 @@ export default {
       console.log(`[History Fetch Start] rid=${requestId} currentCount=${oldCount} t=${Date.now()}`)
       historyLoading.value = true
       try {
-        // agent 会话是权威列表;失败即本次加载失败(不吞成 [])
-        const agResp = await getAgentConversations().catch((err) => {
+        let agList = []
+        let sessList = []
+        let agentError = null
+        let sessionError = null
+        try {
+          const agResp = await getAgentConversations()
+          agList = normalizeAgentConversations(agResp)
+        } catch (err) {
+          agentError = err
           console.warn(`[History] rid=${requestId} agent request FAIL`, err && err.message)
-          throw err
-        })
+        }
         if (requestId !== historyRequestSeq) {
           console.log(`[History Fetch Ignored Stale] rid=${requestId}`)
           return conversations.value
         }
-        const agList = agResp?.data?.conversations || []
-        // scenario sessions 仅兜底补充;失败不影响本次成功(仍以 agent 列表为准)
-        let sessList = []
         try {
           const s = await getSessions()
-          sessList = s?.data?.sessions || []
+          sessList = normalizeScenarioSessions(s)
         } catch (err) {
-          console.warn(`[History] rid=${requestId} sessions refresh FAIL(忽略,保留 agent 列表)`, err && err.message)
+          sessionError = err
+          console.warn(`[History] rid=${requestId} sessions request FAIL`, err && err.message)
         }
         if (requestId !== historyRequestSeq) {
           console.log(`[History Fetch Ignored Stale] rid=${requestId}`)
           return conversations.value
         }
+        if (agentError && sessionError) throw agentError
         const byId = {}
         ;(sessList || []).forEach(x => { byId[x.session_id] = { id: x.session_id, source: 'scenario', title: x.requirement_text || '新对话', created_at: x.timestamp, updated_at: x.timestamp } })
         ;(agList || []).forEach(x => { byId[x.conversation_id] = { id: x.conversation_id, source: 'agent', title: x.title || x.last_user_message || '新对话', created_at: x.created_at, updated_at: x.updated_at, message_count: x.message_count, latest_analysis_id: x.latest_analysis_id } })
@@ -625,7 +674,7 @@ export default {
       const tryScenario = async () => {
         try {
           const sess = await getSessionDetail(convId)
-          const detail = sess?.data
+          const detail = apiBody(sess)
           if (detail && (detail.session_id || Array.isArray(detail.chat_history))) {
             renderScenarioMessages(detail)
             return true
@@ -642,7 +691,7 @@ export default {
       // agent / 未知:agent detail 优先;404/410 时降级 scenario
       try {
         const d = await getAgentConversation(convId)
-        const doc = d?.data
+        const doc = apiBody(d)
         if (doc && Array.isArray(doc.messages) && doc.messages.length) {
           const msgs = doc.messages.map(m => {
             const isUser = m.role === 'user'
@@ -676,14 +725,15 @@ export default {
         if (!ok) pushDetailMessage('该历史对话不存在或已失效。')
       } catch (e) {
         const code = httpStatus(e)
+        const ok = await tryScenario()
+        if (ok) return
         if (code === 404 || code === 410) {
-          const ok = await tryScenario()
-          if (!ok) pushDetailMessage('该历史对话不存在或已失效。')
-        } else {
-          // timeout/5xx/网络错误 = 加载失败,不清空旧状态、不判失效,允许再次点击重试
-          console.warn('[History] 详情加载失败(非404),可重试 code=' + code, e && e.message)
-          pushDetailMessage('历史对话加载失败,请稍后重试。')
+          pushDetailMessage('该历史对话不存在或已失效。')
+          return
         }
+        // timeout/5xx/网络错误 = 加载失败,不清空旧状态、不判失效,允许再次点击重试
+        console.warn('[History] 详情加载失败(非404),可重试 code=' + code, e && e.message)
+        pushDetailMessage('历史对话加载失败,请稍后重试。')
       }
     }
     // K2-PERSIST:持久化当前会话 id(localStorage),供跨页/刷新恢复
@@ -742,17 +792,16 @@ export default {
       })
     }
 
-    // 建议问题点击:填入输入框并发送
-    const useSuggestion = (s) => { inputText.value = s; nextTick(() => handleSend()) }
-
     const handleSend = async () => {
       const text = inputText.value.trim()
-      // 自动识别场景（铀 / 汽车），仅当检测到明确关键词时切换
-      const detected = detectScenario(text)
-      if (detected) scenarioStore.setScenario(detected)
+      // 场景以用户在首页手动选择的为准（scenarioStore.currentScenario），不再按关键词自动切换
       // 保存用户问题，供报告生成等页面使用
       if (text) scenarioStore.setLastUserMessage(text)
       if ((!text && attachments.value.length === 0) || isStreaming.value) return
+
+      // 当前阶段透传给后端 Agent：事后复盘必须带 post，
+      // 否则后端按事前研判的提示词与工具集回答，答案与用户意图不符。
+      const currentAgentPhase = () => (['post', 'during'].includes(currentMode.value) ? currentMode.value : 'pre')
 
       // K3-CHAT-1:事前/智能识别/事后不再跳需求分析页,在对话首页内 Agent 研判。
       // 事中(during)流程保持兼容,仍走原想定生成页。
@@ -768,7 +817,9 @@ export default {
           : currentMode.value === 'post'
             ? '📈 正在进入事后复盘（反事实实验）...'
             : '🔍 正在建立会话并进入态势分析...',
-        _streaming: true
+        _streaming: true,
+        // 占位文案不是答案：首个 text_delta 到达时丢弃，出错时也可被错误信息替换
+        _placeholder: true
       })
       isStreaming.value = true
       scrollToBottom()
@@ -791,8 +842,8 @@ export default {
         if (isDuring) {
           await enterDuringFlow(sid, text, sc)
         } else {
-          // 不跳页:在本对话页内运行 Agent 事前研判
-          await runAgentChat(text, sid)
+          // 不跳页:在本对话页内运行 Agent 研判
+          await runAgentChat(text, sid, currentAgentPhase())
         }
       } catch (e) {
         messages.value.pop()
@@ -805,19 +856,67 @@ export default {
     }
 
     // ── K3-CHAT-1:对话首页 Agent 事前研判 ──────
-    const runAgentChat = async (text, sid) => {
+    /**
+     * 模型选项来自后端 /api/agent/models，并带上「该 provider 是否已配置 Key」。
+     * 此前这里是写死的三个 Qwen 模型、且请求不带 provider_id —— 后端会回落到
+     * DEFAULT_PROVIDER(qwen)，所以 qwen 没 Key 时在界面上怎么换模型都救不回来。
+     */
+    const loadAgentModels = async () => {
+      try {
+        const res = await getAgentModels()
+        const payload = unwrapApiData(res) || {}
+        const providers = payload.providers || []
+        const options = []
+        providers.forEach((p) => {
+          const models = Array.isArray(p.models) ? p.models.filter(Boolean) : []
+          // 老后端没有该字段时不误判为"未配置"
+          const configured = p.api_key_configured !== false
+          models.forEach((m) => options.push({
+            value: `${p.provider_id}::${m}`,
+            providerId: p.provider_id,
+            modelId: m,
+            label: `${p.display_name || p.provider_id} · ${m}`,
+            configured
+          }))
+        })
+        if (!options.length) return
+        chatModels.value = options
+        // 默认选中:优先跟随后端生效的默认 provider(LLM_PROVIDER 环境变量),
+        // 其次任一已配置 Key 的 provider —— 前端不自己猜默认值,猜错就会在
+        // 没配 Key 的 provider 上开局,撞出"模型服务调用失败"。
+        const preferred = options.find((o) => o.providerId === payload.default_provider && o.configured)
+        const keep = options.find((o) => o.value === selectedModel.value && o.configured)
+        if (!keep) selectedModel.value = (preferred || options.find((o) => o.configured) || options[0]).value
+      } catch (e) {
+        console.warn('加载 agent 模型列表失败，使用兜底列表:', e?.message)
+      }
+    }
+
+    const runAgentChat = async (text, sid, phase = 'pre') => {
+      // lastMsg 必须先声明:下面"未配置 Key"的分支会提前 return 并写回错误气泡
+      const lastMsg = messages.value[messages.value.length - 1]
+      const chosen = currentModelOption.value
+      if (chosen && chosen.configured === false) {
+        execState.value = 'error'
+        execStatus.value = `${chosen.label} 未配置 API Key`
+        failAssistantMessage(lastMsg, `当前模型 ${chosen.label} 未在后端配置 API Key；请配置对应环境变量后重启后端，或在上方切换到已配置的模型`)
+        return
+      }
+      runPhase.value = phase
       execPanelVisible.value = true
       execTools.value = []; execSections.value = []
       execState.value = 'running'; execStatus.value = '正在启动 Agent 任务…'
       analysisSuccess.value = false; lastAnalysisMsgId.value = ''; pdfReady.value = false
-      const lastMsg = messages.value[messages.value.length - 1]
       try {
         const res = await startAgentChat({
           message: text,
           conversationId: sid,
-          modelId: selectedModel.value,
+          // provider 必须一起送：后端缺省会回落到 DEFAULT_PROVIDER(qwen)，
+          // 只换模型名换不掉 provider。
+          providerId: currentModelOption.value?.providerId || null,
+          modelId: currentModelOption.value?.modelId || selectedModel.value,
           mode: 'agent',
-          phase: 'pre',
+          phase,
         })
         const data = unwrapApiData(res) || res?.data || res || {}
         const taskId = data?.task_id
@@ -842,6 +941,27 @@ export default {
       }
     }
 
+    // 把错误原因写进对话气泡。旧实现用 `if (!lastMsg.content)` 判断，
+    // 而气泡里本来就有「正在进入事后复盘…」占位文案，导致失败原因被静默吞掉。
+    const failAssistantMessage = (msg, reason) => {
+      if (!msg) return
+      // 复用该气泡已记录的失败原因：complete 事件里 task.error 可能为 null，
+      // 直接用兜底文案会追加一行无信息的「Agent 执行出错」。
+      const effective = reason || msg._failReason || 'Agent 执行出错'
+      const text = `❌ ${effective}`
+      if (msg.content && msg.content.includes(text)) return // error / done / complete 都会触发，避免重复追加
+      if (msg._placeholder || !msg.content) {
+        msg.content = text
+        msg._placeholder = false
+      } else {
+        msg.content += `\n\n${text}`
+      }
+      msg._streaming = false
+      // 记在消息上：后续 done / complete 事件要据此判断本次研判是失败的
+      msg._failed = true
+      msg._failReason = reason || ''
+    }
+
     const handleAgentEvent = (ev, lastMsg) => {
       const type = ev.type
       if (type === 'status') {
@@ -855,7 +975,12 @@ export default {
         const t = execTools.value.find(x => x.call_id === ev.call_id)
         if (t) t.status = 'done'
       } else if (type === 'text_delta') {
-        if (lastMsg) { lastMsg.content += ev.content; scrollToBottom() }
+        if (lastMsg) {
+          // 首个增量到达即丢弃占位文案，否则「正在…」会一直挂在答案前面
+          if (lastMsg._placeholder) { lastMsg.content = ''; lastMsg._placeholder = false }
+          lastMsg.content += ev.content
+          scrollToBottom()
+        }
       } else if (type === 'section') {
         if (!execSections.value.includes(ev.section)) {
           execSections.value.push(ev.section)
@@ -864,16 +989,40 @@ export default {
       } else if (type === 'phase') {
         if (ev.phase === 'output') execStatus.value = '正在生成研判方案…'
       } else if (type === 'done') {
-        execState.value = 'done'; execStatus.value = '研判完成'
+        // 模型调用失败时后端仍会补发 done{reason:'llm_error'}，任务终态随之变成 completed，
+        // 只看 done/complete 会把失败显示成「研判完成」，这里用 reason 与消息失败标记兜住。
+        if (ev.reason === 'llm_error' || (lastMsg && lastMsg._failed)) {
+          execState.value = 'error'
+          execStatus.value = (lastMsg && lastMsg._failReason) || execStatus.value || '模型服务调用失败'
+          analysisSuccess.value = false
+          lastAnalysisMsgId.value = ''
+        } else {
+          execState.value = 'done'; execStatus.value = '研判完成'
+        }
       } else if (type === 'complete') {
-        execState.value = 'done'; execStatus.value = '研判完成'
+        // 后端在任务终态（含 error / cancelled）都会补发 complete，
+        // 不能一律当成研判成功：否则调用失败也显示「研判完成」并给出导出 PDF / 进入可视化入口。
+        const taskStatus = ev.task && ev.task.status
+        const taskError = (ev.task && ev.task.error) || ''
+        const runFailed = taskStatus === 'error' || !!(lastMsg && lastMsg._failed)
         if (agentStream) { try { agentStream.close() } catch {} ; agentStream = null }
         isStreaming.value = false
         if (lastMsg) lastMsg._streaming = false
-        // K2-FLOW:分析成功 → 展示导出PDF + 进入可视化
-        if (lastMsg && lastMsg.content) {
-          analysisSuccess.value = true
-          lastAnalysisMsgId.value = lastMsg.id
+        if (runFailed) {
+          execState.value = 'error'
+          execStatus.value = taskError || (lastMsg && lastMsg._failReason) || execStatus.value || '执行出错'
+          analysisSuccess.value = false; lastAnalysisMsgId.value = ''
+          failAssistantMessage(lastMsg, taskError)
+        } else if (taskStatus === 'cancelled') {
+          execState.value = 'done'; execStatus.value = '已取消'
+          analysisSuccess.value = false; lastAnalysisMsgId.value = ''
+        } else {
+          execState.value = 'done'; execStatus.value = '研判完成'
+          // K2-FLOW:只有真实流式内容才算研判成功（占位文案不算）
+          if (lastMsg && lastMsg.content && !lastMsg._placeholder) {
+            analysisSuccess.value = true
+            lastAnalysisMsgId.value = lastMsg.id
+          }
         }
         // Agent 完成:后台同步真实列表(title/updated_at/新会话);失败不影响当前列表
         setTimeout(() => { refreshHistorySilently() }, 600)
@@ -883,12 +1032,13 @@ export default {
         if (lastMsg) lastMsg._streaming = false
       } else if (type === 'error') {
         execState.value = 'error'; execStatus.value = ev.message || '执行出错'
-        analysisSuccess.value = false
-        if (lastMsg && !lastMsg.content) lastMsg.content = `❌ ${ev.message || 'Agent 执行出错'}`
+        analysisSuccess.value = false; lastAnalysisMsgId.value = ''
+        isStreaming.value = false
+        failAssistantMessage(lastMsg, ev.message)
       }
     }
 
-    // ── K2-FLOW:导出PDF(复用 html2pdf,从当前研判内容生成,不跳旧报告页) ──
+    // ── K2-FLOW:导出PDF(从当前研判内容生成,不跳旧报告页) ──
     const exportPdf = async () => {
       if (pdfGenerating.value) return
       const msg = messages.value.find(m => m.id === lastAnalysisMsgId.value)
@@ -896,12 +1046,14 @@ export default {
       const userMsg = messages.value.filter(m => m.role === 'user')
       const question = userMsg.length ? userMsg[userMsg.length - 1].content.replace(/^\[附件.*$/, '') : ''
       pdfGenerating.value = true
+      let wrap = null
       try {
-        const { default: html2pdf } = await import('html2pdf.js')
+        const { default: html2canvas } = await import('html2canvas')
+        const { jsPDF } = await import('jspdf')
         // 纯 DOM 构建,外部文本一律 textContent(不解析 HTML,防注入)
         const now = new Date().toLocaleString('zh-CN', { hour12: false })
         const safeQ = String(question || '').slice(0, 200)
-        const wrap = document.createElement('div')
+        wrap = document.createElement('div')
         wrap.style.cssText = "font-family:'PingFang SC','Microsoft YaHei',sans-serif;padding:28px;color:#111;position:absolute;left:-9999px;top:0;width:760px;"
         const h = document.createElement('h2'); h.textContent = '中国铀供应链 · 智能态势研判报告'
         h.style.cssText = 'text-align:center;margin:0 0 8px;'
@@ -919,29 +1071,52 @@ export default {
         wrap.appendChild(h); wrap.appendChild(meta); wrap.appendChild(meta2)
         wrap.appendChild(hr); wrap.appendChild(body); wrap.appendChild(foot)
         document.body.appendChild(wrap)
-        await html2pdf().set({
-          margin: 12, filename: '铀供应链研判_' + Date.now() + '.pdf',
-          image: { type: 'jpeg', quality: 0.95 }, html2canvas: { scale: 2, useCORS: true },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        }).from(wrap).save()
-        wrap.remove()
+        const canvas = await html2canvas(wrap, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: false
+        })
+        const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
+        const pageW = pdf.internal.pageSize.getWidth()
+        const pageH = pdf.internal.pageSize.getHeight()
+        const margin = 34
+        const contentW = pageW - margin * 2
+        const scaleFactor = contentW / canvas.width
+        const renderedH = canvas.height * scaleFactor
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', margin, margin, contentW, renderedH)
+        pdf.save('铀供应链研判_' + Date.now() + '.pdf')
         pdfReady.value = true
         if (currentConversationId.value) { try { await markConversationPdf(currentConversationId.value) } catch (_) {} }
       } catch (e) {
         console.warn('导出PDF失败:', e)
         try { ElMessage({ type: 'error', message: '报告生成失败，请重试' }) } catch (_) {}
       } finally {
+        if (wrap) wrap.remove()
         pdfGenerating.value = false
       }
     }
 
-    // ── K2-FLOW:进入可视化 → 态势研判(真实路由 /home/SCnet/situationJudge) ──
+    // ── K2-FLOW:进入可视化(按阶段分流) ──
+    // 此前不管什么阶段都跳到「态势研判」,而那是左侧「事前」分组里的页面:
+    // 事后复盘点进来就会出现"面包屑写着事后、内容全是事前全局态势"的错位。
+    // 与 total.vue 的 PHASE_ROUTES 保持同一套约定。
+    const VISUALIZATION_ROUTE_BY_PHASE = {
+      // 事前:态势研判(供应链网络地图 + 路线风险排行榜)
+      pre: '/home/SCnet/situationJudge',
+      // 事后:事后分组里的第一个页面「反事实实验」,与 total.vue 事后入口一致
+      post: SCNET_ROUTES.counterfactualExperiment
+    }
+
     const goVisualization = () => {
+      const phase = runPhase.value === 'post' ? 'post' : 'pre'
       const query = { from_chat: '1' }
       if (activeRun.value && activeRun.value.conversation_id) {
         query.session_id = activeRun.value.conversation_id
       }
-      router.push({ path: '/home/SCnet/situationJudge', query })
+      // 反事实实验按 ?scenario= 切铀/汽车,不带就会落回默认场景
+      if (phase === 'post') query.scenario = scenarioStore.currentScenario || 'uranium'
+      router.push({ path: VISUALIZATION_ROUTE_BY_PHASE[phase], query })
     }
 
     const toolDisplayName = (t) => TOOL_DISPLAY_NAMES[t] || t
@@ -965,6 +1140,7 @@ export default {
       return false
     }
     onMounted(async () => {
+      loadAgentModels()
       fetchConversations()
       applyModeFromRoute(route.query?.mode)
       // 模式入口(事中)不自动恢复历史,避免覆盖 ?mode=during 流程
@@ -990,15 +1166,16 @@ export default {
       historyLoading, historyError, historyLoaded, retryHistory,
       sidebarCollapsed, currentMode, modeIndex, execMode, attachments,
       debugThinking, debugThinkingVisible, spinnerGlyph,
-      currentModelLabel, currentExecMode, inputPlaceholder,
-      modeOptions: MODE_OPTIONS, chatModels: CHAT_MODELS, EXEC_MODES,
-      scenarioOptions: SCENARIO_OPTIONS, SUGGEST_QUESTIONS,
-      execPanelVisible, activeRun, execTools, execStatus, execState, execSections,
+      currentModelLabel, currentModelOption, currentExecMode, inputPlaceholder,
+      modeOptions: MODE_OPTIONS, chatModels, EXEC_MODES,
+      scenarioOptions: SCENARIO_OPTIONS, selectScenario,
+      presetQuestions, presetTitle, applyPreset, phaseShortLabels: PHASE_SHORT_LABELS,
+      execPanelVisible, execPanelTitle, activeRun, execTools, execStatus, execState, execSections,
       analysisSuccess, lastAnalysisMsgId, pdfGenerating, pdfReady, pdfStateText,
       SECTION_ORDER, SECTION_LABELS, RESULT_CARDS,
-      toolDisplayName, isSectionDone, useSuggestion,
+      toolDisplayName, isSectionDone,
       exportPdf, goVisualization,
-      goToMainPage, selectMode, selectScenario, openKnowledge,
+      goToMainPage, selectMode, openKnowledge,
       handleModeGlassPointer, resetModeGlassPointer,
       triggerFileInput, handleFileChange, removeAttachment,
       handleSend, abortStream, autoResizeWelcome, autoResizeChat,
@@ -1022,7 +1199,7 @@ export default {
 /* ── Welcome ───────────────────────────────── */
 .chat-welcome-wrap {
   flex: 1; display: flex; align-items: center; justify-content: center;
-  min-height: 0; position: relative; overflow: hidden; isolation: isolate;
+  min-height: 0; position: relative; overflow-x: hidden; overflow-y: auto; isolation: isolate;
   background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
 }
 .chat-welcome-wrap::before {
@@ -1041,46 +1218,49 @@ export default {
 .chat-welcome-hint { margin: 12px 0 0; color: #6b7280; font-size: 14px; line-height: 1.6; text-align: center; }
 .chat-welcome-hint b { color: #4f46e5; }
 
-/* 场景指示器 */
-.chat-scenario-row {
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  margin-top: 10px;
+/* 场景切换（手动） */
+.chat-scenario-switch {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-top: 12px; padding: 3px;
+  border-radius: 999px; background: #f3f4f6; border: 1px solid #e5e7eb;
 }
-.chat-scenario-badge {
+.chat-scenario-option {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 4px 14px;
-  border-radius: 20px; font-size: 13px; font-weight: 500;
-  cursor: default; user-select: none;
+  padding: 5px 14px; border: none; border-radius: 999px;
+  background: transparent; color: #6b7280; font-size: 13px; font-weight: 500;
+  cursor: pointer; user-select: none; transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
 }
-.chat-scenario-badge.is-uranium { background: #eef2ff; color: #4f46e5; }
-.chat-scenario-badge.is-auto { background: #ecfdf5; color: #059669; }
-.chat-scenario-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.is-uranium .chat-scenario-dot { background: #6366f1; }
-.is-auto .chat-scenario-dot { background: #10b981; }
-
-.chat-scenario-switch-btn {
-  display: inline-flex; align-items: center; gap: 3px;
-  padding: 3px 10px; border: 1px solid #e5e7eb; border-radius: 20px;
-  background: #fff; color: #6b7280; font-size: 12px; cursor: pointer;
-  transition: border-color 0.2s, color 0.2s;
-}
-.chat-scenario-switch-btn:hover { border-color: #93c5fd; color: #2563eb; }
-.chat-scenario-menu { display: flex; flex-direction: column; gap: 2px; }
-.chat-scenario-item { width: 100%; padding: 8px 10px; border: none; border-radius: 6px; background: none; cursor: pointer; text-align: left; font-size: 13px; color: #4b5563; }
-.chat-scenario-item:hover { background: #f3f4f6; }
-.chat-scenario-item.active { background: #eef2ff; color: #4f46e5; font-weight: 600; }
-
+.chat-scenario-option:hover:not(.active) { color: #111827; }
+.chat-scenario-option.active { font-weight: 600; box-shadow: 0 1px 2px rgba(17,24,39,0.06); }
+.chat-scenario-option.is-uranium.active { background: #eef2ff; color: #4f46e5; }
+.chat-scenario-option.is-auto.active { background: #ecfdf5; color: #059669; }
+.chat-scenario-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: #d1d5db; }
+.chat-scenario-option.is-uranium.active .chat-scenario-dot { background: #6366f1; }
+.chat-scenario-option.is-auto.active .chat-scenario-dot { background: #10b981; }
 .chat-welcome-input { width: 100%; }
 
-/* ── 建议问题 ─────────────────────────────── */
-.chat-welcome-suggests { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 16px; }
-.chat-suggest-btn {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 6px 12px; border: 1px solid #e5e7eb; border-radius: 999px;
-  background: #f9fafb; color: #4b5563; font-size: 12.5px; cursor: pointer;
-  transition: all 0.15s;
+/* 预设问题 */
+.chat-preset-wrap { width: 100%; margin-top: 18px; }
+.chat-preset-head { display: flex; align-items: center; margin-bottom: 10px; padding: 0 2px; color: #9ca3af; font-size: 12px; letter-spacing: 0.02em; }
+.chat-preset-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.chat-preset-card {
+  display: flex; align-items: flex-start; gap: 10px; width: 100%; min-width: 0;
+  padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 12px;
+  background: rgba(255,255,255,0.86); text-align: left; cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, background 0.18s ease;
 }
-.chat-suggest-btn:hover { border-color: #93c5fd; color: #2563eb; background: #eff6ff; }
+.chat-preset-card:hover { border-color: #a5b4fc; background: #fff; box-shadow: 0 6px 18px rgba(79,70,229,0.08); transform: translateY(-1px); }
+.chat-preset-icon { flex-shrink: 0; font-size: 16px; line-height: 20px; }
+.chat-preset-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.chat-preset-title { display: flex; align-items: center; gap: 6px; color: #111827; font-size: 13px; font-weight: 600; line-height: 20px; }
+.chat-preset-phase { padding: 0 6px; border-radius: 999px; font-size: 11px; font-style: normal; font-weight: 500; line-height: 16px; }
+.chat-preset-phase.is-pre { background: #eff6ff; color: #2563eb; }
+.chat-preset-phase.is-during { background: #fff7ed; color: #ea580c; }
+.chat-preset-phase.is-post { background: #f0fdf4; color: #16a34a; }
+.chat-preset-text {
+  color: #6b7280; font-size: 12px; line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
 
 /* ── Mode Selector ─────────────────────────── */
 .chat-mode-wrap { display: flex; align-items: center; justify-content: center; margin: 6px 0 38px; }
@@ -1232,6 +1412,9 @@ export default {
 .chat-model-item { width: 100%; padding: 8px 10px; border: none; border-radius: 6px; background: none; cursor: pointer; text-align: left; font-size: 13px; color: #4b5563; }
 .chat-model-item:hover { background: #f3f4f6; }
 .chat-model-item.active { background: #eef2ff; color: #4f46e5; font-weight: 600; }
+.chat-model-item:disabled { opacity: 0.5; cursor: not-allowed; }
+.chat-model-item:disabled:hover { background: none; }
+.chat-composer-tag-btn.is-unconfigured { color: #dc2626; border-color: #fecaca; background: #fef2f2; }
 
 .chat-send-btn { width: 34px; height: 34px; border: none; border-radius: 10px; background: #2563eb; color: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s; }
 .chat-send-btn:hover:not(:disabled) { background: #1d4ed8; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(37,99,235,0.3); }
@@ -1330,6 +1513,7 @@ export default {
   .chat-welcome { padding: 0 16px 48px; }
   .chat-welcome-text { font-size: 20px; }
   .chat-mode-option { min-width: 70px; padding: 10px 10px; font-size: 13px; gap: 4px; }
+  .chat-preset-grid { grid-template-columns: 1fr; }
   .chat-messages-inner { padding: 8px 16px 20px; }
   .chat-input-area { padding: 0 16px 20px; }
   .chat-msg-body { max-width: 85%; }

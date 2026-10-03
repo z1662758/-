@@ -5,16 +5,20 @@ import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStor
 import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 
 export const DURING_FLOW_STEPS = [
-  { key: 'analysis', label: '智能对话', route: SCNET_ROUTES.scenarioAnalysis, query: {} },
-  { key: 'workflow', label: '实验设计', route: SCNET_ROUTES.agentSimulationStudio, query: { view: 'workflow' } },
+  { key: 'analysis', label: '需求拆解', route: SCNET_ROUTES.scenarioAnalysis, query: {} },
+  { key: 'workflow', label: '实体建模', route: SCNET_ROUTES.agentSimulationStudio, query: { view: 'workflow' } },
+  { key: 'experiment', label: '实验推演', route: SCNET_ROUTES.experimentManager, query: { view: 'run' } },
+  { key: 'decision', label: '决策生成', route: SCNET_ROUTES.experimentManager, query: { view: 'decision' } },
 ]
 
-export function routeToStepKey(routePath) {
+export function routeToStepKey(routePath, routeQuery = {}) {
   if (!routePath) return ''
   if (routePath.startsWith(SCNET_ROUTES.scenarioAnalysis)) return 'analysis'
   if (routePath.startsWith(SCNET_ROUTES.agentSimulationStudio)) return 'workflow'
-  if (routePath.startsWith(SCNET_ROUTES.experimentManager)) return 'experiment'
-  if (routePath.startsWith(SCNET_ROUTES.interface)) return 'result'
+  if (routePath.startsWith(SCNET_ROUTES.experimentManager)) {
+    return routeQuery.view === 'decision' ? 'decision' : 'experiment'
+  }
+  if (routePath.startsWith(SCNET_ROUTES.interface)) return 'experiment'
   return ''
 }
 
@@ -35,6 +39,8 @@ function buildCompletionMap(s) {
   return {
     analysis: hasApiResult || hasSnapshot,
     workflow: hasWorkflowData,
+    experiment: hasWorkflowData,
+    decision: hasWorkflowData,
   }
 }
 

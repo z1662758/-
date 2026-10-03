@@ -91,15 +91,17 @@
       </div>
 
       <!-- ========== 汽车供应链地图 ========== -->
+      <!-- 布局：地图整幅占上部主区域；港口聚类与网络演化并排放到地图下方；
+           极端事件按内容自适应高度（此前 flex: 1 会撑出大片空白） -->
       <div v-else class="supply-view">
-        <div class="top-section">
-          <div class="left-panel">
+        <div class="map-section">
+          <SupplyChainMap ref="mapRef" />
+        </div>
+        <div class="bottom-section">
+          <div class="bottom-panel">
             <PortEnterprisePanel @port-selected="handlePortSelected" />
           </div>
-          <div class="center-panel">
-            <SupplyChainMap ref="mapRef" />
-          </div>
-          <div class="right-panel">
+          <div class="bottom-panel bottom-panel--network">
             <NetworkEvolutionChart />
           </div>
         </div>
@@ -112,11 +114,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick, defineAsyncComponent } from 'vue'
+import { ref, computed, watch, onMounted, nextTick, defineAsyncComponent } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 import { useSupplyChainStore } from '@/stores/supplyChain'
 import UraniumFlowMap from './components/UraniumFlowMap.vue'
+import { useSupplyChainScenario, filterExperimentsByScenario } from '@/composables/useSupplyChainScenario'
+import { SCENARIO_VALUES } from '@/constants/scnetScenario'
 import {
   buildMapPayload,
   buildUraniumTimelineRows,
@@ -138,7 +142,13 @@ const ExtremeEventsPanel = defineAsyncComponent(() =>
 )
 
 // ================== 通用状态 ==================
-const activeScenario = ref('uranium')
+// 场景与全局选择共用一份（对话首页切换 / ?scenario= 进入都会生效）：
+// 此前固定默认铀供应链，汽车场景进入本页仍停在铀地图。
+const { isUraniumScene } = useSupplyChainScenario()
+const activeScenario = ref(isUraniumScene.value ? 'uranium' : 'supplyChain')
+watch(isUraniumScene, () => {
+  activeScenario.value = isUraniumScene.value ? 'uranium' : 'supplyChain'
+})
 const loadError = ref('')
 const mapRef = ref(null)
 
@@ -213,8 +223,13 @@ const autoPickerId = computed({
   get: () => currentExperimentId.value || '',
   set: (id) => { if (id) supplyChainStore.loadExperiment(id) }
 })
+// 实验列表里铀与汽车两类实验混在一起（接口不区分场景），下拉必须按场景过滤：
+// 否则默认选中的是列表第一条（铀实验），汽车地图会去读铀实验的数据。
+const automotiveExperiments = computed(() =>
+  filterExperimentsByScenario(supplyChainStore.experiments, SCENARIO_VALUES.SUPPLY_CHAIN)
+)
 const autoExperimentOptions = computed(() => (
-  (supplyChainStore.experiments || [])
+  automotiveExperiments.value
     .map((item) => ({ id: item.experiment_id, label: item.experiment_id }))
     .filter((item) => item.id)
 ))
@@ -392,18 +407,28 @@ onMounted(() => {
   overflow: hidden;
 }
 
-.top-section {
-  flex: 1;
-  display: grid;
-  grid-template-columns: minmax(286px, 320px) minmax(0, 1fr) minmax(286px, 320px);
-  gap: 8px;
-  min-height: 0;
+/* 地图：占据上部主区域 */
+.map-section {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 320px;
   overflow: hidden;
 }
 
-.left-panel,
-.center-panel,
-.right-panel {
+/* 地图下方：港口企业聚类 + 网络演化面板并排，固定约占三成高度 */
+.bottom-section {
+  flex: 0 0 34%;
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+  min-height: 220px;
+  overflow: hidden;
+}
+
+.bottom-panel {
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -411,11 +436,31 @@ onMounted(() => {
   overflow: hidden;
 }
 
+/* 网络演化面板从右栏移到地图下方后变成“宽而矮”，
+   内部由纵向堆叠改成三栏平铺，图表与事件卡不再被裁掉。 */
+.bottom-panel--network :deep(.charts-container) {
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(210px, 0.95fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 10px;
+  overflow: hidden;
+}
+
+.bottom-panel--network :deep(.chart-item),
+.bottom-panel--network :deep(.event-carousel-item) {
+  min-height: 0;
+  height: 100%;
+}
+
+.bottom-panel--network :deep(.event-content) {
+  overflow-y: auto;
+}
+
+/* 极端事件：高度随内容，不再抢占页面下半部分 */
 .events-section {
-  flex: 1;
+  flex: 0 0 auto;
   margin-top: 2px;
-  flex-shrink: 0;
-  min-height: 200px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 @media (max-width: 1100px) {
@@ -426,11 +471,17 @@ onMounted(() => {
   .uranium-metric-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .top-section {
-    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
+  .map-section {
+    min-height: 260px;
   }
-  .right-panel {
-    display: none;
+  .bottom-section {
+    flex: 0 0 40%;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bottom-panel--network :deep(.charts-container) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: repeat(3, minmax(150px, 1fr));
+    overflow-y: auto;
   }
 }
 </style>

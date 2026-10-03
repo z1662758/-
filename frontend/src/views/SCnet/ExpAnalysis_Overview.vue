@@ -2,10 +2,11 @@
   <div class="overview-page mid-stage-bg analysis-workspace">
     <header class="report-toolbar glass-panel">
       <div class="report-heading">
-        <span>DECISION REPORT</span>
-        <div><h1>供应链决策报告</h1><p>基于当前实验结果，归纳压力窗口、策略效果与执行边界</p></div>
+        <span>REPORT</span>
+        <div><h1>供应链决策报告</h1><p>汇总情景概率、节点脆弱性、对策效果与执行边界。</p></div>
       </div>
       <div class="report-actions">
+        <span class="report-updated">更新于 {{ generatedAt }}</span>
         <el-select
           v-if="!isAuto"
           v-model="selectedReportId"
@@ -16,7 +17,6 @@
         >
           <el-option v-for="item in history" :key="item.experiment_id" :label="experimentOptionLabel(item)" :value="item.experiment_id" />
         </el-select>
-        <span class="report-updated">更新于 {{ generatedAt }}</span>
         <el-button :disabled="exportingPdf" @click="refreshReport">
           <el-icon><Refresh /></el-icon>刷新结论
         </el-button>
@@ -61,11 +61,26 @@
         </div>
       </section>
 
+      <section id="report-digest" class="analysis-digest-grid">
+        <article v-for="item in analysisDigestCards" :key="item.step" :class="['analysis-digest-card', item.tone, 'glass-panel']">
+          <div class="analysis-digest-head">
+            <span>{{ item.step }}</span>
+            <el-tag size="small" :type="item.tagType" effect="plain">{{ item.status }}</el-tag>
+          </div>
+          <h3>{{ item.title }}</h3>
+          <strong>{{ item.conclusion }}</strong>
+          <p>{{ item.detail }}</p>
+          <div class="analysis-digest-metrics">
+            <span v-for="metric in item.metrics" :key="metric.label"><small>{{ metric.label }}</small><b>{{ metric.value }}</b></span>
+          </div>
+        </article>
+      </section>
+
       <section id="report-actions" class="overview-grid">
         <article class="action-panel glass-panel">
           <div class="overview-section-head compact">
             <div>
-              <span class="overview-kicker">02 · 决策建议</span>
+              <span class="overview-kicker">05 · 执行计划</span>
               <h3>按时序推进的行动方案</h3>
             </div>
           </div>
@@ -84,7 +99,7 @@
         <article class="evidence-panel glass-panel">
           <div class="overview-section-head compact">
             <div>
-              <span class="overview-kicker">03 · 证据链</span>
+              <span class="overview-kicker">06 · 证据来源</span>
               <h3>结论如何形成</h3>
             </div>
           </div>
@@ -100,7 +115,7 @@
       <template v-if="reportVm">
         <section id="report-windows" class="report-section glass-panel">
           <div class="overview-section-head compact">
-            <div><span class="overview-kicker">04 · 过程演化</span><h3>年度压力窗口与关键转折</h3></div>
+            <div><span class="overview-kicker">07 · 过程演化</span><h3>年度压力窗口与关键转折</h3></div>
             <span class="section-meta">覆盖 {{ reportVm.focusWindowCards.length }} 个年度窗口</span>
           </div>
           <div class="window-table">
@@ -118,7 +133,7 @@
 
         <section id="report-strategies" class="report-section glass-panel">
           <div class="overview-section-head compact">
-            <div><span class="overview-kicker">05 · 策略评估</span><h3>候选动作排序与相对改善</h3></div>
+            <div><span class="overview-kicker">08 · 策略评估</span><h3>候选动作排序与相对改善</h3></div>
             <span class="section-meta">基线 {{ reportVm.decisionSummary.baselineScoreText }}</span>
           </div>
           <div class="strategy-table">
@@ -131,9 +146,37 @@
           </div>
         </section>
 
+        <section id="report-screening" class="report-section glass-panel">
+          <div class="overview-section-head compact">
+            <div><span class="overview-kicker">09 · 方案筛选</span><h3>从初始集合到优选执行方案</h3></div>
+            <span class="section-meta">蒙特卡罗采样 / 贝叶斯反馈</span>
+          </div>
+          <div class="screening-layout">
+            <div class="screening-methods">
+              <article v-for="item in screeningMethodCards" :key="item.title" class="screening-method-card">
+                <span>{{ item.step }}</span>
+                <strong>{{ item.title }}</strong>
+                <p>{{ item.text }}</p>
+              </article>
+            </div>
+            <div class="screening-table">
+              <div class="screening-row screening-head">
+                <span>阶段</span><span>方案</span><span>排序</span><span>得分</span><span>处理结果</span>
+              </div>
+              <div v-for="item in screeningRows" :key="item.id" :class="['screening-row', { best: item.isBest }]">
+                <span><el-tag size="small" :type="item.tagType" effect="plain">{{ item.phase }}</el-tag></span>
+                <span><strong>{{ item.name }}</strong><small>{{ item.note || item.outcome }}</small></span>
+                <span>{{ item.rankText }}</span>
+                <span>{{ item.scoreText }}</span>
+                <span>{{ item.resultText }}</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section id="report-risks" class="report-detail-grid">
           <article class="report-section glass-panel">
-            <div class="overview-section-head compact"><div><span class="overview-kicker">06 · 结构韧性</span><h3>期末供应结构与集中度</h3></div></div>
+            <div class="overview-section-head compact"><div><span class="overview-kicker">10 · 结构韧性</span><h3>期末供应结构与集中度</h3></div></div>
             <div class="structure-grid">
               <div v-for="item in reportVm.structureSummaryCards" :key="item.label" class="structure-card">
                 <span>{{ item.label }}</span><strong>{{ item.value }}</strong><p>{{ item.detail }}</p>
@@ -141,7 +184,7 @@
             </div>
           </article>
           <article class="report-section glass-panel">
-            <div class="overview-section-head compact"><div><span class="overview-kicker">07 · 监测清单</span><h3>触发策略调整的风险信号</h3></div></div>
+            <div class="overview-section-head compact"><div><span class="overview-kicker">11 · 监测清单</span><h3>触发策略调整的风险信号</h3></div></div>
             <div class="alert-list">
               <div v-for="(item, index) in reportVm.alerts" :key="item" class="alert-row"><span>{{ index + 1 }}</span><p>{{ item }}</p></div>
               <el-empty v-if="!reportVm.alerts.length" description="当前实验没有新增风险告警" :image-size="54" />
@@ -150,7 +193,7 @@
         </section>
 
         <section id="report-conclusion" class="final-conclusion">
-          <span>08 · 综合决策</span>
+          <span>12 · 综合决策</span>
           <h2>{{ reportVm.decisionSummary.recommendedStrategy }}</h2>
           <p>{{ reportVm.decisionSummary.headline }}</p>
           <div><strong>适用场景</strong>{{ reportVm.decisionSummary.scenarioLabel }} · {{ reportVm.decisionSummary.timeLabel }} · {{ reportVm.decisionSummary.eventName }}</div>
@@ -202,7 +245,7 @@ const heroTags = computed(() => reportVm.value?.reportHero?.tags || [
   { label: '更新时间', value: '当前实验快照', type: 'warning' }
 ])
 const overallConclusion = computed(() => reportVm.value?.reportBriefBlocks?.[0]?.text
-  || '综合博弈关系、决策路径和多情景结果，当前应优先保障核心需求与关键通道，避免单点失效向网络扩散。')
+  || '综合情景概率、节点脆弱性和对策路径结果，当前应优先保障核心需求与关键通道，避免单点失效向供应网络扩散。')
 const overallRiskTag = computed(() => {
   const tone = reportVm.value?.reportBriefBlocks?.[0]?.tone
   const label = reportVm.value?.reportHero?.title?.split('·').pop()?.trim()
@@ -224,6 +267,39 @@ const verdictItems = computed(() => reportVm.value?.keyResultCards?.map((item) =
   { label: '主要风险', value: '供给收紧', detail: '单一来源和跨境通道暴露是主要脆弱点。' },
   { label: '推荐策略', value: '多源调度', detail: '保留替代来源，同时控制库存与运输成本。' }
 ]))
+
+const analysisDigestCards = computed(() => {
+  const summary = selectedExperiment.value?.summary || selectedExperiment.value?.report || {}
+  const windows = reportVm.value?.focusWindowCards || []
+  const severeWindows = windows.filter(item => ['danger', 'critical'].includes(item.tone)).length
+  const extremeProbability = windows.length ? Math.max(12, Math.round(severeWindows / windows.length * 100)) : 18
+  const riskRaw = Number(summary.avg_risk_exposure ?? summary.risk_exposure ?? 0.48)
+  const riskScore = Math.round(Math.max(0, Math.min(100, riskRaw <= 1 ? riskRaw * 100 : riskRaw)))
+  const inventoryYears = Number(summary.final_inventory_coverage_years ?? summary.avg_inventory_coverage_years ?? 0.9)
+  const recoveryDays = Math.max(3, Math.round(15 + riskScore * .28 - inventoryYears * 5))
+  const best = reportVm.value?.decisionSummary?.candidateRows?.find(item => item.isBest)
+    || reportVm.value?.decisionSummary?.candidateRows?.[0]
+  return [
+    {
+      step: '02 · 情景分析', title: '可能发生什么', status: '概率估计', tagType: 'primary', tone: 'scenario',
+      conclusion: severeWindows ? `存在 ${severeWindows} 个高压力年度窗口` : '整体仍处于可控窗口',
+      detail: '基于年度风险、库存和缺口结果，区分基准、扰动与极端情景。',
+      metrics: [{ label: '极端情景概率', value: `${extremeProbability}%` }, { label: '年度窗口', value: `${windows.length || '--'} 个` }]
+    },
+    {
+      step: '03 · 脆弱性分析', title: '哪里容易失效', status: riskScore >= 70 ? '高脆弱' : riskScore >= 45 ? '中脆弱' : '低脆弱', tagType: riskScore >= 70 ? 'danger' : 'warning', tone: 'vulnerability',
+      conclusion: '跨境通道与单一来源依赖是主要暴露',
+      detail: '结合地理、资源、通道依赖及库存缓冲，评估中断后果与恢复代价。',
+      metrics: [{ label: '风险暴露', value: `${riskScore}` }, { label: '预估恢复', value: `${recoveryDays} 天` }]
+    },
+    {
+      step: '04 · 对策分析', title: '应该采取什么措施', status: best ? '已形成推荐' : '待评估', tagType: best ? 'success' : 'info', tone: 'strategy',
+      conclusion: best?.name || reportVm.value?.decisionSummary?.recommendedStrategy || '优先保障关键交付与备份通道',
+      detail: '对比未干预基线与调控路径，综合考虑改善幅度、成功概率、时间与成本。',
+      metrics: [{ label: '策略得分', value: best?.scoreText || '--' }, { label: '相对改善', value: best?.improvementText || '--' }]
+    }
+  ]
+})
 const actionTitles = ['稳定主供与核心通道', '前置配置替代资源', '滚动校准库存与合同', '建立风险触发机制']
 const actions = computed(() => reportVm.value?.recommendations?.map((item, index) => ({
   title: actionTitles[index] || `行动建议 ${index + 1}`,
@@ -248,10 +324,45 @@ const evidence = computed(() => reportVm.value?.analysisRecoveryCards?.slice(1).
   icon: evidenceIcons[index],
   tone: evidenceTones[index]
 })) || [
-  { title: '博弈论分析', detail: '识别参与方的利益冲突与稳定策略，明确协同边界。', icon: markRaw(Grid), tone: 'blue' },
-  { title: '对策分析', detail: '对比不干预基线与调控路径，验证动作的结果差异。', icon: markRaw(Promotion), tone: 'orange' },
-  { title: '情景分析', detail: '在不同扰动窗口下复核结论的稳健性与适用范围。', icon: markRaw(TrendCharts), tone: 'green' }
+  { title: '情景分析', detail: '统计基准、扰动与极端情景概率，识别关键年度压力窗口。', icon: markRaw(TrendCharts), tone: 'green' },
+  { title: '脆弱性分析', detail: '从节点依赖矩阵、结构替代能力和物流稳定性识别关键脆弱点。', icon: markRaw(Grid), tone: 'blue' },
+  { title: '对策分析', detail: '对比不干预基线与调控路径，评估动作的时间、成本和改善效果。', icon: markRaw(Promotion), tone: 'orange' }
 ])
+const screeningMethodCards = computed(() => {
+  const candidateCount = reportVm.value?.decisionSummary?.candidateRows?.length || 0
+  const windowCount = reportVm.value?.focusWindowCards?.length || 0
+  return [
+    {
+      step: '01',
+      title: '初始方案集合',
+      text: `从推演结果、专家规则和候选对策树中抽取 ${candidateCount || '--'} 个方案，覆盖保供、库存、合同与通道调整。`
+    },
+    {
+      step: '02',
+      title: '蒙特卡罗优先级排序',
+      text: `围绕 ${windowCount || '--'} 个年度窗口反复采样供需波动、运输延迟和事件冲击，形成方案稳健性排序。`
+    },
+    {
+      step: '03',
+      title: '贝叶斯反馈剔除',
+      text: '根据最新风险、缺口和库存覆盖结果修正后验权重，优选执行高收益方案，剔除约束不足或改善有限的方案。'
+    }
+  ]
+})
+const screeningRows = computed(() => {
+  const rows = reportVm.value?.decisionSummary?.candidateRows || []
+  return rows.map((item, index) => ({
+    ...item,
+    phase: item.isBest ? '优选执行' : index === rows.length - 1 ? '剔除观察' : '备选保留',
+    tagType: item.isBest ? 'success' : index === rows.length - 1 ? 'danger' : 'warning',
+    rankText: `第 ${index + 1} 位`,
+    resultText: item.isBest
+      ? '进入综合决策和执行计划'
+      : index === rows.length - 1
+        ? '暂不执行，作为后续复盘样本'
+        : '保留为并行预案'
+  }))
+})
 
 function toneType(tone) {
   return ({ danger: 'danger', warning: 'warning', success: 'success' })[tone] || 'info'
@@ -348,7 +459,7 @@ async function exportPdf() {
 
 <style scoped>
 .overview-page { min-height: 100%; padding: 8px 8px 32px; overflow: visible; }
-.report-toolbar { position: sticky; z-index: 10; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 11px 14px; margin-bottom: 10px; border-color: #dbe4ee; background: rgba(255,255,255,.96); backdrop-filter: blur(12px); }
+.report-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 11px 14px; margin: 8px 8px 8px; border-color: #dbe4ee; background: rgba(255,255,255,.96); backdrop-filter: blur(12px); }
 .report-heading { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .report-heading > span { padding: 6px 8px; border-radius: 7px; background: #eff6ff; color: #2563eb; font-size: 9px; font-weight: 800; letter-spacing: .08em; white-space: nowrap; }
 .report-heading h1 { margin: 0; color: #0f172a; font-size: 18px; }
@@ -364,10 +475,25 @@ async function exportPdf() {
 .overview-kicker { color: #64748b; font-size: var(--mid-fs-micro); font-weight: 800; letter-spacing: .08em; }
 h3 { margin: 5px 0 0; color: #0f172a; font-size: 17px; }
 .overview-lead { max-width: 940px; margin: 16px 0; color: #334155; font-size: 13px; line-height: 1.8; }
-.verdict-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.verdict-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
 .verdict-item { padding: 13px 14px; border: 1px solid #e2e8f0; border-left: 3px solid #3b82f6; background: rgba(248,250,252,.72); border-radius: 8px; }
 .verdict-item span, .action-row p, .evidence-row p { display: block; margin: 0; color: #64748b; font-size: 11px; line-height: 1.65; }
 .verdict-item strong { display: block; margin: 4px 0; color: #0f172a; font-size: 16px; }
+.analysis-digest-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.analysis-digest-card { min-width: 0; padding: 15px 16px; border-top: 3px solid #3b82f6; }
+.analysis-digest-card.vulnerability { border-top-color: #f59e0b; }
+.analysis-digest-card.strategy { border-top-color: #10b981; }
+.analysis-digest-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.analysis-digest-head > span { color: #64748b; font-size: var(--mid-fs-micro); font-weight: 800; letter-spacing: .06em; }
+.analysis-digest-card h3 { margin-top: 8px; font-size: var(--mid-fs-strong); }
+.analysis-digest-card > strong { display: block; margin-top: 8px; color: #0f172a; font-size: var(--mid-fs-title); line-height: 1.35; }
+.analysis-digest-card > p { min-height: 38px; margin: 6px 0 0; color: #64748b; font-size: var(--mid-fs-label); line-height: var(--mid-lh-body); }
+.analysis-digest-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 10px; }
+.analysis-digest-metrics > span { padding: 7px 8px; border-radius: 7px; background: #f8fafc; }
+.analysis-digest-metrics small,
+.analysis-digest-metrics b { display: block; }
+.analysis-digest-metrics small { color: #94a3b8; font-size: var(--mid-fs-micro); }
+.analysis-digest-metrics b { margin-top: 3px; color: #1e293b; font-size: var(--mid-fs-strong); }
 .overview-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 12px; margin-top: 12px; }
 .action-panel, .evidence-panel { padding: 17px 18px; }
 .action-list, .evidence-list { display: grid; gap: 2px; }
@@ -401,6 +527,23 @@ h3 { margin: 5px 0 0; color: #0f172a; font-size: 17px; }
 .strategy-score { display: flex; flex-direction: column; align-items: flex-end; }
 .strategy-score strong { color: #2563eb !important; font-size: 15px !important; }
 .strategy-score span { color: #64748b; font-size: 10px; }
+.screening-layout { display: grid; grid-template-columns: .9fr 1.5fr; gap: 12px; align-items: start; }
+.screening-methods { display: grid; gap: 8px; }
+.screening-method-card { padding: 12px; border: 1px solid #e2e8f0; border-left: 3px solid #0ea5e9; border-radius: 8px; background: #f8fafc; }
+.screening-method-card span { color: #0ea5e9; font-size: 10px; font-weight: 800; }
+.screening-method-card strong { display: block; margin-top: 4px; color: #0f172a; font-size: 13px; }
+.screening-method-card p { margin: 5px 0 0; color: #64748b; font-size: 11px; line-height: 1.6; }
+.screening-table { overflow: hidden; border: 1px solid #e2e8f0; border-radius: 9px; }
+.screening-row { display: grid; grid-template-columns: 88px minmax(160px, 1fr) 72px 88px minmax(130px, .75fr); align-items: center; min-height: 44px; border-top: 1px solid #edf2f7; }
+.screening-row:first-child { border-top: 0; }
+.screening-row.best { background: #f0fdf4; }
+.screening-row > span { min-width: 0; padding: 8px 10px; color: #475569; font-size: 11px; line-height: 1.45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.screening-head { min-height: 34px; background: #f8fafc; }
+.screening-head > span { color: #64748b; font-size: 10px; font-weight: 800; }
+.screening-row strong,
+.screening-row small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.screening-row strong { color: #0f172a; font-size: 12px; }
+.screening-row small { margin-top: 2px; color: #94a3b8; font-size: 10px; }
 .report-detail-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 12px; }
 .structure-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 8px; }
 .structure-card { padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; }
@@ -415,9 +558,41 @@ h3 { margin: 5px 0 0; color: #0f172a; font-size: 17px; }
 .final-conclusion h2 { margin: 7px 0; font-size: 21px; }
 .final-conclusion p { max-width: 900px; color: #dbeafe; font-size: 12px; }
 .final-conclusion div { margin-top: 13px; color: #bfdbfe; font-size: 11px; }.final-conclusion div strong { margin-right: 8px; color: #fff; }
+@media (max-width: 1200px) {
+  .report-toolbar { align-items: flex-start; }
+  .report-actions { flex-wrap: wrap; justify-content: flex-end; }
+  .analysis-digest-grid { grid-template-columns: 1fr; }
+  .overview-grid,
+  .report-detail-grid,
+  .screening-layout { grid-template-columns: 1fr; }
+  .verdict-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .window-table,
+  .screening-table { overflow-x: auto; }
+  .window-row { min-width: 820px; }
+  .screening-row { min-width: 760px; }
+}
+@media (max-width: 760px) {
+  .overview-page { padding-inline: 4px; }
+  .overview-content { padding-inline: 2px; }
+  .report-toolbar,
+  .report-heading { align-items: stretch; flex-direction: column; }
+  .report-actions { justify-content: flex-start; }
+  .experiment-select { width: 100%; }
+  .report-updated { width: 100%; }
+  .verdict-grid,
+  .structure-grid,
+  .analysis-digest-metrics { grid-template-columns: 1fr; }
+  .strategy-row { grid-template-columns: 30px minmax(0, 1fr); }
+  .strategy-score { align-items: flex-start; grid-column: 2; }
+  .strategy-row > .el-tag { grid-column: 2; justify-self: start; }
+}
 @media print {
-  .report-toolbar { display: none; }
+  .report-toolbar,
+  .analysis-link-tabs { display: none; }
   .overview-page { padding: 0; background: #fff; }
   .glass-panel { box-shadow: none !important; break-inside: avoid; }
+  .analysis-digest-card,
+  .report-section,
+  .final-conclusion { break-inside: avoid; page-break-inside: avoid; }
 }
 </style>

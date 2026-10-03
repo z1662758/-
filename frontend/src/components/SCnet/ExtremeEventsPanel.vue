@@ -36,7 +36,7 @@
       </div>
 
       <div v-else-if="events.length === 0" class="empty-container">
-        <el-empty description="暂无极端事件" />
+        <span class="empty-hint">该实验未记录极端事件（数据源：实验极端事件日志）</span>
       </div>
 
       <div v-else class="events-list">
@@ -249,10 +249,9 @@ onMounted(() => {
   color: #303133;
 }
 
-.loading-container,
-.empty-container {
+.loading-container {
   text-align: center;
-  padding: 60px 0;
+  padding: 24px 0;
   color: #909399;
 }
 
@@ -262,8 +261,15 @@ onMounted(() => {
 }
 
 .empty-container {
+  text-align: center;
+  padding: 10px 0;
   background: linear-gradient(135deg, #f5f7fa 0%, #ffffff 100%);
   border-radius: 8px;
+}
+
+.empty-hint {
+  font-size: 12px;
+  color: #909399;
 }
 
 .events-list {

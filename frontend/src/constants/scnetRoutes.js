@@ -46,9 +46,10 @@ export const SCNET_ROUTES = Object.freeze({
 })
 
 export const SCNET_DECISION_ROUTE_BY_TAB = Object.freeze({
+  scenario: SCNET_ROUTES.expAnalysisScenario,
   gameTheory: SCNET_ROUTES.expAnalysisGameTheory,
   decisionTree: SCNET_ROUTES.expAnalysisDecisionTree,
-  scenario: SCNET_ROUTES.expAnalysisScenario,
+  report: SCNET_ROUTES.expAnalysisOverview,
 })
 
 /** 专家模式各步骤的路由键,顺序即流程顺序 */

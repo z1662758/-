@@ -46,8 +46,20 @@
       :experiment-id="selectedExperimentBanner.experimentId"
       :session-id="selectedExperimentBanner.sessionId"
       @dismiss="selectedExperimentBanner.visible = false"
-      @navigate="navigateFromBanner"
     />
+
+    <section class="run-overview">
+      <article
+        v-for="item in runOverviewCards"
+        :key="item.label"
+        class="run-overview-card"
+        :class="item.tone"
+      >
+        <span>{{ item.label }}</span>
+        <strong>{{ item.value }}</strong>
+        <p>{{ item.hint }}</p>
+      </article>
+    </section>
 
     <div class="iteration-progress-section">
       <el-card shadow="hover" class="progress-card">
@@ -332,7 +344,7 @@
                     link
                     @click.stop="viewExperiment(row)"
                   >
-                    查看推演
+                    加载实验
                   </el-button>
                   <el-button
                     type="info"
@@ -590,11 +602,6 @@ const selectedExperimentBanner = reactive({
   sessionId: '',
   taskId: ''
 })
-
-function navigateFromBanner(path) {
-  selectedExperimentBanner.visible = false
-  router.push(path)
-}
 
 const recentQueuedTaskId = ref(localStorage.getItem('sc_recentQueuedTaskId') || '')
 
@@ -886,6 +893,21 @@ const overviewStats = computed(() => ({
   completed: uraniumHistoryRows.value.length,
   pending: uraniumQueueRows.value.filter(t => t.status === 'pending').length
 }))
+
+const runOverviewCards = computed(() => {
+  const active = showRunningSection.value
+    ? { value: '运行中', hint: runningStageText.value, tone: 'running' }
+    : pendingTask.value
+      ? { value: '排队中', hint: `队列第 ${pendingPosition.value || '-'} 位`, tone: 'pending' }
+      : { value: '空闲', hint: '可启动实验或查看历史结果', tone: 'idle' }
+
+  return [
+    { label: '当前状态', ...active },
+    { label: '任务总数', value: `${overviewStats.value.plans}`, hint: `${overviewStats.value.completed} 个已完成`, tone: 'total' },
+    { label: '待处理', value: `${overviewStats.value.running + overviewStats.value.pending}`, hint: `${overviewStats.value.running} 运行 / ${overviewStats.value.pending} 排队`, tone: 'pending' },
+    { label: '焦点实验', value: formatShortId(focusTask.value?.task_id || ''), hint: truncateGoal(focusTask.value?.user_goal || '暂无焦点实验'), tone: 'focus' }
+  ]
+})
 
 const PARAM_LABEL_MAP = {
   model: '模型',
@@ -1457,7 +1479,7 @@ const viewExperiment = async (task) => {
       selectedExperimentBanner.taskId = task.task_id
       selectedExperimentBanner.visible = true
       ElMessage.success({
-        message: `已加载实验，请通过顶部入口选择查看界面`,
+        message: '已加载实验',
         duration: 2200
       })
     } else {
@@ -1531,10 +1553,9 @@ async function launchCurrentSession() {
     }
     ElNotification.success({
       title: '实验已生成',
-      message: '后端实验已完成，正在打开结果报告',
+      message: '后端实验已完成，可在左侧菜单进入态势推演、决策生成或报告生成',
       duration: 3000
     })
-    await router.push({ path: SCNET_ROUTES.EXreport, query: { experiment_id: experimentId } })
   } catch (error) {
     console.error('[ExperimentManager] launchCurrentSession 失败', error)
     ElMessage.error('启动实验失败: ' + (error?.message || '未知错误'))
@@ -1695,10 +1716,59 @@ onUnmounted(() => {
 .experiment-manager > .iteration-progress-section,
 .experiment-manager > .focus-experiment-section,
 .experiment-manager > .experiment-list,
+.experiment-manager > .run-overview,
 .experiment-manager > .selected-exp-banner {
   margin-left: 8px;
   margin-right: 8px;
 }
+
+.run-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.run-overview-card {
+  min-height: 76px;
+  padding: 10px 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: rgba(255,255,255,.86);
+  box-shadow: 0 6px 16px rgba(15,23,42,.05);
+  box-sizing: border-box;
+}
+
+.run-overview-card span {
+  display: block;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.run-overview-card strong {
+  display: block;
+  margin-top: 4px;
+  color: #0f172a;
+  font-size: 18px;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-overview-card p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-overview-card.running { border-color: #93c5fd; background: linear-gradient(135deg, #eff6ff, #fff); }
+.run-overview-card.pending { border-color: #fde68a; background: linear-gradient(135deg, #fffbeb, #fff); }
+.run-overview-card.focus { border-color: #bbf7d0; background: linear-gradient(135deg, #f0fdf4, #fff); }
 
 .progress-title,
 .list-title,
@@ -2884,6 +2954,10 @@ onUnmounted(() => {
 }
 
 @media (max-width: 1200px) {
+  .run-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .hero-meta-grid {
     grid-template-columns: 1fr;
   }
@@ -2916,6 +2990,10 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
+  .run-overview {
+    grid-template-columns: 1fr;
+  }
+
   .progress-brief-grid {
     grid-template-columns: 1fr;
   }

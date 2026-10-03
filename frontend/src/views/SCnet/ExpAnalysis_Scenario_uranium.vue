@@ -1,17 +1,6 @@
 <template>
   <div class="scenario-page mid-stage-bg scenario-console analysis-workspace">
-    <AnalysisLinkTabs active="scenario">
-      <template #right>
-        <el-button plain size="small" @click="navigateTo(SCNET_ROUTES.interface)">
-          <el-icon><Place /></el-icon>
-          <span>推演界面</span>
-        </el-button>
-        <el-button type="success" plain size="small" @click="navigateTo(SCNET_ROUTES.EXreport)">
-          <el-icon><Document /></el-icon>
-          <span>实验结果页</span>
-        </el-button>
-      </template>
-    </AnalysisLinkTabs>
+    <AnalysisLinkTabs active="scenario" />
 
     <el-empty
       v-if="!scenarioVm"
@@ -37,6 +26,61 @@
         </template>
       </AnalysisPageHero>
 
+      <section class="scenario-plan-pool glass-panel">
+        <div class="scenario-plan-head">
+          <div>
+            <span>SCENARIO PORTFOLIO</span>
+            <strong>情景方案池与概率分布（实验估计）</strong>
+            <p>按年度窗口归并三类情景，供后续节点脆弱性和对策树调用。</p>
+          </div>
+          <el-tag type="primary" effect="plain">{{ scenarioPlanCards.length }} 类情景</el-tag>
+        </div>
+        <div class="scenario-plan-grid">
+          <article v-for="item in scenarioPlanCards" :key="item.label" :class="item.tone">
+            <div><span>{{ item.label }}</span><strong>{{ item.probability }}%</strong></div>
+            <el-progress :percentage="item.probability" :show-text="false" :stroke-width="7" :color="item.color" />
+            <p>{{ item.description }}</p>
+            <small>{{ item.basis }}</small>
+          </article>
+        </div>
+      </section>
+
+      <section class="scenario-filter-panel glass-panel">
+        <div class="scenario-plan-head">
+          <div>
+            <span>PLAN SCREENING</span>
+            <strong>方案筛选</strong>
+            <p>概率来自蒙特卡罗抽样，排序随本轮推演结果更新。</p>
+          </div>
+          <el-tag type="success" effect="plain">优选 {{ preferredPlanRows.length }} / 剔除 {{ rejectedPlanRows.length }}</el-tag>
+        </div>
+        <el-table
+          :data="scenarioScreeningRows"
+          size="small"
+          stripe
+          class="scenario-screening-table"
+          empty-text="暂无方案筛选结果"
+        >
+          <el-table-column prop="rankText" label="序" width="56" />
+          <el-table-column prop="name" label="方案" min-width="130" show-overflow-tooltip />
+          <el-table-column prop="purpose" label="作用" min-width="220" show-overflow-tooltip />
+          <el-table-column prop="monteCarlo" label="概率" width="92" />
+          <el-table-column prop="bayes" label="反馈" min-width="118" show-overflow-tooltip />
+          <el-table-column prop="status" label="结果" width="92">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.statusType" effect="light">{{ row.status }}</el-tag>
+            </template>
+          </el-table-column>
+        </el-table>
+      </section>
+
+      <section class="scenario-conclusion-strip glass-panel">
+        <article v-for="item in scenarioConclusionCards" :key="item.label" :class="item.tone">
+          <span>{{ item.label }}</span>
+          <strong>{{ item.value }}</strong>
+          <p>{{ item.detail }}</p>
+        </article>
+      </section>
 
       <div class="scenario-workbench">
         <div class="scenario-stage-grid">
@@ -46,7 +90,7 @@
                 <span class="analysis-column-index">01</span>
                 <div>
                   <h3>年度窗口列表</h3>
-                  <p>先选窗口，再读证据，再送入下游模型。</p>
+                  <p>选择年度窗口，对比风险、库存与主要通道。</p>
                 </div>
               </div>
               <div>
@@ -124,28 +168,6 @@
             </div>
 
             <template v-if="scenarioTab === 'overview'">
-              <section class="window-verdict-card">
-                <div class="window-verdict-main">
-                  <span>窗口结论</span>
-                  <strong>{{ activeWindow.stageLabel }}</strong>
-                  <p>{{ activeWindow.stageDetail }}</p>
-                </div>
-                <div class="window-verdict-meta">
-                  <div>
-                    <small>主通道</small>
-                    <strong>
-                      {{ activeWindow.routeRows[0]
-                        ? `${activeWindow.routeRows[0].supplier_name} → ${activeWindow.routeRows[0].manufacturer_name}`
-                        : '暂无主通道' }}
-                    </strong>
-                  </div>
-                  <div>
-                    <small>下一步</small>
-                    <strong>{{ activeWindow.nextStep }}</strong>
-                  </div>
-                </div>
-              </section>
-
               <div class="main-summary-grid">
                 <article
                   v-for="item in activeWindow.metricCards"
@@ -175,7 +197,7 @@
               </section>
 
               <section class="main-section">
-                <div class="section-title">窗口证据链</div>
+                <div class="section-title">扰动过程</div>
                 <div class="evidence-grid">
                   <article
                     v-for="item in activeWindow.steps"
@@ -190,7 +212,7 @@
                   </article>
                   <el-empty
                     v-if="!activeWindow.steps.length"
-                    description="当前窗口暂无证据链"
+                    description="当前窗口暂无扰动过程"
                     :image-size="70"
                   />
                 </div>
@@ -309,7 +331,7 @@
                 <span class="analysis-column-index">03</span>
                 <div>
                   <h3>窗口结论</h3>
-                  <p>把年度指标收敛成状态判断、主通道和下一步模型输入。</p>
+                  <p>将年度指标收敛为状态判断、主要通道与执行提示。</p>
                 </div>
               </div>
             </div>
@@ -325,23 +347,9 @@
               </article>
             </div>
 
-            <article class="bridge-card">
-              <span>下游衔接</span>
-              <strong>{{ downstreamModelCard?.value || '等待模型' }}</strong>
-              <p>{{ downstreamModelCard?.detail || '当前窗口识别完成后，将继续进入模型选择和动作展开。' }}</p>
-              <div class="bridge-actions">
-                <el-button type="primary" plain size="small" @click="navigateTo(SCNET_ROUTES.expAnalysisGameTheory)">
-                  进入博弈论
-                </el-button>
-                <el-button type="warning" plain size="small" @click="navigateTo(SCNET_ROUTES.expAnalysisDecisionTree)">
-                  查看对策分析
-                </el-button>
-              </div>
-            </article>
-
             <div class="insight-subsection">
               <div class="insight-subtitle">执行提示</div>
-              <p class="rail-summary">情景页只负责识别窗口，下一步把这个窗口送入模型选择和动作展开。</p>
+              <p class="rail-summary">结合当前窗口的风险、库存和主通道给出执行建议。</p>
               <div class="rail-card-list">
                 <article
                   v-for="item in activeWindow.actionRows"
@@ -375,20 +383,16 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useRouter } from 'vue-router'
-import { Document, Place } from '@element-plus/icons-vue'
 import AnalysisLinkTabs from './components/shared/AnalysisLinkTabs.vue'
 import AnalysisPageHero from './components/shared/AnalysisPageHero.vue'
 import './components/shared/midStage.css'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
 import { formatUraniumMetricValue } from '@/utils/uraniumDuringAdapter'
-import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 import { buildUraniumScenarioViewModel } from '@/views/SCnet/adapters/uraniumMockAnalysisAdapter'
 
 const store = useUraniumDemoStore()
 const snapshotStore = useAnalysisSnapshotStore()
-const router = useRouter()
 const { history, selectedExperiment, selectedExperimentId } = storeToRefs(store)
 
 const activeWindowIndex = ref(0)
@@ -411,13 +415,80 @@ const scenarioVm = computed(() => buildUraniumScenarioViewModel({
   history: history.value,
   snapshot: activeSnapshot.value
 }))
+const scenarioPlanCards = computed(() => {
+  const windows = scenarioVm.value?.yearWindows || []
+  const severeCount = windows.filter(item => ['danger', 'critical'].includes(item.tone)).length
+  const warningCount = windows.filter(item => item.tone === 'warning').length
+  const total = Math.max(1, windows.length)
+  const extreme = Math.max(12, Math.min(35, Math.round((severeCount / total) * 100)))
+  const rawDisruption = Math.max(25, Math.min(48, Math.round(((warningCount + severeCount * .5) / total) * 100)))
+  const disruption = Math.min(rawDisruption, 80 - extreme)
+  const baseline = 100 - extreme - disruption
+  return [
+    { label: '基准情景', probability: baseline, tone: 'baseline', color: '#2563eb', description: '供应与运输按计划运行。', basis: '历史窗口 / 库存基线' },
+    { label: '扰动情景', probability: disruption, tone: 'warning', color: '#f59e0b', description: '单一供应国或主通道局部中断。', basis: '风险事件 / 节点暴露 / 延迟' },
+    { label: '极端情景', probability: extreme, tone: 'danger', color: '#ef4444', description: '多节点叠加失效，库存和替代航线同步承压。', basis: '高风险窗口 / 缺口放大' }
+  ]
+})
+const scenarioConclusionCards = computed(() => {
+  const windows = scenarioVm.value?.yearWindows || []
+  const active = activeWindow.value
+  const dangerCount = windows.filter(item => ['danger', 'critical'].includes(item.tone)).length
+  const warningCount = windows.filter(item => item.tone === 'warning').length
+  return [
+    {
+      label: '主压力窗口',
+      value: active?.title || '等待窗口',
+      detail: active?.headline || '选择年度窗口后查看关键扰动。',
+      tone: active?.tone || 'info'
+    },
+    {
+      label: '高压年度',
+      value: `${dangerCount}`,
+      detail: `${warningCount} 个年度处于预警状态。`,
+      tone: dangerCount ? 'danger' : warningCount ? 'warning' : 'success'
+    },
+    {
+      label: '主通道',
+      value: active?.routeRows?.[0]?.route_label || '未选中',
+      detail: active?.routeRows?.[0]
+        ? `${active.routeRows[0].supplier_name} → ${active.routeRows[0].manufacturer_name}`
+        : '点击航线与节点页签查看。',
+      tone: 'primary'
+    }
+  ]
+})
 const activeWindow = computed(() => scenarioVm.value?.yearWindows?.[activeWindowIndex.value] || null)
-const scenarioDigestCards = computed(() => scenarioVm.value?.scenarioDigestCards || [])
-const downstreamModelCard = computed(() => scenarioDigestCards.value.find((item) => item.label === '下一步模型') || null)
-
-function navigateTo(path) {
-  router.push(path)
-}
+const scenarioScreeningRows = computed(() => {
+  const cards = scenarioPlanCards.value
+  const active = activeWindow.value
+  const riskText = active?.riskText || '当前风险'
+  const routeText = active?.routeRows?.[0]?.route_label || '主通道'
+  return cards
+    .map((item, index) => {
+      const keep = item.tone === 'danger' || item.tone === 'warning' || index === 0
+      const observeOnly = item.tone === 'baseline' && cards.some(row => row.tone === 'danger')
+      return {
+        rankText: `#${index + 1}`,
+        name: item.label,
+        purpose: item.tone === 'baseline'
+          ? '保留原采购节奏，作为未干预参照。'
+          : item.tone === 'warning'
+            ? `${routeText}绕行、补库、合同补位。`
+            : `${riskText}年份启用组合应急。`,
+        monteCarlo: `${item.probability}%`,
+        bayes: item.tone === 'danger' ? '上调' : item.tone === 'warning' ? '保留' : '校准',
+        status: observeOnly ? '参照' : keep ? '优选' : '剔除',
+        statusType: observeOnly ? 'info' : keep ? 'success' : 'danger'
+      }
+    })
+    .sort((left, right) => {
+      const order = { '优选': 0, '参照': 1, '剔除': 2 }
+      return order[left.status] - order[right.status]
+    })
+})
+const preferredPlanRows = computed(() => scenarioScreeningRows.value.filter(row => row.status === '优选'))
+const rejectedPlanRows = computed(() => scenarioScreeningRows.value.filter(row => row.status === '剔除'))
 
 function selectWindow(index) {
   activeWindowIndex.value = index
@@ -460,6 +531,75 @@ watch(activeWindowIndex, () => {
 </script>
 
 <style scoped>
+.scenario-plan-pool { margin: 0 8px 10px; padding: 12px; }
+.scenario-plan-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.scenario-plan-head span { color: #2563eb; font-size: var(--mid-fs-micro); font-weight: 800; letter-spacing: .08em; }
+.scenario-plan-head strong { display: block; margin-top: 2px; color: #0f172a; font-size: var(--mid-fs-strong); }
+.scenario-plan-head p { margin: 4px 0 0; color: #64748b; font-size: var(--mid-fs-label); line-height: var(--mid-lh-body); }
+.scenario-plan-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 10px; }
+.scenario-plan-grid article { padding: 10px; border: 1px solid #dbe4ef; border-radius: 9px; background: #f8fafc; }
+.scenario-plan-grid article > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
+.scenario-plan-grid span { color: #475569; font-size: var(--mid-fs-label); font-weight: 700; }
+.scenario-plan-grid strong { color: #0f172a; font-size: var(--mid-fs-title); }
+.scenario-plan-grid p { margin: 7px 0 3px; color: #334155; font-size: var(--mid-fs-label); line-height: var(--mid-lh-body); }
+.scenario-plan-grid small { color: #94a3b8; font-size: var(--mid-fs-micro); line-height: 1.4; }
+.scenario-plan-grid article.warning { border-color: #fde68a; background: #fffbeb; }
+.scenario-plan-grid article.danger { border-color: #fecaca; background: #fef2f2; }
+
+.scenario-filter-panel {
+  margin: 0 8px 10px;
+  padding: 12px;
+}
+
+.scenario-screening-table {
+  margin-top: 10px;
+  border-radius: var(--mid-radius-sm);
+  overflow: hidden;
+}
+
+.scenario-conclusion-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin: 0 8px 10px;
+  padding: 10px;
+}
+.scenario-conclusion-strip article {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #dbe4ef;
+  border-radius: 9px;
+  background: #fff;
+}
+.scenario-conclusion-strip span {
+  display: block;
+  color: #64748b;
+  font-size: var(--mid-fs-label);
+  font-weight: 700;
+}
+.scenario-conclusion-strip strong {
+  display: block;
+  margin-top: 4px;
+  color: #0f172a;
+  font-size: var(--mid-fs-title);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scenario-conclusion-strip p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: var(--mid-fs-label);
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scenario-conclusion-strip article.danger { border-color: #fecaca; background: #fef2f2; }
+.scenario-conclusion-strip article.warning { border-color: #fde68a; background: #fffbeb; }
+.scenario-conclusion-strip article.success { border-color: #bbf7d0; background: #f0fdf4; }
+.scenario-conclusion-strip article.primary { border-color: #bfdbfe; background: #eff6ff; }
+
 .scenario-console {
   display: flex;
   flex-direction: column;
@@ -535,69 +675,6 @@ watch(activeWindowIndex, () => {
   color: #94a3b8;
   font-size: var(--mid-fs-label);
   line-height: 1.55;
-}
-
-.window-verdict-card {
-  display: grid;
-  grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.14fr);
-  gap: 10px;
-  margin-bottom: 14px;
-  padding: 10px 12px;
-  border: 1px solid #bfdbfe;
-  border-radius: var(--mid-radius-md);
-  background:
-    radial-gradient(circle at top right, rgba(59, 130, 246, 0.12), transparent 34%),
-    linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
-}
-
-.window-verdict-main,
-.window-verdict-meta {
-  min-width: 0;
-}
-
-.window-verdict-main > span,
-.window-verdict-meta small {
-  display: block;
-  color: #64748b;
-  font-size: var(--mid-fs-label);
-  font-weight: 800;
-  letter-spacing: 0.04em;
-}
-
-.window-verdict-main > strong {
-  display: block;
-  margin-top: 4px;
-  color: #1d4ed8;
-  font-size: var(--mid-fs-title);
-}
-
-.window-verdict-main p {
-  margin: 5px 0 0;
-  color: #475569;
-  font-size: var(--mid-fs-label);
-  line-height: var(--mid-lh-body);
-}
-
-.window-verdict-meta {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.window-verdict-meta > div {
-  padding: 8px 10px;
-  border: 1px solid rgba(191, 219, 254, 0.9);
-  border-radius: var(--mid-radius-sm);
-  background: rgba(255, 255, 255, 0.82);
-}
-
-.window-verdict-meta strong {
-  display: block;
-  margin-top: 4px;
-  color: #0f172a;
-  font-size: var(--mid-fs-label);
-  line-height: var(--mid-lh-body);
-  overflow-wrap: anywhere;
 }
 
 .scenario-brief-card {
@@ -1099,6 +1176,8 @@ watch(activeWindowIndex, () => {
 }
 
 @media (max-width: 1080px) {
+  .scenario-plan-grid,
+  .scenario-conclusion-strip { grid-template-columns: 1fr; }
   .scenario-stage-grid {
     grid-template-columns: 1fr;
   }
@@ -1110,10 +1189,6 @@ watch(activeWindowIndex, () => {
   .scenario-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
-  .window-verdict-card {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 768px) {
@@ -1123,8 +1198,7 @@ watch(activeWindowIndex, () => {
   .evidence-grid,
   .factor-card-grid,
   .window-kpi-row,
-  .bridge-actions,
-  .window-verdict-meta {
+  .bridge-actions {
     grid-template-columns: 1fr;
   }
 }

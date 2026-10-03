@@ -266,6 +266,18 @@ export default {
       return cleaned.replace(/[。；;,.，!?！？]$/g, '').trim()
     },
 
+    buildRequirementForAnalysis(text) {
+      const raw = String(text || '').trim()
+      if (!raw) return ''
+      if (/研究目标|核心变量|作用对象|响应指标/.test(raw)) return raw
+
+      const phaseName = { pre: '事前研判', during: '事中决策', post: '事后复盘' }[this.selectedPhase] || '场景建模'
+      return [
+        raw,
+        `补充语境：这是供应链${phaseName}需求。作用对象为供应链网络、供应链各层级节点、工厂节点或协作链路；核心变量可从市场需求强度参数、工厂产能范围、二级订单分配比例、库存容量上限、供应保障能力、工厂协作范围、协作次数、销售加价率、节点恢复速度中识别；响应指标可从订单总体完成率、二级订单完成率、订单积压、工厂利用率、系统净利润、订单流失、调度压力、恢复时间中识别。请基于原问题提取研究目标、核心变量和作用对象。`
+      ].join('\n')
+    },
+
     compactDisplayText(text, maxLength = 68) {
       const cleaned = this.sanitizeDisplayText(text || '')
       if (!cleaned || cleaned.length <= maxLength) return cleaned
@@ -712,6 +724,12 @@ export default {
       return unique.map((name) => ({ name, description: '' }))
     },
 
+    getSubtaskDescription(task = {}) {
+      const title = this.normalizeCompareText(task.title || '')
+      const description = this.sanitizeDisplayText(task.description || '')
+      return description && this.normalizeCompareText(description) !== title ? description : ''
+    },
+
     normalizeSubtaskPayload(subtask, index = 0) {
       const agentOrder = ['ENVIRONMENT', 'OBSERVER', 'SOCIAL', 'PLANNER']
       const fallbackAgent = agentOrder[index % agentOrder.length]
@@ -753,9 +771,18 @@ export default {
         ? { ...cloned.goal_decomposition }
         : {}
 
-      const rawSubtasks = Array.isArray(goalDecomp.subtasks) ? goalDecomp.subtasks : []
+      let rawSubtasks = Array.isArray(goalDecomp.subtasks) ? goalDecomp.subtasks : []
+      if (!rawSubtasks.length) {
+        rawSubtasks = this.buildFallbackSubtasksFromExpPlan(cloned)
+      }
       const normalizedSubtasks = rawSubtasks.map((task, index) => this.normalizeSubtaskPayload(task, index))
       goalDecomp.subtasks = normalizedSubtasks
+      if (!goalDecomp.goal_understanding) {
+        goalDecomp.goal_understanding = this.sanitizeDisplayText(cloned?.goal?.explain || this.inputMessage || '')
+      }
+      if (!goalDecomp.user_goal) {
+        goalDecomp.user_goal = this.sanitizeDisplayText(this.inputMessage || this.store?.scenarioUserGoal || '')
+      }
       cloned.goal_decomposition = goalDecomp
 
       const factorsFromTasks = normalizedSubtasks.flatMap((task) => this.toDisplayNameList(task?.parameters?.influence_factors || []))
@@ -767,6 +794,66 @@ export default {
       cloned.response_var = normalizedVars.length > 0 ? normalizedVars : Array.from(new Set(varsFromTasks))
 
       return cloned
+    },
+
+    buildFallbackSubtasksFromExpPlan(expPlan = {}) {
+      const factors = this.toDisplayNameList(expPlan?.influence_factor || [])
+      const responses = this.toDisplayNameList(expPlan?.response_var || [])
+      const toNamed = (arr) => arr.map((name) => ({ name, description: '' }))
+
+      const envFactors = factors.length > 0 ? factors : ['市场需求强度', '工厂产能范围', '供应保障能力']
+      const obsResponses = responses.length > 0 ? responses : ['订单完成率', '工厂利用率', '系统净利润']
+
+      return [
+        {
+          task_id: 'task_environment',
+          title: '刻画需求冲击与产能约束',
+          description: '明确需求上升幅度、订单分布和工厂产能边界，形成供应链扰动输入。',
+          assigned_agent: 'ENVIRONMENT',
+          agent_type: 'ENVIRONMENT',
+          priority: 5,
+          parameters: {
+            influence_factors: toNamed(envFactors),
+            response_variables: toNamed(obsResponses.slice(0, 2))
+          }
+        },
+        {
+          task_id: 'task_observer',
+          title: '设定履约与负载观测口径',
+          description: '定义订单完成率、工厂利用率和订单积压等指标，作为方案比较标准。',
+          assigned_agent: 'OBSERVER',
+          agent_type: 'OBSERVER',
+          priority: 4,
+          parameters: {
+            influence_factors: toNamed(envFactors.slice(0, 3)),
+            response_variables: toNamed(obsResponses)
+          }
+        },
+        {
+          task_id: 'task_social',
+          title: '推演跨工厂订单调配方案',
+          description: '比较不同工厂之间的订单分配和协作策略，判断过载与积压是否被缓解。',
+          assigned_agent: 'SOCIAL',
+          agent_type: 'SOCIAL',
+          priority: 3,
+          parameters: {
+            influence_factors: toNamed(envFactors.slice(0, 3)),
+            response_variables: toNamed(obsResponses.slice(0, 2))
+          }
+        },
+        {
+          task_id: 'task_planner',
+          title: '输出执行优先级与迭代策略',
+          description: '汇总各方案在履约、利用率和利润上的表现，给出优先执行顺序和后续迭代方向。',
+          assigned_agent: 'PLANNER',
+          agent_type: 'PLANNER',
+          priority: 4,
+          parameters: {
+            influence_factors: toNamed(envFactors),
+            response_variables: toNamed(obsResponses)
+          }
+        }
+      ]
     },
 
     /**
@@ -913,7 +1000,9 @@ export default {
         // 若无缓存，继续等待 API 返回（不做额外处理）
       }, TIMING.CACHE_TIMEOUT)
 
-      judgeRequirement(this.inputMessage, this.sessionId || null, this.selectedPhase)
+      const analysisRequirement = this.buildRequirementForAnalysis(this.inputMessage)
+
+      judgeRequirement(analysisRequirement, this.sessionId || null, this.selectedPhase)
       .then((response) => {
         clearTimeout(timeoutTimer)  // 清除超时定时器
         const result = unwrapApiData(response)
@@ -1321,7 +1410,7 @@ export default {
     },
 
     callReqAnalysis() {
-      return analyzeRequirement(this.inputMessage, this.sessionId, this.selectedPhase)
+      return analyzeRequirement(this.buildRequirementForAnalysis(this.inputMessage), this.sessionId, this.selectedPhase)
       .then(async (data) => {
         assertApiSuccess(data)
         const result = unwrapApiData(data)

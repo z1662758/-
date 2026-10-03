@@ -2,7 +2,7 @@
   <nav class="analysis-link-tabs glass-panel" aria-label="决策分析子页面">
     <div class="alt-left">
       <el-icon class="alt-icon"><DataAnalysis /></el-icon>
-      <span class="alt-title">决策分析</span>
+      <span class="alt-title">分析工作区</span>
       <el-segmented
         v-model="activeRef"
         :options="tabs"
@@ -49,9 +49,9 @@ const props = defineProps({
 const router = useRouter()
 
 const tabs = computed(() => [
-  { value: 'gameTheory',   label: '博弈论', icon: markRaw(Grid) },
-  { value: 'decisionTree', label: '对策', icon: markRaw(Promotion) },
-  { value: 'scenario',     label: '情景',   icon: markRaw(TrendCharts) }
+  { value: 'scenario',     label: '情景分析', icon: markRaw(TrendCharts) },
+  { value: 'gameTheory',   label: '脆弱性分析', icon: markRaw(Grid) },
+  { value: 'decisionTree', label: '对策分析', icon: markRaw(Promotion) }
 ])
 
 const activeRef = ref(props.active)
@@ -60,7 +60,11 @@ watch(() => props.active, v => { activeRef.value = v })
 function handleChange(value) {
   if (value === props.active) return
   const target = SCNET_DECISION_ROUTE_BY_TAB[value]
-  if (target) router.push({ path: target, query: router.currentRoute.value.query })
+  if (target) {
+    const query = { ...router.currentRoute.value.query }
+    delete query.section
+    router.push({ path: target, query })
+  }
 }
 </script>
 
@@ -96,12 +100,12 @@ function handleChange(value) {
   font-size: 12px;
   font-weight: 700;
   color: #1f2937;
-  margin-right: 4px;
+  margin-right: 2px;
 }
 
 .alt-segmented {
   --el-segmented-bg-color: rgba(255, 255, 255, 0.6);
-  min-width: 248px;
+  min-width: 334px;
   max-width: 100%;
 }
 

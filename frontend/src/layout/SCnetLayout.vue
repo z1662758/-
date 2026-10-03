@@ -95,6 +95,14 @@
             <el-icon size="18"><component :is="item.icon" /></el-icon>
             <template #title>{{ item.label }}</template>
           </el-menu-item>
+          <el-menu-item
+            v-for="item in duringDecisionMenuItems"
+            :key="item.index"
+            :index="item.index"
+          >
+            <el-icon size="18"><component :is="item.icon" /></el-icon>
+            <template #title>{{ item.label }}</template>
+          </el-menu-item>
           <el-sub-menu index="during-analysis">
             <template #title>
               <el-icon size="18"><DataAnalysis/></el-icon>
@@ -194,15 +202,6 @@
       <component :is="KnowledgePlatform" v-if="showKnowledgePlatform" @close="closeKnowledgePlatform" />
     </Teleport>
 
-    <!-- 事中阶段：右侧悬浮流程步骤条（对齐学长 PowerGame 实现） -->
-    <EventPhaseStepper
-      v-if="showDuringFlowStepper"
-      :steps="duringSteps"
-      :current-key="duringCurrentKey"
-      :completed-predicate="isDuringStepCompleted"
-      @step-click="onDuringStepClick"
-    />
-
     <!-- 专家模式:全局运行进度浮窗(只读真实任务状态,不随案例切换变化) -->
     <ExpertWorkflowProgressFloat v-if="showExpertProgress" />
 
@@ -223,7 +222,7 @@ import {
   SwitchButton, TrendCharts, User, WarningFilled, ChatDotSquare, CircleCheck
 } from "@element-plus/icons-vue";
 import {ref, onMounted, onUnmounted, computed, watch} from "vue";
-import {useRoute, useRouter} from "vue-router";
+import {useRoute} from "vue-router";
 import {Files, Refresh} from "@element-plus/icons-vue";
 import AppHeader from "@/components/Header.vue";
 import EventPhaseStepper from "@/components/EventPhaseStepper.vue";
@@ -267,14 +266,18 @@ const DURING_MAIN_MENU_ITEMS = Object.freeze([
   { index: '/home/SCnet/experimentManager', label: '实验推演', icon: Monitor }
 ])
 
+const DURING_DECISION_MENU_ITEMS = Object.freeze([
+  { path: 'decision', key: 'decision', label: '决策生成', icon: Promotion }
+])
+
 const DURING_TAIL_MENU_ITEMS = Object.freeze([
   { index: '/home/SCnet/expAnalysisOverview', label: '报告生成', icon: Document }
 ])
 
 const DURING_ANALYSIS_MENU_ITEMS = Object.freeze([
-  { index: '/home/SCnet/expAnalysisGameTheory', label: '博弈论分析', icon: Grid },
-  { index: '/home/SCnet/expAnalysisDecisionTree', label: '对策分析', icon: Promotion },
-  { index: '/home/SCnet/expAnalysisScenario', label: '情景分析', icon: TrendCharts }
+  { index: '/home/SCnet/expAnalysisScenario', label: '情景分析', icon: TrendCharts },
+  { index: '/home/SCnet/expAnalysisGameTheory', label: '脆弱性分析', icon: Grid },
+  { index: '/home/SCnet/expAnalysisDecisionTree', label: '对策分析', icon: Promotion }
 ])
 
 // 实验分析子菜单之前展示的主菜单项
@@ -301,7 +304,6 @@ export default {
     Monitor,
     Place,
     Edit,
-    EventPhaseStepper,
     ExpertWorkflowProgressFloat,
     Refresh, Files, DataAnalysis, DataLine, DocumentDelete, House, Aim, Box, Collection, Connection,
     Document, Notification, Operation, Postcard, Promotion, ScaleToOriginal, SearchIcon, Setting,
@@ -310,7 +312,6 @@ export default {
   },
   setup() {
     const route = useRoute()
-    const router = useRouter()
     const activeIndex = ref('1')
     const storedPhase = ref(localStorage.getItem(PHASE_STORAGE_KEY) || '')
 
@@ -354,8 +355,25 @@ export default {
       hash: route.hash
     }))
 
-    const { steps: autoDuringSteps, isStepCompleted: isAutoDuringStepCompleted } = useDuringFlowSteps()
-    const { steps: uraniumDuringSteps, isStepCompleted: isUraniumDuringStepCompleted } = useUraniumDuringFlowSteps()
+    // ── 知识库（左侧栏常驻入口）──
+    // 与 /SCnet/total 右上角「知识平台」共用同一个全屏浮层
+    const {
+      KnowledgePlatform,
+      visible: showKnowledgePlatform,
+      open: openKnowledgePlatform,
+      close: closeKnowledgePlatform
+    } = useKnowledgePlatform()
+    /**
+     * 知识库菜单项不是真路由：el-menu 开了 router 模式，会把 index 当 path 推。
+     * 这里把 route 顶成"当前地址"，push 退化成重复导航（不跳转、不报错），
+     * 菜单项的选中态再由 onMenuSelect 跳过，避免它把高亮抢走。
+     */
+    const currentLocation = computed(() => ({
+      path: route.path,
+      query: route.query,
+      hash: route.hash
+    }))
+
     const isUraniumScenario = computed(() => currentScenario.value === 'uranium')
 
     // ── 专家模式全局进度:浮窗 + 唯一的轮询归属方 ──
@@ -394,48 +412,6 @@ export default {
       },
       { immediate: true }
     )
-
-    // 事中流程步骤条按场景分流：铀=智能对话/实体图/实验运行/推演界面，汽车=原 5 步
-    const duringSteps = computed(() => (
-      isUraniumScenario.value ? uraniumDuringSteps : autoDuringSteps
-    ))
-    const duringCurrentKey = computed(() => (
-      isUraniumScenario.value
-        ? uraniumRouteToStepKey(route.path)
-        : routeToStepKey(route.path, route.query || {})
-    ))
-    const isDuringStepCompleted = (stepKey) => (
-      isUraniumScenario.value
-        ? isUraniumDuringStepCompleted(stepKey)
-        : isAutoDuringStepCompleted(stepKey)
-    )
-    const AUTO_DURING_FLOW_PREFIXES = [
-      '/home/SCnet/scenarioModeling',
-      '/home/SCnet/agent-design-studio',
-      '/home/SCnet/agentSimulationStudio'
-    ]
-    // 步骤条是浮层，只在「流程编排」类页面显示（沿用本项目原有约定）；
-    // 实验运行 / 推演界面 版面很密，浮层会盖住内容，改由左侧菜单进入。
-    const URANIUM_DURING_FLOW_PREFIXES = [
-      '/home/SCnet/scenarioModeling',
-      '/home/SCnet/scenarioAnalysis',
-      '/home/SCnet/agent-design-studio',
-      '/home/SCnet/agentSimulationStudio'
-    ]
-    const showDuringFlowStepper = computed(() => {
-      const prefixes = isUraniumScenario.value ? URANIUM_DURING_FLOW_PREFIXES : AUTO_DURING_FLOW_PREFIXES
-      return currentPhase.value === 'during' && prefixes.some(prefix => route.path.startsWith(prefix))
-    })
-    const onDuringStepClick = (step) => {
-      if (!step) return
-      // 事中各页按 ?scenario= 分流，跳步时必须带上当前场景
-      const nextQuery = { ...(step.query || {}) }
-      if (route.query.scenario) nextQuery.scenario = route.query.scenario
-      const isSamePath = route.path === step.route
-      const sameQuery = isSamePath && JSON.stringify(route.query || {}) === JSON.stringify(nextQuery)
-      if (sameQuery) return
-      router.push({ path: step.route, query: nextQuery })
-    }
 
     const handleStorageChange = (event) => {
       if (event.key === PHASE_STORAGE_KEY) {
@@ -483,11 +459,17 @@ export default {
         ...item,
         index: item.path === 'scenario'
           ? `/home/SCnet/${isUraniumScenario.value ? 'scenarioAnalysis' : 'scenarioModeling'}?scenario=${currentScenario.value}`
-          : `${item.index}?scenario=${currentScenario.value}`
+          : item.path === 'decision'
+            ? `/home/SCnet/experimentManager?scenario=${currentScenario.value}&view=decision`
+            : `${item.index}?scenario=${currentScenario.value}`
       }))),
       duringAnalysisMenuItems: computed(() => DURING_ANALYSIS_MENU_ITEMS.map((item) => ({
         ...item,
         index: `${item.index}?scenario=${currentScenario.value}`
+      }))),
+      duringDecisionMenuItems: computed(() => DURING_DECISION_MENU_ITEMS.map((item) => ({
+        ...item,
+        index: `/home/SCnet/experimentManager?scenario=${currentScenario.value}&view=decision`
       }))),
       duringTailMenuItems: computed(() => DURING_TAIL_MENU_ITEMS.map((item) => ({
         ...item,

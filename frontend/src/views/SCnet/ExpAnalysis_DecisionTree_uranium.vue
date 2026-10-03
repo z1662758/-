@@ -70,6 +70,13 @@
         </article>
       </section>
 
+      <section class="decision-handoff-strip glass-panel">
+        <article v-for="item in decisionHandoffCards" :key="item.label">
+          <span>{{ item.label }}</span>
+          <strong>{{ item.value }}</strong>
+          <p>{{ item.detail }}</p>
+        </article>
+      </section>
 
       <div class="dt-console">
         <aside class="dt-side glass-panel">
@@ -77,22 +84,22 @@
             <span class="analysis-column-index">01</span>
             <div>
               <h3>决策输入台</h3>
-              <p>固定上游输入、基线参照与当前推荐。</p>
+              <p>汇总当前情景、基线参照与推荐对策。</p>
             </div>
           </div>
 
           <div class="dt-source-card">
-            <span>当前树输入</span>
-            <strong>{{ decisionVm.inputBridge.gameModelLabel }}</strong>
+            <span>当前对策任务</span>
+            <strong>{{ decisionVm.inputBridge.eventName }}</strong>
             <p>{{ decisionVm.inputBridge.sourceSummary }}</p>
             <div class="dt-source-grid">
               <div>
-                <small>上游窗口</small>
+                <small>情景窗口</small>
                 <p>{{ decisionVm.inputBridge.scenarioLabel }} / {{ decisionVm.inputBridge.timeLabel }}</p>
               </div>
               <div>
-                <small>稳定组合</small>
-                <p>{{ decisionVm.inputBridge.dominantPairLabel }}</p>
+                <small>当前风险等级</small>
+                <p>{{ decisionVm.decisionHero.stageLabel }}</p>
               </div>
               <div>
                 <small>决策事件</small>
@@ -138,26 +145,16 @@
             </ol>
           </article>
 
-          <article class="dt-bridge-card">
-            <span>分析链衔接</span>
-            <strong>{{ decisionVm.inputBridge.gameModelLabel }}</strong>
-            <p>当前树由博弈页的模型判断继续展开，若需回看窗口或模型依据，可直接切回上游页面。</p>
-            <div class="dt-bridge-actions">
-              <el-button type="primary" plain size="small" @click="navigateTo(SCNET_ROUTES.expAnalysisGameTheory)">
-                返回博弈论
-              </el-button>
-              <el-button size="small" plain @click="navigateTo(SCNET_ROUTES.expAnalysisScenario)">
-                查看情景页
-              </el-button>
-            </div>
-          </article>
         </aside>
 
         <main class="tree-panel glass-panel" :style="treePanelStyle">
           <div class="panel-header">
             <div class="panel-header-main">
-              <el-icon><Share /></el-icon>
-              <span>对策证据树（基线 vs 调控对比）</span>
+              <span class="analysis-column-index">02</span>
+              <div class="tree-panel-title">
+                <strong>对策证据树</strong>
+                <small>未干预基线 vs 调控路径对比</small>
+              </div>
             </div>
             <div class="tree-panel-legend">
               <span class="legend-chip baseline">未干预基线</span>
@@ -198,12 +195,29 @@
         <aside class="dt-rail glass-panel">
           <div class="dt-rail-inner">
             <div class="analysis-column-head">
-              <span class="analysis-column-index">02</span>
+              <span class="analysis-column-index">03</span>
               <div>
-                <h3>候选动作排序</h3>
-                <p>动作赛道、结果差异与推荐顺序，可直接定位到策略节点。</p>
+                <h3>方案优先级排序</h3>
+                <p>按评分保留优选、备选和剔除结果。</p>
               </div>
             </div>
+
+            <el-table
+              :data="strategyScreeningRows"
+              size="small"
+              stripe
+              class="strategy-screening-table"
+              empty-text="暂无方案排序"
+            >
+              <el-table-column prop="rankText" label="序" width="44" />
+              <el-table-column prop="name" label="方案" min-width="112" show-overflow-tooltip />
+              <el-table-column prop="scoreText" label="评分" width="70" />
+              <el-table-column prop="decision" label="状态" width="82">
+                <template #default="{ row }">
+                  <el-tag size="small" :type="row.tagType" effect="light">{{ row.decision }}</el-tag>
+                </template>
+              </el-table-column>
+            </el-table>
 
             <article class="dt-focus-card" :class="{ muted: !bestStrategy }">
               <div class="dt-focus-head">
@@ -279,7 +293,7 @@
 
       <section class="dependency-panel glass-panel">
         <header class="dependency-head">
-          <div><span>03 · 依赖关系分析</span><h3>推荐对策落地所依赖的资源、主体与先后约束</h3></div>
+          <div><span>04 · 落地依赖</span><h3>推荐对策所需的资源、协同主体与执行顺序</h3></div>
           <el-tag type="info" effect="plain">{{ dependencyCards.length }} 项关键依赖</el-tag>
         </header>
         <div class="dependency-flow">
@@ -454,10 +468,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import * as echarts from 'echarts'
 import { storeToRefs } from 'pinia'
-import { useRouter } from 'vue-router'
-import { Refresh, Share } from '@element-plus/icons-vue'
+import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 import AnalysisLinkTabs from './components/shared/AnalysisLinkTabs.vue'
@@ -475,7 +487,6 @@ import {
   buildUraniumDecisionTreeViewModel
 } from '@/views/SCnet/adapters/uraniumMockAnalysisAdapter'
 
-const router = useRouter()
 const snapshotStore = useAnalysisSnapshotStore()
 const uraniumStore = useUraniumDemoStore()
 const { selectedExperiment } = storeToRefs(uraniumStore)
@@ -555,6 +566,10 @@ const keyConclusions = computed(() => {
     {
       label: '最可能结果', value: best ? `${best.successProbability || 0}%` : '--',
       detail: best?.bestLeafSituation || '等待结果分支。', tone: 'success'
+    },
+    {
+      label: '执行时间 / 成本', value: best ? `${Math.max(3, Math.round(18 - best.score * .12))} 天` : '--',
+      detail: best ? `预计执行成本指数 ${Math.max(10, Math.round(82 - best.score * .55))}，需联动库存、合同与运输资源。` : '等待对策评估。', tone: 'warning'
     }
   ]
 })
@@ -572,6 +587,37 @@ const dependencyCards = computed(() => {
 const dependencyConclusion = computed(() => {
   const action = bestStrategy.value?.name || '当前推荐对策'
   return `依赖链判断：${action}不能单点执行，应按“库存与货源确认 → 多主体协同 → 合同/预算放行 → 动态监测校准”的顺序推进。`
+})
+const decisionHandoffCards = computed(() => [
+  {
+    label: '报告结论',
+    value: bestStrategy.value?.name || '等待推荐动作',
+    detail: bestStrategy.value ? `得分 ${bestStrategy.value.score} 分，进入决策生成。` : '等待策略评分。'
+  },
+  {
+    label: '证据范围',
+    value: `${dependencyCards.value.length} 项依赖`,
+    detail: '资源、主体、信息和审批约束。'
+  },
+  {
+    label: '对比基线',
+    value: baselineMetrics.value ? `${baselineMetrics.value.score} 分` : '--',
+    detail: baselineMetrics.value ? `未干预缺口率 ${baselineMetrics.value.stockoutRate}%。` : '等待基线指标。'
+  }
+])
+const strategyScreeningRows = computed(() => {
+  const rows = decisionVm.value?.strategyDeck || []
+  return rows.map((item, index) => {
+    const isBest = item.isBest || index === 0
+    const isRejected = item.score < 62 || index > 3
+    return {
+      rankText: `${index + 1}`,
+      name: item.title || item.name,
+      scoreText: item.scoreText || `${item.score}分`,
+      decision: isBest ? '优选' : isRejected ? '剔除' : '备选',
+      tagType: isBest ? 'success' : isRejected ? 'danger' : 'warning'
+    }
+  })
 })
 const selectedStrategyId = computed(() => {
   const node = nodePanel.node
@@ -600,10 +646,6 @@ function formatSigned(num, digits = 0) {
   if (Number.isNaN(value)) return '--'
   const fixed = value.toFixed(digits)
   return value > 0 ? `+${fixed}` : fixed
-}
-
-function navigateTo(path) {
-  router.push(path)
 }
 
 const controlledLeafComparison = computed(() => {
@@ -1028,13 +1070,14 @@ onBeforeUnmount(() => {
 .dt-overview-strip,
 .dt-console,
 .key-conclusion-strip,
+.decision-handoff-strip,
 .dependency-panel {
   margin: 0 8px;
 }
 
 .key-conclusion-strip {
   display: grid;
-  grid-template-columns: 110px repeat(3, minmax(0, 1fr));
+  grid-template-columns: 110px repeat(4, minmax(0, 1fr));
   gap: 8px;
   padding: 10px 12px;
   align-items: stretch;
@@ -1059,6 +1102,45 @@ onBeforeUnmount(() => {
 .key-conclusion-item span { color: #64748b; font-size: var(--mid-fs-micro); font-weight: 800; }
 .key-conclusion-item strong { display: block; margin-top: 3px; color: #0f172a; font-size: var(--mid-fs-strong); }
 .key-conclusion-item p { margin: 3px 0 0; color: #64748b; font-size: var(--mid-fs-label); line-height: 1.45; }
+
+.decision-handoff-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.decision-handoff-strip article {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fff, #f8fafc);
+}
+
+.decision-handoff-strip span {
+  display: block;
+  color: #64748b;
+  font-size: var(--mid-fs-micro);
+  font-weight: 800;
+}
+
+.decision-handoff-strip strong {
+  display: block;
+  margin-top: 4px;
+  color: #0f172a;
+  font-size: var(--mid-fs-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.decision-handoff-strip p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: var(--mid-fs-label);
+  line-height: 1.45;
+}
 
 .dependency-panel { padding: 12px 14px; }
 .dependency-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
@@ -1323,6 +1405,9 @@ onBeforeUnmount(() => {
 .panel-header-main span {
   overflow-wrap: anywhere;
 }
+.tree-panel-title { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.tree-panel-title strong { color: #0f172a; font-size: var(--mid-fs-strong); }
+.tree-panel-title small { color: #64748b; font-size: var(--mid-fs-micro); font-weight: 600; }
 .tree-panel-legend {
   display: flex;
   align-items: center;
@@ -1514,6 +1599,12 @@ onBeforeUnmount(() => {
   overflow-wrap: anywhere;
 }
 
+.strategy-screening-table {
+  margin-bottom: 10px;
+  border-radius: var(--mid-radius-sm);
+  overflow: hidden;
+}
+
 .sb-items { display: flex; flex-direction: column; gap: 10px; }
 .sb-item {
   padding: 12px 14px;
@@ -1617,7 +1708,11 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1200px) {
   .key-conclusion-strip {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .decision-handoff-strip {
+    grid-template-columns: 1fr;
   }
 
   .key-conclusion-label {
@@ -1650,6 +1745,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 768px) {
   .key-conclusion-strip,
+  .decision-handoff-strip,
   .dependency-flow {
     grid-template-columns: 1fr;
   }

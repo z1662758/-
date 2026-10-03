@@ -229,18 +229,64 @@ export function getCaseLibrary() {
 
 /**
  * 对比两个实验案例
+ *
+ * 后端会自动规整 ID，下面三种写法都支持：
+ *   1. 纯实验ID：20260707_100151
+ *   2. 案例库ID：exp-20260707_100151-3 / cf-20260707_100151-1
+ *   3. 报告文件名：multi_agent_report_20260707_100151.json
+ *
  * @param {string} caseAId - 案例A的ID
  * @param {string} caseBId - 案例B的ID
+ * @param {Object} [options]
+ * @param {number} [options.caseAIteration] - 案例A聚焦的轮次（可选）
+ * @param {number} [options.caseBIteration] - 案例B聚焦的轮次（可选）
+ * @param {boolean} [options.useLlm=true] - 是否允许后端调用大模型生成结论
  * @returns {Promise}
  */
-export function compareCases(caseAId, caseBId) {
+export function compareCases(caseAId, caseBId, options = {}) {
+  const { caseAIteration, caseBIteration, useLlm = true } = options
+  const payload = {
+    case_a_id: caseAId,
+    case_b_id: caseBId,
+    use_llm: useLlm
+  }
+  if (caseAIteration !== undefined && caseAIteration !== null) {
+    payload.case_a_iteration = caseAIteration
+  }
+  if (caseBIteration !== undefined && caseBIteration !== null) {
+    payload.case_b_iteration = caseBIteration
+  }
+
   return request({
     url: '/SCnet/supplyChain/case-compare',
     method: 'post',
-    data: {
-      case_a_id: caseAId,
-      case_b_id: caseBId
-    }
+    data: payload
+  })
+}
+
+/**
+ * 观察分析 - 反事实干预推断
+ *
+ * 后端自动回退链路：后端仿真 → 数据驱动回归 → 启发式规则
+ *
+ * @param {string} caseId - 案例ID（支持案例库ID/实验ID/报告文件名）
+ * @param {Object} [options]
+ * @param {number} [options.iteration] - 聚焦轮次（可选）
+ * @param {string} [options.variable] - 干预变量，如「产能水平」
+ * @param {string} [options.change] - 变化幅度，如「+20%」
+ * @returns {Promise}
+ */
+export function postObserveCounterfactual(caseId, options = {}) {
+  const { iteration, variable = '产能水平', change = '+20%' } = options
+  const payload = { case_id: caseId, variable, change }
+  if (iteration !== undefined && iteration !== null) {
+    payload.iteration = iteration
+  }
+
+  return request({
+    url: '/SCnet/supplyChain/observe/counterfactual',
+    method: 'post',
+    data: payload
   })
 }
 

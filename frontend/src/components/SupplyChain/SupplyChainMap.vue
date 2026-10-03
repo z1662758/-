@@ -170,6 +170,7 @@ const portConnectionLayer = ref(null)
 
 const activeShips = ref([])
 let shipAnimationTimer = null
+let containerResizeObserver = null
 
 const createPortPinIcon = (options = {}) => {
   const {
@@ -961,6 +962,16 @@ watch(currentMonth, () => {
   if (showPorts.value && map.value) renderPortMarkers()
 })
 
+const bindContainerResize = () => {
+  if (typeof ResizeObserver === 'undefined' || !mapContainerRef.value) return
+  containerResizeObserver = new ResizeObserver(() => {
+    // 布局变化（面板换位、窗口缩放等）后必须让 Leaflet 重新量尺寸，
+    // 否则容器变大会露出灰色底 / 空白条。
+    map.value?.invalidateSize({ animate: false })
+  })
+  containerResizeObserver.observe(mapContainerRef.value)
+}
+
 onMounted(() => {
   nextTick(() => {
     const checkAndInit = () => {
@@ -974,9 +985,12 @@ onMounted(() => {
     }
     checkAndInit()
   })
+  bindContainerResize()
 })
 
 onBeforeUnmount(() => {
+  containerResizeObserver?.disconnect()
+  containerResizeObserver = null
   clearShipAnimations()
 
   if (map.value) {
