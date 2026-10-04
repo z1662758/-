@@ -3,6 +3,20 @@
     <!-- K5-PIPELINE:实验闭环导航(运行实验 → 观察 → 干预 → 机制),实验 id 从 URL 带入 -->
     <ExperimentStageNav :experiment-id="routeExperimentId" current="intervention" />
 
+    <!-- P2：因果阶梯定位条 —— 干预分析 = 第 2 层·干预（do(X)） -->
+    <section class="evidence-level" role="note">
+      <span class="evidence-level__badge">因果阶梯 · 第 2 层</span>
+      <div class="evidence-level__body">
+        <p class="evidence-level__title">本页是「干预级」证据：看的是 do(X) 的效果</p>
+        <p class="evidence-level__desc">
+          策略库里的每条策略都是一次「打算施加的干预」——改的是产能、阈值、协作范围这些变量本身。
+          但只有真的跑出实验、且两次运行除该策略外其它条件可比时，A/B 差异才算干预效应；
+          若手里只有策略自带的<b>预置参数</b>，那仍然只是设计意图，不构成实验证据。
+          第 1 层看「谁和谁一起变」（观察分析），第 3 层看「这次结果若当时 X 不同会怎样」（反事实实验）。
+        </p>
+      </div>
+    </section>
+
     <section class="page-head">
       <div>
         <h1>干预分析与异常检测</h1>
@@ -142,29 +156,36 @@
                   <div class="strategy-compare-table stats-table">
                     <div class="strategy-compare-header">
                       <span class="sc-label-col">指标</span>
-                      <span class="sc-val-col sc-val--a">策略A 均值</span>
-                      <span class="sc-val-col sc-val--b">策略B 均值</span>
-                      <span class="sc-val-col">差值 / p / 效应量</span>
+                      <span class="sc-val-col sc-val--a">策略A 均值（样本量）</span>
+                      <span class="sc-val-col sc-val--b">策略B 均值（样本量）</span>
+                      <span class="sc-val-col">差值（95%CI）/ p / 效应量</span>
                       <span class="sc-val-col">检验结论</span>
                     </div>
                     <div class="strategy-compare-row" v-for="row in comparisonStats" :key="row.key">
                       <span class="sc-label-col">{{ row.label }}</span>
-                      <span class="sc-val-col sc-val--a">{{ formatStatValue(row.mean_a, row.kind) }}</span>
-                      <span class="sc-val-col sc-val--b">{{ formatStatValue(row.mean_b, row.kind) }}</span>
+                      <span class="sc-val-col sc-val--a">{{ formatStatValue(row.mean_a, row.kind) }}<span v-if="row.available && row.n_a != null" class="stats-muted"> (n={{ row.n_a }})</span></span>
+                      <span class="sc-val-col sc-val--b">{{ formatStatValue(row.mean_b, row.kind) }}<span v-if="row.available && row.n_b != null" class="stats-muted"> (n={{ row.n_b }})</span></span>
                       <span class="sc-val-col">
                         <template v-if="row.available">
-                          {{ formatSigned(row.mean_diff, row.kind) }} / p={{ formatPValue(row.p_value) }}
+                           {{ formatSigned(row.mean_diff, row.kind) }}<span v-if="row.ci_95" class="stats-muted">（95%CI {{ formatCI(row.ci_95, row.kind) }}）</span>
+                           <br />p={{ formatPValue(row.p_value) }}<span class="stats-muted">（校正后 {{ formatPValue(row.p_adjusted) }}）</span>
                           <br />d={{ row.cohens_d }}<span v-if="row.effect_note" class="stats-muted">（{{ row.effect_note }}）</span>
                         </template>
                         <template v-else>--</template>
                       </span>
                       <span class="sc-val-col">
-                        <el-tag v-if="row.available" size="small" :type="row.significant ? 'success' : 'info'" round>{{ row.significant ? (row.better === 'A' ? 'A 显著更优' : 'B 显著更优') : '无显著差异' }}</el-tag>
+                        <el-tag v-if="row.available" size="small" :type="rowAdjustedSignificant(row) ? 'success' : 'info'" round>{{ rowVerdictText(row) }}</el-tag>
                         <span v-else class="stats-muted">{{ row.unavailable_reason || '无法检验' }}</span>
                       </span>
                     </div>
                   </div>
-                  <p class="stats-note stats-note--muted">口径：以月度为观测单位的 Welch t 检验 + Cohen's d + Bonferroni 校正；仅当差异统计显著时才判定优劣，综合评分为组内相对排名分。</p>
+                  <p class="stats-note stats-note--muted">
+                    口径：以月度为观测单位（n = 该策略的月度观测数）的 Welch t 检验 + Cohen's d + Bonferroni 多重检验校正；
+                    <b>判定优劣只看校正后的 p 值</b>，未通过校正的差异一律记为「校正后不显著」，不据此排序。
+                    注意月度数之间高度自相关，Welch t 的独立性假设并不严格成立，p 值用于筛信号而非精确推断；
+                    要得到可推断的区间，需按计算实验规范固定随机种子做多次独立重复（见「反事实实验」的成对世界）。
+                    综合评分为组内相对排名分，反映的是「本组策略内」的相对位置。
+                  </p>
                 </template>
               </div>
             </div>
@@ -174,6 +195,7 @@
               <div class="cmp-card-head"><el-icon><Setting /></el-icon><span>策略A vs 策略B · 综合结论</span></div>
               <div class="cmp-card-body">
                 <p class="conclusion-text">{{ interventionConclusion }}</p>
+                <p class="conclusion-evidence" :class="{ 'conclusion-evidence--warn': conclusionEvidence.level !== 'verified' }">{{ conclusionEvidence.text }}</p>
                 <div v-if="runState.running" class="run-inline-status">⏳ 正在运行干预策略对比实验...</div>
                 <div v-else-if="runState.error" class="run-inline-status run-inline-status--error">{{ runState.error }}</div>
                 <div v-else-if="hasRunResults" class="run-inline-result">
@@ -517,9 +539,11 @@ const interventionConclusion = computed(() => {
   const bComp = parseFloat(b?.expectedCompletionDelta) || 0
   const aRes = parseFloat(a.resilienceDelta) || 0
   const bRes = parseFloat(b?.resilienceDelta) || 0
-  if (bComp > aComp && bRes > aRes) return `策略B「${b.name}」在完成率（${b.expectedCompletionDelta}）和韧性（${b.resilienceDelta}）上均优于策略A「${a.name}」（${a.expectedCompletionDelta} / ${a.resilienceDelta}），建议优先采用B方案。`
-  if (aComp > bComp && aRes > bRes) return `策略A「${a.name}」综合表现更优，完成率提升${a.expectedCompletionDelta}，韧性提升${a.resilienceDelta}，建议以A为基准。`
-  return `两策略各有侧重：A「${a.name}」完成率${a.expectedCompletionDelta}，B「${b.name}」完成率${b.expectedCompletionDelta}。建议结合实际场景选择，点击"开始运行"进行仿真验证。`
+  // 没有后端统计检验时，只能用策略自带的预置参数排序。那是设计目标值、不是实测的干预效应，
+  // 所以措辞收敛为「预期提升」，不再写「建议采用」；证据等级另由 conclusionEvidence 标注。
+  if (bComp > aComp && bRes > aRes) return `按策略预置参数，B「${b.name}」的预期提升高于A「${a.name}」：完成率 ${b.expectedCompletionDelta} vs ${a.expectedCompletionDelta}，韧性 ${b.resilienceDelta} vs ${a.resilienceDelta}。这是设计目标值，不是本实验的实测结果。`
+  if (aComp > bComp && aRes > bRes) return `按策略预置参数，A「${a.name}」的预期提升高于B「${b.name}」：完成率 ${a.expectedCompletionDelta} vs ${b.expectedCompletionDelta}，韧性 ${a.resilienceDelta} vs ${b.resilienceDelta}。这是设计目标值，不是本实验的实测结果。`
+  return `两策略的预置目标各有侧重：A「${a.name}」完成率 ${a.expectedCompletionDelta}，B「${b.name}」完成率 ${b.expectedCompletionDelta}。以上为设计目标值，请点击「开始运行」跑出实测结果后再作比较。`
 })
 
 const strategyAllFields = [
@@ -575,6 +599,27 @@ const formatSigned = (value, kind) => {
   return (num >= 0 ? '+' : '') + num.toFixed(1)
 }
 
+// 本页口径声明用 Bonferroni 校正：判定优劣必须以校正后的 p 为准。
+// 后端同时给了 p_value 与 p_adjusted，只看前者就会出现「校正后不显著」却被判成「显著更优」。
+const rowAdjustedSignificant = (row) => (
+  row?.significant_adjusted !== undefined && row?.significant_adjusted !== null
+    ? Boolean(row.significant_adjusted)
+    : Boolean(row?.significant)
+)
+
+// 未通过校正时不判优劣：原始 p 显著但校正后不显著的要如实说明，而不是继续讲「更优」
+const rowVerdictText = (row) => {
+  if (!rowAdjustedSignificant(row)) {
+    return row?.significant ? '校正后不显著' : '无显著差异'
+  }
+  return row?.better === 'A' ? 'A 显著更优' : 'B 显著更优'
+}
+
+const formatCI = (ci, kind) => {
+  if (!Array.isArray(ci) || ci.length < 2) return '--'
+  return `${formatSigned(ci[0], kind)} ~ ${formatSigned(ci[1], kind)}`
+}
+
 
 const comparisonHint = computed(() => {
   if (comparison.value) return ''
@@ -584,6 +629,20 @@ const comparisonHint = computed(() => {
   if (!currentExperimentId.value) return '尚未加载到实验ID，无法做统计检验。'
   return statsLoading.value ? '正在计算统计检验与路径模型…' : '暂无可用的统计对比数据。'
 })
+
+// 结论的证据等级：只有后端统计检验给出的推荐才是本实验的证据；
+// 回退到策略自带预置参数的排序只是设计意图，必须如实标注，不能讲成实验结论。
+const conclusionEvidence = computed(() => (
+  comparison.value
+    ? {
+        level: 'verified',
+        text: '证据等级：干预级（因果阶梯第 2 层）· 本实验实测 —— 以上排序来自本实验的 Welch t 检验（Bonferroni 校正）与组内相对评分，仅统计显著的差异才判定优劣；结论适用范围限于本实验的网络规模与参数区间，不外推到其它条件。'
+      }
+    : {
+        level: 'preset',
+        text: '证据等级：设计意图，尚未验证 —— 当前两个策略没有本实验的统计检验数据，上面的比较来自策略自带的预置参数，不是实测的干预效应。请点「开始运行」跑出真实结果，或改选从实验补充的策略。'
+      }
+))
 
 const loadStrategyComparison = async () => {
   const aId = currentStrategy._backend?.id
@@ -1403,7 +1462,11 @@ const buildRunReportText = () => {
     `策略B：${selectedStrategy.value?.name || '--'}`,
     '',
     '运行结果对比',
-    ...runComparisonRows.value.map(row => `${row.label}：策略A=${row.primary}；策略B=${row.secondary}`)
+    ...runComparisonRows.value.map(row => `${row.label}：策略A=${row.primary}；策略B=${row.secondary}`),
+    '',
+    '证据等级：干预级（因果阶梯第 2 层）· 本实验实测 —— 以上为两个策略各自真实运行的结果差；'
+      + '差异只说明「在本实验的网络规模与参数区间下施加该策略的效果」，不外推到其它条件；'
+      + '要评估重复运行下的抽样波动，需固定随机种子做多次独立重复（见「反事实实验」的成对世界）。'
   ]
   return lines.join('\n')
 }
@@ -1439,6 +1502,7 @@ const buildRunReportHtml = () => {
     th, td { border: 1px solid #e2e8f0; padding: 10px 12px; text-align: left; vertical-align: top; }
     th { width: 180px; background: #f1f5f9; }
     thead th { background: #dbeafe; color: #1e40af; }
+    .evidence { margin-top: 18px; padding: 10px 12px; border-left: 3px solid #2563eb; background: #eff6ff; color: #1e3a8a; font-size: 13px; }
   </style>
 </head>
 <body>
@@ -1452,6 +1516,7 @@ const buildRunReportHtml = () => {
       <thead><tr><th>指标</th><th>策略A</th><th>策略B</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
+    <p class="evidence">证据等级：干预级（因果阶梯第 2 层）· 本实验实测 —— 以上为两个策略各自真实运行的结果差；差异只说明「在本实验的网络规模与参数区间下施加该策略的效果」，不外推到其它条件；要评估重复运行下的抽样波动，需固定随机种子做多次独立重复（见「反事实实验」的成对世界）。</p>
   </main>
 </body>
 </html>`
@@ -1619,6 +1684,34 @@ function clearRunOutputForSelectionChange() {
   font-size: 13px;
   font-weight: 500;
 }
+
+/* ---- 因果阶梯定位条：干预分析 = 第 2 层·干预 ---- */
+.evidence-level {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0;
+  padding: 12px 16px;
+  border: 1px solid #bfdbfe;
+  border-left: 4px solid #2563eb;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #eff6ff, #ffffff);
+}
+.evidence-level__badge {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.evidence-level__body { min-width: 0; }
+.evidence-level__title { margin: 0; font-size: 13px; font-weight: 800; color: #1e3a8a; }
+.evidence-level__desc { margin: 4px 0 0; font-size: 12px; line-height: 1.7; color: #475569; }
 
 .intervention-layout {
   flex: 0 0 auto;
@@ -2070,6 +2163,8 @@ function clearRunOutputForSelectionChange() {
 .cmp-card--conclusion .cmp-card-head { background: linear-gradient(180deg, #eef2ff, #fafbfc); border-bottom: 1px solid #eef2f7; padding: 8px 12px; font-size: 12px; font-weight: 800; display: flex; align-items: center; gap: 6px; color: #4338ca; }
 .cmp-card--conclusion .cmp-card-body { padding: 10px 14px; background: #fafafe; }
 .conclusion-text { margin: 0 0 8px; font-size: 12px; line-height: 1.65; color: #334155; font-weight: 600; }
+.conclusion-evidence { margin: 0 0 8px; padding: 7px 10px; border-left: 3px solid #16a34a; border-radius: 0 6px 6px 0; background: #f0fdf4; font-size: 12px; line-height: 1.7; color: #166534; }
+.conclusion-evidence--warn { border-left-color: #f59e0b; background: #fffbeb; color: #78350f; }
 .conclusion-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .run-inline-status { font-size: 12px; color: #6366f1; font-weight: 700; padding: 4px 0; }
 .run-inline-status--error { color: #ef4444; }

@@ -146,7 +146,7 @@
           <header class="section-head compact">
             <div>
               <h2>实验验证</h2>
-              <p>基于多轮迭代结果的一致性、离散度与收敛性，校验实验结论的可靠性。</p>
+              <p>基于多轮迭代结果的一致性、离散度与收敛性，并纳入跨世界配对证据，校验实验结论的可靠性。</p>
             </div>
             <el-tag v-if="verificationSummary" :type="verificationSummary.reliabilityType" size="small" effect="light" round>
               可靠性：{{ verificationSummary.reliability }}
@@ -162,6 +162,34 @@
             <p class="verification-conclusion">{{ verificationSummary.conclusion }}</p>
           </div>
           <div v-else class="verification-empty">数据不足，暂无法完成实验可靠性验证</div>
+        </section>
+
+        <!-- 反事实实验：事实 / 反事实成对世界的结论与分布（由反事实实验平台交接） -->
+        <section v-if="counterfactualSummary" class="report-section report-counterfactual">
+          <header class="section-head compact">
+            <div>
+              <h2>反事实实验结论</h2>
+              <p>事实世界与反事实世界共享同一随机种子，唯一变量为干预；差值分布即干预效应。</p>
+            </div>
+            <el-tag :type="counterfactualSummary.seedTone" size="small" effect="light" round>
+              {{ counterfactualSummary.seedLabel }}
+            </el-tag>
+          </header>
+          <div class="verification-body">
+            <div class="verification-grid">
+              <div v-for="item in counterfactualSummary.items" :key="item.label" class="verify-item">
+                <span class="verify-label">{{ item.label }}</span>
+                <strong class="verify-value" :class="item.tone">{{ item.value }}</strong>
+              </div>
+            </div>
+            <p class="verification-conclusion">{{ counterfactualSummary.conclusion }}</p>
+            <div v-if="counterfactualSummary.interventions.length" class="cf-interventions">
+              <span class="cf-interventions-label">干预变量：</span>
+              <span v-for="item in counterfactualSummary.interventions" :key="item.key" class="cf-intervention-tag">
+                {{ item.key }}：{{ formatCounterfactualValue(item.from) }} → {{ formatCounterfactualValue(item.to) }}
+              </span>
+            </div>
+          </div>
         </section>
 
         <section class="comparison-grid">
@@ -318,6 +346,7 @@ import { useSupplyChainScenario } from '@/composables/useSupplyChainScenario';
 import { getQueueHistory } from '@/api/queue';
 import { getSessionByExperiment } from '@/api/scenarioSession';
 import { unwrapApiData } from '@/utils/apiEnvelope';
+import { loadCounterfactualReport } from '@/utils/counterfactualReport';
 
 const store = useSupplyChainStore();
 const { currentExperimentId } = storeToRefs(store);
@@ -330,6 +359,7 @@ const reportData = ref(null);
 const linkedSession = ref(null);
 const comparisonData = ref(null);
 const reportContentRef = ref(null);
+const counterfactualReport = ref(null);
 
 const linkedRequirement = computed(() => linkedSession.value?.requirement?.raw_input || '');
 const linkedGoal = computed(() => linkedSession.value?.requirement?.goal || '');
@@ -608,13 +638,41 @@ const verificationSummary = computed(() => {
   if (completionCv != null && completionCv > 12) consistencyLevel = '低';
   else if (completionCv != null && completionCv > 5) consistencyLevel = '中';
 
+  // 跨世界反事实证据（若反事实实验平台已交接同一实验 id 的配对结果）
+  // 口径：配对效应不显著时不能给「高」可靠性 —— 干预效应还无法与仿真噪声区分。
+  const cfP = Number(counterfactualReport.value?.effect?.pValue);
+  const cfN = Number(counterfactualReport.value?.effect?.n);
+  const cfDiff = Number(counterfactualReport.value?.effect?.meanDifference);
+  const crossWorld = Number.isFinite(cfP) && cfN > 0
+    ? {
+        pText: cfP.toFixed(4),
+        n: cfN,
+        level: cfP <= 0.05 ? '显著' : cfP <= 0.1 ? '边际' : '不显著',
+        significant: cfP <= 0.05,
+        marginal: cfP > 0.05 && cfP <= 0.1,
+        diffText: Number.isFinite(cfDiff) ? formatCounterfactualPercent(cfDiff) : '--',
+        magnitudeText: Number.isFinite(cfDiff) ? formatCounterfactualPercent(Math.abs(cfDiff)) : '--'
+      }
+    : null;
+
   // 综合可靠性评级
   let reliability = '高';
   let reliabilityType = 'success';
   if (!enoughData) { reliability = '低'; reliabilityType = 'danger'; }
   else if (consistencyLevel !== '高' || !converged) { reliability = '中'; reliabilityType = 'warning'; }
+  // 组内一致但跨世界效应不显著：下调为「中」，不把未证实的干预效应说成可靠结论
+  if (crossWorld && !crossWorld.significant && reliability === '高') {
+    reliability = '中';
+    reliabilityType = 'warning';
+  }
 
   const fmt = (v) => (v == null ? '--' : `${v.toFixed(1)}%`);
+
+  const crossWorldText = !crossWorld
+    ? ''
+    : `跨世界反事实证据：${crossWorld.n} 组配对样本，干预使完成率${cfDiff > 0 ? '提升' : cfDiff < 0 ? '下降' : '变化'} ${crossWorld.magnitudeText}，符号检验 p = ${crossWorld.pText}（${crossWorld.level}），${
+        crossWorld.significant ? '干预效应在 0.05 水平上显著。' : crossWorld.marginal ? '效应仅边际显著，建议增加重复次数。' : '效应当前无法与仿真噪声区分，暂不能据此下因果结论。'
+      }`;
 
   let conclusion;
   if (!enoughData) {
@@ -627,6 +685,7 @@ const verificationSummary = computed(() => {
       reliability === '高' ? '高度一致' : reliability === '中' ? '基本一致' : '波动较大'
     }，${reliability === '低' ? '建议补充实验后再下结论' : '对比结论可作为后续反事实实验与策略决策的参考基线。'}`;
   }
+  if (crossWorldText) conclusion = `${conclusion} ${crossWorldText}`;
 
   return {
     total,
@@ -637,6 +696,7 @@ const verificationSummary = computed(() => {
     scoreCvText: fmt(scoreCv),
     converged,
     lastIteration: last?.iteration ?? '--',
+    crossWorld,
     conclusion
   };
 });
@@ -655,6 +715,13 @@ const verificationItems = computed(() => {
     { label: '利润波动(CV)', value: s.profitCvText, tone: '' },
     { label: '得分波动(CV)', value: s.scoreCvText, tone: '' },
     { label: '收敛状态', value: s.converged ? '已收敛' : '未完全收敛', tone: s.converged ? 'good' : 'warn' },
+    ...(s.crossWorld
+      ? [{
+          label: '跨世界配对 p',
+          value: s.crossWorld.pText,
+          tone: s.crossWorld.significant ? 'good' : s.crossWorld.marginal ? 'warn' : 'danger'
+        }]
+      : []),
     {
       label: '可靠性评级',
       value: s.reliability,
@@ -662,6 +729,80 @@ const verificationItems = computed(() => {
     }
   ];
 });
+
+// ---- 反事实实验交接（由反事实实验平台写入，按实验 id 读取）----
+// 完成率是 0-1 的比率；若已经是百分数（>1.5）则 ÷100 归一。
+const toCounterfactualRate = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  return num > 1.5 ? num / 100 : num;
+};
+const formatCounterfactualPercent = (value) => {
+  const rate = toCounterfactualRate(value);
+  return rate === null ? '--' : `${(rate * 100).toFixed(1)}%`;
+};
+const formatCounterfactualP = (value) => {
+  const num = Number(value);
+  return Number.isFinite(num) ? num.toFixed(4) : '--';
+};
+const formatCounterfactualValue = (value) => {
+  if (Array.isArray(value)) return value.join(' ~ ');
+  const num = Number(value);
+  return Number.isFinite(num) ? String(num) : (value === null || value === undefined ? '--' : String(value));
+};
+
+const counterfactualSummary = computed(() => {
+  const cf = counterfactualReport.value;
+  if (!cf) return null;
+  const effect = cf.effect || {};
+  const pValue = Number(effect.pValue);
+  const diff = Number(effect.meanDifference);
+  const diffTone = !Number.isFinite(diff) ? '' : (diff > 0 ? 'good' : 'warn');
+  const pTone = !Number.isFinite(pValue) ? '' : (pValue <= 0.05 ? 'good' : pValue <= 0.1 ? 'warn' : 'danger');
+  const seedLabel = cf.seedControlled === true
+    ? '后端已回执，种子受控'
+    : cf.seedControlled === false
+      ? '后端未回执，种子未受控'
+      : '待后端回执确认';
+  return {
+    seedTone: cf.seedControlled === true ? 'success' : cf.seedControlled === false ? 'warning' : 'info',
+    seedLabel,
+    items: [
+      { label: '配对样本 n', value: String(effect.n ?? 0), tone: '' },
+      { label: '事实世界完成率', value: formatCounterfactualPercent(cf.factualDistribution?.mean), tone: '' },
+      { label: '反事实世界完成率', value: formatCounterfactualPercent(cf.distribution?.mean), tone: '' },
+      { label: '配对差值均值', value: formatCounterfactualPercent(effect.meanDifference), tone: diffTone },
+      { label: '差值 95% CI', value: `${formatCounterfactualPercent(effect.ci95?.[0])} ~ ${formatCounterfactualPercent(effect.ci95?.[1])}`, tone: '' },
+      { label: '符号检验 p', value: formatCounterfactualP(effect.pValue), tone: pTone }
+    ],
+    conclusion: cf.conclusion || '（本次未生成结论文本）',
+    interventions: Array.isArray(cf.interventionDiff) ? cf.interventionDiff : []
+  };
+});
+
+// 反事实结论（纯文本导出用）
+const buildCounterfactualText = () => {
+  const cf = counterfactualReport.value;
+  if (!cf) return '';
+  const seedState = cf.seedControlled === true
+    ? '后端已回执，种子受控'
+    : cf.seedControlled === false
+      ? '后端未回执，种子未受控'
+      : '待后端回执确认';
+  const rows = [
+    '五、反事实实验结论（事实 / 反事实成对世界）',
+    '------------------------------------------',
+    `随机种子：${cf.seed === null || cf.seed === undefined ? '--' : cf.seed}（${seedState}）`,
+    `配对样本数 n：${cf.effect?.n ?? 0}`,
+    `事实世界完成率：均值 ${formatCounterfactualPercent(cf.factualDistribution?.mean)}，95% CI ${formatCounterfactualPercent(cf.factualDistribution?.ci95?.[0])} ~ ${formatCounterfactualPercent(cf.factualDistribution?.ci95?.[1])}`,
+    `反事实世界完成率：均值 ${formatCounterfactualPercent(cf.distribution?.mean)}，95% CI ${formatCounterfactualPercent(cf.distribution?.ci95?.[0])} ~ ${formatCounterfactualPercent(cf.distribution?.ci95?.[1])}`,
+    `配对差值：均值 ${formatCounterfactualPercent(cf.effect?.meanDifference)}，95% CI ${formatCounterfactualPercent(cf.effect?.ci95?.[0])} ~ ${formatCounterfactualPercent(cf.effect?.ci95?.[1])}，符号检验 p = ${formatCounterfactualP(cf.effect?.pValue)}`,
+    '',
+    cf.conclusion || '（未生成结论）',
+    ''
+  ];
+  return rows.join('\n');
+};
 
 const parameterMatrixRows = computed(() => {
   return [
@@ -815,6 +956,7 @@ const loadReportData = async () => {
       reportData.value = null;
       comparisonData.value = null;
       linkedSession.value = null;
+      counterfactualReport.value = null;
       return;
     }
 
@@ -823,8 +965,12 @@ const loadReportData = async () => {
       reportData.value = null;
       comparisonData.value = null;
       linkedSession.value = null;
+      counterfactualReport.value = null;
       return;
     }
+
+    // 反事实实验交接：按实验 id 读取结论与分布（无则保持 null，不影响原报告流程）
+    counterfactualReport.value = loadCounterfactualReport(experimentId);
 
     const reportResp = await getExperimentReport(experimentId);
     const report = unwrapApiData(reportResp);
@@ -1082,7 +1228,7 @@ ${paramText}
     ? '基于最优轮次的铀矿产能和新矿投产策略，参考NEA Red Book预测，在实际铀供应链规划中应用最优配置以保障供应安全。'
     : '基于最优轮次的工厂产能与订单匹配策略，结合参数目录中的产能/成本区间，在实际汽车供应链排产中应用最优配置以保障订单履约。'}
 
-==========================================
+${buildCounterfactualText()}==========================================
 报告生成时间：${new Date().toLocaleString('zh-CN')}
 `;
 };
@@ -1501,6 +1647,43 @@ onMounted(() => {
   text-align: center;
   color: #94a3b8;
   font-size: 13px;
+}
+
+/* ---- 反事实实验 ---- */
+.report-counterfactual {
+  border-left: 4px solid #6366f1;
+  background: linear-gradient(135deg, #eef2ff, #ffffff);
+}
+
+.report-counterfactual .section-head {
+  padding: 10px 16px;
+  border-bottom: 1px solid #e0e7ff;
+}
+
+.report-counterfactual .section-head h2 {
+  color: #4338ca;
+}
+
+.cf-interventions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.cf-interventions-label {
+  font-weight: 700;
+}
+
+.cf-intervention-tag {
+  padding: 3px 8px;
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #3730a3;
+  font-weight: 600;
 }
 
 .session-list,

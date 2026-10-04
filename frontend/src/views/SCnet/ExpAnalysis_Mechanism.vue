@@ -3,6 +3,20 @@
     <!-- K5-PIPELINE:实验闭环导航(运行实验 → 观察 → 干预 → 机制),实验 id 从 URL 带入 -->
     <ExperimentStageNav :experiment-id="routeExperimentId" current="mechanism" />
 
+    <!-- P2：机制分析横切因果阶梯三层（论文：机制分析是核心，行为机制分析可设计各种反事实实验） -->
+    <section class="evidence-level" role="note">
+      <span class="evidence-level__badge">机制分析 · 横切三层</span>
+      <div class="evidence-level__body">
+        <p class="evidence-level__title">本页回答「为什么」，并负责把机制假设变成可执行的反事实实验</p>
+        <p class="evidence-level__desc">
+          因果图上的链路系数是<b>统计关联结构</b>（面板 OLS），说明的是「谁跟着谁动」，本身不等于因果效应；
+          要把一条链路读成机制，需要干预证据（第 2 层）与成对世界反事实（第 3 层）去验证同一个假设。
+          下方的反事实推演调用后端真实引擎，并标明结论实际来自哪一层（后端仿真 / 数据驱动 / 启发式），
+          不用前端估算顶替真实结果。
+        </p>
+      </div>
+    </section>
+
     <section class="page-head">
       <div>
         <h1>因果分析</h1>
@@ -204,20 +218,51 @@
             </div>
             <el-button type="primary" size="small" @click="runCF" :loading="cfLoading"><el-icon><Connection /></el-icon>执行推理</el-button>
           </div>
-          <div v-if="cfResult" class="cf-conclusion">
-            <div class="cf-conclusion-head">推理结论</div>
+
+          <div v-if="cfLoading" class="cf-placeholder">正在向后端提交反事实推理…</div>
+
+          <!-- 推理失败时不编造预测，如实说明拿不到结果 -->
+          <div v-else-if="cfError" class="cf-error">
+            <p class="cf-error-title">未取到反事实推理结果</p>
+            <p>{{ cfError }}</p>
+            <p class="cf-error-hint">为避免用前端估算冒充因果结论，这里不展示任何预测值。可换一个已完成且有指标产出的实验后重试。</p>
+          </div>
+
+          <div v-else-if="cfResult" class="cf-conclusion">
+            <div class="cf-conclusion-head">
+              <span>推理结论</span>
+              <span class="cf-method-tag" :class="`cf-method--${cfResult.analysis_method || 'unknown'}`">{{ cfMethodLabel }}</span>
+            </div>
+            <p v-if="cfResult.intervention" class="cf-intervention-line">
+              干预口径：{{ cfResult.intervention.variable }} {{ formatCFValue(cfResult.intervention.current_value) }} → {{ formatCFValue(cfResult.intervention.new_value) }}（{{ cfResult.intervention.change || cfChange }}）
+            </p>
             <p class="cf-conclusion-summary">{{ cfResult.summary }}</p>
             <div class="cf-predictions">
               <div v-for="p in cfResult.predictions" :key="p.target_variable" class="cf-pred-item">
                 <div class="cf-pred-head">
                   <strong>{{ p.target_variable }}</strong>
-                  <span :class="p.predicted_effect.startsWith('+')?'pred-pos':'pred-neg'">{{ p.predicted_effect }}</span>
-                  <span class="pred-conf">{{ (p.confidence*100).toFixed(0) }}%</span>
+                  <span :class="effectClass(p.predicted_effect)">{{ p.predicted_effect }}</span>
+                  <span class="pred-conf" v-if="p.confidence != null">{{ (p.confidence*100).toFixed(0) }}%</span>
                 </div>
                 <p>{{ p.rationale }}</p>
               </div>
             </div>
+            <p v-if="cfResult.note" class="cf-note">{{ cfResult.note }}</p>
+            <details v-if="cfResult.fallback_chain?.length" class="cf-chain">
+              <summary>结论来源：逐层回退明细（共 {{ cfResult.fallback_chain.length }} 层）</summary>
+              <ul>
+                <li v-for="layer in cfResult.fallback_chain" :key="layer.layer">
+                  <b>第 {{ layer.layer }} 层 · {{ layer.method }}</b> —— {{ layer.used ? '本次生效' : (layer.attempted ? '已尝试但未采用' : '未尝试') }}：{{ layer.reason }}
+                </li>
+              </ul>
+            </details>
+            <div class="cf-actions">
+              <el-button size="small" plain :icon="Connection" @click="goCounterfactualExperiment">
+                到「反事实实验」跑成对世界验证该机制
+              </el-button>
+            </div>
           </div>
+
           <div v-else class="cf-placeholder">选择干预变量并点击"执行推理"查看因果推断结论</div>
         </div>
       </div>
@@ -227,15 +272,19 @@
 
 <script setup>
 import { computed, ref, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   ArrowDown, ArrowUp, Collection, Connection, DataLine, Histogram, Odometer, Refresh, Setting, Warning
 } from '@element-plus/icons-vue'
-import { getMechanismAnalysis, getExperimentDetail } from '@/api/supplyChain'
+import { getMechanismAnalysis } from '@/api/supplyChain'
+import { postCounterfactualReasoning } from '@/api/counterfactual'
 import { unwrapApiData } from '@/utils/apiEnvelope'
 import VerticalCausalGraph from './components/VerticalCausalGraph.vue'
 import ExperimentStageNav from '@/components/SCnet/ExperimentStageNav.vue'
 import { useSupplyChainScenario } from '@/composables/useSupplyChainScenario'
+import { SCNET_ROUTES } from '@/constants/scnetRoutes'
+import { PLAN_CONTEXT_KEYS } from '@/constants/scnetExperimentPlan'
 
 const selectedWorkflowStepId = ref('phenomenon')
 
@@ -260,7 +309,9 @@ const analysisData = ref(null)
 
 // ---- 场景（铀供应链 / 汽车供应链）：与对话首页共用同一份选择 ----
 // ?scenario= 进入时以 URL 为准；场景文案与变量口径取 sceneText
-const { isUraniumScene, sceneText, routeExperimentId, loadScenarioExperiments } = useSupplyChainScenario()
+const { scenarioStore, isUraniumScene, sceneText, routeExperimentId, loadScenarioExperiments } = useSupplyChainScenario()
+const route = useRoute()
+const router = useRouter()
 
 // 概览数据
 const overviewItems = computed(() => {
@@ -534,6 +585,8 @@ const loadMechanismAnalysis = async () => {
       ElMessage.warning('未找到有效实验ID')
       return
     }
+    // 本页因果图与反事实推理锚定同一次实验，避免图与推理各跑一份数据
+    mechanismExperimentId.value = experimentId
 
     const res = await getMechanismAnalysis(experimentId)
     const data = unwrapApiData(res)
@@ -573,8 +626,11 @@ const cfVariable = ref(sceneText.value.interventionVariables[0])
 const cfChange = ref('+20%')
 const cfLoading = ref(false)
 const cfResult = ref(null)
+const cfError = ref('')
 const cfVariables = computed(() => sceneText.value.interventionVariables)
 const cfChanges = ['+10%', '+20%', '+50%', '-10%', '-20%']
+// 反事实推理的锚点实验：与上方因果图取自同一条实验记录
+const mechanismExperimentId = ref('')
 
 // 微观 → 中观 → 宏观：后端在全库面板上估计的标准化路径系数
 const causalGraph = ref(null)
@@ -658,55 +714,75 @@ const causalEdges = computed(() => {
   return (strong.length ? strong : edges).slice(0, 14)
 })
 
-const runCF = async () => {
-  cfLoading.value = true; cfResult.value = null
-  try {
-    // 与上方分析管道同源：只取当前场景的实验
-    const exps = await loadScenarioExperiments()
-    if (!exps.length) { cfResult.value = buildLocalCFResult(); return }
-    const detail = unwrapApiData(await getExperimentDetail(exps[0].experiment_id || exps[0].id))
-    const iters = detail?.iterations || []
-    // 基于实验数据计算反事实效果
-    const completions = iters.map(i => i?.simulation_result?.metrics?.order_completion_rate || 0).filter(v => v > 0)
-    const profits = iters.map(i => i?.simulation_result?.metrics?.total_net_profit || 0).filter(v => v > 0)
-    const baseComp = completions.length ? completions.reduce((a,b)=>a+b,0)/completions.length : 0.7
-    const baseProfit = profits.length ? profits.reduce((a,b)=>a+b,0)/profits.length : 50000
-    const pct = parseFloat(cfChange.value) / 100
-    // 弹性系数按变量语义取符号与量级：产能/订单倍数放大，需求收缩，库存/阈值次之
-    cfResult.value = buildLocalCFResult(baseComp, baseProfit, pct * (
-      cfVariable.value.includes('产能') ? 1.5
-        : cfVariable.value.includes('订单') ? -1.2
-          : cfVariable.value.includes('需求') ? -1.2
-            : cfVariable.value.includes('阈值') ? 1.0
-              : 0.8
-    ))
-  } catch { cfResult.value = buildLocalCFResult() }
-  finally { cfLoading.value = false }
+// 结论来源标签：优先用后端给出的中文口径，缺失时按方法名兜底，不替后端下判断
+const cfMethodLabel = computed(() => {
+  if (cfResult.value?.analysis_method_label) return cfResult.value.analysis_method_label
+  const m = cfResult.value?.analysis_method
+  if (m === 'backend_simulation') return '后端仿真（实跑）'
+  if (m === 'data_driven') return '数据驱动回归'
+  if (m === 'heuristic') return '启发式规则'
+  return '未知来源'
+})
+
+// 干预量级展示口径：量级 >= 1 的一律两位小数（与后端 summary 口径一致），
+// 比率类指标按有效位截断，不人为放大精度
+const formatCFValue = (v) => {
+  if (v === null || v === undefined || v === '') return '--'
+  const n = Number(v)
+  if (!Number.isFinite(n)) return String(v)
+  return Math.abs(n) >= 1 ? n.toFixed(2) : String(Number(n.toFixed(4)))
 }
-const buildLocalCFResult = (baseComp = null, baseProfit = null, factor = 0.2) => {
-  const summary = `改变"${cfVariable.value}"${cfChange.value}后，${sceneText.value.systemLabel}系统预计将产生以下影响`
-  // 只有在读到真实实验基线时才在说明里引用基线水平，
-  // 无数据兜底（两个参数为 null）时不展示编造的基线数字
-  const baselineNote = Number.isFinite(baseComp) ? `当前基线完成率 ${(baseComp * 100).toFixed(1)}%，` : ''
-  const profitNote = Number.isFinite(baseProfit) ? `当前基线净利润 ${baseProfit.toFixed(0)}，` : ''
-  if (!isUraniumScene.value) {
-    return {
-      summary,
-      predictions: [
-        { target_variable: '订单完成率', predicted_effect: `${(factor*0.6*100).toFixed(1).replace('-','')}pp`, confidence: 0.78, rationale: `${baselineNote}产能水平与库存容量直接影响订单履约能力` },
-        { target_variable: '系统总利润', predicted_effect: `${(factor*0.9*100).toFixed(1)}%`, confidence: 0.72, rationale: `${profitNote}产能与订单倍数变化影响总产出和利润规模` },
-        { target_variable: '网络密度', predicted_effect: `${(factor*0.4*100).toFixed(1)}%`, confidence: 0.60, rationale: '产能与协作频次调整改变企业间协作连边的密度' },
-      ]
+
+// 影响方向配色：只有后端给出带符号的数值才判定方向；启发式层的「?」用中性灰，
+// 不把「不知道方向」渲染成红色下跌
+const effectClass = (effect) => {
+  const s = String(effect ?? '')
+  if (s.startsWith('+')) return 'pred-pos'
+  if (s.startsWith('-')) return 'pred-neg'
+  return 'pred-neutral'
+}
+
+const runCF = async () => {
+  cfLoading.value = true
+  cfResult.value = null
+  cfError.value = ''
+  try {
+    // 与因果图同源：推理跑在图上那条实验上（URL 指定优先，否则用本页已加载的实验）
+    const experimentId = mechanismExperimentId.value || routeExperimentId.value
+    if (!experimentId) {
+      cfError.value = `尚未定位到可用于推理的${sceneText.value.systemLabel}实验；请先运行一次实验，或从实验闭环带 ?experiment_id= 进入`
+      return
     }
+    // 直接调用后端反事实推理引擎：结论实际来自哪一层（后端仿真 / 数据驱动 / 启发式）
+    // 由后端 fallback_chain 给出，前端只用标签如实转述，不再用弹性系数估算顶替。
+    const res = await postCounterfactualReasoning(experimentId, {
+      variable: cfVariable.value,
+      change: cfChange.value
+    })
+    const data = unwrapApiData(res)
+    if (!data) { cfError.value = '后端未返回反事实推理结果'; return }
+    cfResult.value = data
+  } catch (e) {
+    console.warn('反事实推理失败:', e)
+    cfError.value = `后端反事实推理接口不可用（${e?.message || '请求失败'}）；为避免用前端估算冒充因果结论，这里不展示任何预测值`
+  } finally {
+    cfLoading.value = false
   }
-  return {
-    summary,
-    predictions: [
-      { target_variable: '供应完成率', predicted_effect: `${(factor*0.6*100).toFixed(1).replace('-','')}pp`, confidence: 0.78, rationale: `${baselineNote}铀矿产能调整直接缓解/加剧供应瓶颈` },
-      { target_variable: '系统总利润', predicted_effect: `${(factor*0.9*100).toFixed(1)}%`, confidence: 0.72, rationale: `${profitNote}产能变化影响总产出和利润规模` },
-      { target_variable: '网络韧性', predicted_effect: `${(factor*0.4*100).toFixed(1)}%`, confidence: 0.60, rationale: '产能调整可能吸引新矿山企业进入或退出' },
-    ]
-  }
+}
+
+// 机制假设 → 成对世界验证：带上实验闭环上下文（实验 id / 方案 id / 来源对话 / 场景）跳转，
+// 让「反事实实验」页在同一次实验基座上跑事实 / 反事实两个世界
+const goCounterfactualExperiment = () => {
+  const query = {}
+  PLAN_CONTEXT_KEYS.forEach((key) => {
+    const value = route.query[key]
+    if (value !== undefined && value !== '') query[key] = value
+  })
+  const experimentId = mechanismExperimentId.value || routeExperimentId.value
+  if (experimentId) query.experiment_id = experimentId
+  query.scenario = scenarioStore.currentScenario
+  query.phase = 'post'
+  router.push({ path: SCNET_ROUTES.counterfactualExperiment, query })
 }
 
 // 汽车供应链兜底视图：只给与后端真实口径一致的结构骨架与算法说明，
@@ -863,6 +939,8 @@ const buildFallbackData = () =>
 watch(isUraniumScene, () => {
   cfVariable.value = sceneText.value.interventionVariables[0]
   cfResult.value = null
+  cfError.value = ''
+  mechanismExperimentId.value = ''
   analysisData.value = null
   causalGraph.value = null
   loadMechanismAnalysis()
@@ -1465,7 +1543,7 @@ onMounted(() => {
 .cf-field { display:flex; flex-direction:column; gap:3px; }
 .cf-field label { font-size:11px; font-weight:700; color:#64748b; }
 .cf-conclusion { margin-top: 10px; border: 1px solid #d1fae5; border-radius: 10px; background: #f0fdf4; overflow: hidden; }
-.cf-conclusion-head { padding: 6px 12px; background: #d1fae5; font-size: 12px; font-weight: 800; color: #065f46; }
+.cf-conclusion-head { display:flex; align-items:center; justify-content:space-between; gap:8px; padding: 6px 12px; background: #d1fae5; font-size: 12px; font-weight: 800; color: #065f46; }
 .cf-conclusion-summary { margin: 0; padding: 8px 12px; font-size: 12px; line-height: 1.6; color: #334155; font-weight: 600; }
 .cf-placeholder { margin-top: 10px; padding: 16px; text-align: center; color: #94a3b8; font-size: 12px; border: 1px dashed #e2e8f0; border-radius: 8px; }
 .cf-predictions { display: flex; flex-direction: column; gap: 6px; padding: 0 12px 10px; }
@@ -1473,9 +1551,34 @@ onMounted(() => {
 .cf-pred-head { display: flex; align-items: center; gap: 8px; }
 .cf-pred-head strong { font-size: 12px; color: #0f172a; }
 .cf-pred-head span { font-size: 14px; font-weight: 900; }
-.pred-pos { color:#22c55e; } .pred-neg { color:#ef4444; }
+.pred-pos { color:#22c55e; } .pred-neg { color:#ef4444; } .pred-neutral { color:#94a3b8; }
 .pred-conf { font-size: 11px !important; color: #94a3b8; margin-left: 8px; }
 .cf-pred-item p { margin: 4px 0 0; font-size: 11px; color: #64748b; line-height: 1.4; }
+
+/* ---- 反事实推理结论：来源标签 / 干预口径 / 回退链 / 失败态 ---- */
+.cf-method-tag { flex-shrink: 0; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; background: #e2e8f0; color: #475569; }
+.cf-method--backend_simulation { background: #dcfce7; color: #15803d; }
+.cf-method--data_driven { background: #fef3c7; color: #b45309; }
+.cf-method--heuristic { background: #e0e7ff; color: #4338ca; }
+.cf-method--unknown { background: #fee2e2; color: #b91c1c; }
+.cf-intervention-line { margin: 0; padding: 6px 12px 0; font-size: 11px; font-weight: 700; color: #0f172a; }
+.cf-note { margin: 0; padding: 4px 12px 8px; font-size: 11px; line-height: 1.6; color: #475569; }
+.cf-chain { margin: 0 12px 10px; padding: 6px 10px; border: 1px dashed #cbd5e1; border-radius: 8px; background: #fff; font-size: 11px; color: #475569; }
+.cf-chain summary { cursor: pointer; font-weight: 700; color: #334155; }
+.cf-chain ul { margin: 6px 0 0; padding-left: 18px; }
+.cf-chain li { line-height: 1.6; }
+.cf-actions { padding: 0 12px 10px; }
+.cf-error { margin-top: 10px; padding: 12px; border: 1px solid #fecaca; border-radius: 10px; background: #fef2f2; font-size: 12px; color: #991b1b; }
+.cf-error p { margin: 0 0 4px; line-height: 1.6; }
+.cf-error-title { font-weight: 800; }
+.cf-error-hint { color: #b91c1c; font-size: 11px; }
+
+/* ---- 机制分析定位条：横切因果阶梯三层（论文：机制分析是核心，行为机制分析可设计反事实实验） ---- */
+.evidence-level { flex: 0 0 auto; display: flex; align-items: flex-start; gap: 12px; margin: 0; padding: 12px 16px; border: 1px solid #bfdbfe; border-left: 4px solid #2563eb; border-radius: 10px; background: linear-gradient(135deg, #eff6ff, #ffffff); }
+.evidence-level__badge { flex-shrink: 0; padding: 3px 10px; border-radius: 999px; background: #2563eb; color: #fff; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; white-space: nowrap; }
+.evidence-level__body { min-width: 0; }
+.evidence-level__title { margin: 0; font-size: 13px; font-weight: 800; color: #1e3a8a; }
+.evidence-level__desc { margin: 4px 0 0; font-size: 12px; line-height: 1.7; color: #475569; }
 
 .detail-slide-leave-to {
   opacity: 0;

@@ -18,40 +18,51 @@
       @retry-history="retryHistory"
     />
 
-    <div class="chat-main" :class="[sidebarCollapsed ? 'chat-main-shrink' : 'chat-main-expand', execPanelVisible ? 'has-exec' : '']">
+    <div class="chat-main" :class="[sidebarCollapsed ? 'chat-main-shrink' : 'chat-main-expand', isPostMode ? 'has-post' : (execPanelVisible ? 'has-exec' : '')]">
 
       <!-- ====== Welcome ====== -->
       <template v-if="messages.length === 0 && !isStreaming">
-        <div class="chat-welcome-wrap">
-          <div class="chat-welcome">
+        <div class="chat-welcome-wrap" :class="{ 'is-post': isPostMode }">
+          <div class="chat-welcome" :class="{ 'is-post': isPostMode }">
             <div class="chat-welcome-brand">
               <img :src="logoUrl" alt="SCnet" class="chat-welcome-logo" />
               <span class="chat-welcome-text">使用供应链助手开始对话</span>
             </div>
-            <p class="chat-welcome-hint">本系统支持 <b>铀供应链</b> 与 <b>汽车供应链</b> 两大场景，请先<b>手动选择</b>场景，再选择分析阶段直接提问，即可进入对应的推演分析。</p>
+            <!-- 事后复盘欢迎页保持干净：场景与阶段进入前已确定，这里不再重复摆提示语与选择器 -->
+            <template v-if="!isPostMode">
+              <p class="chat-welcome-hint">本系统支持 <b>铀供应链</b> 与 <b>汽车供应链</b> 两大场景，请先<b>手动选择</b>场景，再选择分析阶段直接提问，即可进入对应的推演分析。</p>
 
-            <!-- 场景切换（手动） -->
-            <div class="chat-scenario-switch" role="radiogroup" aria-label="选择供应链场景">
-              <button v-for="opt in scenarioOptions" :key="opt.value" type="button"
-                class="chat-scenario-option" :class="[opt.className, { active: scenarioStore.currentScenario === opt.value }]"
-                role="radio" :aria-checked="scenarioStore.currentScenario === opt.value"
-                @click="selectScenario(opt.value)">
-                <span class="chat-scenario-dot"></span>
-                <span>{{ opt.label }}</span>
-              </button>
-            </div>
-
-            <!-- Mode selector -->
-            <div class="chat-mode-wrap">
-              <div class="chat-mode-selector" @pointermove="handleModeGlassPointer" @pointerleave="resetModeGlassPointer">
-                <div class="chat-mode-slider" :class="'pos-' + modeIndex"></div>
-                <button v-for="opt in modeOptions" :key="opt.value" class="chat-mode-option"
-                  :class="{ active: currentMode === opt.value }" @click="selectMode(opt.value)">
-                  <el-icon :size="16"><component :is="opt.icon" /></el-icon>
+              <!-- 场景切换（手动） -->
+              <div class="chat-scenario-switch" role="radiogroup" aria-label="选择供应链场景">
+                <button v-for="opt in scenarioOptions" :key="opt.value" type="button"
+                  class="chat-scenario-option" :class="[opt.className, { active: scenarioStore.currentScenario === opt.value }]"
+                  role="radio" :aria-checked="scenarioStore.currentScenario === opt.value"
+                  @click="selectScenario(opt.value)">
+                  <span class="chat-scenario-dot"></span>
                   <span>{{ opt.label }}</span>
                 </button>
               </div>
-            </div>
+
+              <!-- Mode selector -->
+              <div class="chat-mode-wrap">
+                <div class="chat-mode-selector" @pointermove="handleModeGlassPointer" @pointerleave="resetModeGlassPointer">
+                  <div class="chat-mode-slider" :class="'pos-' + modeIndex"></div>
+                  <button v-for="opt in modeOptions" :key="opt.value" class="chat-mode-option"
+                    :class="{ active: currentMode === opt.value }" @click="selectMode(opt.value)">
+                    <el-icon :size="16"><component :is="opt.icon" /></el-icon>
+                    <span>{{ opt.label }}</span>
+                  </button>
+                </div>
+              </div>
+            </template>
+
+            <!-- 事后复盘：进入该阶段先讲清这次实验要做什么（见 PostReviewBrief） -->
+            <PostReviewBrief
+              v-if="isPostMode"
+              class="chat-post-brief-welcome"
+              :scenario-label="postScenarioLabel"
+              :chain="postChainTemplate"
+            />
 
             <!-- Input -->
             <div class="chat-welcome-input">
@@ -138,6 +149,12 @@
       <template v-else>
         <div class="chat-messages" ref="msgContainer">
           <div class="chat-messages-inner">
+            <!-- 事后复盘：阶段说明常驻对话页顶部，翻历史也不会丢「这一步该干嘛」 -->
+            <PostReviewBrief
+              v-if="isPostMode"
+              :scenario-label="postScenarioLabel"
+              :chain="postChainTemplate"
+            />
             <div v-for="msg in messages" :key="msg.id" class="chat-msg" :class="msg.role">
               <div class="chat-msg-avatar" :class="msg.role">
                 <img v-if="msg.role === 'assistant'" :src="logoUrl" alt="" />
@@ -145,7 +162,7 @@
               </div>
               <div class="chat-msg-body">
                 <!-- K3-CHAT-2:三部分结果卡 -->
-                <div v-if="msg.role === 'assistant' && execPanelVisible" class="chat-result-cards">
+                <div v-if="msg.role === 'assistant' && execPanelVisible && !msg.goalBrief" class="chat-result-cards">
                   <div v-for="card in RESULT_CARDS" :key="card.key" class="chat-result-card"
                     :class="{ active: isSectionDone(card.key) }">
                     <span class="chat-result-card-num">{{ card.key }}</span>
@@ -153,8 +170,15 @@
                     <span class="chat-result-card-check">{{ isSectionDone(card.key) ? '✓' : '…' }}</span>
                   </div>
                 </div>
+                <!-- 事后阶段:先把目标复述清楚,再按「观察 / 干预 / 机制」拆成三个子问题 -->
+                <div v-if="msg.goalBrief" class="chat-goal-brief">
+                  <p class="chat-goal-line">
+                    您的目标是：<b class="chat-goal-target">{{ msg.goalBrief.goal }}</b>。这是一个全流程目标，后续将拆分为<b>观察</b>（{{ msg.goalBrief.dims.observe }}）、<b>干预</b>（{{ msg.goalBrief.dims.intervene }}）、<b>机制</b>（{{ msg.goalBrief.dims.mechanism }}）三个子问题。
+                  </p>
+                  <p class="chat-goal-confirm">请确认以上实验目的是否准确。准确请输入「确认实验目的」；需要调整时，请直接重新描述实验目的。</p>
+                </div>
                 <div v-if="msg.content" class="chat-msg-bubble" v-html="renderMarkdown(msg.content)"></div>
-                <div v-if="msg.role === 'assistant'" class="chat-disclaimer">本回答由 AI 生成，内容仅供参考</div>
+                <div v-if="msg.role === 'assistant' && !msg.goalBrief" class="chat-disclaimer">本回答由 AI 生成，内容仅供参考</div>
                 <!-- K2-FLOW:本次研判结果操作区 -->
                 <div v-if="analysisSuccess && msg.id === lastAnalysisMsgId" class="chat-analysis-actions">
                   <button class="chat-pdf-btn" :disabled="pdfGenerating" @click="exportPdf">
@@ -175,6 +199,7 @@
               <p class="chat-plan-title">实验方案设计</p>
               <p class="chat-plan-desc">实验目的已按本次研判拟好；干预变量、目标指标与观测轮次在方案设计页里配置，保存后直接写入反事实实验平台的参数面板。</p>
               <p class="chat-plan-preview">{{ planPurpose || '（尚未生成实验目的，可在方案设计页手填）' }}</p>
+              <p v-if="planPurposeConfirmed" class="chat-plan-confirmed">✓ 实验目的已确认，可进入方案设计</p>
               <div class="chat-plan-actions">
                 <button class="chat-visualize-btn" @click="openPlanDesign">
                   <span>进入实验方案设计</span>
@@ -290,8 +315,8 @@
       </template>
     </div>
 
-    <!-- 右侧：Agent 研判执行面板 -->
-    <aside v-if="execPanelVisible" class="chat-exec-panel">
+    <!-- 右侧：事后阶段固定为复盘工作台（内含 Agent 执行状态），其余阶段是 Agent 研判执行面板 -->
+    <aside v-if="execPanelVisible && !isPostMode" class="chat-exec-panel">
       <div class="chat-exec-header">
         <span class="chat-exec-title">{{ execPanelTitle }}</span>
         <button class="chat-exec-close" @click="execPanelVisible = false" title="收起">&times;</button>
@@ -322,6 +347,19 @@
           提交问题后，Agent 将在此展示执行状态、工具调用与研判进度。
         </div>
       </div>
+    </aside>
+
+    <!-- 右侧：事后复盘工作台（阶段操作 + 参数展示 + Agent 执行） -->
+    <aside v-if="isPostMode" class="chat-post-panel">
+      <PostReviewWorkspace
+        :actions="postReviewActions"
+        :progress="postReviewProgress"
+        :parameters="postReviewParameterGroups"
+        :scenario-label="postScenarioLabel"
+        :agent="postReviewAgent"
+        @consult="consultPostAction"
+        @enter="enterPostAction"
+      />
     </aside>
 
     <input ref="fileInput" type="file" multiple accept="image/*,.pdf,.doc,.docx,.txt,.json,.csv,.xlsx"
@@ -365,6 +403,8 @@ import {
 } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import ChatSidebar from './ChatSidebar.vue'
+import PostReviewWorkspace from '@/components/SCnet/PostReviewWorkspace.vue'
+import PostReviewBrief from '@/components/SCnet/PostReviewBrief.vue'
 import logoUrl from '@/assets/images/logo.png'
 import { useScenarioStore } from '@/stores/scenario'
 import { useScnetScenarioStore } from '@/stores/scnet/useScenarioStore'
@@ -375,7 +415,8 @@ import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 import { toolDisplayName as toolLabelOf } from '@/constants/scnetToolLabels'
 import { unwrapApiData } from '@/utils/session'
 import { inferAutoPhase } from '@/utils/phaseInfer'
-import { PLAN_QUERY_KEY, PLAN_CONTROL_LABEL, composePlanPurpose, newExperimentPlanId, saveExperimentPlan } from '@/constants/scnetExperimentPlan'
+import { PLAN_QUERY_KEY, PLAN_CONTROL_LABEL, composePlanPurpose, newExperimentPlanId, saveExperimentPlan, readLatestExperimentPlan, describePlanLevers } from '@/constants/scnetExperimentPlan'
+import { loadCounterfactualReport } from '@/utils/counterfactualReport'
 import { getSessions, getSessionDetail, createSession, addChatMessage } from '@/api/scenarioSession'
 import { startAgentChat, streamAgentTask, cancelAgentTask, getAgentModels, getAgentConversations, getAgentConversation, markConversationPdf } from '@/api/scnet/chatAgent'
 
@@ -435,7 +476,7 @@ const CHAT_MODELS = [
 ]
 export default {
   name: 'ChatHome',
-  components: { ChatSidebar, Switch, Cpu, Position, MagicStick, TrendCharts, Aim, DataAnalysis, Link, Document, View, ChatDotRound, List, Monitor },
+  components: { ChatSidebar, PostReviewWorkspace, PostReviewBrief, Switch, Cpu, Position, MagicStick, TrendCharts, Aim, DataAnalysis, Link, Document, View, ChatDotRound, List, Monitor },
   setup() {
     const router = useRouter()
     const route = useRoute()
@@ -868,6 +909,29 @@ export default {
       const fileInfo = attachments.value.length > 0 ? '\n[附件: ' + attachments.value.map(a => a.name).join(', ') + ']' : ''
       inputText.value = ''; attachments.value = []
       messages.value.push({ id: 'u' + Date.now(), role: 'user', content: text + fileInfo })
+
+      // 事后阶段第一步是「确认实验目的」:先把目标复述清楚并按三个分析拆解,再让 Agent 展开研判
+      if (agentPhase === 'post') {
+        if (GOAL_CONFIRM_PATTERN.test(text)) {
+          planPurposeConfirmed.value = true
+          if (!planPurpose.value) planPurpose.value = derivePlanPurpose()
+          messages.value.push({
+            id: 'a' + Date.now(),
+            role: 'assistant',
+            content: '实验目的已确认。下一步进入「实验方案设计」，配置干预变量、目标指标与观测轮次；保存后即可运行反事实实验。'
+          })
+          scrollToBottom()
+          return
+        }
+        planPurposeConfirmed.value = false
+        messages.value.push({
+          id: 'g' + Date.now(),
+          role: 'assistant',
+          content: '',
+          goalBrief: composeGoalBrief(text)
+        })
+      }
+
       messages.value.push({
         id: 'a' + Date.now(),
         role: 'assistant',
@@ -1232,11 +1296,238 @@ export default {
     const isPostPhase = computed(() => runPhase.value === 'post')
     const postSideTargets = computed(() => POST_SIDE_TARGETS)
 
+    // ── K6-WORKSPACE:事后复盘工作台(右侧常驻) ──
+    // 事后阶段右侧改成工作台:把「这一步要做什么 / 现在做到哪 / 参数填了什么」摆在一屏,
+    // 并可直接进任一环节、或就地把复盘问题抛给助手。此前右侧只有 Agent 工具调用,
+    // 工具跑完就空了,用户还得回头去猜五个页面的名字。
+    const isPostMode = computed(() => currentMode.value === 'post' || runPhase.value === 'post')
+    // 方案存在 sessionStorage 里;从方案设计页回来时按场景重新读一次
+    const activePlan = ref(null)
+    const refreshActivePlan = () => {
+      activePlan.value = readLatestExperimentPlan(scenarioStore.currentScenario) || null
+    }
+    // 工作台里的实验 id:从实验闭环跳回本对话时会带在 URL 上
+    const workspaceExperimentId = computed(() => String(route.query?.experiment_id || '').trim())
+    const postScenarioLabel = computed(() => SCENARIO_LABELS[scenarioStore.currentScenario] || '')
+
+    // 事后介绍里的「典型传导链」：只用本场景参数目录 / 指标里真实存在的变量名，
+    // 而且明确标成链路结构示例 —— 复盘要沿着它逐段核对，不是已经发生过的结论。
+    const POST_CHAIN_TEMPLATES = {
+      [SCENARIO_VALUES.URANIUM]: {
+        root: '外部扰动',
+        branches: [
+          ['铀矿产能不足', '供应完成率下滑'],
+          ['新矿投产阈值过高', '缺口持续扩大'],
+          ['网络协作密度下降', '调配能力受限'],
+          ['产能爬坡速率偏慢', '系统总利润收缩']
+        ]
+      },
+      [SCENARIO_VALUES.SUPPLY_CHAIN]: {
+        root: '外部扰动',
+        branches: [
+          ['产能水平不足', '订单完成率下滑'],
+          ['库存容量告罄', '交付超期'],
+          ['协作频次下降', '调配能力受限'],
+          ['订单倍数过高', '系统净利润收缩']
+        ]
+      }
+    }
+    const postChainTemplate = computed(
+      () => POST_CHAIN_TEMPLATES[scenarioStore.currentScenario] || POST_CHAIN_TEMPLATES[SCENARIO_VALUES.URANIUM]
+    )
+
+    // 事后阶段第一个回复要复述目标并按三个分析拆解:三个子问题只写本场景真实存在的指标 / 参数 / 链条
+    const POST_GOAL_TEMPLATES = {
+      [SCENARIO_VALUES.URANIUM]: {
+        observe: '铀矿产能、供应缺口与网络协作密度的逐轮演化',
+        intervene: '新矿投产阈值、产能爬坡速率在哪些轮次介入能把供应缺口压回基线',
+        mechanism: '产能爬坡、缺口扩散与协作密度之间的因果链条'
+      },
+      [SCENARIO_VALUES.SUPPLY_CHAIN]: {
+        observe: '订单完成率、系统净利润与协作次数的逐轮演化',
+        intervene: '产能区间、订单倍数在哪些轮次介入能把订单完成率拉回基线',
+        mechanism: '产能、库存、协作频次与订单之间的因果链条'
+      }
+    }
+    const postGoalTemplate = computed(
+      () => POST_GOAL_TEMPLATES[scenarioStore.currentScenario] || POST_GOAL_TEMPLATES[SCENARIO_VALUES.URANIUM]
+    )
+    // 确认实验目的的口令:命中后本地应答,不再调 Agent
+    const GOAL_CONFIRM_PATTERN = /^确认实验目的[。.！!]?$/
+    // 目标复述:目标句取自用户原话,三个子问题取自本场景口径模板
+    const composeGoalBrief = (question) => {
+      const asked = String(question || '').replace(/^\[附件[\s\S]*$/m, '').trim()
+      const label = SCENARIO_LABELS[scenarioStore.currentScenario] || '本场景'
+      return {
+        goal: `基于${label}的计算实验结果，梳理事后复盘结论，回答「${asked}」这一问题，并为后续${label}的管控决策提供经验依据`,
+        dims: postGoalTemplate.value
+      }
+    }
+
+    // 五个环节与各自的一句话职责;consult 是「咨询」按钮填进输入框的复盘问题
+    const POST_REVIEW_ACTIONS = [
+      {
+        key: 'observe',
+        icon: '📈',
+        label: '观察分析',
+        desc: '回看仿真基线的逐轮指标序列，标出何时、在哪个环节开始偏离基线。',
+        path: SCNET_ROUTES.expAnalysisObserve,
+        needsExperiment: true,
+        consult: '复盘本次仿真：关键指标在哪些轮次开始偏离基线，偏离最明显的是哪个环节？'
+      },
+      {
+        key: 'counterfactual',
+        icon: '🧪',
+        label: '反事实实验',
+        desc: '按本次实验方案在成对世界上跑事实 / 反事实两次推演，两者只差一个干预。',
+        path: SCNET_ROUTES.counterfactualExperiment,
+        needsExperiment: false,
+        consult: '帮我把本次实验方案里的干预变量与取值整理清楚，并说明对照组应该怎么设。'
+      },
+      {
+        key: 'intervention',
+        icon: '🎛️',
+        label: '干预分析',
+        desc: '比较基线与干预方案的指标变化，用校正后的显著性判定哪组策略真的更优。',
+        path: SCNET_ROUTES.expAnalysisIntervention,
+        needsExperiment: true,
+        consult: '对比几组干预策略：哪一组在完成率与成本上的改善是统计上显著的？'
+      },
+      {
+        key: 'mechanism',
+        icon: '🔗',
+        label: '机制分析',
+        desc: '沿微观→中观→宏观定位因果链路，把机制假设变成可验证的反事实实验。',
+        path: SCNET_ROUTES.expAnalysisMechanism,
+        needsExperiment: true,
+        consult: '本次复盘里主导的传导机制是什么？哪条链路最值得用反事实实验验证？'
+      },
+      {
+        key: 'report',
+        icon: '📄',
+        label: '复盘报告',
+        desc: '汇总实验对比、关键因子与复盘结论，导出可交付的实验报告。',
+        path: SCNET_ROUTES.EXreport,
+        needsExperiment: true,
+        consult: '把本次复盘的关键结论整理成一份可以交付的实验报告要点。'
+      }
+    ]
+
+    // 反事实结论是否已按同一实验 id 交接给复盘报告(EXreport 的读取口径)
+    const postReviewReport = computed(() =>
+      (workspaceExperimentId.value ? loadCounterfactualReport(workspaceExperimentId.value) : null)
+    )
+
+    // 状态分三级:已完成 = 本次实验真的产出了对应证据;可进入 = 前置条件满足(有方案/有实验 id);
+    // 待运行 = 前置条件也没满足。之前把「可进入」直接当「已完成」，会导致存过方案就显示实验已完成。
+    const postReviewActions = computed(() => {
+      const hasExperiment = Boolean(workspaceExperimentId.value)
+      const hasPlan = Boolean(activePlan.value)
+      const report = postReviewReport.value
+      const evidence = {
+        observe: Boolean(report && report.distribution),
+        counterfactual: Boolean(report),
+        intervention: Boolean(report && report.effect && Number.isFinite(report.effect.pValue)),
+        mechanism: Boolean(report && Array.isArray(report.interventionDiff) && report.interventionDiff.length),
+        report: Boolean(report)
+      }
+      return POST_REVIEW_ACTIONS.map((action) => {
+        const ready = action.needsExperiment ? hasExperiment : hasPlan
+        const done = Boolean(evidence[action.key])
+        return { ...action, ready: ready || done, state: done ? 'done' : (ready ? 'ready' : 'waiting') }
+      })
+    })
+
+    // 进度只统计「本次实验」真实产出的证据。
+    // 方案设计是进入事后阶段之前的前置工作，且 readLatestExperimentPlan 会捞到本会话里
+    // 上一份残留方案，把它算进进度会让新开的事后复盘页凭空显示 50%。
+    const postReviewProgress = computed(() => {
+      const report = postReviewReport.value
+      const milestones = [
+        Boolean(workspaceExperimentId.value),                                       // 反事实实验已运行
+        Boolean(report && report.distribution),                                     // 有逐轮样本，分布可比
+        Boolean(report && report.effect && Number.isFinite(report.effect.pValue)),  // 干预效应已配对检验
+        Boolean(report)                                                             // 复盘报告已归档
+      ]
+      const done = milestones.filter(Boolean).length
+      const total = milestones.length
+      return { done, total, percent: Math.round((done / total) * 100) }
+    })
+
+    const PENDING_TEXT = '待生成'
+    const postReviewParameterGroups = computed(() => {
+      const plan = activePlan.value || {}
+      const metricText = (plan.metrics || [])
+        .map((item) => item.label || item.key)
+        .filter(Boolean)
+        .join('、')
+      const hasExperiment = Boolean(workspaceExperimentId.value)
+      const rows = (items) => items.map((item) => ({
+        label: item.label,
+        value: item.value || PENDING_TEXT,
+        pending: !item.value
+      }))
+      return [
+        { group: '基础设置', items: rows([
+          { label: '场景', value: postScenarioLabel.value },
+          { label: '实验名称', value: plan.purpose ? plan.purpose.slice(0, 20) : '' },
+          { label: '实验 ID', value: workspaceExperimentId.value },
+          { label: '实验目的', value: plan.purpose || '' }
+        ]) },
+        { group: '实验设置', items: rows([
+          { label: '干预变量', value: plan.levers?.length ? describePlanLevers(plan) : '' },
+          { label: '目标指标', value: metricText },
+          { label: '观测轮次', value: plan.rounds ? `${plan.rounds} 轮` : '' },
+          { label: '对照组', value: plan.control || '' }
+        ]) },
+        { group: '分析设置', items: rows([
+          { label: '观察分析', value: hasExperiment ? '已就绪' : '' },
+          { label: '干预分析', value: hasExperiment ? '已就绪' : '' },
+          { label: '机制分析', value: hasExperiment ? '已就绪' : '' }
+        ]) }
+      ]
+    })
+
+    // 事后阶段右侧只剩工作台,原来的执行面板内容(状态 + 工具进度)并进来
+    const postReviewAgent = computed(() => ({
+      visible: Boolean(execStatus.value) || execTools.value.length > 0,
+      state: execState.value,
+      status: execStatus.value || '等待提交复盘问题',
+      tools: execTools.value.map((tool) => ({ ...tool, name: toolLabelOf(tool.tool) }))
+    }))
+
+    // 「咨询」:把该环节的复盘问题填进输入框并聚焦,用户可改完再发
+    const consultPostAction = (action) => {
+      const question = String(action?.consult || '').trim()
+      if (!question) return
+      inputText.value = question
+      nextTick(() => {
+        const target = messages.value.length ? chatTextarea.value : welcomeTextarea.value
+        if (target && target.focus) target.focus()
+      })
+    }
+
+    // 「进入」:带上本次实验闭环上下文(方案 / 实验 / 来源对话 / 场景)跳转
+    const enterPostAction = (action) => {
+      if (!action || !action.path) {
+        ElMessage.error('该环节未配置页面路径，跳转已取消')
+        return
+      }
+      const query = { phase: 'post', scenario: scenarioStore.currentScenario || SCENARIO_VALUES.URANIUM }
+      const conversationId = (activeRun.value && activeRun.value.conversation_id) || currentConversationId.value || ''
+      if (conversationId) { query.from_chat = '1'; query.session_id = conversationId }
+      if (activePlan.value && activePlan.value.id) query[PLAN_QUERY_KEY] = activePlan.value.id
+      if (workspaceExperimentId.value) query.experiment_id = workspaceExperimentId.value
+      router.push({ path: action.path, query })
+    }
+
     // 事后复盘 → 「实验方案设计」页的交接:对话里只保留实验目的的自动拟稿与本页入口,
     // 干预变量 / 目标指标 / 观测轮次全部收敛到方案设计页(views/SCnet/ExperimentPlanDesign.vue),
     // 草稿通过 sessionStorage 用同一个 plan_id 带过去,两个页面不各存一份状态。
     const planPurpose = ref('')
     const planPurposeBasis = ref({ question: '', conclusion: '' })
+    // 「确认实验目的」是否已被用户确认:带进方案设计页的草稿,决定 purposeConfirmed
+    const planPurposeConfirmed = ref(false)
 
     // 实验目的不是凭空写的:由本次问题 + 研判结论首句拼出,用户可在方案设计页改
     const derivePlanPurpose = () => {
@@ -1266,7 +1557,7 @@ export default {
         scenario: scenarioStore.currentScenario,
         scenarioLabel: SCENARIO_LABELS[scenarioStore.currentScenario] || '',
         purpose,
-        purposeConfirmed: false,
+        purposeConfirmed: planPurposeConfirmed.value,
         purposeBasis: { ...planPurposeBasis.value },
         control: PLAN_CONTROL_LABEL,
         levers: [],
@@ -1314,10 +1605,13 @@ export default {
       loadAgentModels()
       fetchConversations()
       applyModeFromRoute(route.query?.mode)
+      refreshActivePlan()
       // 模式入口(事中)不自动恢复历史,避免覆盖 ?mode=during 流程
       if (!route.query?.mode) { await restoreConversation() }
       nextTick(() => { if (messages.value.length === 0) welcomeTextarea.value?.focus() })
     })
+    // 切到事后(或换场景)时重读方案:工作台的参数与进度按当前场景的实际方案展示
+    watch([currentMode, () => scenarioStore.currentScenario], refreshActivePlan)
     watch(() => route.query?.conversation_id, (v) => { if (v) loadConversation(String(v)) })
     watch(() => route.query?.mode, (mode) => applyModeFromRoute(mode))
     onUnmounted(() => { if (abortController) abortController.abort(); if (agentStream) { try { agentStream.close() } catch {} } clearInterval(glyphTimer) })
@@ -1346,7 +1640,10 @@ export default {
       SECTION_ORDER, SECTION_LABELS, RESULT_CARDS,
       toolDisplayName, isSectionDone,
       exportPdf, goVisualization, handoffTargets, primaryHandoffTarget, postSideTargets,
-      isPostPhase, planPurpose, openPlanDesign,
+      isPostPhase, planPurpose, planPurposeConfirmed, openPlanDesign,
+      isPostMode, postScenarioLabel, postReviewActions, postReviewProgress,
+      postReviewParameterGroups, postReviewAgent, consultPostAction, enterPostAction,
+      postChainTemplate,
       goToMainPage, selectMode, openKnowledge,
       handleModeGlassPointer, resetModeGlassPointer,
       triggerFileInput, handleFileChange, removeAttachment,
@@ -1367,6 +1664,9 @@ export default {
 .chat-main-shrink { margin-left: 64px; width: calc(100vw - 64px); }
 .chat-main-expand.has-exec { margin-right: 320px; width: calc(100vw - 260px - 320px); }
 .chat-main-shrink.has-exec { margin-right: 320px; width: calc(100vw - 64px - 320px); }
+/* 事后复盘工作台比执行面板宽（两列卡片 + 参数表），单独一套留白口径 */
+.chat-main-expand.has-post { margin-right: 380px; width: calc(100vw - 260px - 380px); }
+.chat-main-shrink.has-post { margin-right: 380px; width: calc(100vw - 64px - 380px); }
 
 /* ── Welcome ───────────────────────────────── */
 .chat-welcome-wrap {
@@ -1384,6 +1684,11 @@ export default {
 @keyframes glowSpread { 0% { opacity: 0; transform: translate(-50%, -45%) scale(0); } 100% { opacity: 1; transform: translate(-50%, -45%) scale(1); } }
 
 .chat-welcome { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 840px; margin: auto; padding: 0 32px 64px; position: relative; z-index: 1; }
+/* 事后阶段的说明比较长：顶端对齐（参考口径），居中会让开头被压到折叠线以上；
+   正文区保持纯白无底色（参考口径），蓝色光晕只在非事后欢迎页出现 */
+.chat-welcome-wrap.is-post { align-items: flex-start; background: #fff; }
+.chat-welcome-wrap.is-post::before { display: none; }
+.chat-welcome.is-post { margin: 0 auto; padding: 28px 32px 0; }
 .chat-welcome-brand { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
 .chat-welcome-logo { width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0; }
 .chat-welcome-text { color: #111827; font-size: 24px; font-weight: 600; line-height: 1.3; }
@@ -1410,6 +1715,24 @@ export default {
 .chat-scenario-option.is-uranium.active .chat-scenario-dot { background: #6366f1; }
 .chat-scenario-option.is-auto.active .chat-scenario-dot { background: #10b981; }
 .chat-welcome-input { width: 100%; }
+
+/* 事后复盘阶段说明：组件见 @/components/SCnet/PostReviewBrief.vue，这里只管两处落点的留白 */
+.chat-post-brief-welcome { margin-top: 18px; }
+
+/* 事后模式：提问框吸底常驻，说明区在上方滚动（参考口径：正文区无底色）。
+   预设问题排在提问框之前，提问框才能一直是最后一项、全程钉在底部 */
+.chat-welcome.is-post .chat-preset-wrap { order: 1; }
+.chat-welcome.is-post .chat-welcome-input {
+  order: 2;
+  position: sticky; bottom: 0; z-index: 3;
+  margin-top: 20px; padding: 14px 0 22px;
+  background: #fff;
+}
+.chat-welcome.is-post .chat-welcome-input::before {
+  content: ''; position: absolute; left: 0; right: 0; top: -30px; height: 30px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), #ffffff);
+  pointer-events: none;
+}
 
 /* 预设问题 */
 .chat-preset-wrap { width: 100%; margin-top: 18px; }
@@ -1539,6 +1862,7 @@ export default {
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
 }
 .chat-plan-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.chat-plan-confirmed { margin: 8px 0 0; color: #059669; font-size: 12px; font-weight: 600; }
 .chat-handoff-zone { display: flex; align-items: center; gap: 8px; }
 .chat-handoff-lead { color: #6b7280; font-size: 12.5px; }
 .chat-handoff-more {
@@ -1575,6 +1899,13 @@ export default {
 .chat-msg-bubble :deep(p:last-child) { margin-bottom: 0; }
 .chat-msg-bubble :deep(pre) { background: #1e293b; color: #e2e8f0; padding: 0.8rem 1rem; border-radius: 8px; overflow-x: auto; font-size: 0.82rem; }
 .chat-msg-bubble :deep(ul), .chat-msg-bubble :deep(ol) { padding-left: 1.2rem; margin: 0.3rem 0; }
+
+/* 事后阶段的目标复述卡:目标整句高亮,后面接观察 / 干预 / 机制三个子问题 */
+.chat-goal-brief { padding: 0.75rem 1rem; border-radius: 12px; border: 1px solid #e5e7eb; border-bottom-left-radius: 4px; background: #f9fafb; }
+.chat-goal-line { margin: 0; font-size: 0.9rem; line-height: 2; color: #374151; }
+.chat-goal-line b { color: #2563eb; font-weight: 600; }
+.chat-goal-target { padding: 1px 3px; border-radius: 4px; background: #dbeafe; color: #1d4ed8; font-weight: 600; }
+.chat-goal-confirm { margin: 10px 0 0; font-size: 0.86rem; line-height: 1.8; color: #6b7280; }
 .chat-disclaimer { font-size: 0.7rem; color: #9ca3af; margin-top: 0.25rem; padding-left: 0.2rem; }
 .chat-spinner { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0; color: #6b7280; font-size: 0.85rem; }
 .chat-spinner-glyph { font-size: 1.1rem; color: #6366f1; }
@@ -1673,6 +2004,24 @@ export default {
 .chat-exec-tool.running .chat-exec-tool-state { color: #d97706; }
 .chat-exec-tool.done .chat-exec-tool-state { color: #059669; }
 .chat-exec-empty { font-size: 12.5px; color: #9ca3af; line-height: 1.6; padding: 8px 2px; }
+
+/* ── 事后复盘工作台（右侧固定面板） ── */
+.chat-post-panel {
+  position: fixed; right: 0; top: 0; bottom: 0; width: 380px; z-index: 4000;
+  background: #f7f8fa; border-left: 1px solid #e5e7eb;
+  box-shadow: -4px 0 24px rgba(0,0,0,0.06);
+}
+/* 窗口不够宽时先收工作台再谈正文：宁可工作台窄一点，也不把对话区挤到不可读 */
+@media (max-width: 1360px) {
+  .chat-main-expand.has-post { margin-right: 340px; width: calc(100vw - 260px - 340px); }
+  .chat-main-shrink.has-post { margin-right: 340px; width: calc(100vw - 64px - 340px); }
+  .chat-post-panel { width: 340px; }
+}
+@media (max-width: 1100px) {
+  .chat-main-expand.has-post { margin-right: 300px; width: calc(100vw - 260px - 300px); }
+  .chat-main-shrink.has-post { margin-right: 300px; width: calc(100vw - 64px - 300px); }
+  .chat-post-panel { width: 300px; }
+}
 
 /* ── Debug Panel ───────────────────────────── */
 .chat-debug-panel {

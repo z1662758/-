@@ -193,6 +193,13 @@
             <div class="during-adjust-actions" v-show="collapse.decision">
               <el-button type="primary" size="default" @click="openEventDecisionDialog" :disabled="!eventTriggered || eventResolved">进行事件决策</el-button>
               <el-button size="default" @click="forceTriggerEvent">立即触发下一事件</el-button>
+              <div class="during-adjust-seed">
+                <label class="adjust-label">随机种子（事实 / 反事实共用）</label>
+                <el-input v-model="runSeedInput" size="small" style="width: 130px" />
+                <label class="adjust-label">重复次数</label>
+                <el-input-number v-model="repeatCountInput" size="small" :min="1" :max="20" :step="1" />
+                <el-button size="small" @click="runSeedInput = createRunSeed()">换一个</el-button>
+              </div>
             </div>
           </div>
 
@@ -326,10 +333,10 @@
                   </el-select>
                 </el-form-item>
                 <el-form-item label="积压水平">
-                  <el-input v-model="selectedExperiment.status.backlog" placeholder="例如 -18.6%" />
+                  <el-input v-model="selectedExperiment.status.backlog" placeholder="百分比，例如 -18%" />
                 </el-form-item>
                 <el-form-item label="完成率">
-                  <el-input v-model="selectedExperiment.status.counterCompletion" placeholder="例如 84.2%" />
+                  <el-input v-model="selectedExperiment.status.counterCompletion" placeholder="百分比，例如 85%" />
                 </el-form-item>
                 <el-form-item label="风险类型">
                   <el-select v-model="selectedExperiment.status.tagType" filterable allow-create>
@@ -374,6 +381,54 @@
               </div>
               <strong>{{ activeCounterfactualExperiment?.label || '--' }}</strong>
               <p>{{ activeCounterfactualExperiment?.report?.source || '--' }}</p>
+            </div>
+            <div class="results-worlds block" v-if="currentRunState.worlds">
+              <div class="results-worlds-head">
+                <span>成对世界（事实 / 反事实）</span>
+                <el-tag
+                  size="small"
+                  round
+                  effect="light"
+                  :type="seedControl.controlled === true ? 'success' : seedControl.controlled === false ? 'warning' : 'info'"
+                >{{ seedControl.label }}</el-tag>
+              </div>
+              <div class="results-worlds-seed">随机种子：{{ currentRunState.worlds.seed }} 起，共 {{ currentRunState.worlds.counterfactual.runs?.length || 0 }} 组区组</div>
+              <div class="results-worlds-grid">
+                <div class="world-col">
+                  <div class="world-col-label">事实世界（基线）</div>
+                  <div><span>已落定</span><strong>{{ currentRunState.worlds.factual.completedCount || 0 }}/{{ currentRunState.worlds.factual.runs?.length || 0 }}</strong></div>
+                  <div><span>完成率均值</span><strong>{{ formatPercentValue(currentRunState.worlds.factual.distribution?.mean) }}</strong></div>
+                  <div><span>95% CI</span><strong>{{ formatPercentValue(currentRunState.worlds.factual.distribution?.ci95?.[0]) }} ~ {{ formatPercentValue(currentRunState.worlds.factual.distribution?.ci95?.[1]) }}</strong></div>
+                </div>
+                <div class="world-col">
+                  <div class="world-col-label">反事实世界（干预后）</div>
+                  <div><span>已落定</span><strong>{{ currentRunState.worlds.counterfactual.completedCount || 0 }}/{{ currentRunState.worlds.counterfactual.runs?.length || 0 }}</strong></div>
+                  <div><span>完成率均值</span><strong>{{ formatPercentValue(currentRunState.worlds.counterfactual.distribution?.mean) }}</strong></div>
+                  <div><span>95% CI</span><strong>{{ formatPercentValue(currentRunState.worlds.counterfactual.distribution?.ci95?.[0]) }} ~ {{ formatPercentValue(currentRunState.worlds.counterfactual.distribution?.ci95?.[1]) }}</strong></div>
+                </div>
+              </div>
+              <div class="results-worlds-diff" v-if="currentRunState.result?.effect">
+                <div class="world-diff-head">配对效应（干预 → 订单完成率）</div>
+                <div class="world-diff-row">
+                  <span class="world-diff-key">差值均值</span>
+                  <span>{{ formatPercentValue(currentRunState.result.effect.meanDifference) }}</span>
+                  <span class="world-diff-arrow">·</span>
+                  <span>95% CI {{ formatPercentValue(currentRunState.result.effect.ci95?.[0]) }} ~ {{ formatPercentValue(currentRunState.result.effect.ci95?.[1]) }}</span>
+                  <span class="world-diff-arrow">·</span>
+                  <span>符号检验 p = {{ formatPValue(currentRunState.result.effect.pValue) }}</span>
+                  <span class="world-diff-arrow">·</span>
+                  <span>n = {{ currentRunState.result.effect.n }}</span>
+                </div>
+              </div>
+              <div class="results-worlds-diff" v-if="worldInterventionDiff.length">
+                <div class="world-diff-head">干预差异（唯一自变量）</div>
+                <div v-for="item in worldInterventionDiff" :key="item.key" class="world-diff-row">
+                  <span class="world-diff-key">{{ item.key }}</span>
+                  <span>{{ formatDiffValue(item.from) }}</span>
+                  <span class="world-diff-arrow">→</span>
+                  <span>{{ formatDiffValue(item.to) }}</span>
+                </div>
+              </div>
             </div>
 
             <div class="results-metrics-grid block">
@@ -446,6 +501,7 @@
                 </button>
                 <button type="button" class="results-next-ghost" @click="goAnalysisStage('intervention')">直接去干预分析</button>
                 <button type="button" class="results-next-ghost" @click="goAnalysisStage('mechanism')">直接去机制分析</button>
+                <button type="button" class="results-next-ghost" @click="goCounterfactualReport">生成复盘报告（含反事实结论）</button>
               </div>
             </div>
           </template>
@@ -481,7 +537,6 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, toRaw, watch } fro
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Upload, ArrowRight } from '@element-plus/icons-vue'
-import { runExperiment } from '@/api/scenarioModeling'
 import { getQueueHistory } from '@/api/queue'
 import {
   getExperimentDetail,
@@ -511,6 +566,15 @@ import {
   buildCatalogIndex, AUTO_FACTOR_NAMES,
   buildCounterfactualParameterControls as buildPanelControls
 } from '@/utils/scnetPanelParams'
+
+// P1：事实 / 反事实成对世界的领域模型与同种子控制
+import {
+  WORLD_KINDS, createRunSeed, normalizeSeed, describeSeedControl,
+  buildWorldPair, createWorldRun, diffParamOverrides, readSeedEcho
+} from '@/utils/counterfactualWorld'
+import { summarizeSeries, summarizeEffect } from '@/utils/counterfactualStats'
+import { runWorld } from '@/api/counterfactual'
+import { buildCounterfactualReportPayload, saveCounterfactualReport } from '@/utils/counterfactualReport'
 
 const SIM_TOTAL_STEPS_DEFAULT = 15
 const EMPTY_TEXT = '无内容，需导入实验报告'
@@ -1035,6 +1099,10 @@ const simState = ref('idle')
 const isConnected = ref(false)
 const simStep = ref(0)
 const demandMultiplierInput = ref(1.25)
+// P1：成对世界共用的随机种子。事实世界与反事实世界都用它，保证只有干预不同。
+const runSeedInput = ref(createRunSeed())
+// P2：每个世界的重复次数（区组数）。1 = 单次运行；>1 才有多组配对样本可做显著性。
+const repeatCountInput = ref(5)
 const eventDialogVisible = ref(false)
 const eventTriggered = ref(false)
 const eventResolved = ref(false)
@@ -1056,6 +1124,8 @@ const runState = reactive({  // 全局默认运行状态，优先使用 per-expe
   experimentId: '',
   result: null,
   submittedPayload: null,
+  worlds: null,
+  seedEchoed: null,
   startedAt: '',
   completedAt: ''
 })
@@ -1479,26 +1549,23 @@ const buildCounterfactualParamOverrides = () => {
   }
 }
 
-const buildCounterfactualRunPayload = () => {
-  const paramOverrides = buildCounterfactualParamOverrides()
-  // 检测是否为铀场景 → 自动切换 scenario
+/**
+ * P1：一次提交拆成「共享基座」+「干预覆盖」。
+ *
+ * 事实世界（报告基线）与反事实世界（干预后）共用同一基座（种子、轮次、场景、
+ * 数据目录、知识基线、目标），唯一差别是 intervention，两个世界的差异才可归因。
+ */
+const buildSharedRunBase = (seed) => {
   const reportSource = (activeCounterfactualExperiment.value?.report?.source || '').toLowerCase()
   const isUranium = detectUraniumReport(activeCounterfactualExperiment.value?.report)
-  // 检测基线类型：network(28轮网络演化) vs resource(7轮资源评估)
   const isNetworkBaseline = reportSource.includes('uranium_network')
-  const scenario = isUranium ? 'uranium' : 'supply_chain'
-  const dataDir = isUranium ? 'E:/tju_1/processed' : null
-
   const uraniumGoal = isNetworkBaseline
     ? '分析全球供应链网络演化规律，评估资源分布、产量趋势与核电需求的供需平衡'
     : '基于NEA/IAEA Red Book数据评估全球资源、产量与核电需求，分析供应链供需平衡'
 
-  // 汽车场景：协作半径由后端 agent_node_configs 消费（run.py: manufacturer_collaboration_radius）
-  const collaborationRadius = getActiveParameterValue('collaboration_radius', null)
-
   return {
-    scenario,
-    data_dir: dataDir,
+    scenario: isUranium ? 'uranium' : 'supply_chain',
+    data_dir: isUranium ? 'E:/tju_1/processed' : null,
     // 铀场景此前固定 7 / 28 轮，方案的观测轮次落不下来；现在两个场景都按
     // 「基线轮次（方案写入后为方案轮次）」提交，方案条上的轮次提示才不是空话。
     iterations: simTotalSteps.value,
@@ -1509,30 +1576,13 @@ const buildCounterfactualRunPayload = () => {
     llm_enabled: false,
     phase: 'post',
     source_page: 'CounterfactualExperiment',
+    // 同种子：事实世界与反事实世界必须带上同一个 seed
+    seed,
+    random_seed: seed,
     user_goal: isUranium
       ? uraniumGoal
       : (activeCounterfactualExperiment.value?.arguments?.goal || presetOptions.value.goals[0]),
     baseline_report: activeCounterfactualExperiment.value?.report?.source || '',
-    counterfactual_experiment_name: activeCounterfactualExperiment.value?.label || '',
-    param_overrides: paramOverrides,
-    subtask_variable_configs: {
-      counterfactual_runtime: {
-        paramOverrides
-      }
-    },
-    agent_node_configs: {
-      factory: {
-        params: {
-          capacity_range: paramOverrides.factory_capacity_range
-        }
-      },
-      manufacturing_corporation: {
-        params: {
-          capacity_range: paramOverrides.factory_capacity_range,
-          ...(isUranium ? {} : { collaboration_radius: collaborationRadius })
-        }
-      }
-    },
     scenario_context: {
       actual_problem: isUranium
         ? '矿山产能与新矿投产策略如何调整，以在需求波动和地缘政治风险下维持供应安全和完成率稳定'
@@ -1559,6 +1609,88 @@ const buildCounterfactualRunPayload = () => {
   }
 }
 
+/** 把一套参数铺成与干预覆盖同构的 payload 片段。 */
+const buildWorldParamConfig = (paramOverrides) => {
+  const isUranium = detectUraniumReport(activeCounterfactualExperiment.value?.report)
+  // 汽车场景：协作半径由后端 agent_node_configs 消费（run.py: manufacturer_collaboration_radius）
+  const collaborationRadius = getActiveParameterValue('collaboration_radius', null)
+  return {
+    param_overrides: paramOverrides,
+    subtask_variable_configs: {
+      counterfactual_runtime: {
+        paramOverrides
+      }
+    },
+    agent_node_configs: {
+      factory: {
+        params: {
+          capacity_range: paramOverrides.factory_capacity_range
+        }
+      },
+      manufacturing_corporation: {
+        params: {
+          capacity_range: paramOverrides.factory_capacity_range,
+          ...(isUranium ? {} : { collaboration_radius: collaborationRadius })
+        }
+      }
+    }
+  }
+}
+
+/**
+ * 事实世界参数 = 导入报告里真实发生过的取值（报告级 baseline）。
+ * 注意：面板上的 value 已被用户编辑成干预后的值，不能拿来当基线。
+ */
+const buildBaselineParamOverrides = () => {
+  const parameters = activeCounterfactualExperiment.value?.report?.parameters || {}
+  const rawRange = Array.isArray(parameters.factoryCapacityRange) ? parameters.factoryCapacityRange : [0, 0]
+  const range = rawRange.map((value) => toFiniteNumber(value))
+  const orderedRange = range[0] <= range[1] ? range : [range[1], range[0]]
+  return {
+    order_multiplier: toFiniteNumber(parameters.orderMultiplier, demandMultiplierInput.value),
+    factory_capacity_range: orderedRange,
+    manufacturer_production_capacity_range: orderedRange,
+    reproduction_threshold: toFiniteNumber(parameters.reproductionThreshold, 0),
+    adjustment_ratio: toFiniteNumber(parameters.adjustmentRatio, 0)
+  }
+}
+
+/** 干预覆盖 = 面板上用户设定的值（反事实世界的自变量）。 */
+const buildInterventionOverrides = () => buildWorldParamConfig(buildCounterfactualParamOverrides())
+
+const buildCounterfactualRunPayload = (seed = normalizeSeed(runSeedInput.value)) => ({
+  ...buildSharedRunBase(seed),
+  world_kind: WORLD_KINDS.COUNTERFACTUAL,
+  counterfactual_experiment_name: activeCounterfactualExperiment.value?.label || '',
+  ...buildInterventionOverrides()
+})
+
+const buildFactualRunPayload = (seed = normalizeSeed(runSeedInput.value)) => ({
+  ...buildSharedRunBase(seed),
+  world_kind: WORLD_KINDS.FACTUAL,
+  counterfactual_experiment_name: activeCounterfactualExperiment.value?.label || '',
+  ...buildWorldParamConfig(buildBaselineParamOverrides())
+})
+
+// 界面展示的干预差异：只列真正被改动的因子，即本次反事实的自变量清单
+const worldInterventionDiff = computed(() => diffParamOverrides(
+  buildBaselineParamOverrides(),
+  buildCounterfactualParamOverrides()
+))
+
+const seedControl = computed(() => describeSeedControl(currentRunState.value?.worlds?.seedEchoed))
+
+const formatDiffValue = (value) => {
+  if (Array.isArray(value)) return formatRange(value)
+  if (value === null || value === undefined) return '--'
+  return formatNumber(value, 2)
+}
+
+const formatPValue = (value) => {
+  const num = Number(value)
+  return Number.isFinite(num) ? num.toFixed(4) : '--'
+}
+
 const getOrCreateRunState = () => {
   const exp = selectedExperiment.value
   if (!exp) return runState
@@ -1567,6 +1699,7 @@ const getOrCreateRunState = () => {
       running: false, taskId: '', status: '', position: null,
       message: '尚未运行后端反事实实验。', error: '', resultPath: '',
       experimentId: '', result: null, submittedPayload: null,
+      worlds: null, seedEchoed: null,
       startedAt: '', completedAt: ''
     })
   }
@@ -1586,6 +1719,8 @@ const resetRunState = (message = '尚未运行后端反事实实验。') => {
   rs.experimentId = ''
   rs.result = null
   rs.submittedPayload = null
+  rs.worlds = null
+  rs.seedEchoed = null
   rs.startedAt = ''
   rs.completedAt = ''
 }
@@ -1767,7 +1902,25 @@ const startSim = async () => {
 
   if (timer) clearInterval(timer)
   resetRunState('正在提交后端反事实实验任务...')
-  const payload = buildCounterfactualRunPayload()
+  // P1：在一次运行里锁定种子，事实世界与反事实世界共用；两者只差干预。
+  const seed = normalizeSeed(runSeedInput.value)
+  if (seed === null) {
+    ElMessage.error('随机种子必须是大于等于 0 的整数')
+    return
+  }
+  const worlds = buildWorldPair({
+    seed,
+    baseExperimentId: activeCounterfactualExperiment.value?.report?.source || ''
+  })
+  rs.worlds = worlds
+  // P2：区组化重复——第 i 次两个世界共用 seed+i，配对比较，差异才可归因于干预。
+  const repeats = Math.min(20, Math.max(1, Math.round(toFiniteNumber(repeatCountInput.value, 1))))
+  repeatCountInput.value = repeats
+  for (let i = 1; i <= repeats; i++) {
+    worlds.factual.runs.push(createWorldRun(seed + i))
+    worlds.counterfactual.runs.push(createWorldRun(seed + i))
+  }
+  const payload = buildCounterfactualRunPayload(seed + 1)
   rs.running = true
   rs.status = 'queued'
   rs.submittedPayload = payload
@@ -1786,15 +1939,42 @@ const startSim = async () => {
       ElMessage.info('后端未连接，使用数据驱动的合成反事实分析')
     } else {
       try {
-        const response = unwrapApiData(await runExperiment(payload))
-        if (!response?.task_id || response.status === 'error') {
-          throw new Error(response?.message || '后端实验任务提交失败')
+        // P2：按区组提交，每个种子跑一对世界；单个失败不阻断其余。
+        let submitted = 0
+        for (const run of worlds.factual.runs) {
+          try {
+            const res = unwrapApiData(await runWorld(buildFactualRunPayload(run.seed)))
+            if (!res?.task_id || res.status === 'error') throw new Error(res?.message || '事实世界提交失败')
+            run.taskId = res.task_id
+            run.status = res.status || 'queued'
+            submitted += 1
+          } catch (runError) {
+            run.error = runError?.message || '事实世界提交失败'
+            console.warn('事实世界提交失败:', run.seed, runError?.message)
+          }
         }
-        rs.taskId = response.task_id
-        rs.status = response.status || 'queued'
-        rs.position = response.position ?? null
-        rs.message = '反事实实验已提交后端队列，正在等待真实仿真结果...'
-        ElMessage.success('反事实实验已提交后端队列')
+        for (const run of worlds.counterfactual.runs) {
+          try {
+            const res = unwrapApiData(await runWorld(buildCounterfactualRunPayload(run.seed)))
+            if (!res?.task_id || res.status === 'error') throw new Error(res?.message || '反事实世界提交失败')
+            run.taskId = res.task_id
+            run.status = res.status || 'queued'
+            submitted += 1
+          } catch (runError) {
+            run.error = runError?.message || '反事实世界提交失败'
+            console.warn('反事实世界提交失败:', run.seed, runError?.message)
+          }
+        }
+        if (!submitted) {
+          throw new Error('全部世界提交失败，无法进行反事实实验')
+        }
+        const firstCfTask = worlds.counterfactual.runs.find((run) => run.taskId)
+        worlds.counterfactual.taskId = firstCfTask ? firstCfTask.taskId : ''
+        rs.taskId = worlds.counterfactual.taskId
+        rs.status = 'queued'
+        rs.position = null
+        rs.message = `已提交 ${submitted} 个世界运行（${repeats} 组区组），正在等待真实仿真结果...`
+        ElMessage.success('成对世界已提交后端队列')
         startRunPolling()
         return  // 真实仿真模式，由polling处理结果
       } catch (backendError) {
@@ -1820,6 +2000,19 @@ const startSim = async () => {
         rs.experimentId = `synthetic_${Date.now()}`
         rs.resultPath = '(合成分析 - 无后端仿真)'
         rs.result = buildSyntheticRunResult(rs, synthetic)
+        if (rs.worlds) {
+          // 后端未连接：只产出反事实世界（合成），事实世界如实标注未运行。
+          const cfRun = rs.worlds.counterfactual.runs[0]
+          if (cfRun) {
+            cfRun.result = rs.result
+            cfRun.experimentId = rs.experimentId
+          }
+          rs.worlds.factual.runs.forEach((run) => {
+            if (!run.result && !run.error) run.error = '后端未连接：事实世界未运行'
+          })
+          rs.worlds.seedEchoed = null
+          aggregateWorldRuns(rs.worlds.counterfactual)
+        }
         simState.value = 'idle'
         if (timer) clearInterval(timer)
         timer = null
@@ -1959,6 +2152,19 @@ const executeSyntheticFallback = async (failReason = '后端仿真不可用') =>
       rs.experimentId = `synthetic_${Date.now()}`
       rs.resultPath = '(合成分析)'
       rs.result = buildSyntheticRunResult(rs, synthetic)
+      if (rs.worlds) {
+        // 合成兜底：只产出反事实世界（且无重复样本），事实世界如实标注未产出。
+        const cfRun = rs.worlds.counterfactual.runs[0]
+        if (cfRun) {
+          cfRun.result = rs.result
+          cfRun.experimentId = rs.experimentId
+        }
+        rs.worlds.factual.runs.forEach((run) => {
+          if (!run.result && !run.error) run.error = '后端仿真不可用：事实世界未产出'
+        })
+        rs.worlds.seedEchoed = null
+        aggregateWorldRuns(rs.worlds.counterfactual)
+      }
       simState.value = 'idle'
       simStep.value = simTotalSteps.value
       rs.running = false
@@ -1976,49 +2182,119 @@ const executeSyntheticFallback = async (failReason = '后端仿真不可用') =>
   }
 }
 
+const collectWorldSamples = (world) => (world?.runs || [])
+  .map((run) => run.result?.completionRate)
+  .filter((value) => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value)))
+  .map(Number)
+
+/** P2：把一个世界的多次运行汇总成分布（均值 / 中位数 / 极值 / 自助法 95% CI）。 */
+const aggregateWorldRuns = (world) => {
+  const samples = collectWorldSamples(world)
+  world.distribution = summarizeSeries(samples)
+  world.result = world.runs.find((run) => run.result)?.result || null
+  world.completedCount = world.runs.filter((run) => run.result).length
+  world.failedCount = world.runs.filter((run) => run.error && !run.result).length
+  world.taskId = world.runs.find((run) => run.taskId)?.taskId || ''
+  world.status = world.runs.length && world.runs.every((run) => run.result) ? 'completed' : 'partial'
+  return world.distribution
+}
+
+/** 两个世界全部落定后的收尾：配对效应 + 镜像到原有字段。 */
+const finalizeWorldPair = (worlds, rs) => {
+  aggregateWorldRuns(worlds.factual)
+  aggregateWorldRuns(worlds.counterfactual)
+  const factualSamples = collectWorldSamples(worlds.factual)
+  const counterfactualSamples = collectWorldSamples(worlds.counterfactual)
+  const effect = summarizeEffect(factualSamples, counterfactualSamples)
+  const cf = worlds.counterfactual
+  rs.result = {
+    ...(cf.result || {}),
+    completionRate: cf.distribution?.mean ?? cf.result?.completionRate ?? null,
+    completionSamples: counterfactualSamples,
+    sampleCount: counterfactualSamples.length,
+    factualSamples,
+    distribution: cf.distribution,
+    factualDistribution: worlds.factual.distribution,
+    effect,
+    repeatCount: cf.runs.length
+  }
+  rs.experimentId = cf.runs.find((run) => run.experimentId)?.experimentId || ''
+  // P3：把本次成对世界的结论与分布交接给复盘报告（EXreport 按同一实验 id 读取）。
+  // 合成兜底 id（synthetic_）不进交接：复盘报告只会用真实后端实验 id 取数，写了也读不到。
+  if (rs.experimentId && !rs.experimentId.startsWith('synthetic_')) {
+    saveCounterfactualReport(rs.experimentId, buildCounterfactualReportPayload({
+      experimentId: rs.experimentId,
+      scene: activeScenario.value,
+      seed: worlds.seed,
+      seedControlled: worlds.seedEchoed,
+      result: rs.result,
+      conclusion: buildCounterfactualConclusion(rs.result),
+      interventionDiff: worldInterventionDiff.value,
+      worlds
+    }))
+  }
+  rs.taskId = cf.taskId
+  rs.running = false
+  rs.completedAt = new Date().toLocaleString()
+  rs.message = effect
+    ? `成对世界完成：${effect.n} 组配对样本，已给出差值分布与显著性。`
+    : '成对世界已完成，但有效配对样本不足，未给出显著性。'
+  simState.value = 'idle'
+  simStep.value = simTotalSteps.value
+  stopRunPolling()
+  stopLocalProgressTicker()
+  ElMessage.success('成对世界反事实实验完成')
+}
+
 const pollRunTask = async () => {
   const rs = getOrCreateRunState()
-  if (!rs.taskId) return
+  const worlds = rs.worlds
+  if (!worlds) return
+  const allRuns = [...worlds.factual.runs, ...worlds.counterfactual.runs]
+  const pendingRuns = allRuns.filter((run) => run.taskId && !run.result && !run.error)
+
+  if (!pendingRuns.length) {
+    finalizeWorldPair(worlds, rs)
+    return
+  }
 
   try {
     // 一次成功的轮询请求即视为健康，重置连续失败计时
     pollFailStreakStartedAt = 0
-    const history = unwrapApiData(await getQueueHistory(80)) || []
-    const task = history.find((item) => item.task_id === rs.taskId)
-    if (!task) {
-      rs.message = '后端任务已提交，等待队列返回状态...'
-      return
-    }
+    // 后端 /queue/history 的 limit 上限是 100，传更大值会被拒（limit必须在1-100之间）
+    const history = unwrapApiData(await getQueueHistory(100)) || []
 
-    rs.status = task.status || rs.status
-    rs.position = task.position ?? rs.position
-    rs.resultPath = task.result_path || rs.resultPath
+    for (const run of pendingRuns) {
+      const task = history.find((item) => item.task_id === run.taskId)
+      if (!task) continue
 
-    if (task.status === 'failed') {
-      // 后端仿真任务失败 → 自动回退到合成分析模式
-      await executeSyntheticFallback(task.error_message || '后端反事实实验运行失败')
-      return
-    }
-
-    if (task.status === 'completed' && (task.result_path || task.result_relpath)) {
-      const experimentId = resolveExperimentIdFromTask(task)
-      rs.experimentId = experimentId
-      if (experimentId) {
-        const detail = unwrapApiData(await getExperimentDetail(experimentId))
-        rs.result = summarizeCounterfactualResult(detail)
+      run.status = task.status || run.status
+      if (task.status === 'failed') {
+        run.error = task.error_message || '后端实验运行失败'
+        continue
       }
-      rs.running = false
-      rs.completedAt = new Date().toLocaleString()
-      rs.message = '后端反事实实验已完成，结果摘要已更新，可生成报告。'
-      simState.value = 'idle'
-      simStep.value = simTotalSteps.value
-      stopRunPolling()
-      stopLocalProgressTicker()
-      ElMessage.success('反事实实验后端重跑完成')
-      return
+      if (task.status === 'completed' && (task.result_path || task.result_relpath)) {
+        const experimentId = resolveExperimentIdFromTask(task)
+        run.experimentId = experimentId
+        if (experimentId) {
+          const detail = unwrapApiData(await getExperimentDetail(experimentId))
+          run.result = summarizeCounterfactualResult(detail)
+          // 种子回执：区组要求 seed+i 精确复现，命中才敢说「同种子」生效
+          const echoed = readSeedEcho(detail)
+          if (echoed !== null) {
+            worlds.seedEchoed = echoed === run.seed
+          }
+        }
+      }
     }
 
-    rs.message = `后端实验运行中：${taskStatusText(rs.status)}`
+    const counterfactual = worlds.counterfactual
+    const cfSettled = counterfactual.runs.filter((run) => run.result || run.error).length
+    if (cfSettled === counterfactual.runs.length && !counterfactual.runs.some((run) => run.result)) {
+      await executeSyntheticFallback(counterfactual.runs.find((run) => run.error)?.error || '反事实世界全部失败')
+      return
+    }
+    rs.message = `后端实验运行中：反事实世界 ${cfSettled}/${counterfactual.runs.length} 个运行已落定`
   } catch (error) {
     const now = Date.now()
     if (!pollFailStreakStartedAt) pollFailStreakStartedAt = now
@@ -2028,7 +2304,7 @@ const pollRunTask = async () => {
     if (failSeconds * 1000 >= POLL_FALLBACK_AFTER_MS) {
       pollFailStreakStartedAt = 0
       const reason = `后端队列持续无响应 ${failSeconds} 秒：${error?.message || '未知错误'}`
-      rs.message = `后端轮询持续失败，判定后端仿真不可用，正在自动切换到合成分析...`
+      rs.message = '后端轮询持续失败，判定后端仿真不可用，正在自动切换到合成分析...'
       await executeSyntheticFallback(reason)
       return
     }
@@ -2056,6 +2332,15 @@ const findBestIteration = (iterations = []) => {
 const summarizeCounterfactualResult = (detail = {}) => {
   const iterations = Array.isArray(detail.iterations) ? detail.iterations : []
   const best = findBestIteration(iterations) || {}
+  // P0：保留逐轮真实样本，供结论输出「均值 + 跨轮区间」，不再只取 best 单点。
+  const completionSamples = iterations
+    .map((item) => {
+      const itemMetrics = item?.simulation_result?.metrics || item?.feedback?.metrics || {}
+      const raw = itemMetrics.order_completion_rate ?? itemMetrics.completion_rate
+      if (raw === null || raw === undefined || raw === '') return null
+      return Number.isFinite(Number(raw)) ? normalizeRate(raw) : null
+    })
+    .filter((value) => value !== null)
   const metrics = best.simulation_result?.metrics || best.feedback?.metrics || {}
   const params = best.task?.parameters || {}
   const totalOrders = toFiniteNumber(metrics.total_orders)
@@ -2082,6 +2367,8 @@ const summarizeCounterfactualResult = (detail = {}) => {
     orderMultiplier: toFiniteNumber(params.order_multiplier, null),
     capacityRange: params.factory_capacity_range || params.manufacturer_production_capacity_range,
     reproductionThreshold: toFiniteNumber(params.reproduction_threshold, null),
+    completionSamples,
+    sampleCount: completionSamples.length,
     rawParameters: params,
     isUranium,
     // 场景额外指标
@@ -2092,21 +2379,62 @@ const summarizeCounterfactualResult = (detail = {}) => {
   }
 }
 
+/**
+ * P0：反事实结论只由真实结果生成，不再引用任何写死的效果数字。
+ * - 后端返回多轮采样时，报告「均值 + 跨轮区间」；
+ * - 只有单点结果时，如实标注「单次运行、无区间」。
+ * 真正的 95% 置信区间需要多次独立重复运行（固定随机种子），属 P2 范围，
+ * 在此之前不会把轮间极差冒充成置信区间。
+ */
+/**
+ * P2：反事实结论只由真实结果生成。
+ * - 有配对重复样本时，报告两世界的分布（均值 + 自助法 95% CI）与配对效应（差值 CI + 符号检验 p）；
+ * - 只有多轮样本时，报告均值与跨轮区间；
+ * - 只有单点结果时，如实标注「单次运行、无区间」。
+ */
 const buildCounterfactualConclusion = (result = {}) => {
-  const completionRate = Number.isFinite(Number(result.completionRate))
-    ? formatPercentValue(result.completionRate)
-    : '--'
-  const backlogRate = Number.isFinite(Number(result.backlogRate))
-    ? formatPercentValue(result.backlogRate)
-    : '--'
-  const capacityRange = Array.isArray(result.capacityRange)
-    ? formatRange(result.capacityRange)
-    : '--'
+  const capacityRange = Array.isArray(result.capacityRange) ? formatRange(result.capacityRange) : '--'
   const isUranium = result.isUranium || result.rawParameters?.scenario === 'uranium'
-  const capacityUnit = isUranium ? 'tU/年' : ''
+  const capacityUnit = isUranium ? ' tU/年' : ''
+  const areaLabel = isUranium ? '矿山产能区间' : '制造总产能区间'
+  const backlogLabel = isUranium ? '供应缺口率' : '积压率'
+
+  const effect = result.effect
+  const cfDist = result.distribution
+  const factualDist = result.factualDistribution
+  if (effect && cfDist && factualDist) {
+    const ciText = (lo, hi) => (Number.isFinite(Number(lo)) && Number.isFinite(Number(hi)))
+      ? `（95% CI ${formatPercentValue(lo)} 至 ${formatPercentValue(hi)}）`
+      : ''
+    const head = [
+      `本次反事实重跑在${areaLabel} ${capacityRange}${capacityUnit} 下完成，共 ${effect.n} 组配对样本（每个种子一对世界）`,
+      `订单完成率：事实世界均值 ${formatPercentValue(factualDist.mean)}${ciText(factualDist.ci95?.[0], factualDist.ci95?.[1])}，反事实世界均值 ${formatPercentValue(cfDist.mean)}${ciText(cfDist.ci95?.[0], cfDist.ci95?.[1])}`,
+      `配对差值均值 ${formatPercentValue(effect.meanDifference)}${ciText(effect.ci95?.[0], effect.ci95?.[1])}，符号检验 p = ${formatPValue(effect.pValue)}`,
+      effect.method
+    ].join('；')
+    return isUranium
+      ? `${head}。建议据此评估矿山扩产方案与 NEA Red Book 供需预测的匹配度。`
+      : `${head}。`
+  }
+
+  const samples = Array.isArray(result.completionSamples)
+    ? result.completionSamples.filter((value) => Number.isFinite(Number(value))).map(Number)
+    : []
+  const meanCompletion = samples.length
+    ? samples.reduce((sum, value) => sum + value, 0) / samples.length
+    : (Number.isFinite(Number(result.completionRate)) ? Number(result.completionRate) : null)
+  const completionText = meanCompletion === null ? '--' : formatPercentValue(meanCompletion)
+  const backlogText = Number.isFinite(Number(result.backlogRate)) ? formatPercentValue(result.backlogRate) : '--'
+  const spreadText = samples.length >= 2
+    ? `，跨 ${samples.length} 轮区间 ${formatPercentValue(Math.min(...samples))}至${formatPercentValue(Math.max(...samples))}`
+    : '（单次运行，未做重复采样，暂无区间）'
+  const head = `本次反事实重跑在${areaLabel} ${capacityRange}${capacityUnit} 下完成：订单完成率均值 ${completionText}${spreadText}，${backlogLabel} ${backlogText}`
+  const ciNote = samples.length >= 2
+    ? ' 该区间为单次仿真的轮间分布，95% 置信区间需基于多次独立重复运行（固定随机种子）估计。'
+    : ' 如需 95% 置信区间，需按计算实验规范进行多次独立重复运行（固定随机种子）。'
   return isUranium
-    ? `本次供应链反事实重跑在矿山产能区间 ${capacityRange} ${capacityUnit} 下完成，最佳轮次订单完成率为 ${completionRate}，供应缺口率为 ${backlogRate}。建议根据此结果评估矿山扩产方案与NEA Red Book供需预测的匹配度。`
-    : `本次反事实重跑在制造总产能区间 ${capacityRange} 下完成，最佳轮次订单完成率为 ${completionRate}，积压率为 ${backlogRate}。`
+    ? `${head}。建议据此评估矿山扩产方案与 NEA Red Book 供需预测的匹配度。${ciNote}`
+    : `${head}。${ciNote}`
 }
 
 const taskStatusText = (status) => {
@@ -2246,6 +2574,31 @@ const goAnalysisStage = (stage) => {
   query.experiment_id = stageExperimentId.value
   if (activePlanId.value) query.plan_id = activePlanId.value
   router.push({ path, query })
+}
+
+// P3：带着本次反事实实验 id 进复盘报告（EXreport）。
+// EXreport 用 localStorage.selectedExperimentId / store 里的实验 id 取数，
+// 所以这里先落盘同一个 id，再带上 scenario，保证报告页读到的就是我们刚交接的那份。
+const goCounterfactualReport = () => {
+  const experimentId = stageExperimentId.value
+  if (!experimentId) {
+    ElMessage.warning('还没有拿到后端实验 ID，先点「运行」跑一次实验再生成报告')
+    return
+  }
+  try {
+    localStorage.setItem('selectedExperimentId', experimentId)
+  } catch (error) {
+    console.warn('[counterfactual] 记录实验 id 失败:', error?.message)
+  }
+  const query = {}
+  PLAN_CONTEXT_KEYS.forEach((key) => {
+    const value = route.query[key]
+    if (value !== undefined && value !== '') query[key] = value
+  })
+  query.experiment_id = experimentId
+  query.scenario = scenarioStore.currentScenario
+  if (activePlanId.value) query.plan_id = activePlanId.value
+  router.push({ path: SCNET_ROUTES.EXreport, query })
 }
 
 const dismissPlan = () => {
@@ -2472,13 +2825,9 @@ const confirmEventDecision = () => {
   if (activeEvent) triggeredEventIds.value.add(activeEvent.id)
   eventDialogVisible.value = false
   if (selectedExperiment.value?.status) {
-    const isUranium = detectUraniumReport(selectedExperiment.value?.report)
-    selectedExperiment.value.status.tagType = 'success'
-    selectedExperiment.value.status.counterCompletion = isUranium ? '91.2%' : '84.2%'
-    selectedExperiment.value.status.backlog = isUranium ? '-16.3%' : '-24.1%'
-    selectedExperiment.value.status.profitDelta = isUranium ? '+18.7%' : '+21.4%'
-    selectedExperiment.value.status.resilience = isUranium ? '0.82' : '0.76'
-    selectedExperiment.value.status.isPending = false
+    // P0：事件决策只是干预输入，效果数字必须等真实重跑（startSim）产出。
+    // 此前这里按场景预填了一组固定百分比常量，与后端仿真口径脱节，属前端造数，已移除。
+    selectedExperiment.value.status.isPending = true
   }
   startSim()
 }
@@ -3997,4 +4346,25 @@ watch(
     min-height: 520px;
   }
 }
+
+/* P1：成对世界面板 + 种子控制 */
+.results-worlds { display: flex; flex-direction: column; gap: 8px; }
+.results-worlds-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 800; font-size: 13px; }
+.results-worlds-seed { color: #64748b; font-size: 12px; font-weight: 700; }
+.results-worlds-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.world-col { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; background: #fafbfc; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.world-col-label { font-weight: 800; color: #0f172a; margin-bottom: 4px; }
+.world-col > div { display: flex; justify-content: space-between; gap: 8px; }
+.results-worlds-diff { display: flex; flex-direction: column; gap: 4px; }
+.world-diff-head { font-size: 12px; font-weight: 800; color: #64748b; }
+.world-diff-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.world-diff-key { font-weight: 700; color: #3b82f6; min-width: 170px; }
+.world-diff-arrow { color: #94a3b8; font-weight: 900; }
+.during-adjust-seed { display: flex; align-items: center; gap: 8px; margin-top: 8px; width: 100%; }
+
+
+/* P2：重复运行分布与配对效应 */
+.results-worlds-seed { line-height: 1.5; }
+.world-col strong { text-align: right; font-variant-numeric: tabular-nums; }
+
 </style>

@@ -7,6 +7,21 @@
     <!-- K5-PIPELINE:实验闭环导航(运行实验 → 观察 → 干预 → 机制),实验 id 从 URL 带入 -->
     <ExperimentStageNav :experiment-id="routeExperimentId" current="observe" />
 
+    <!-- 论文对照（薛霄等《计算实验方法的溯源、现状与展望》, 自动化学报 2023）：
+         观察分析对应 Pearl 因果阶梯第 1 层「关联」——只描述「X 与 Y 一起变」，
+         不主张「改变 X 会让 Y 变」。差异可能来自未打开的后门路径（混杂），
+         要下因果结论必须上到第 2 层（干预）或第 3 层（反事实）。 -->
+    <section class="evidence-level" role="note">
+      <span class="evidence-level__badge">因果阶梯 · 第 1 层</span>
+      <div class="evidence-level__body">
+        <p class="evidence-level__title">本页是「关联级」证据：看到的是相关，不是因果效应</p>
+        <p class="evidence-level__desc">
+          对比只说明两组实验的指标「一起变」，差异可能来自未控制的混杂因素（后门路径未切断）。
+          「改变 X 会不会让 Y 变」需真正施加干预（第 2 层 · 干预分析）；「这次结果若当时 X 不同会怎样」需成对世界反事实（第 3 层 · 反事实实验）。
+        </p>
+      </div>
+    </section>
+
     <section class="page-head">
       <div>
         <h1>观察分析与案例对比</h1>
@@ -126,8 +141,8 @@
             <div class="compare-head-tabs">
               <button class="tab-btn" :class="{ active: activeTab === 'metrics' }" @click="activeTab = 'metrics'">指标对比</button>
               <button class="tab-btn" :class="{ active: activeTab === 'deep' }" @click="activeTab = 'deep'">深度分析</button>
-              <button v-if="SHOW_EXTRA_TABS" class="tab-btn" :class="{ active: activeTab === 'distribution' }" @click="activeTab = 'distribution'">概率分布</button>
-              <button v-if="SHOW_EXTRA_TABS" class="tab-btn" :class="{ active: activeTab === 'counterfactual' }" @click="activeTab = 'counterfactual'">反事实推演</button>
+              <button v-if="SHOW_DISTRIBUTION_TAB" class="tab-btn" :class="{ active: activeTab === 'distribution' }" @click="activeTab = 'distribution'">概率分布</button>
+              <button v-if="SHOW_COUNTERFACTUAL_TAB" class="tab-btn" :class="{ active: activeTab === 'counterfactual' }" @click="activeTab = 'counterfactual'">反事实推演</button>
             </div>
             <div class="compare-head-actions">
               <el-tooltip content="关闭时按报告全部轮次对比（每侧样本=轮次数，可做显著性检验）；开启后只对比案例所属的那一轮（样本=1，无法检验）" placement="bottom">
@@ -228,6 +243,7 @@
                     <span class="verdict-item">显著指标 A {{ analysis.verdict.significant_a }} / B {{ analysis.verdict.significant_b }}</span>
                     <span class="verdict-item">占优指标 A {{ analysis.verdict.wins_a }} / B {{ analysis.verdict.wins_b }}</span>
                   </div>
+                  <p class="conclusion-evidence">证据等级：关联级（因果阶梯第 1 层）——本结论描述两组实验的关联与差异，不含 do(X) 的因果效应；因果判断请以「干预分析」「反事实实验」为准。</p>
                   <el-alert
                     v-if="analysisError"
                     :title="analysisError"
@@ -357,12 +373,17 @@
                   </p>
                 </section>
 
-                <!-- 差异归因 -->
+                <!-- 差异贡献分解（关联级）：只按标准化差异大小分摊「差异主要出现在哪些指标上」，
+                     不是 do(X) 的因果分解，混杂未剔除；因果版见干预/反事实。 -->
                 <section class="compare-section" v-if="attributionItems.length">
                   <h3>
-                    <el-icon><TrendCharts /></el-icon>差异归因
-                    <el-tag size="small" effect="light" round class="h3-tag">按标准化差异分配贡献度</el-tag>
+                    <el-icon><TrendCharts /></el-icon>差异贡献分解
+                    <el-tag size="small" effect="light" round class="h3-tag">关联级 · 非因果分解</el-tag>
                   </h3>
+                  <p class="section-desc">
+                    按各指标的标准化差异大小分摊份额，回答「差异主要出现在哪些指标上」；
+                    它<strong>不是</strong>把总差异因果归给某个变量——份额高只代表关联强，混杂并未剔除。
+                  </p>
                   <div class="attribution-list">
                     <div v-for="item in attributionItems" :key="item.key" class="attr-row">
                       <span class="attr-label">{{ item.label }}</span>
@@ -457,6 +478,7 @@
                     <el-tag v-else type="info" size="small" effect="light" round class="h3-tag">统计规则生成</el-tag>
                   </h3>
                   <el-alert :title="conclusionText" type="info" :closable="false" show-icon />
+                  <p class="conclusion-evidence">证据等级：关联级（因果阶梯第 1 层）——本结论描述两组实验的关联与差异，不含 do(X) 的因果效应；因果判断请以「干预分析」「反事实实验」为准。</p>
                 </section>
               </template>
 
@@ -521,32 +543,54 @@
                 </el-checkbox-group>
               </div>
 
+              <!-- 同源提示：A、B 属于同一实验的不同轮次时，后端 /distribution 只有一份逐轮分布 -->
+              <p
+                v-if="sameSourceCase && (distributionDataA || distributionDataB)"
+                class="distribution-same-source"
+              >
+                实验 A 与 B 同属实验 <b>{{ caseA?.experimentId }}</b> 的第 {{ caseA?.iteration }} / {{ caseB?.iteration }} 轮：
+                后端 <b>/distribution</b> 只按<b>实验</b>给出逐轮分布，A、B 下面是同一份分布，并非两次独立采样；
+                因此这里只画一条曲线，避免把一份分布误读成两个样本。
+              </p>
               <div ref="distChartRef" class="distribution-chart-container"></div>
 
-              <!-- 分布统计摘要 -->
+              <!-- 分布统计摘要（论文口径：结果是一个分布，真实世界只是一个样本）
+                   均值 / 极值来自后端 metric_ranges，离散度由同一份逐轮真实序列现算，不新增任何推断。 -->
               <div class="distribution-summary" v-if="distributionDataA || distributionDataB">
-                <div class="dist-summary-card" v-for="opt in DIST_METRIC_OPTIONS.filter(o => selectedDistMetrics.includes(o.key))" :key="opt.key">
+                <div class="dist-summary-card" v-for="card in distSummaryCards" :key="card.key">
                   <div class="dist-summary-head">
-                    <span class="dist-summary-label">{{ opt.label }}</span>
-                    <span class="dist-summary-unit" v-if="opt.unit">{{ opt.unit }}</span>
+                    <span class="dist-summary-label">{{ card.label }}</span>
+                    <span class="dist-summary-unit" v-if="card.unit">{{ card.unit }}</span>
                   </div>
-                  <div class="dist-summary-row" v-if="distributionDataA?.metric_ranges?.[opt.key]">
-                    <span class="dist-tag-a">A</span>
-                    <span>{{ distributionDataA.metric_ranges[opt.key].mean?.toFixed?.(3) || '--' }}</span>
-                    <span class="dist-range">[{{ distributionDataA.metric_ranges[opt.key].min?.toFixed?.(2) || '--' }}, {{ distributionDataA.metric_ranges[opt.key].max?.toFixed?.(2) || '--' }}]</span>
+                  <div class="dist-summary-block" v-if="card.a">
+                    <div class="dist-summary-row">
+                      <span class="dist-tag-a">A</span>
+                      <span>均值 {{ formatDistNumber(card.a.mean, 3) }}</span>
+                      <span class="dist-range">[{{ formatDistNumber(card.a.min, 2) }}, {{ formatDistNumber(card.a.max, 2) }}]</span>
+                    </div>
+                    <div class="dist-summary-meta">N = {{ card.a.n }} 轮 · 标准差 σ = {{ card.a.stdText }} · 变异系数 CV = {{ card.a.cvText }}</div>
                   </div>
-                  <div class="dist-summary-row" v-if="distributionDataB?.metric_ranges?.[opt.key]">
-                    <span class="dist-tag-b">B</span>
-                    <span>{{ distributionDataB.metric_ranges[opt.key].mean?.toFixed?.(3) || '--' }}</span>
-                    <span class="dist-range">[{{ distributionDataB.metric_ranges[opt.key].min?.toFixed?.(2) || '--' }}, {{ distributionDataB.metric_ranges[opt.key].max?.toFixed?.(2) || '--' }}]</span>
+                  <!-- 同源时 A、B 是同一份分布，不再重复列一遍 -->
+                  <div class="dist-summary-block" v-if="card.b && !sameSourceCase">
+                    <div class="dist-summary-row">
+                      <span class="dist-tag-b">B</span>
+                      <span>均值 {{ formatDistNumber(card.b.mean, 3) }}</span>
+                      <span class="dist-range">[{{ formatDistNumber(card.b.min, 2) }}, {{ formatDistNumber(card.b.max, 2) }}]</span>
+                    </div>
+                    <div class="dist-summary-meta">N = {{ card.b.n }} 轮 · 标准差 σ = {{ card.b.stdText }} · 变异系数 CV = {{ card.b.cvText }}</div>
                   </div>
                 </div>
               </div>
+              <p v-if="distSummaryCards.length" class="distribution-footnote">
+                以上统计取自每个实验<b>单次仿真内部的逐轮取值</b>（轮间分布），不是独立重复运行的抽样分布；
+                轮次之间高度自相关，因此这里不给出置信区间。要得到可推断的区间，需按计算实验规范固定随机种子做多次独立重复
+                （见「干预分析」的策略重复与「反事实实验」的成对世界）。
+              </p>
               <div v-else-if="distLoading" class="compare-empty-inline">
                 <p>正在加载概率分布数据...</p>
               </div>
               <div v-else class="compare-empty-inline">
-                <p>未取到这两个实验的逐轮指标数据（后端 /distribution 接口无返回），因此不展示分布图，避免用模拟数据误导结论。</p>
+                <p>未取到这两个实验的逐轮指标数据（后端 /distribution 无有效返回），因此不展示分布图与统计卡，避免用模拟数据误导结论。</p>
               </div>
             </div>
 
@@ -713,7 +757,10 @@ const loading = ref(false)
 const searchQuery = ref('')
 const activeTab = ref('metrics')
 // 概率分布 / 反事实推演两个页签暂时下线（功能代码保留，把这里改回 true 即可恢复显示）
-const SHOW_EXTRA_TABS = false
+// 概率分布：论文口径「结果是一个分布，真实世界只是一个样本」的主视图，已开放
+const SHOW_DISTRIBUTION_TAB = true
+// 反事实推演：与独立的「反事实实验」页职责重叠，暂不开放，避免同一动作两处入口
+const SHOW_COUNTERFACTUAL_TAB = false
 const caseAId = ref(null)
 const caseBId = ref(null)
 const comparison = ref(null)
@@ -847,6 +894,56 @@ const DIST_METRIC_OPTIONS = computed(() => [
 ])
 const selectedDistMetrics = ref(['completion_rate', 'total_profit', 'network_density', 'network_stability'])
 const distDimsExpanded = ref(false)
+
+// 观察分析是关联级证据：这里只把「一个分布」展示清楚，不做任何因果推断。
+// 口径：样本量 / 均值 / 极值以后端 metric_ranges 为准（后端把恒为 0 或缺失的指标记成 count=0，
+// 此时不出卡片）；离散度（标准差 / 变异系数）由同一份逐轮真实序列现算。
+// 注意 Number(null) === 0，必须显式剔除空值，否则缺失指标会被当成 0 混进分布。
+const computeDistStats = (data, key) => {
+  const range = data?.metric_ranges?.[key]
+  const count = Number(range?.count)
+  if (!Number.isFinite(count) || count <= 0) return null
+  const mean = Number(range?.mean)
+  if (!Number.isFinite(mean)) return null
+  const rows = Array.isArray(data?.metrics_by_iteration) ? data.metrics_by_iteration : []
+  const values = rows
+    .map((row) => row?.[key])
+    .filter((value) => value !== null && value !== undefined && value !== '')
+    .map(Number)
+    .filter((value) => Number.isFinite(value))
+  let std = null
+  if (values.length > 1) {
+    const seriesMean = values.reduce((sum, value) => sum + value, 0) / values.length
+    const variance = values.reduce((sum, value) => sum + (value - seriesMean) ** 2, 0) / (values.length - 1)
+    std = Math.sqrt(variance)
+  }
+  const cv = std !== null && Math.abs(mean) > 1e-9 ? std / Math.abs(mean) : null
+  return {
+    n: count,
+    mean,
+    std,
+    cv,
+    min: range?.min,
+    max: range?.max,
+    stdText: std === null ? '--' : std.toFixed(3),
+    cvText: cv === null ? '--' : `${(cv * 100).toFixed(1)}%`
+  }
+}
+
+const formatDistNumber = (value, digits) => (
+  Number.isFinite(Number(value)) ? Number(value).toFixed(digits) : '--'
+)
+
+const distSummaryCards = computed(() =>
+  DIST_METRIC_OPTIONS.value
+    .filter((opt) => selectedDistMetrics.value.includes(opt.key))
+    .map((opt) => ({
+      ...opt,
+      a: computeDistStats(distributionDataA.value, opt.key),
+      b: computeDistStats(distributionDataB.value, opt.key)
+    }))
+    .filter((card) => card.a || card.b)
+)
 const matrixExpanded = ref(false)
 
 // ---- 跨库相似度矩阵 ----
@@ -992,20 +1089,37 @@ const fetchDistributionForCase = async (caseObj) => {
   }
 }
 
+// 序号用于丢弃过期响应：用户连续换 A/B 时，先发的请求可能后返回，
+// 不丢弃就会把上一组实验的分布留在卡片上（等于把数据安到别的实验头上）。
+let distRequestSeq = 0
+const clearDistributionData = () => {
+  distRequestSeq += 1
+  distributionDataA.value = null
+  distributionDataB.value = null
+  if (distChartInstance) {
+    distChartInstance.dispose()
+    distChartInstance = null
+  }
+}
 const loadDistributionData = async () => {
-  if (!caseA.value || !caseB.value) return
+  if (!caseA.value || !caseB.value) {
+    clearDistributionData()
+    return
+  }
+  const seq = ++distRequestSeq
   distLoading.value = true
   try {
     const [a, b] = await Promise.all([
       fetchDistributionForCase(caseA.value),
       fetchDistributionForCase(caseB.value)
     ])
+    if (seq !== distRequestSeq) return
     distributionDataA.value = a
     distributionDataB.value = b
     await nextTick()
     renderDistributionChart()
   } finally {
-    distLoading.value = false
+    if (seq === distRequestSeq) distLoading.value = false
   }
 }
 
@@ -1032,7 +1146,8 @@ const renderDistributionChart = () => {
   if (distChartInstance) distChartInstance.dispose()
 
   const dataA = distributionDataA.value
-  const dataB = distributionDataB.value
+  // 同源（A、B 是同一实验的不同轮次）时后端只给一份逐轮分布，不去画第二条曲线
+  const dataB = sameSourceCase.value ? null : distributionDataB.value
   if (!dataA && !dataB) return
 
   distChartInstance = echarts.init(container)
@@ -1116,22 +1231,22 @@ const renderDistributionChart = () => {
     const histA = buildHistogram(valuesA)
     const histB = buildHistogram(valuesB)
 
-    seriesItems.push(
-      {
-        name: '实验 A', type: 'line', xAxisIndex: idx, yAxisIndex: idx,
-        data: histA.map(([x, y]) => [x, y]),
-        smooth: 0.6,
-        symbol: 'circle', symbolSize: 6, showSymbol: true,
-        lineStyle: {
-          color: colors[0], width: 2.5,
-          shadowColor: hexToRgba(colors[0], 0.4), shadowBlur: 8, shadowOffsetY: 3
-        },
-        itemStyle: { color: colors[0], borderColor: '#fff', borderWidth: 1.5 },
-        areaStyle: { color: areaGradient(colors[0]) },
-        emphasis: { focus: 'series', scale: 1.3 },
-        z: 3
+    seriesItems.push({
+      name: sameSourceCase.value ? 'A／B 同源分布' : '实验 A', type: 'line', xAxisIndex: idx, yAxisIndex: idx,
+      data: histA.map(([x, y]) => [x, y]),
+      smooth: 0.6,
+      symbol: 'circle', symbolSize: 6, showSymbol: true,
+      lineStyle: {
+        color: colors[0], width: 2.5,
+        shadowColor: hexToRgba(colors[0], 0.4), shadowBlur: 8, shadowOffsetY: 3
       },
-      {
+      itemStyle: { color: colors[0], borderColor: '#fff', borderWidth: 1.5 },
+      areaStyle: { color: areaGradient(colors[0]) },
+      emphasis: { focus: 'series', scale: 1.3 },
+      z: 3
+    })
+    if (!sameSourceCase.value) {
+      seriesItems.push({
         name: '实验 B', type: 'line', xAxisIndex: idx, yAxisIndex: idx,
         data: histB.map(([x, y]) => [x, y]),
         smooth: 0.6,
@@ -1144,8 +1259,8 @@ const renderDistributionChart = () => {
         areaStyle: { color: areaGradient(colors[1]) },
         emphasis: { focus: 'series', scale: 1.3 },
         z: 3
-      }
-    )
+      })
+    }
   })
 
   distChartInstance.setOption({
@@ -1276,6 +1391,11 @@ watch(activeTab, (val) => {
 watch([caseA, caseB], ([a, b]) => {
   if (a && b && activeTab.value === 'metrics') {
     nextTick(() => renderMetricsLineChart())
+  }
+  // /distribution 是「按实验」返回的：分布 tab 开着时换 A/B 必须重新拉取，
+  // 否则卡片会继续显示上一组实验的分布，把一份数据安到别的实验头上。
+  if (activeTab.value === 'distribution') {
+    loadDistributionData()
   }
 })
 
@@ -1835,7 +1955,11 @@ const buildCaseFromIteration = (iteration, experiment, index, prefix = 'Exp') =>
 // 后端每份详情都要完整解析一次 JSON（实测 ~2.6 秒）。原先串行拉取全部报告，首屏要等
 // 5 分钟以上且期间界面全空 —— 用户体验上就是「点不动、滚动条也不动」。
 // 这里改为：只取当前场景最新的 MAX_LIBRARY_EXPERIMENTS 份，并按固定并发拉取详情。
+// 例外：最新这一批可能整批都是「仿真未产出指标」的空实验（铀场景 94 份里 92 份如此），
+// 那就继续向历史回溯扫描，最多再看 MAX_DETAIL_SCAN 份 —— 否则案例库会空掉，
+// 分布图没有数据源，用户只能看到「无数据」提示。
 const MAX_LIBRARY_EXPERIMENTS = 24
+const MAX_DETAIL_SCAN = 96
 const DETAIL_CONCURRENCY = 6
 const DETAIL_TIMEOUT_MS = 20000
 const libraryLoading = ref(false)
@@ -1884,9 +2008,9 @@ const buildLocalCases = async () => {
     const skippedByCap = allExperiments.length - experiments.length
 
     libraryLoading.value = true
-    libraryProgress.total = experiments.length
+    libraryProgress.total = Math.min(allExperiments.length, MAX_LIBRARY_EXPERIMENTS + MAX_DETAIL_SCAN)
     libraryProgress.done = 0
-    const loaded = await mapWithConcurrency(experiments, DETAIL_CONCURRENCY, async (experiment) => {
+    const fetchDetail = async (experiment) => {
       try {
         const detailPayload = await withTimeout(
           getExperimentDetail(experiment.experiment_id),
@@ -1903,24 +2027,41 @@ const buildLocalCases = async () => {
       } finally {
         libraryProgress.done += 1
       }
-    })
-    const details = loaded.filter(Boolean)
+    }
+    // 先看最新一批。若这批一份「有指标产出」的实验都没有（铀场景最新 24 份全是空仿真），
+    // 就按批继续向历史回溯扫描 —— 否则案例库会整库落空，分布图也就没有数据源。
+    let details = (await mapWithConcurrency(experiments, DETAIL_CONCURRENCY, fetchDetail)).filter(Boolean)
+    const hasSignalDetail = ({ detail }) => (detail?.iterations || []).some(iterationHasSignal)
+    const scannedKeys = new Set(experiments.map((e) => String(e.experiment_id)))
+    const backlog = allExperiments.filter((e) => !scannedKeys.has(String(e.experiment_id)))
+    let scannedExtra = 0
+    while (!details.some(hasSignalDetail) && scannedExtra < MAX_DETAIL_SCAN && scannedExtra < backlog.length) {
+      const batch = backlog.slice(scannedExtra, scannedExtra + MAX_LIBRARY_EXPERIMENTS)
+      scannedExtra += batch.length
+      const batchDetails = (await mapWithConcurrency(batch, DETAIL_CONCURRENCY, fetchDetail)).filter(Boolean)
+      details = details.concat(batchDetails)
+    }
+    // 详情一份都没拉到（后端不可用）时不虚构，留空交给「暂无可用实验数据」提示
     if (!details.length) return
 
-    // ---- 先按“有没有产出真实指标”筛实验：完成率与利润恒为 0 的实验无法参与对比 ----
-    const usable = details.filter(({ detail }) => (detail?.iterations || []).some(iterationHasSignal))
+    // ---- 只保留“有没有产出真实指标”的实验：完成率与利润恒为 0 的实验无法参与对比，
+    //      也绝不拿它们（更不拿硬编码案例）凑数，否则分布图与结论都会是假的 ----
+    const usable = details.filter(hasSignalDetail)
     const degradedCount = details.length - usable.length
-    const scoped = usable.length ? usable : details
+    const scoped = usable
+    const widenedNote = scannedExtra > 0
+      ? `最新 ${experiments.length} 份实验均未产出可用指标，已向前回溯扫描 ${experiments.length + scannedExtra} 份，取到 ${usable.length} 份有指标产出的实验用于对比。`
+      : ''
     const degradedNote = !degradedCount
       ? ''
       : usable.length
         ? `已过滤 ${degradedCount} 份“仿真未产出指标”的实验（完成率与利润恒为 0），它们无法参与对比。`
-        : `当前 ${degradedCount} 份实验的完成率/利润均为 0（仿真未产出），仅可查看、不能作为对比结论。`
+        : `当前 ${degradedCount} 份实验的完成率/利润均为 0（仿真未产出），无法作为对比案例，因此不展示对比结论。`
     // 说明加载上限，避免用户误以为案例库里只有这么多实验
     const capNote = skippedByCap > 0
       ? `本场景共 ${allExperiments.length} 份已完成实验，为快速加载仅取最新 ${experiments.length} 份。`
       : ''
-    libraryNotice.value = [degradedNote, capNote].filter(Boolean).join(' ')
+    libraryNotice.value = [widenedNote, degradedNote, capNote].filter(Boolean).join(' ')
 
     // ---- 事中 / 反事实按“有没有施加干预”切分（此前按“最佳迭代 / 剩下的轮次”切分，
     //      只是把同一批数据分成两堆，不构成对照）----
@@ -1999,28 +2140,14 @@ const buildLocalCases = async () => {
       caseBId.value = defaultPair.b?.id || null
       if (caseBId.value && caseAId.value) runComparison()
     }
-    // 确保两个库都有数据
-    if (!caseFolders[0].children.length) caseFolders[0].children = buildStaticCases('Exp')
-    if (!caseFolders[1].children.length) caseFolders[1].children = buildStaticCases('CF')
+    // 没有真实案例时保持空库：由「暂无可用实验数据」与 libraryNotice 说明原因。
+    // 不用硬编码案例充数 —— 前端造数会让分布图与对比结论都变成假的。
   } catch (error) {
-    console.warn('[ObserveAnalysis] 后端案例数据加载失败，使用本地静态数据:', error)
-    caseFolders[0].children = buildStaticCases('Exp')
-    caseFolders[1].children = buildStaticCases('CF')
+    console.warn('[ObserveAnalysis] 案例数据加载失败：', error)
+    caseFolders[0].children = []
+    caseFolders[1].children = []
+    libraryNotice.value = `案例数据加载失败：${error?.message || error}。请确认后端服务可用后点击刷新重试。`
   }
-}
-
-const buildStaticCases = (prefix) => {
-  // 汽车供应链场景不做静态兜底：宁可空列表，也不展示与当前场景无关的虚构案例
-  if (!isUraniumScene.value) return []
-  if (prefix === 'Exp') return [
-    { id: 'exp-uranium-baseline', name: 'Exp01', completed: true, completionRate: '68.4%', method: 'MA仿真', backlogRate: '31.6%', collaboration: '18 次', resilience: '0.42', demandLevel: '需求 1.25x', capacityPlan: '基线区间', intervention: '不干预', eventNodes: defaultEventNodes },
-    { id: 'exp-uranium-expand', name: 'Exp02', completed: true, completionRate: '83.1%', method: 'MA仿真', backlogRate: '16.9%', collaboration: '31 次', resilience: '0.71', demandLevel: '需求 1.25x', capacityPlan: '阶梯扩产', intervention: '产能 +30%', eventNodes: defaultEventNodes },
-    { id: 'exp-uranium-threshold', name: 'Exp03', completed: false, completionRate: '--', method: 'MA仿真', backlogRate: '--', collaboration: '--', resilience: '--', demandLevel: '需求 1.40x', capacityPlan: '计划矿山', intervention: '阈值 -50%', eventNodes: defaultEventNodes }
-  ]
-  return [
-    { id: 'cf-uranium-cap15', name: 'CF01', completed: true, completionRate: '86.8%', method: '反事实', backlogRate: '13.2%', collaboration: '36 次', resilience: '0.78', demandLevel: '需求 1.25x', capacityPlan: '阶梯扩产', intervention: '产能 +15%', eventNodes: defaultEventNodes },
-    { id: 'cf-uranium-threshold-half', name: 'CF02', completed: false, completionRate: '--', method: '反事实', backlogRate: '--', collaboration: '--', resilience: '--', demandLevel: '需求 1.10x', capacityPlan: '保持基线', intervention: '阈值 -50%', eventNodes: defaultEventNodes }
-  ]
 }
 
 const loadAllCases = async () => {
@@ -2035,8 +2162,8 @@ const loadAllCases = async () => {
       ElMessage.warning(`${sceneText.value.systemLabel}暂无可用实验，请先在首页运行实验或导入实验报告`)
     }
   } catch {
-    caseFolders[0].children = buildStaticCases('Exp')
-    caseFolders[1].children = buildStaticCases('CF')
+    caseFolders[0].children = []
+    caseFolders[1].children = []
   } finally {
     loading.value = false
     libraryLoading.value = false
@@ -2057,7 +2184,7 @@ const buildReportHtml = () => {
     ? `<h2>统计显著性检验（Welch t 检验）</h2><table><thead><tr><th>指标</th><th>实验 A</th><th>实验 B</th><th>差异</th><th>p 值</th><th>Cohen's d</th><th>结论</th></tr></thead><tbody>${statsRows}</tbody></table>`
     : ''
   const attrBlock = attributionItems.value.length
-    ? `<h2>差异归因</h2><ul>${attributionItems.value.map(i => `<li>${escapeHtml(i.label)}：贡献度 ${i.contribution}%（${escapeHtml(i.delta_text)}${i.significant ? '，显著' : ''}）</li>`).join('')}</ul>`
+    ? `<h2>差异贡献分解（关联级）</h2><ul>${attributionItems.value.map(i => `<li>${escapeHtml(i.label)}：贡献度 ${i.contribution}%（${escapeHtml(i.delta_text)}${i.significant ? '，显著' : ''}）</li>`).join('')}</ul>`
     : ''
   const provBlock = provenance.value
     ? `<h2>数据溯源</h2><ul><li>实验 A：${escapeHtml(provenance.value.case_a?.report)}（${provenance.value.case_a?.total_iterations} 轮，聚焦第 ${escapeHtml(String(provenance.value.case_a?.focus_iteration ?? '全部'))} 轮）</li><li>实验 B：${escapeHtml(provenance.value.case_b?.report)}（${provenance.value.case_b?.total_iterations} 轮，聚焦第 ${escapeHtml(String(provenance.value.case_b?.focus_iteration ?? '全部'))} 轮）</li><li>指标来源：${escapeHtml(provenance.value.metric_source)}</li></ul>`
@@ -2076,14 +2203,15 @@ ${events ? `<h2>典型事件序列（实验 A）</h2><ul>${events}</ul>` : ''}
 ${statsBlock}
 ${attrBlock}
 ${provBlock}
-<h2>综合结论</h2><p>${escapeHtml(conclusionText.value)}</p></main></body></html>`
+<h2>综合结论</h2><p>${escapeHtml(conclusionText.value)}</p>
+<p class="evidence">证据等级：关联级（因果阶梯第 1 层）——本结论描述两组实验的关联与差异，不含 do(X) 的因果效应；因果判断请以「干预分析」「反事实实验」为准。</p></main></body></html>`
 }
 
 const exportComparisonReport = (format) => {
   if (!caseA.value || !caseB.value) { ElMessage.warning('请先选择两个对比案例'); return }
   const safeName = sceneText.value.reportFileBase
   if (format === 'txt') {
-    const lines = [sceneText.value.reportTitle, `生成时间：${new Date().toLocaleString()}`, '', '一、案例对比', ...[...buildBasicComparison(), ...buildMetricsComparison()].map(r => `${r.dimension||r.metric}：A=${r.value_a}；B=${r.value_b}${r.diff?'（差异：'+r.diff+'）':''}`), '', '二、综合推荐', generateLocalRecommendation()]
+    const lines = [sceneText.value.reportTitle, `生成时间：${new Date().toLocaleString()}`, '', '一、案例对比', ...[...buildBasicComparison(), ...buildMetricsComparison()].map(r => `${r.dimension||r.metric}：A=${r.value_a}；B=${r.value_b}${r.diff?'（差异：'+r.diff+'）':''}`), '', '二、综合推荐', generateLocalRecommendation(), '', '证据等级：关联级（因果阶梯第 1 层）——本结论描述两组实验的关联与差异，不含 do(X) 的因果效应；因果判断请以「干预分析」「反事实实验」为准。']
     const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' })
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${safeName}.txt`; a.click()
     ElMessage.success('已导出为TXT')
@@ -2225,6 +2353,7 @@ onBeforeUnmount(() => { disposeDistChart(); disposeMetricsLineChart(); disposeTr
 .cmp-card--conclusion .cmp-card-head { background: linear-gradient(180deg, #eef2ff, #fafbfc); border-bottom: 1px solid #eef2f7; padding: 8px 12px; font-size: 12px; font-weight: 800; display: flex; align-items: center; gap: 6px; color: #4338ca; }
 .cmp-card--conclusion .cmp-card-body { padding: 10px 14px; background: #fafafe; }
 .conclusion-text { margin: 0; font-size: 13px; line-height: 1.7; color: #334155; font-weight: 600; }
+.conclusion-evidence { margin: 10px 0 0; padding: 7px 10px; border-left: 3px solid #2563eb; border-radius: 0 6px 6px 0; background: #eff6ff; font-size: 12px; line-height: 1.7; color: #334155; }
 
 .cmp-card--chart { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
 .cmp-card--chart .cmp-card-head { background: linear-gradient(180deg, #f0fdf4, #fafbfc); border-bottom: 1px solid #eef2f7; padding: 8px 12px; font-size: 12px; font-weight: 800; display: flex; align-items: center; gap: 6px; color: #059669; }
@@ -2263,6 +2392,7 @@ onBeforeUnmount(() => { disposeDistChart(); disposeMetricsLineChart(); disposeTr
 .cmp-empty-hint { text-align: center; color: #cbd5e1; font-size: 12px; padding: 12px 0; }
 
 .distribution-chart-container { width: 100%; height: 470px; margin: 8px 0; border: 1px solid #e2e8f0; border-radius: 10px; background: #fafbfc; }
+.distribution-same-source { margin: 0 0 8px; padding: 8px 12px; border-left: 3px solid #f59e0b; border-radius: 0 8px 8px 0; background: #fffbeb; font-size: 12px; line-height: 1.7; color: #78350f; }
 
 .distribution-summary { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
 .dist-summary-card { padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; }
@@ -2273,6 +2403,37 @@ onBeforeUnmount(() => { disposeDistChart(); disposeMetricsLineChart(); disposeTr
 .dist-tag-a { padding: 1px 6px; border-radius: 4px; background: #dbeafe; color: #1d4ed8; font-size: 10px; font-weight: 900; }
 .dist-tag-b { padding: 1px 6px; border-radius: 4px; background: #dcfce7; color: #15803d; font-size: 10px; font-weight: 900; }
 .dist-range { font-size: 11px; color: #94a3b8; margin-left: auto; }
+.dist-summary-block + .dist-summary-block { margin-top: 4px; padding-top: 4px; border-top: 1px dashed #eef2f7; }
+.dist-summary-meta { font-size: 11px; color: #64748b; font-weight: 600; padding: 0 0 2px 22px; }
+.distribution-footnote { margin: 8px 0 0; padding: 8px 12px; border: 1px dashed #cbd5e1; border-radius: 8px; background: #f8fafc; font-size: 12px; line-height: 1.7; color: #475569; }
+
+/* ---- 因果阶梯定位条：观察分析 = 第 1 层·关联 ---- */
+.evidence-level {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 12px 24px 0;
+  padding: 12px 16px;
+  border: 1px solid #bfdbfe;
+  border-left: 4px solid #2563eb;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #eff6ff, #ffffff);
+}
+.evidence-level__badge {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.evidence-level__body { min-width: 0; }
+.evidence-level__title { margin: 0; font-size: 13px; font-weight: 800; color: #1e3a8a; }
+.evidence-level__desc { margin: 4px 0 0; font-size: 12px; line-height: 1.7; color: #475569; }
+
 .compare-empty-inline { display: flex; justify-content: center; padding: 40px; color: #94a3b8; font-size: 13px; font-weight: 600; }
 
 /* ---- 跨库相似度矩阵 ---- */
