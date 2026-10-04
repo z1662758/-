@@ -15,6 +15,11 @@
  */
 
 export const PLAN_STORAGE_PREFIX = 'scnet_experiment_plan:'
+/** 方案设计页的「事后方案助手」要延续对话页的上下文:整段对话按 plan 存一份 */
+export const PLAN_CHAT_PREFIX = 'scnet_experiment_plan_chat:'
+/** 同一段对话再按会话 id 存一份：从侧边栏/平台进方案设计页时只有会话认得出来 */
+export const PLAN_CHAT_CONV_PREFIX = 'scnet_experiment_chat:'
+const PLAN_CHAT_LIMIT = 40
 // 「这份方案已经写进过参数面板」的标记：只在同一标签页内有效，
 // 用来区分"还没写过"和"写过又被手动改动"，刷新后不会把后者误报成前者。
 export const PLAN_APPLIED_PREFIX = 'scnet_experiment_plan_applied:'
@@ -198,6 +203,64 @@ export function readLatestExperimentPlan(scenario = '') {
   } catch {
     return null
   }
+}
+
+/**
+ * 保存对话页最近的往返消息，供方案设计页的「事后方案助手」续上上下文。
+ * 只留 role / content / goalBrief 三个字段，其余（流式占位、失败标记）不进方案页。
+ * 同一份内容按方案 id 与会话 id 各存一份：从对话跳进来认方案，从侧边栏 /
+ * 平台跳进来时方案还是同一份，但只有会话能认出这段对话。
+ */
+const normalizeTranscript = (items) => (Array.isArray(items) ? items : [])
+  .filter((item) => item && (item.content || item.goalBrief))
+  .slice(-PLAN_CHAT_LIMIT)
+  .map((item) => ({
+    role: item.role === 'user' ? 'user' : 'assistant',
+    content: String(item.content || ''),
+    goalBrief: item.goalBrief || null
+  }))
+
+const writeTranscript = (key, items) => {
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify(normalizeTranscript(items)))
+    return true
+  } catch {
+    return false
+  }
+}
+
+const readTranscript = (key) => {
+  try {
+    const raw = window.sessionStorage.getItem(key)
+    const list = raw ? JSON.parse(raw) : []
+    return Array.isArray(list) ? list : []
+  } catch {
+    return []
+  }
+}
+
+export function savePlanTranscript(planId, items) {
+  const id = String(planId || '').trim()
+  if (!id) return false
+  return writeTranscript(PLAN_CHAT_PREFIX + id, items)
+}
+
+export function readPlanTranscript(planId) {
+  const id = String(planId || '').trim()
+  if (!id) return []
+  return readTranscript(PLAN_CHAT_PREFIX + id)
+}
+
+export function saveConversationTranscript(conversationId, items) {
+  const id = String(conversationId || '').trim()
+  if (!id) return false
+  return writeTranscript(PLAN_CHAT_CONV_PREFIX + id, items)
+}
+
+export function readConversationTranscript(conversationId) {
+  const id = String(conversationId || '').trim()
+  if (!id) return []
+  return readTranscript(PLAN_CHAT_CONV_PREFIX + id)
 }
 
 /** 记录「该方案已写入过参数面板」 */

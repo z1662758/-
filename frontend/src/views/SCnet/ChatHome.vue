@@ -415,7 +415,7 @@ import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 import { toolDisplayName as toolLabelOf } from '@/constants/scnetToolLabels'
 import { unwrapApiData } from '@/utils/session'
 import { inferAutoPhase } from '@/utils/phaseInfer'
-import { PLAN_QUERY_KEY, PLAN_CONTROL_LABEL, composePlanPurpose, newExperimentPlanId, saveExperimentPlan, readLatestExperimentPlan, describePlanLevers } from '@/constants/scnetExperimentPlan'
+import { PLAN_QUERY_KEY, PLAN_CONTROL_LABEL, composePlanPurpose, newExperimentPlanId, saveExperimentPlan, savePlanTranscript, saveConversationTranscript, readLatestExperimentPlan, describePlanLevers } from '@/constants/scnetExperimentPlan'
 import { loadCounterfactualReport } from '@/utils/counterfactualReport'
 import { getSessions, getSessionDetail, createSession, addChatMessage } from '@/api/scenarioSession'
 import { startAgentChat, streamAgentTask, cancelAgentTask, getAgentModels, getAgentConversations, getAgentConversation, markConversationPdf } from '@/api/scnet/chatAgent'
@@ -920,6 +920,7 @@ export default {
             role: 'assistant',
             content: '实验目的已确认。下一步进入「实验方案设计」，配置干预变量、目标指标与观测轮次；保存后即可运行反事实实验。'
           })
+          persistChatTranscript()
           scrollToBottom()
           return
         }
@@ -975,7 +976,18 @@ export default {
       }
       clearInterval(glyphTimer)
       isStreaming.value = false
+      persistChatTranscript()
       scrollToBottom()
+    }
+
+    // 对话快照按会话 id 存一份：从侧边栏或平台进方案设计页时，方案 id 对得上但只有会话能认出这段对话
+    // 一次运行里 currentConversationId 与 activeRun.conversation_id 可能不同，两个都存
+    const transcriptConversationIds = () => {
+      const ids = [currentConversationId.value, activeRun.value && activeRun.value.conversation_id]
+      return [...new Set(ids.map((id) => String(id || '').trim()).filter(Boolean))]
+    }
+    const persistChatTranscript = () => {
+      transcriptConversationIds().forEach((id) => saveConversationTranscript(id, messages.value))
     }
 
     // ── K3-CHAT-1:对话首页 Agent 事前研判 ──────
@@ -1270,6 +1282,7 @@ export default {
       query.phase = runPhase.value === 'post' ? 'post' : 'pre'
       // 铀/汽车场景也跟着走,否则落地页会落回默认场景
       query.scenario = scenarioStore.currentScenario || 'uranium'
+      persistChatTranscript()
       router.push({ path: dest.path, query })
     }
 
@@ -1518,6 +1531,8 @@ export default {
       if (conversationId) { query.from_chat = '1'; query.session_id = conversationId }
       if (activePlan.value && activePlan.value.id) query[PLAN_QUERY_KEY] = activePlan.value.id
       if (workspaceExperimentId.value) query.experiment_id = workspaceExperimentId.value
+      // 走到别处之前也把对话快照留下：方案设计页的「事后方案助手」要从这里续上下文
+      persistChatTranscript()
       router.push({ path: action.path, query })
     }
 
@@ -1567,6 +1582,10 @@ export default {
       }
       // 草稿写不进去(例如浏览器禁用了 sessionStorage)也照常跳转:方案设计页支持手填
       saveExperimentPlan(draft)
+      // 把这段对话一起带过去:方案设计页右侧的「事后方案助手」要接着聊同一件事
+      savePlanTranscript(draft.id, messages.value)
+      saveConversationTranscript(conversationId, messages.value)
+      persistChatTranscript()
       const query = { phase: 'post', scenario: draft.scenario }
       query[PLAN_QUERY_KEY] = draft.id
       if (conversationId) { query.from_chat = '1'; query.session_id = conversationId }
