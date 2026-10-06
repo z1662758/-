@@ -3,6 +3,8 @@
     <!-- K5-PIPELINE:实验闭环导航(运行实验 → 观察 → 干预 → 机制),实验 id 从 URL 带入 -->
     <ExperimentStageNav :experiment-id="routeExperimentId" current="intervention" />
 
+    <PlanGroupStrip stage="intervention" />
+
     <!-- P2：因果阶梯定位条 —— 干预分析 = 第 2 层·干预（do(X)） -->
     <section class="evidence-level" role="note">
       <span class="evidence-level__badge">因果阶梯 · 第 2 层</span>
@@ -323,6 +325,7 @@ import { getExperimentDetail, getInterventionStrategies, compareInterventions, g
 import { unwrapApiData } from '@/utils/apiEnvelope'
 import { resolveExperimentIdFromTask } from '@/utils/scnetTaskUtils'
 import ExperimentStageNav from '@/components/SCnet/ExperimentStageNav.vue'
+import PlanGroupStrip from '@/components/SCnet/PlanGroupStrip.vue'
 import { useSupplyChainScenario } from '@/composables/useSupplyChainScenario'
 
 // 供应链态势地图：由原独立页面抽成的面板（场景跟随全局选择，铀/汽车各自一张）

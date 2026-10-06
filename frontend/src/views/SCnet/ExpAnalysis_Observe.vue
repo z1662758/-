@@ -7,25 +7,10 @@
     <!-- K5-PIPELINE:实验闭环导航(运行实验 → 观察 → 干预 → 机制),实验 id 从 URL 带入 -->
     <ExperimentStageNav :experiment-id="routeExperimentId" current="observe" />
 
-    <!-- 论文对照（薛霄等《计算实验方法的溯源、现状与展望》, 自动化学报 2023）：
-         观察分析对应 Pearl 因果阶梯第 1 层「关联」——只描述「X 与 Y 一起变」，
-         不主张「改变 X 会让 Y 变」。差异可能来自未打开的后门路径（混杂），
-         要下因果结论必须上到第 2 层（干预）或第 3 层（反事实）。 -->
-    <section class="evidence-level" role="note">
-      <span class="evidence-level__badge">因果阶梯 · 第 1 层</span>
-      <div class="evidence-level__body">
-        <p class="evidence-level__title">本页是「关联级」证据：看到的是相关，不是因果效应</p>
-        <p class="evidence-level__desc">
-          对比只说明两组实验的指标「一起变」，差异可能来自未控制的混杂因素（后门路径未切断）。
-          「改变 X 会不会让 Y 变」需真正施加干预（第 2 层 · 干预分析）；「这次结果若当时 X 不同会怎样」需成对世界反事实（第 3 层 · 反事实实验）。
-        </p>
-      </div>
-    </section>
-
     <section class="page-head">
       <div>
-        <h1>观察分析与案例对比</h1>
-        <p class="subtitle">基于实验结果进行多维度对比分析，评估策略效果与关键指标表现。</p>
+        <h1>观察分析</h1>
+        <p class="subtitle">从事件开始前的共同状态出发，逐层查看各世界线的决策与风险分布。</p>
       </div>
       <div class="head-actions">
         <div class="stat-item">
@@ -44,106 +29,41 @@
       </div>
     </section>
 
-    <div class="observe-layout">
-      <!-- 篮筐1：实验库（按场景取库名） -->
-      <aside class="observe-panel observe-panel--lib">
-        <div class="panel-head-bar panel-head-bar--blue">
-          <el-icon><Folder /></el-icon>
-          <span>{{ sceneText.libraryLabel }}</span>
-          <el-input v-model="searchQuery" placeholder="搜索..." size="small" clearable class="search-input" />
+    <!-- 平行世界观察台：共同事实根节点 → 决策节点逐层展开 → 故事线 / 演化时间线 → 平行世界风险分布 -->
+    <ObserveWorldView>
+      <template #compare>
+        <!-- 三标签页结论摘要：指标对比 / 深度分析 / 概率分布 的结论抽象成一句话，随 A/B 选择自动刷新 -->
+        <p v-if="libraryNotice" class="conclusion-summary-note">{{ libraryNotice }}</p>
+        <div class="conclusion-summary">
+          <button
+            v-for="card in conclusionSummaryCards"
+            :key="card.key"
+            type="button"
+            class="conclusion-summary-card"
+            :class="['conclusion-summary-card--' + card.tone, { 'is-open': activeCard === card.key }]"
+            :aria-expanded="activeCard === card.key"
+            @click="toggleDetail(card.key)"
+          >
+            <span class="conclusion-summary-head">
+              <el-icon class="conclusion-summary-icon"><component :is="card.icon" /></el-icon>
+              <span class="conclusion-summary-title">{{ card.title }}</span>
+              <span class="head-spacer"></span>
+              <span class="conclusion-summary-tag" :class="{ 'is-ready': card.ready }">{{ card.ready ? '结论已生成' : '待生成' }}</span>
+              <el-icon class="conclusion-summary-caret"><component :is="activeCard === card.key ? ArrowUp : ArrowDown" /></el-icon>
+            </span>
+            <span class="conclusion-summary-text">{{ card.text }}</span>
+          </button>
         </div>
-        <div class="panel-body-fill">
-          <div v-if="libraryLoading" class="library-progress">
-            <el-icon class="is-loading"><Refresh /></el-icon>
-            正在加载案例库 {{ libraryProgress.done }}/{{ libraryProgress.total }}
-          </div>
-          <div v-if="libraryNotice" class="library-notice">{{ libraryNotice }}</div>
-          <div v-for="folder in filteredFolders" :key="folder.id" class="tree-folder">
-            <div class="tree-folder-head" :class="{ expanded: folder.expanded }" @click="folder.expanded = !folder.expanded">
-              <el-icon><component :is="folder.expanded ? ArrowDown : ArrowRight" /></el-icon>
-              <el-icon><FolderOpened v-if="folder.expanded" /><Folder v-else /></el-icon>
-              <span class="folder-name">{{ folder.label }}</span>
-              <span class="folder-stats">
-                <span class="stat-done">✓ {{ folder.completedCount }}</span>
-                <span class="stat-pending">○ {{ folder.pendingCount }}</span>
-              </span>
-              <span class="folder-count">{{ folder.children.length }}</span>
-            </div>
-            <div v-show="folder.expanded" class="tree-folder-children">
-              <div
-                v-for="child in folder.displayChildren" :key="child.id"
-                class="tree-leaf"
-                :class="{
-                  active: selectedCaseId === child.id,
-                  'slot-a': caseAId === child.id,
-                  'slot-b': caseBId === child.id
-                }"
-                @click="selectCaseForComparison(child)"
-              >
-                <el-icon><Document /></el-icon>
-                <span class="leaf-name">{{ child.name }}</span>
-                <span class="leaf-badge" :class="child.completed ? 'done' : 'pending'">
-                  {{ child.completed ? '完成' : '进行中' }}
-                </span>
-              </div>
-              <div v-if="folder.children.length > folder.displayChildren.length" class="tree-more">
-                还有 {{ folder.children.length - folder.displayChildren.length }} 个实验，请搜索筛选查看
-              </div>
-            </div>
-          </div>
-          <div v-if="totalCaseCount === 0 && !loading" class="empty-hint">暂无可用实验数据</div>
-        </div>
-      </aside>
 
-      <!-- 篮筐2：实验对比 -->
-      <section class="observe-panel observe-panel--cmp">
-        <div class="panel-head-bar panel-head-bar--blue">
-          <el-icon><DataAnalysis /></el-icon>
-          <span>实验对比</span>
+      <!-- 详情面板：点击上方结论卡片展开对应详情（指标对比 / 深度分析 / 概率分布） -->
+      <section v-if="activeCard" class="observe-panel compare-detail">
+        <div class="panel-head-bar panel-head-bar--purple">
+          <el-icon :size="18"><component :is="activeCardIcon" /></el-icon>
+          <span>{{ activeCardTitle }}</span>
           <span class="head-spacer"></span>
           <el-tag v-if="caseA" size="small" :type="caseA.completed ? 'success' : 'warning'" round>实验 A</el-tag>
           <span v-if="caseA && caseB" class="vs-inline">VS</span>
           <el-tag v-if="caseB" size="small" :type="caseB.completed ? 'success' : 'warning'" round>实验 B</el-tag>
-        </div>
-        <div class="panel-body-fill">
-          <div class="compare-dual">
-            <div class="compare-col compare-col--a" :class="{ filled: !!caseA }">
-              <div class="compare-col-label">实验 A</div>
-              <template v-if="caseA">
-                <div class="info-row"><span class="info-label">实验名</span><span class="info-value">{{ caseA.name }}</span></div>
-                <div class="info-row"><span class="info-label">完成率</span><span class="info-value">{{ caseA.completionRate }}</span></div>
-                <div class="info-row"><span class="info-label">供应缺口率</span><span class="info-value">{{ caseA.backlogRate }}</span></div>
-                <div class="info-row"><span class="info-label">产能方案</span><span class="info-value">{{ caseA.capacityPlan }}</span></div>
-                <div class="info-row"><span class="info-label">干预变量</span><span class="info-value">{{ caseA.intervention }}</span></div>
-              </template>
-              <div v-else class="info-empty">点击左侧实验设为 A</div>
-            </div>
-            <div class="compare-col compare-col--b" :class="{ filled: !!caseB }">
-              <div class="compare-col-label">实验 B</div>
-              <template v-if="caseB">
-                <div class="info-row"><span class="info-label">实验名</span><span class="info-value">{{ caseB.name }}</span></div>
-                <div class="info-row"><span class="info-label">完成率</span><span class="info-value">{{ caseB.completionRate }}</span></div>
-                <div class="info-row"><span class="info-label">供应缺口率</span><span class="info-value">{{ caseB.backlogRate }}</span></div>
-                <div class="info-row"><span class="info-label">产能方案</span><span class="info-value">{{ caseB.capacityPlan }}</span></div>
-                <div class="info-row"><span class="info-label">干预变量</span><span class="info-value">{{ caseB.intervention }}</span></div>
-              </template>
-              <div v-else class="info-empty">再次点击另一实验设为 B</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 篮筐3：案例对比 -->
-      <section class="observe-panel observe-panel--chart">
-        <div class="panel-head-bar panel-head-bar--purple">
-          <el-icon :size="18"><TrendCharts /></el-icon>
-          <span>案例对比</span>
-            <div class="compare-head-tabs">
-              <button class="tab-btn" :class="{ active: activeTab === 'metrics' }" @click="activeTab = 'metrics'">指标对比</button>
-              <button class="tab-btn" :class="{ active: activeTab === 'deep' }" @click="activeTab = 'deep'">深度分析</button>
-              <button v-if="SHOW_DISTRIBUTION_TAB" class="tab-btn" :class="{ active: activeTab === 'distribution' }" @click="activeTab = 'distribution'">概率分布</button>
-              <button v-if="SHOW_COUNTERFACTUAL_TAB" class="tab-btn" :class="{ active: activeTab === 'counterfactual' }" @click="activeTab = 'counterfactual'">反事实推演</button>
-            </div>
             <div class="compare-head-actions">
               <el-tooltip content="关闭时按报告全部轮次对比（每侧样本=轮次数，可做显著性检验）；开启后只对比案例所属的那一轮（样本=1，无法检验）" placement="bottom">
                 <label class="focus-toggle">
@@ -163,18 +83,19 @@
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>
+              <el-button text size="small" @click="activeCard = null">收起详情</el-button>
             </div>
         </div>
 
         <div class="panel-body-fill compare-body">
             <div v-if="!caseA || !caseB" class="compare-empty">
               <el-icon :size="48"><TrendCharts /></el-icon>
-              <p>选择两个实验后查看对比详情</p>
-              <span>在左侧实验库中：<br>第一次点击 → 设为实验 A<br>第二次点击另一实验 → 设为实验 B 并自动对比<br>第三次点击 → 重新选择 A</span>
+              <p>暂无可对比的实验</p>
+              <span>观察分析会自动挑一对可比实验（事中实验 A · 反事实实验 B）用于出结论；<br>若长时间为空，可点击右上角刷新，或先在首页运行 / 导入实验。</span>
             </div>
 
             <!-- ===== Tab 1: 指标对比 ===== -->
-            <div v-else-if="activeTab === 'metrics'" class="compare-content">
+            <div v-else-if="activeCard === 'metrics'" class="compare-content">
               <!-- 自选对比维度（可折叠） -->
               <div class="dimension-selector">
                 <div class="dim-toggle" @click="dimsExpanded = !dimsExpanded">
@@ -252,20 +173,23 @@
                 </div>
               </div>
 
-              <!-- 指标对比折线图 -->
+              <!-- 指标对比折线图：只画「自选对比维度」里勾选的结果指标，与上面的 A/B 结果卡保持一致 -->
               <div class="cmp-card cmp-card--chart">
                 <div class="cmp-card-head">
                   <el-icon><TrendCharts /></el-icon>
                   <span>实验指标对比 · 折线图</span>
+                  <span class="head-spacer"></span>
+                  <span class="dim-hint">已选 {{ chartMetrics.length }} 项结果指标</span>
                 </div>
                 <div class="cmp-card-body">
-                  <div ref="metricsLineChartRef" class="metrics-line-chart"></div>
+                  <div v-if="chartMetrics.length" ref="metricsLineChartRef" class="metrics-line-chart"></div>
+                  <div v-else class="cmp-empty-hint">未勾选任何结果指标：请在上方「自选对比维度」中至少选择一项（完成率 / 缺口率 / 网络协作次数 / 韧性指数）。</div>
                 </div>
               </div>
             </div>
 
             <!-- ===== Tab 2: 深度分析 ===== -->
-            <div v-else-if="activeTab === 'deep'" class="compare-content">
+            <div v-else-if="activeCard === 'deep'" class="compare-content">
               <div v-if="analysisLoading" class="compare-empty-inline">
                 <p>正在执行统计检验与归因分析...</p>
               </div>
@@ -314,7 +238,7 @@
                     <el-icon><Odometer /></el-icon>可比性校验
                     <el-tag :type="comparabilityLevelMeta.type" size="small" effect="light" round class="h3-tag">{{ comparabilityLevelMeta.text }}</el-tag>
                   </h3>
-                  <ul v-if="comparability.warnings.length" class="warning-list">
+                  <ul v-if="comparability?.warnings?.length" class="warning-list">
                     <li v-for="(w, i) in comparability.warnings" :key="i">{{ w }}</li>
                   </ul>
                   <p v-else class="ok-hint">两组实验来自同一系统、同一大模型配置，指标口径一致，可直接比较。</p>
@@ -419,8 +343,8 @@
                   <p v-if="trendNote && !trendUnavailable" class="trend-note">{{ trendNote }}</p>
                 </section>
 
-                <!-- 加权相似度 -->
-                <section class="compare-section">
+                <!-- 加权相似度：后端未返回 similarity 时整段不渲染，避免读 undefined 把详情页整块打崩 -->
+                <section class="compare-section" v-if="analysisSimilarity">
                   <h3>
                     <el-icon><Odometer /></el-icon>加权多维相似度
                     <el-tag size="small" effect="light" round class="h3-tag">权重按指标重要度归一化</el-tag>
@@ -434,8 +358,8 @@
                   <div class="similarity-card">
                     <div class="similarity-main">
                       <div class="similarity-score">
-                        <span class="score-number">{{ analysis.similarity.overall_score }}%</span>
-                        <el-tag :type="getSimilarityLevelType()" effect="light" round>{{ analysis.similarity.level }}</el-tag>
+                        <span class="score-number">{{ analysisSimilarity.overall_score }}%</span>
+                        <el-tag :type="getSimilarityLevelType()" effect="light" round>{{ analysisSimilarity.level }}</el-tag>
                       </div>
                       <div class="shape-block" v-if="shapeInfo">
                         <div class="shape-title">演化形态相关性</div>
@@ -450,9 +374,9 @@
                       </div>
                     </div>
                     <div class="similarity-dims">
-                      <div v-for="dim in analysis.similarity.dimensions" :key="dim.key" class="sim-dim-item">
-                        <span class="dim-label">{{ dim.dimension }}<em class="dim-weight">权重 {{ (dim.weight * 100).toFixed(0) }}%</em></span>
-                        <el-progress :percentage="dim.score" :stroke-width="8" :color="dim.score >= 75 ? '#22c55e' : dim.score >= 50 ? '#eab308' : '#94a3b8'" />
+                      <div v-for="dim in (analysisSimilarity.dimensions || [])" :key="dim.key" class="sim-dim-item">
+                        <span class="dim-label">{{ dim.dimension }}<em v-if="dim.weight != null" class="dim-weight">权重 {{ (Number(dim.weight) * 100).toFixed(0) }}%</em></span>
+                        <el-progress :percentage="Number(dim.score) || 0" :stroke-width="8" :color="dim.score >= 75 ? '#22c55e' : dim.score >= 50 ? '#eab308' : '#94a3b8'" />
                       </div>
                     </div>
                   </div>
@@ -531,7 +455,7 @@
             </div>
 
             <!-- ===== Tab 3: 概率分布 ===== -->
-            <div v-else-if="activeTab === 'distribution'" class="compare-content">
+            <div v-else-if="activeCard === 'distribution'" class="compare-content">
               <div class="dimension-selector">
                 <div class="dim-toggle" @click="distDimsExpanded = !distDimsExpanded">
                   <el-icon><component :is="distDimsExpanded ? ArrowDown : ArrowRight" /></el-icon>
@@ -589,111 +513,18 @@
               <div v-else-if="distLoading" class="compare-empty-inline">
                 <p>正在加载概率分布数据...</p>
               </div>
+              <div v-else-if="hasDistributionData" class="compare-empty-inline">
+                <p>已取到逐轮数据，但当前勾选的分布指标在这两个实验里都没有有效取值，请在上方「选择分布指标」里更换指标。</p>
+              </div>
               <div v-else class="compare-empty-inline">
                 <p>未取到这两个实验的逐轮指标数据（后端 /distribution 无有效返回），因此不展示分布图与统计卡，避免用模拟数据误导结论。</p>
               </div>
             </div>
 
-            <!-- ===== Tab 4: 反事实推演 ===== -->
-            <div v-else-if="activeTab === 'counterfactual'" class="compare-content">
-              <section class="compare-section">
-                <h3><el-icon><VideoPlay /></el-icon>反事实干预推演</h3>
-                <p class="section-desc">
-                  针对已完成的实验做「如果当时把某个变量调成另一个值会怎样」的干预推断。
-                  后端按 <b>后端仿真 → 数据驱动回归 → 启发式规则</b> 逐层回退，并标明实际生效的方法。
-                </p>
-                <div class="cf-form">
-                  <div class="cf-field">
-                    <label>干预对象</label>
-                    <el-radio-group v-model="cfTarget" size="small">
-                      <el-radio-button value="A" :disabled="!caseA">实验 A{{ caseA ? ' · ' + caseA.name : '' }}</el-radio-button>
-                      <el-radio-button value="B" :disabled="!caseB">实验 B{{ caseB ? ' · ' + caseB.name : '' }}</el-radio-button>
-                    </el-radio-group>
-                  </div>
-                  <div class="cf-field">
-                    <label>干预变量</label>
-                    <el-select v-model="cfForm.variable" size="small" style="width: 150px">
-                      <el-option v-for="v in CF_VARIABLE_OPTIONS" :key="v" :label="v" :value="v" />
-                    </el-select>
-                  </div>
-                  <div class="cf-field">
-                    <label>变化幅度</label>
-                    <el-select v-model="cfForm.change" size="small" style="width: 110px">
-                      <el-option v-for="c in CF_CHANGE_OPTIONS" :key="c" :label="c" :value="c" />
-                    </el-select>
-                  </div>
-                  <el-button type="primary" size="small" :icon="VideoPlay" :loading="cfLoading" @click="runCounterfactual">
-                    执行干预推断
-                  </el-button>
-                </div>
-                <p class="cf-target-hint" v-if="cfTargetCase">
-                  当前干预数据源：<b>{{ cfTargetCase.experimentId }}</b> 第 {{ cfTargetCase.iteration }} 轮
-                  （完成率 {{ cfTargetCase.completionRate }} · 净利润 {{ cfTargetCase.metrics?.total_net_profit }}）
-                </p>
-              </section>
-
-              <el-alert v-if="cfError" :title="cfError" type="error" :closable="false" show-icon class="analysis-alert" />
-
-              <template v-if="cfResult">
-                <section class="compare-section">
-                  <h3>
-                    <el-icon><DataAnalysis /></el-icon>推断结果
-                    <el-tag :type="cfMethodTag.type" size="small" effect="light" round class="h3-tag">{{ cfMethodTag.text }}</el-tag>
-                  </h3>
-                  <div class="cf-summary">{{ cfResult.summary }}</div>
-                  <div class="cf-intervention">
-                    <span class="cf-var">{{ cfResult.intervention?.variable }}</span>
-                    <span class="cf-arrow">{{ cfResult.intervention?.current_value }} → {{ cfResult.intervention?.new_value }}</span>
-                    <span class="cf-change">{{ cfResult.intervention?.change }}</span>
-                  </div>
-                  <el-table :data="cfResult.predictions || []" size="small" stripe class="significance-table">
-                    <el-table-column prop="target_variable" label="受影响指标" width="140" />
-                    <el-table-column v-if="cfHasNumericValues" label="基准 → 干预后" width="160">
-                      <template #default="{ row }">
-                        <span class="mono">{{ row.current_value }} → {{ row.predicted_value }}</span>
-                      </template>
-                    </el-table-column>
-                    <el-table-column prop="predicted_effect" label="预测变化" width="140">
-                      <template #default="{ row }">
-                        <span class="mono" :class="String(row.predicted_effect).startsWith('-') ? 'delta-down' : 'delta-up'">{{ row.predicted_effect }}</span>
-                      </template>
-                    </el-table-column>
-                    <el-table-column label="置信度" width="140">
-                      <template #default="{ row }">
-                        <el-progress :percentage="Math.round((row.confidence || 0) * 100)" :stroke-width="10"
-                          :color="row.confidence >= 0.75 ? '#22c55e' : row.confidence >= 0.55 ? '#eab308' : '#94a3b8'" />
-                      </template>
-                    </el-table-column>
-                    <el-table-column prop="rationale" label="推断依据" />
-                  </el-table>
-                  <p class="table-footnote">{{ cfResult.note }}</p>
-                </section>
-
-                <section class="compare-section" v-if="cfResult.fallback_chain?.length">
-                  <h3><el-icon><Collection /></el-icon>回退链路</h3>
-                  <div class="fallback-chain">
-                    <div v-for="(layer, i) in cfResult.fallback_chain" :key="i" class="fallback-item" :class="{ used: layer.used }">
-                      <span class="fallback-index">{{ layer.layer }}</span>
-                      <div class="fallback-body">
-                        <b>{{ layer.method }}</b>
-                        <span class="fallback-state" :class="layer.used ? 'state-used' : layer.available ? 'state-skip' : 'state-off'">
-                          {{ layer.used ? '已采用' : layer.available ? '可用未用' : '不可用' }}
-                        </span>
-                        <p>{{ layer.reason }}</p>
-                      </div>
-                    </div>
-                  </div>
-                  <p class="table-footnote">数据源：{{ cfResult.experiment_id }}{{ cfResult.resolved_id?.iteration ? ' · 第 ' + cfResult.resolved_id.iteration + ' 轮' : '' }}</p>
-                </section>
-              </template>
-
-              <div v-else-if="!cfLoading && !cfError" class="compare-empty-inline">
-                <p>选择干预对象与变量后点击「执行干预推断」</p>
-              </div>
-            </div>
           </div>
       </section>
-    </div>
+      </template>
+    </ObserveWorldView>
 
     <!-- ===== 底部：跨库相似度对比 ===== -->
     <section class="cross-library-section" v-if="caseFolders[0].children.length && caseFolders[1].children.length">
@@ -742,25 +573,23 @@
 import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
-  ArrowDown, ArrowRight, ArrowUp, Collection, DataAnalysis, DataLine, Document, Download, Folder,
-  FolderOpened, Odometer, Refresh, Setting, TrendCharts, VideoPlay, WarningFilled
+  ArrowDown, ArrowRight, ArrowUp, Collection, DataAnalysis, DataLine, Document, Download,
+  Odometer, Refresh, Setting, TrendCharts, WarningFilled
 } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
-import { getExperimentDetail, compareCases, getExperimentDistribution, postObserveCounterfactual } from '@/api/supplyChain'
+import { getExperimentDetail, compareCases, getExperimentDistribution } from '@/api/supplyChain'
 import ChatHandoffStrip from '@/components/SCnet/ChatHandoffStrip.vue'
 import ExperimentStageNav from '@/components/SCnet/ExperimentStageNav.vue'
+import ObserveWorldView from '@/components/SCnet/ObserveWorldView.vue'
 import { unwrapApiData } from '@/utils/apiEnvelope'
 import { useSupplyChainScenario } from '@/composables/useSupplyChainScenario'
+import { useRoute } from 'vue-router'
+import { PLAN_QUERY_KEY, readExperimentPlan, resolvePlanObserveMetricKeys } from '@/constants/scnetExperimentPlan'
 
 // ---- 状态 ----
 const loading = ref(false)
-const searchQuery = ref('')
-const activeTab = ref('metrics')
-// 概率分布 / 反事实推演两个页签暂时下线（功能代码保留，把这里改回 true 即可恢复显示）
-// 概率分布：论文口径「结果是一个分布，真实世界只是一个样本」的主视图，已开放
-const SHOW_DISTRIBUTION_TAB = true
-// 反事实推演：与独立的「反事实实验」页职责重叠，暂不开放，避免同一动作两处入口
-const SHOW_COUNTERFACTUAL_TAB = false
+// 当前展开详情的结论卡片：null = 全部收起；点击卡片切换
+const activeCard = ref(null)
 const caseAId = ref(null)
 const caseBId = ref(null)
 const comparison = ref(null)
@@ -775,14 +604,6 @@ const libraryNotice = ref('')
 const focusIteration = ref(false)
 const trendChartRef = ref(null)
 let trendChartInstance = null
-
-// 反事实干预推演
-const cfForm = reactive({ variable: '产能水平', change: '+20%' })
-const cfResult = ref(null)
-const cfLoading = ref(false)
-const cfError = ref('')
-const CF_VARIABLE_OPTIONS = ['产能水平', '库存容量', '订单倍数', '协作频次']
-const CF_CHANGE_OPTIONS = ['-50%', '-30%', '-20%', '+10%', '+20%', '+30%', '+50%', '+100%']
 // ---- 场景（铀供应链 / 汽车供应链）：与对话首页共用同一份选择 ----
 // ?scenario= 进入时以 URL 为准；场景文案取 sceneText（汽车侧口径来自参数目录与知识库）
 const { isUraniumScene, sceneText, routeExperimentId, loadScenarioExperiments } = useSupplyChainScenario()
@@ -805,27 +626,6 @@ watch(isUraniumScene, () => {
 const totalCaseCount = computed(() =>
   caseFolders.reduce((sum, f) => sum + f.children.length, 0)
 )
-
-const MAX_VISIBLE_CHILDREN = 6
-const filteredFolders = computed(() => {
-  const search = searchQuery.value
-  return caseFolders.map(f => {
-    const allChildren = search
-      ? f.children.filter(c => c.name?.toLowerCase().includes(search) || c.id?.toLowerCase().includes(search))
-      : f.children
-    const completedCount = allChildren.filter(c => c.completed).length
-    const pendingCount = allChildren.length - completedCount
-    // 有搜索时展示全部匹配项，无搜索时限制展示数量
-    const displayChildren = search ? allChildren : allChildren.slice(0, MAX_VISIBLE_CHILDREN)
-    return {
-      ...f,
-      children: allChildren,
-      displayChildren,
-      completedCount,
-      pendingCount
-    }
-  }).filter(f => !search || f.children.length > 0)
-})
 
 const findCaseById = (id) => {
   for (const f of caseFolders) {
@@ -895,6 +695,12 @@ const DIST_METRIC_OPTIONS = computed(() => [
 const selectedDistMetrics = ref(['completion_rate', 'total_profit', 'network_density', 'network_stability'])
 const distDimsExpanded = ref(false)
 
+// 实验方案里勾选的「目标指标」→ 本页指标分布口径（按 key / 别名 / 名称匹配）。
+// 此前目标指标只存不消费，方案设计页选的口径到分析页没有任何效果。
+const route = useRoute()
+const planMetricKeys = resolvePlanObserveMetricKeys(readExperimentPlan(String(route.query[PLAN_QUERY_KEY] || '').trim()))
+if (planMetricKeys.length) selectedDistMetrics.value = planMetricKeys
+
 // 观察分析是关联级证据：这里只把「一个分布」展示清楚，不做任何因果推断。
 // 口径：样本量 / 均值 / 极值以后端 metric_ranges 为准（后端把恒为 0 或缺失的指标记成 count=0，
 // 此时不出卡片）；离散度（标准差 / 变异系数）由同一份逐轮真实序列现算。
@@ -934,6 +740,8 @@ const formatDistNumber = (value, digits) => (
   Number.isFinite(Number(value)) ? Number(value).toFixed(digits) : '--'
 )
 
+const hasDistributionData = computed(() => Boolean(distributionDataA.value || distributionDataB.value))
+// 同源时 A、B 是同一份分布，只有 B 侧有取值的卡片在模板里会被隐藏成空卡，这里直接过滤掉
 const distSummaryCards = computed(() =>
   DIST_METRIC_OPTIONS.value
     .filter((opt) => selectedDistMetrics.value.includes(opt.key))
@@ -942,7 +750,7 @@ const distSummaryCards = computed(() =>
       a: computeDistStats(distributionDataA.value, opt.key),
       b: computeDistStats(distributionDataB.value, opt.key)
     }))
-    .filter((card) => card.a || card.b)
+    .filter((card) => card.a || (card.b && !sameSourceCase.value))
 )
 const matrixExpanded = ref(false)
 
@@ -1035,6 +843,15 @@ const filteredResultFields = computed(() =>
   resultFields.filter(r => selectedComparisonDims.value.includes(r.key))
 )
 
+// 指标对比折线图的结果指标口径：与「自选对比维度」里勾选的结果项保持一致，
+// 勾选项为空时不出图（模板给提示），而不是继续画全部四项。
+const chartMetrics = computed(() => [
+  { key: 'completionRate', label: '完成率', parse: v => parseFloat(v) || 0 },
+  { key: 'backlogRate', label: '缺口率', parse: v => parseFloat(v) || 0 },
+  { key: 'collaboration', label: '协作次数', parse: v => parseInt(v) || 0 },
+  { key: 'resilience', label: '韧性', parse: v => parseFloat(v) || 0 }
+].filter(m => selectedComparisonDims.value.includes(m.key)))
+
 const localSimilarityDims = computed(() => {
   if (!caseA.value || !caseB.value) return []
   return [
@@ -1045,34 +862,13 @@ const localSimilarityDims = computed(() => {
   ]
 })
 
-// ---- 案例选择（A/B 模式） ----
-const selectCaseForComparison = (child) => {
-  if (!caseAId.value) {
-    caseAId.value = child.id
-    caseBId.value = null
-    comparison.value = null
-    resetAnalysis()
-    ElMessage.info(`已选择实验 A: ${child.name}`)
-  } else if (!caseBId.value && child.id !== caseAId.value) {
-    caseBId.value = child.id
-    ElMessage.info(`已选择实验 B: ${child.name}，正在对比...`)
-    runComparison()
-  } else {
-    caseAId.value = child.id
-    caseBId.value = null
-    comparison.value = null
-    resetAnalysis()
-    ElMessage.info(`已重新选择实验组: ${child.name}`)
-  }
-}
-
 const resetAnalysis = () => {
   analysis.value = null
   resolvedIds.value = null
   analysisError.value = ''
-  cfResult.value = null
-  cfError.value = ''
   comparison.value = null
+  // 场景/案例被清空时，上一场的逐轮分布也必须一起清掉，否则会挂在新场景的卡片上
+  clearDistributionData()
 }
 
 // ---- 概率分布数据获取（只使用后端真实轮次数据，不做本地模拟） ----
@@ -1107,6 +903,11 @@ const loadDistributionData = async () => {
     return
   }
   const seq = ++distRequestSeq
+  // 换 A/B 后先把上一组的分布清掉：新数据到达前卡片上若仍是上一组的统计，
+  // 会被读成这一组实验的结果（序号只保证过期响应不覆盖，挡不住旧数据继续显示）。
+  distributionDataA.value = null
+  distributionDataB.value = null
+  disposeDistChart()
   distLoading.value = true
   try {
     const [a, b] = await Promise.all([
@@ -1150,11 +951,11 @@ const renderDistributionChart = () => {
   const dataB = sameSourceCase.value ? null : distributionDataB.value
   if (!dataA && !dataB) return
 
-  distChartInstance = echarts.init(container)
   const selectedMetrics = selectedDistMetrics.value.filter(k =>
     DIST_METRIC_OPTIONS.value.some(o => o.key === k)
   )
   if (!selectedMetrics.length) return
+  distChartInstance = echarts.init(container)
 
   const rows = selectedMetrics.length
   const colors = ['#3b82f6', '#22c55e']
@@ -1207,7 +1008,7 @@ const renderDistributionChart = () => {
     const iterB = dataB?.metrics_by_iteration || []
 
     const getValues = (iters, key) =>
-      iters.map(i => i[key]).filter(v => v != null && Number.isFinite(v))
+      iters.map(i => Number(i[key])).filter(v => Number.isFinite(v))
 
     const valuesA = getValues(iterA, metricKey)
     const valuesB = getValues(iterB, metricKey)
@@ -1280,7 +1081,7 @@ const renderDistributionChart = () => {
       }
     },
     legend: {
-      data: ['实验 A', '实验 B'],
+      data: sameSourceCase.value ? ['A／B 同源分布'] : ['实验 A', '实验 B'],
       bottom: 0,
       textStyle: { fontSize: 11, color: '#64748b' },
       itemWidth: 16, itemHeight: 4, itemGap: 24
@@ -1290,9 +1091,6 @@ const renderDistributionChart = () => {
     yAxis: yAxes,
     series: seriesItems
   })
-
-  // 响应式
-  window.addEventListener('resize', () => distChartInstance?.resize())
 }
 
 const handleDistMetricToggle = () => {
@@ -1317,15 +1115,10 @@ const disposeMetricsLineChart = () => {
 const renderMetricsLineChart = () => {
   const container = metricsLineChartRef.value
   if (!container || !caseA.value || !caseB.value) return
+  const metrics = chartMetrics.value
+  if (!metrics.length) return
   if (metricsLineChartInstance) metricsLineChartInstance.dispose()
   metricsLineChartInstance = echarts.init(container)
-
-  const metrics = [
-    { key: 'completionRate', label: '完成率', parse: v => parseFloat(v) || 0 },
-    { key: 'backlogRate', label: '缺口率', parse: v => parseFloat(v) || 0 },
-    { key: 'collaboration', label: '协作次数', parse: v => parseInt(v) || 0 },
-    { key: 'resilience', label: '韧性', parse: v => parseFloat(v) || 0 }
-  ]
 
   const aData = metrics.map(m => m.parse(caseA.value[m.key]))
   const bData = metrics.map(m => m.parse(caseB.value[m.key]))
@@ -1368,35 +1161,37 @@ const renderMetricsLineChart = () => {
       }
     ]
   })
-
-  window.addEventListener('resize', () => metricsLineChartInstance?.resize())
 }
 
-// 监听 tab 切换
-watch(activeTab, (val) => {
-  if (val === 'metrics' && caseA.value && caseB.value) {
+// 展开结论卡片 → 渲染对应图表（图表容器在 v-if 内，须等 DOM 就绪）
+watch(activeCard, (key) => {
+  // 离开某张卡片时它的容器会被 v-if 移除，图表实例要一并销毁：
+  // 否则窗口 resize 会对已脱离文档的 DOM 调 resize，ECharts 拿不到宽高会持续告警。
+  if (key !== 'distribution') disposeDistChart()
+  if (key !== 'metrics') disposeMetricsLineChart()
+  if (key !== 'deep') disposeTrendChart()
+  if (key === 'metrics' && caseA.value && caseB.value) {
     nextTick(() => renderMetricsLineChart())
   }
-  if (val === 'deep' && analysis.value) {
+  if (key === 'deep' && analysis.value) {
     nextTick(() => renderTrendChart())
   }
-  if (val === 'distribution') {
-    if (caseA.value && caseB.value) {
-      loadDistributionData()
-    }
-  }
+  if (key === 'distribution' && caseA.value && caseB.value) loadDistributionData()
 })
 
 // 监听 caseA/caseB 变化 → 自动渲染图表
 watch([caseA, caseB], ([a, b]) => {
-  if (a && b && activeTab.value === 'metrics') {
-    nextTick(() => renderMetricsLineChart())
-  }
-  // /distribution 是「按实验」返回的：分布 tab 开着时换 A/B 必须重新拉取，
-  // 否则卡片会继续显示上一组实验的分布，把一份数据安到别的实验头上。
-  if (activeTab.value === 'distribution') {
-    loadDistributionData()
-  }
+  // /distribution 是「按实验」返回的：换 A/B 必须重新拉取，否则摘要会继续显示上一组实验的分布。
+  if (!a || !b) { clearDistributionData(); return }
+  loadDistributionData()
+  // 已展开的详情卡片要跟着换数据重绘
+  if (activeCard.value === 'metrics') nextTick(() => renderMetricsLineChart())
+  if (activeCard.value === 'deep') nextTick(() => renderTrendChart())
+})
+
+// 自选对比维度变化 → 折线图跟着增减结果指标
+watch(selectedComparisonDims, () => {
+  if (activeCard.value === 'metrics') nextTick(() => renderMetricsLineChart())
 })
 
 // ================= 后端深度分析结果 =================
@@ -1406,6 +1201,8 @@ const attributionItems = computed(() => analysis.value?.attribution || [])
 const comparability = computed(() => analysis.value?.comparability || null)
 const provenance = computed(() => analysis.value?.provenance || null)
 const shapeInfo = computed(() => analysis.value?.similarity?.shape || null)
+// 后端深度分析可能只给结论/指标、不给 similarity；读取处统一走这里做空值保护
+const analysisSimilarity = computed(() => analysis.value?.similarity || null)
 const similarityScore = computed(() =>
   analysis.value?.similarity?.overall_score ?? comparison.value?.similarity?.overall_score ?? null)
 const conclusionText = computed(() => {
@@ -1415,6 +1212,32 @@ const conclusionText = computed(() => {
 })
 const conclusionSource = computed(() => analysis.value?.conclusion || null)
 const analysisReady = computed(() => !!analysis.value)
+
+// 三标签页结论摘要：把「指标对比 / 深度分析 / 概率分布」的结论抽象成一句话，直接显示在对比区顶部
+const deepConclusionText = computed(() => analysis.value?.recommendation || generateLocalRecommendation())
+const distributionConclusionText = computed(() => {
+  if (sameSourceCase.value && (distributionDataA.value || distributionDataB.value)) {
+    return '实验 A / B 是同一份实验报告的两个轮次，只有一条逐轮曲线；可比较两轮取值位置，但不能当作两次独立采样。'
+  }
+  const cards = distSummaryCards.value
+  if (!cards.length) return '选择 A / B 后，这里会给出各指标分布的均值、区间与离散度摘要。'
+  const first = cards[0]
+  const parts = []
+  if (first.a) parts.push(`A 均值 ${formatDistNumber(first.a.mean, 3)}（σ=${first.a.stdText}）`)
+  if (first.b) parts.push(`B 均值 ${formatDistNumber(first.b.mean, 3)}（σ=${first.b.stdText}）`)
+  return `${first.label}：${parts.join('，')}。共 ${cards.length} 个指标已按真实逐轮取值给出分布摘要。`
+})
+const conclusionSummaryCards = computed(() => [
+  { key: 'metrics', tone: 'blue', icon: TrendCharts, title: '指标对比', text: conclusionText.value, ready: Boolean(caseA.value && caseB.value) },
+  { key: 'deep', tone: 'indigo', icon: Setting, title: '深度分析', text: deepConclusionText.value, ready: analysisReady.value },
+  { key: 'distribution', tone: 'green', icon: DataLine, title: '概率分布', text: distributionConclusionText.value, ready: distSummaryCards.value.length > 0 }
+])
+
+// 详情面板标题 / 图标：跟随当前展开的卡片；全部收起时 activeCard 为 null
+const activeCardMeta = computed(() => conclusionSummaryCards.value.find(c => c.key === activeCard.value) || null)
+const activeCardTitle = computed(() => (activeCardMeta.value ? `${activeCardMeta.value.title} · 详情` : '对比详情'))
+const activeCardIcon = computed(() => activeCardMeta.value?.icon || TrendCharts)
+const toggleDetail = (key) => { activeCard.value = activeCard.value === key ? null : key }
 
 // 效应量分级（Cohen 1988 惯例）
 const effectSizeLabel = (d) => {
@@ -1495,9 +1318,9 @@ watch(trendOptions, (opts) => {
 
 watch(trendMetricKey, () => { nextTick(() => renderTrendChart()) })
 
-// 深度分析结果到达后，若正在看深度分析 tab 则立即渲染趋势图
+// 深度分析结果到达后，若「深度分析」卡片正展开则立即渲染趋势图
 watch(analysis, (val) => {
-  if (val && activeTab.value === 'deep') nextTick(() => renderTrendChart())
+  if (val && activeCard.value === 'deep') nextTick(() => renderTrendChart())
 })
 
 // 切换"聚焦单轮次"后重新对比
@@ -1543,7 +1366,7 @@ const renderTrendChart = () => {
   // 容器为 null 说明「深度分析」页签此刻没被渲染（v-else-if），必须直接返回。
   // 原先这里是 nextTick 自我重试：容器永远为 null → 无限微任务循环，主线程被
   // 一直占住，整页表现为「点不动、滚动条也不动」。切到深度分析页签时
-  // watch(activeTab) 会再次调用本函数，届时容器已就绪。
+  // watch(activeCard) 会再次调用本函数，届时容器已就绪。
   if (!container) return
   trendChartInstance = echarts.init(container)
 
@@ -1632,53 +1455,15 @@ const disposeTrendChart = () => {
   if (trendChartInstance) { trendChartInstance.dispose(); trendChartInstance = null }
 }
 
-// ---- 反事实干预推断 ----
-const cfTarget = ref('A')
-const cfTargetCase = computed(() => (cfTarget.value === 'B' ? caseB.value : caseA.value))
-
-const runCounterfactual = async () => {
-  const target = cfTargetCase.value
-  if (!target) { ElMessage.warning('请先选择要干预的案例'); return }
-  cfLoading.value = true
-  cfError.value = ''
-  cfResult.value = null
-  try {
-    const res = await postObserveCounterfactual(target.experimentId || target.id, {
-      iteration: target.iteration ?? null,
-      variable: cfForm.variable,
-      change: cfForm.change
-    })
-    const data = unwrapApiData(res)
-    if (!data) { cfError.value = '后端未返回推断结果'; return }
-    cfResult.value = data
-  } catch (e) {
-    console.warn('反事实推断失败:', e)
-    cfError.value = '反事实推断接口不可用，请确认后端已启动'
-  } finally {
-    cfLoading.value = false
-  }
-}
-
-const cfMethodTag = computed(() => {
-  const m = cfResult.value?.analysis_method
-  if (m === 'backend_simulation') return { type: 'success', text: '后端仿真（实跑）' }
-  if (m === 'data_driven') return { type: 'warning', text: '数据驱动回归' }
-  if (m === 'heuristic') return { type: 'info', text: '启发式规则' }
-  return { type: 'info', text: '--' }
-})
-
-// 只有后端仿真层级会返回基准值与干预后的实际值
-const cfHasNumericValues = computed(() =>
-  (cfResult.value?.predictions || []).some(p => p.current_value != null && p.predicted_value != null))
-
 const runComparison = async () => {
   const a = caseA.value
   const b = caseB.value
   if (!a || !b) return
   analysisLoading.value = true
   analysisError.value = ''
-  cfResult.value = null
-  cfError.value = ''
+  // 先清空上一次的深度分析：新一组若返回空，旧结论不能继续挂在新的 A/B 上
+  analysis.value = null
+  resolvedIds.value = null
   try {
     // 传纯实验ID；默认对比报告全部轮次（每侧样本 = 轮次数），开启聚焦后才锁定到该案例所属轮次。
     // A/B 同属一份实验时必须锁轮次：否则后端拿同一份报告自我对比，差异恒为 0、相似度恒为 100%。
@@ -1725,10 +1510,6 @@ const buildLocalComparison = () => {
     recommendation: generateLocalRecommendation()
   }
   ElMessage.success('本地对比分析完成')
-}
-// 如果当前在概率分布 tab，自动加载分布数据
-if (activeTab.value === 'distribution') {
-  loadDistributionData()
 }
 
 // ---- 本地对比逻辑（后端不可用时的 fallback） ----
@@ -1999,11 +1780,23 @@ const selectLibraryExperiments = (list) => {
   return scoped
 }
 
+// 清空案例库与选中项：换场景 / 刷新后若没有可用实验，不能把上一批案例继续留在页面上
+// （否则页头仍显示上一场的实验数，还会弹「已加载」的成功提示）
+const clearCaseLibrary = () => {
+  caseFolders[0].children = []
+  caseFolders[1].children = []
+  caseAId.value = null
+  caseBId.value = null
+}
+
 const buildLocalCases = async () => {
   try {
     // 只加载当前场景（铀 / 汽车）的已完成实验，并按时间倒序取最新
     const allExperiments = await loadScenarioExperiments({ completedOnly: true })
-    if (!allExperiments.length) return
+    if (!allExperiments.length) {
+      clearCaseLibrary()
+      return
+    }
     const experiments = selectLibraryExperiments(allExperiments)
     const skippedByCap = allExperiments.length - experiments.length
 
@@ -2042,7 +1835,10 @@ const buildLocalCases = async () => {
       details = details.concat(batchDetails)
     }
     // 详情一份都没拉到（后端不可用）时不虚构，留空交给「暂无可用实验数据」提示
-    if (!details.length) return
+    if (!details.length) {
+      clearCaseLibrary()
+      return
+    }
 
     // ---- 只保留“有没有产出真实指标”的实验：完成率与利润恒为 0 的实验无法参与对比，
     //      也绝不拿它们（更不拿硬编码案例）凑数，否则分布图与结论都会是假的 ----
@@ -2144,8 +1940,7 @@ const buildLocalCases = async () => {
     // 不用硬编码案例充数 —— 前端造数会让分布图与对比结论都变成假的。
   } catch (error) {
     console.warn('[ObserveAnalysis] 案例数据加载失败：', error)
-    caseFolders[0].children = []
-    caseFolders[1].children = []
+    clearCaseLibrary()
     libraryNotice.value = `案例数据加载失败：${error?.message || error}。请确认后端服务可用后点击刷新重试。`
   }
 }
@@ -2162,8 +1957,7 @@ const loadAllCases = async () => {
       ElMessage.warning(`${sceneText.value.systemLabel}暂无可用实验，请先在首页运行实验或导入实验报告`)
     }
   } catch {
-    caseFolders[0].children = []
-    caseFolders[1].children = []
+    clearCaseLibrary()
   } finally {
     loading.value = false
     libraryLoading.value = false
@@ -2227,39 +2021,85 @@ const exportComparisonReport = (format) => {
   }
 }
 
-onMounted(() => { loadAllCases() })
-onBeforeUnmount(() => { disposeDistChart(); disposeMetricsLineChart(); disposeTrendChart() })
+// 三张图共用同一个窗口 resize 监听：只注册一次、卸载时移除。
+// 之前在 render 函数里 addEventListener 匿名函数，既不回收，又会随每次重绘不断叠加。
+const handleChartResize = () => {
+  distChartInstance?.resize()
+  metricsLineChartInstance?.resize()
+  trendChartInstance?.resize()
+}
+
+onMounted(() => {
+  window.addEventListener('resize', handleChartResize)
+  loadAllCases()
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleChartResize)
+  disposeDistChart(); disposeMetricsLineChart(); disposeTrendChart()
+})
 </script>
 
 <style scoped>
 .post-observe-page {
   height: 100%; min-height: 0; box-sizing: border-box; padding: 14px 16px;
   display: flex; flex-direction: column; gap: 10px;
-  background: #f6f8fb; color: #0f172a;
+  background: radial-gradient(1200px 420px at 18% -12%, #e8f0ff 0%, rgba(232, 240, 255, 0) 62%), #f6f8fb; color: #0f172a;
   font-family: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   overflow-y: auto;
 }
 .page-head {
   flex: 0 0 auto; display: flex; justify-content: space-between; gap: 24px; align-items: center;
-  padding: 18px 28px; border: none; border-radius: 14px; margin-bottom: 14px;
-  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 40%, #3b82f6 70%, #60a5fa 100%);
-  box-shadow: 0 8px 32px rgba(37, 99, 235, 0.28), 0 2px 8px rgba(30, 58, 138, 0.15);
+  padding: 20px 30px; border: none; border-radius: 16px; margin-bottom: 14px;
+  background:
+    radial-gradient(130% 190% at 88% -40%, rgba(125, 211, 252, 0.42), transparent 62%),
+    linear-gradient(120deg, #172554 0%, #1e40af 38%, #2563eb 68%, #3b82f6 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 20px 44px -26px rgba(30, 58, 138, 0.95), 0 3px 10px rgba(30, 58, 138, 0.18);
   position: relative; overflow: hidden;
 }
-.page-head::before { content: ''; position: absolute; top: -50%; right: -10%; width: 300px; height: 300px; border-radius: 50%; background: rgba(255,255,255,0.06); pointer-events: none; }
-.page-head::after { content: ''; position: absolute; bottom: -60%; left: 5%; width: 220px; height: 220px; border-radius: 50%; background: rgba(255,255,255,0.04); pointer-events: none; }
+.page-head::before { content: ''; position: absolute; top: -62%; right: -8%; width: 330px; height: 330px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 255, 255, 0.18), transparent 66%); pointer-events: none; }
+.page-head::after { content: ''; position: absolute; inset: 0; background-image: repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.055) 0 2px, transparent 2px 28px); pointer-events: none; }
 .page-head > div:first-child { position: relative; z-index: 1; }
-.page-head h1 { margin: 0; font-size: 24px; line-height: 1.2; font-weight: 900; color: #fff; letter-spacing: 1px; }
-.subtitle { margin: 6px 0 0; color: rgba(255,255,255,0.75); font-size: 13px; font-weight: 500; }
-.head-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; position: relative; z-index: 1; }
-.stat-item { min-width: 80px; padding: 6px 10px; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; background: rgba(255,255,255,0.12); }
-.stat-item span { display: block; color: rgba(255,255,255,0.7); font-size: 10px; font-weight: 800; }
-.stat-item strong { display: block; margin-top: 2px; color: #fff; font-size: 18px; line-height: 1.1; }
+.page-head h1 { margin: 0; font-size: 25px; line-height: 1.2; font-weight: 900; color: #fff; letter-spacing: 0.5px; text-shadow: 0 2px 14px rgba(15, 23, 42, 0.38); }
+.subtitle { margin: 7px 0 0; color: rgba(255,255,255,0.82); font-size: 13px; font-weight: 500; letter-spacing: 0.01em; }
+.head-actions { display: flex; align-items: center; gap: 14px; flex-shrink: 0; position: relative; z-index: 1; }
+.stat-item { min-width: 86px; padding: 7px 12px; border: 1px solid rgba(255,255,255,0.24); border-radius: 10px; background: rgba(255,255,255,0.14); backdrop-filter: blur(6px); transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease; }
+.stat-item:hover { transform: translateY(-1px); background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.42); }
+.stat-item span { display: block; color: rgba(255,255,255,0.74); font-size: 10px; font-weight: 800; letter-spacing: 0.06em; }
+.stat-item strong { display: block; margin-top: 3px; color: #fff; font-size: 19px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.head-actions :deep(.el-button.is-text) { width: 30px; height: 30px; border-radius: 50%; color: rgba(255, 255, 255, 0.92); background: rgba(255, 255, 255, 0.14); }
+.head-actions :deep(.el-button.is-text:hover) { color: #fff; background: rgba(255, 255, 255, 0.26); }
 
 .observe-layout { flex: 0 0 auto; display: grid; grid-template-columns: 1fr 1fr 1.5fr; gap: 10px; min-height: 520px; height: calc(100vh - 260px); align-items: stretch; }
+.observe-layout--two { grid-template-columns: 1fr 1fr; }
+.conclusion-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.conclusion-summary-note { margin: 0 0 10px; padding: 9px 12px; border: 1px solid #fde68a; border-left: 3px solid #f59e0b; border-radius: 8px; background: #fffbeb; color: #92400e; font-size: 12px; line-height: 1.65; }
+.conclusion-summary-card { position: relative; display: flex; flex-direction: column; padding: 0; border: 1px solid #e6ebf2; border-radius: 12px; background: #fff; text-align: left; font: inherit; cursor: pointer; overflow: hidden; transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease; }
+.conclusion-summary-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: #cbd5e1; }
+.conclusion-summary-card:hover { transform: translateY(-2px); border-color: #93c5fd; box-shadow: 0 16px 30px -20px rgba(37, 99, 235, 0.6); }
+.conclusion-summary-card.is-open { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14), 0 18px 34px -22px rgba(37, 99, 235, 0.7); }
+.conclusion-summary-head { display: flex; align-items: center; gap: 8px; padding: 9px 12px 9px 14px; border-bottom: 1px solid #eef2f7; background: linear-gradient(180deg, #fafbfc, #fff); }
+.conclusion-summary-icon { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 8px; font-size: 14px; background: #f1f5f9; color: #475569; }
+.conclusion-summary-title { font-size: 12.5px; font-weight: 800; color: #0f172a; letter-spacing: -0.01em; }
+.conclusion-summary-tag { padding: 2px 8px; border-radius: 999px; background: #f1f5f9; color: #94a3b8; font-size: 10.5px; font-weight: 700; }
+.conclusion-summary-tag.is-ready { background: linear-gradient(180deg, #dcfce7, #bbf7d0); color: #15803d; box-shadow: 0 1px 2px rgba(21, 128, 61, 0.2); }
+.conclusion-summary-caret { font-size: 12px; color: #94a3b8; transition: color 0.18s ease; }
+.conclusion-summary-card.is-open .conclusion-summary-caret { color: #2563eb; }
+.conclusion-summary-text { margin: 0; padding: 11px 13px 12px 14px; color: #475569; font-size: 12px; line-height: 1.7; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.conclusion-summary-card--blue::before { background: linear-gradient(180deg, #3b82f6, #60a5fa); }
+.conclusion-summary-card--blue .conclusion-summary-head { background: linear-gradient(180deg, #eff6ff, #fff); }
+.conclusion-summary-card--blue .conclusion-summary-icon { background: #dbeafe; color: #2563eb; }
+.conclusion-summary-card--indigo::before { background: linear-gradient(180deg, #6366f1, #8b5cf6); }
+.conclusion-summary-card--indigo .conclusion-summary-head { background: linear-gradient(180deg, #eef2ff, #fff); }
+.conclusion-summary-card--indigo .conclusion-summary-icon { background: #e0e7ff; color: #4338ca; }
+.conclusion-summary-card--green::before { background: linear-gradient(180deg, #16a34a, #34d399); }
+.conclusion-summary-card--green .conclusion-summary-head { background: linear-gradient(180deg, #f0fdf4, #fff); }
+.conclusion-summary-card--green .conclusion-summary-icon { background: #dcfce7; color: #059669; }
+.conclusion-summary-link { color: #2563eb; font-size: 11.5px; font-weight: 600; }
+.compare-detail { animation: compare-detail-in 0.2s ease-out; }
+@keyframes compare-detail-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 
-.observe-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; box-shadow: 0 6px 16px rgba(15,23,42,0.06); overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
-.panel-head-bar { display: flex; align-items: center; gap: 8px; padding: 10px 12px; font-size: 13px; font-weight: 800; color: #1e293b; border-bottom: 1px solid #eef2f7; flex-shrink: 0; }
+.observe-panel { background: #fff; border: 1px solid #e6ebf2; border-radius: 16px; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 18px 36px -24px rgba(15, 23, 42, 0.55); overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+.panel-head-bar { display: flex; align-items: center; gap: 8px; padding: 11px 14px; font-size: 13px; font-weight: 800; color: #1e293b; border-bottom: 1px solid #eef2f7; flex-shrink: 0; }
 .panel-head-bar--blue { border-top: 3px solid #3b82f6; background: linear-gradient(180deg, #eff6ff, #ffffff); }
 .panel-head-bar--blue .el-icon { color: #3b82f6; }
 .panel-head-bar--purple { border-top: 3px solid #8b5cf6; background: linear-gradient(180deg, #f5f3ff, #ffffff); }
@@ -2319,17 +2159,18 @@ onBeforeUnmount(() => { disposeDistChart(); disposeMetricsLineChart(); disposeTr
 .tab-btn.active { background: #7c3aed; color: #fff; border-color: #7c3aed; }
 .compare-head-actions { flex-shrink: 0; }
 .compare-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 14px; }
-.compare-empty { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #94a3b8; gap: 6px; padding: 20px; }
-.compare-empty .el-icon { color: #e2e8f0; }
-.compare-empty p { margin: 0; font-size: 15px; font-weight: 700; color: #64748b; }
-.compare-empty span { font-size: 12px; font-weight: 600; max-width: 350px; line-height: 1.6; }
+.compare-empty { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #94a3b8; gap: 8px; padding: 24px; }
+.compare-empty .el-icon { display: inline-flex; align-items: center; justify-content: center; width: 72px; height: 72px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #f1f5f9, #eef2f7); color: #cbd5e1; }
+.compare-empty p { margin: 0; font-size: 15px; font-weight: 800; color: #64748b; }
+.compare-empty span { font-size: 12px; font-weight: 600; max-width: 360px; line-height: 1.65; }
 
-.compare-content { display: flex; flex-direction: column; gap: 12px; }
-.card-pair-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.cmp-card { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; }
+.compare-content { display: flex; flex-direction: column; gap: 14px; }
+.card-pair-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cmp-card { border: 1px solid #e6ebf2; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; transition: box-shadow 0.15s ease, border-color 0.15s ease; }
+.cmp-card:hover { border-color: #dbe4f0; box-shadow: 0 12px 26px -22px rgba(15, 23, 42, 0.6); }
 .cmp-card--large { flex: 1 1 auto; min-height: 0; }
-.cmp-card-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; font-size: 12px; font-weight: 800; color: #1e293b; border-bottom: 1px solid #eef2f7; background: #fafbfc; position: relative; }
-.cmp-card-pip { width: 10px; height: 10px; border-radius: 3px; margin-left: auto; }
+.cmp-card-head { display: flex; align-items: center; gap: 8px; padding: 9px 13px; font-size: 12px; font-weight: 800; color: #1e293b; border-bottom: 1px solid #eef2f7; background: #fafbfc; position: relative; letter-spacing: -0.01em; }
+.cmp-card-pip { width: 10px; height: 10px; border-radius: 999px; margin-left: auto; box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.05); }
 .cmp-card-pip.blue { background: #3b82f6; } .cmp-card-pip.purple { background: #8b5cf6; }
 .cmp-card-pip.teal { background: #0d9488; } .cmp-card-pip.amber { background: #d97706; }
 .cmp-card-pip.slate { background: #475569; }
@@ -2347,26 +2188,32 @@ onBeforeUnmount(() => { disposeDistChart(); disposeMetricsLineChart(); disposeTr
 .card-pair-row--compact { gap: 6px; margin-bottom: 2px; }
 .cmp-kv { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px dashed #f1f5f9; }
 .cmp-kv-label { font-size: 11px; font-weight: 700; color: #64748b; }
-.cmp-kv-value { font-size: 12px; font-weight: 800; color: #0f172a; }
+.cmp-kv-value { font-size: 12px; font-weight: 800; color: #0f172a; font-variant-numeric: tabular-nums; }
+.cmp-kv:last-child { border-bottom: none; }
 
-.cmp-card--conclusion { border-top: 3px solid #6366f1; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin-bottom: 8px; }
-.cmp-card--conclusion .cmp-card-head { background: linear-gradient(180deg, #eef2ff, #fafbfc); border-bottom: 1px solid #eef2f7; padding: 8px 12px; font-size: 12px; font-weight: 800; display: flex; align-items: center; gap: 6px; color: #4338ca; }
-.cmp-card--conclusion .cmp-card-body { padding: 10px 14px; background: #fafafe; }
-.conclusion-text { margin: 0; font-size: 13px; line-height: 1.7; color: #334155; font-weight: 600; }
-.conclusion-evidence { margin: 10px 0 0; padding: 7px 10px; border-left: 3px solid #2563eb; border-radius: 0 6px 6px 0; background: #eff6ff; font-size: 12px; line-height: 1.7; color: #334155; }
+.cmp-card--conclusion { border: 1px solid #e6ebf2; border-top: 3px solid #6366f1; border-radius: 12px; overflow: hidden; margin-bottom: 8px; }
+.cmp-card--conclusion .cmp-card-head { background: linear-gradient(180deg, #eef2ff, #fafbfc); border-bottom: 1px solid #eef2f7; padding: 9px 14px; font-size: 12px; font-weight: 800; display: flex; align-items: center; gap: 6px; color: #4338ca; }
+.cmp-card--conclusion .cmp-card-body { padding: 12px 16px; background: linear-gradient(120deg, #fafafe, #f8faff); }
+.conclusion-text { margin: 0; font-size: 13px; line-height: 1.8; color: #334155; font-weight: 600; }
+.conclusion-evidence { margin: 12px 0 0; padding: 8px 12px; border-left: 3px solid #2563eb; border-radius: 0 8px 8px 0; background: #eff6ff; font-size: 12px; line-height: 1.75; color: #334155; }
 
-.cmp-card--chart { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
-.cmp-card--chart .cmp-card-head { background: linear-gradient(180deg, #f0fdf4, #fafbfc); border-bottom: 1px solid #eef2f7; padding: 8px 12px; font-size: 12px; font-weight: 800; display: flex; align-items: center; gap: 6px; color: #059669; }
-.cmp-card--chart .cmp-card-body { padding: 8px; background: #fff; }
+.cmp-card--chart { border: 1px solid #e6ebf2; border-top: 3px solid #10b981; border-radius: 12px; overflow: hidden; }
+.cmp-card--chart .cmp-card-head { background: linear-gradient(180deg, #f0fdf4, #fafbfc); border-bottom: 1px solid #eef2f7; padding: 9px 14px; font-size: 12px; font-weight: 800; display: flex; align-items: center; gap: 6px; color: #059669; }
+.cmp-card--chart .cmp-card-body { padding: 10px; background: #fff; }
 .metrics-line-chart { width: 100%; height: 280px; }
 
-.compare-section { margin-bottom: 4px; }
-.compare-section h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 15px; font-weight: 900; color: #0f172a; }
+.compare-section { margin-bottom: 6px; }
+.compare-section h3 { display: flex; align-items: center; gap: 9px; margin: 0 0 10px; font-size: 15px; font-weight: 900; color: #0f172a; letter-spacing: -0.01em; }
+.compare-section h3::before { content: ''; flex: 0 0 auto; width: 4px; height: 16px; border-radius: 999px; background: linear-gradient(180deg, #3b82f6, #6366f1); }
+.compare-section h3 .el-icon { color: #2563eb; }
+.compare-section :deep(.el-table) { border-radius: 10px; overflow: hidden; border-color: #e6ebf2; }
+.compare-section :deep(.el-table th.el-table__cell) { background: #f8fafc; color: #475569; font-weight: 800; }
+.compare-section :deep(.el-table .el-table__row:hover > td.el-table__cell) { background: #f8fbff; }
 .val-a { color: #3867f2; font-weight: 700; } .val-b { color: #22c55e; font-weight: 700; }
-.similarity-card { padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fafbfc; }
+.similarity-card { padding: 16px; border: 1px solid #e6ebf2; border-radius: 14px; background: linear-gradient(135deg, #fafbfc, #f5f9ff 60%, #f8fafc); box-shadow: inset 0 1px 0 #fff; }
 .similarity-main { display: flex; justify-content: center; margin-bottom: 12px; }
 .similarity-score { display: flex; align-items: center; gap: 12px; }
-.score-number { font-size: 32px; font-weight: 900; color: #d97706; }
+.score-number { font-size: 34px; line-height: 1.1; font-weight: 900; color: #d97706; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .similarity-dims { display: flex; flex-direction: column; gap: 8px; }
 .sim-dim-item { display: grid; grid-template-columns: 100px 1fr; align-items: center; gap: 12px; }
 .dim-label { font-size: 12px; font-weight: 700; color: #64748b; text-align: right; }
@@ -2383,67 +2230,43 @@ onBeforeUnmount(() => { disposeDistChart(); disposeMetricsLineChart(); disposeTr
 .event-desc { margin: 4px 0 0; font-size: 11px; color: #64748b; line-height: 1.4; }
 
 /* ---- 自选维度 & 分布图 ---- */
-.dimension-selector { display: flex; flex-direction: column; gap: 6px; padding: 4px 0; margin-bottom: 4px; }
-.dim-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 4px 8px; border-radius: 6px; background: #f8fafc; border: 1px solid #eef2f7; user-select: none; transition: background 0.15s; }
-.dim-toggle:hover { background: #f1f5f9; }
+.dimension-selector { display: flex; flex-direction: column; gap: 8px; padding: 4px 0; margin-bottom: 4px; }
+.dim-toggle { display: flex; align-items: center; gap: 7px; cursor: pointer; padding: 8px 12px; border-radius: 10px; background: linear-gradient(120deg, #f8fafc, #f5f9ff); border: 1px solid #e6ebf2; user-select: none; transition: background 0.15s, border-color 0.15s, box-shadow 0.15s; }
+.dim-toggle:hover { background: #f1f5f9; border-color: #c7d2fe; box-shadow: 0 8px 18px -16px rgba(37, 99, 235, 0.7); }
+.dim-toggle .el-icon { color: #2563eb; }
 .dim-selector-label { font-size: 12px; font-weight: 800; color: #64748b; white-space: nowrap; }
 .dim-hint { font-size: 11px; color: #94a3b8; font-weight: 600; }
-.dim-checkboxes { padding: 4px 8px; display: flex; flex-wrap: wrap; gap: 6px; }
-.cmp-empty-hint { text-align: center; color: #cbd5e1; font-size: 12px; padding: 12px 0; }
+.dim-checkboxes { padding: 6px 10px; display: flex; flex-wrap: wrap; gap: 7px; }
+.cmp-empty-hint { text-align: center; color: #cbd5e1; font-size: 12px; padding: 14px 0; }
 
-.distribution-chart-container { width: 100%; height: 470px; margin: 8px 0; border: 1px solid #e2e8f0; border-radius: 10px; background: #fafbfc; }
+.distribution-chart-container { width: 100%; height: 470px; margin: 10px 0; border: 1px solid #e6ebf2; border-radius: 14px; background: linear-gradient(180deg, #fdfefe, #f8fbfd); box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.04); }
 .distribution-same-source { margin: 0 0 8px; padding: 8px 12px; border-left: 3px solid #f59e0b; border-radius: 0 8px 8px 0; background: #fffbeb; font-size: 12px; line-height: 1.7; color: #78350f; }
 
-.distribution-summary { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
-.dist-summary-card { padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; }
+.distribution-summary { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.dist-summary-card { padding: 12px 14px; border: 1px solid #e6ebf2; border-radius: 12px; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03); transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease; }
+.dist-summary-card:hover { transform: translateY(-2px); border-color: #c7d2fe; box-shadow: 0 16px 30px -22px rgba(15, 23, 42, 0.6); }
 .dist-summary-head { display: flex; justify-content: space-between; margin-bottom: 6px; }
-.dist-summary-label { font-size: 12px; font-weight: 800; color: #1e293b; }
+.dist-summary-label { font-size: 12.5px; font-weight: 800; color: #1e293b; letter-spacing: -0.01em; }
 .dist-summary-unit { font-size: 11px; color: #94a3b8; }
-.dist-summary-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; font-weight: 700; color: #0f172a; }
-.dist-tag-a { padding: 1px 6px; border-radius: 4px; background: #dbeafe; color: #1d4ed8; font-size: 10px; font-weight: 900; }
-.dist-tag-b { padding: 1px 6px; border-radius: 4px; background: #dcfce7; color: #15803d; font-size: 10px; font-weight: 900; }
-.dist-range { font-size: 11px; color: #94a3b8; margin-left: auto; }
+.dist-summary-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; font-weight: 700; color: #0f172a; font-variant-numeric: tabular-nums; }
+.dist-tag-a { padding: 1px 7px; border-radius: 5px; background: #dbeafe; color: #1d4ed8; font-size: 10px; font-weight: 900; }
+.dist-tag-b { padding: 1px 7px; border-radius: 5px; background: #dcfce7; color: #15803d; font-size: 10px; font-weight: 900; }
+.dist-range { font-size: 11px; color: #94a3b8; margin-left: auto; font-variant-numeric: tabular-nums; }
 .dist-summary-block + .dist-summary-block { margin-top: 4px; padding-top: 4px; border-top: 1px dashed #eef2f7; }
 .dist-summary-meta { font-size: 11px; color: #64748b; font-weight: 600; padding: 0 0 2px 22px; }
-.distribution-footnote { margin: 8px 0 0; padding: 8px 12px; border: 1px dashed #cbd5e1; border-radius: 8px; background: #f8fafc; font-size: 12px; line-height: 1.7; color: #475569; }
+.distribution-footnote { margin: 10px 0 0; padding: 10px 14px; border: 1px dashed #cbd5e1; border-radius: 10px; background: #f8fafc; font-size: 12px; line-height: 1.75; color: #475569; }
 
-/* ---- 因果阶梯定位条：观察分析 = 第 1 层·关联 ---- */
-.evidence-level {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin: 12px 24px 0;
-  padding: 12px 16px;
-  border: 1px solid #bfdbfe;
-  border-left: 4px solid #2563eb;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #eff6ff, #ffffff);
-}
-.evidence-level__badge {
-  flex-shrink: 0;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: #2563eb;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.5px;
-  white-space: nowrap;
-}
-.evidence-level__body { min-width: 0; }
-.evidence-level__title { margin: 0; font-size: 13px; font-weight: 800; color: #1e3a8a; }
-.evidence-level__desc { margin: 4px 0 0; font-size: 12px; line-height: 1.7; color: #475569; }
-
-.compare-empty-inline { display: flex; justify-content: center; padding: 40px; color: #94a3b8; font-size: 13px; font-weight: 600; }
+.compare-empty-inline { display: flex; justify-content: center; padding: 44px 24px; margin: 4px 0; border: 1px dashed #dbe4f0; border-radius: 12px; background: #fafbfc; color: #94a3b8; font-size: 13px; font-weight: 600; text-align: center; }
+.compare-empty-inline p { margin: 0; max-width: 640px; line-height: 1.75; }
 
 /* ---- 跨库相似度矩阵 ---- */
-.cross-library-section { flex: 0 0 auto; margin-top: 10px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; box-shadow: 0 6px 16px rgba(15,23,42,0.04); overflow: hidden; max-height: 340px; }
+.cross-library-section { flex: 0 0 auto; margin-top: 12px; border: 1px solid #e6ebf2; border-radius: 16px; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 14px 30px -24px rgba(15, 23, 42, 0.5); overflow: hidden; max-height: 360px; }
 .cross-library-section .el-table { font-size: 12px; }
-.cross-library-head { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid #eef2f7; background: linear-gradient(180deg, #f0fdf4, #ffffff); font-size: 14px; font-weight: 800; color: #065f46; }
+.cross-library-head { display: flex; align-items: center; gap: 8px; padding: 12px 18px; border-bottom: 1px solid #eef2f7; background: linear-gradient(180deg, #f0fdf4, #ffffff); font-size: 14px; font-weight: 800; color: #065f46; }
 .cross-library-head .el-icon { color: #10b981; }
 .cross-library-sub { margin-left: auto; font-size: 11px; font-weight: 600; color: #94a3b8; }
 .cross-library-body { padding: 8px; overflow-x: auto; display: flex; flex-direction: column; gap: 8px; }
-.matrix-summary { padding: 10px 14px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; }
+.matrix-summary { padding: 12px 16px; background: linear-gradient(120deg, #fffbeb, #fffdf5); border: 1px solid #fde68a; border-left: 3px solid #f59e0b; border-radius: 10px; }
 .matrix-summary p { margin: 0; font-size: 12px; line-height: 1.7; color: #78350f; font-weight: 600; }
 .matrix-toggle-row { display: flex; justify-content: center; }
 .cross-library-table { overflow-x: auto; }
@@ -2466,8 +2289,9 @@ onBeforeUnmount(() => { disposeDistChart(); disposeMetricsLineChart(); disposeTr
 .verdict-item b { color: #0f172a; }
 .verdict-item em { font-style: normal; color: #94a3b8; }
 
-.provenance-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.prov-item { display: flex; gap: 10px; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fafbfc; }
+.provenance-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.prov-item { display: flex; gap: 10px; padding: 12px 14px; border: 1px solid #e6ebf2; border-radius: 12px; background: linear-gradient(120deg, #fafbfc, #f8fbff); transition: transform 0.15s ease, box-shadow 0.15s ease; }
+.prov-item:hover { transform: translateY(-2px); box-shadow: 0 14px 26px -22px rgba(15, 23, 42, 0.6); }
 .prov-item--a { border-left: 3px solid #3867f2; }
 .prov-item--b { border-left: 3px solid #22c55e; }
 .prov-tag { flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; font-size: 11px; font-weight: 900; color: #fff; display: flex; align-items: center; justify-content: center; }
@@ -2484,6 +2308,7 @@ onBeforeUnmount(() => { disposeDistChart(); disposeMetricsLineChart(); disposeTr
 .ok-hint { margin: 0; font-size: 12px; color: #15803d; font-weight: 600; }
 
 .significance-table { font-size: 12px; }
+.significance-table :deep(.el-table__cell) { padding: 6px 0; }
 .attribution-list { display: flex; flex-direction: column; gap: 8px; }
 .attr-row { display: grid; grid-template-columns: 140px 1fr 110px 56px; align-items: center; gap: 12px; }
 .attr-label { font-size: 12px; font-weight: 700; color: #334155; text-align: right; }
@@ -2530,6 +2355,14 @@ onBeforeUnmount(() => { disposeDistChart(); disposeMetricsLineChart(); disposeTr
 .state-skip { background: #fef3c7; color: #92400e; }
 .state-off { background: #f1f5f9; color: #94a3b8; }
 .fallback-body p { margin: 4px 0 0; font-size: 11px; line-height: 1.6; color: #64748b; }
+
+.conclusion-summary-card:focus-visible, .dim-toggle:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .conclusion-summary-card, .cmp-card, .dist-summary-card, .prov-item, .stat-item, .dim-toggle { transition: none; }
+  .conclusion-summary-card:hover, .dist-summary-card:hover, .prov-item:hover, .stat-item:hover { transform: none; }
+  .compare-detail { animation: none; }
+}
 
 @media (max-width: 1100px) {
   .observe-layout { grid-template-columns: 1fr; }

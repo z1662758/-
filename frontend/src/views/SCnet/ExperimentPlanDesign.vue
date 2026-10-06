@@ -12,6 +12,16 @@
       </template>
     </nav>
 
+    <!-- 章节导航：与设计稿一致，点标题滚到对应段落 -->
+    <nav class="epd-subnav" aria-label="方案章节">
+      <button type="button" class="epd-subnav-back" @click="backToParamOverview">&#8592; 参数总览</button>
+      <span class="epd-subnav-sep" aria-hidden="true"></span>
+      <button v-for="card in workflowCards" :key="card.key" type="button" class="epd-subnav-item"
+        @click="scrollToSection(card.target)">
+        <span class="epd-subnav-icon">{{ card.icon }}</span>{{ card.label }}
+      </button>
+    </nav>
+
     <p v-if="loadFailure" class="banner banner--warn">{{ loadFailure }}</p>
     <p v-else-if="!fromConversation" class="banner">
       没有读到来自对话的方案草稿：可直接在下面手填。若想让实验目的与研判结论自动带到本页，请从「想定生成」的事后复盘走一遍。
@@ -84,6 +94,7 @@
         </p>
         <el-button v-if="basis.question || basis.conclusion" size="small" plain @click="regeneratePurpose">按研判结论重新生成</el-button>
       </div>
+      <p v-if="!purposeConfirmed" class="hint-line">对话里尚未确认实验目的；在本页修改并保存即视为已确认。</p>
     </section>
 
     <!-- ② 实验方案 -->
@@ -130,11 +141,14 @@
       </div>
 
       <div v-if="metricOptions.length" class="field">
-        <p class="field-title">目标指标 <span class="field-note">用来判断干预是否有效，平台会在这几个口径上对比基线与干预</span></p>
+        <p class="field-title">目标指标 <span class="field-note">用于观察分析的指标分布口径，并随方案提交后端；干预是否有效仍由配对比较判定</span></p>
         <el-checkbox-group v-model="metricKeys" class="metric-grid">
           <el-checkbox v-for="metric in metricOptions" :key="metric.key" :value="metric.key" class="metric-chip">{{ metric.label }}</el-checkbox>
         </el-checkbox-group>
       </div>
+      <p v-if="unmappedMetricNames" class="hint-line">
+        {{ unmappedMetricNames }} 暂未对应到观察分析的分布口径，只会记入方案与复盘报告。
+      </p>
 
       <div class="field field--inline">
         <div class="inline-item">
@@ -156,12 +170,145 @@
       </p>
     </section>
 
-    <!-- ③ 落地校验 -->
-    <section id="epd-ledger" class="plan-card">
+    <!-- ③ 实验组设计：观察 / 干预 / 机制 三套分析方案的实验组 -->
+    <section id="epd-groups" class="plan-card">
       <header class="card-head">
         <div>
           <p class="card-eyebrow">EXPERIMENT GROUPS</p>
-          <h2><span class="card-index">3</span>落地校验</h2>
+          <h2><span class="card-index">3</span>实验组设计</h2>
+          <p class="card-desc">按三阶段分析分别配置实验组：观察分析比较平行世界，干预分析识别影响因素，机制分析追踪微观到宏观。每组只相对 F-00 改变一个因素，保证可归因。</p>
+        </div>
+        <span class="card-tag card-tag--muted">共 {{ totalGroupCount }} 组</span>
+      </header>
+
+      <p class="ap-fixed">{{ ANALYSIS_FIXED_CONDITIONS }}</p>
+
+      <div class="ap-tabs">
+        <button v-for="tab in analysisTabs" :key="tab.key" type="button" class="ap-tab"
+          :class="['ap-tab--' + tab.key, { 'is-active': tab.key === activeAnalysis }]" @click="activeAnalysis = tab.key">
+          <span class="ap-tab-main">
+            <span class="ap-tab-eyebrow">{{ tab.code }}</span>
+            <span class="ap-tab-label">{{ tab.label }}</span>
+            <span class="ap-tab-desc">{{ tab.tabDesc }}</span>
+          </span>
+          <span class="ap-tab-count">{{ tab.count }} 组</span>
+        </button>
+      </div>
+
+      <div class="ap-body">
+        <aside class="ap-side">
+          <p class="ap-side-eyebrow">当前方案</p>
+          <h3 class="ap-side-title">{{ activeAnalysisType.label }}</h3>
+          <p class="ap-side-label">核心问题</p>
+          <p class="ap-side-question">{{ activeAnalysisType.coreQuestion }}</p>
+          <p class="ap-side-intent">{{ activeAnalysisType.intent }}</p>
+          <p class="ap-side-label">实验方法</p>
+          <el-select v-model="activeAnalysisMethod" size="small" class="ap-side-select">
+            <el-option v-for="method in activeAnalysisType.methodOptions" :key="method" :label="method" :value="method" />
+          </el-select>
+          <p class="ap-side-label">设计原则</p>
+          <ul class="ap-side-list">
+            <li v-for="principle in activeAnalysisType.principles" :key="principle">{{ principle }}</li>
+          </ul>
+          <p class="ap-side-label">变量设计页已确认</p>
+          <div class="ap-chips">
+            <span v-for="chip in confirmedVariableChips" :key="chip" class="ap-chip">{{ chip }}</span>
+            <span v-if="!confirmedVariableChips.length" class="ap-chip ap-chip--muted">还没勾选变量</span>
+          </div>
+          <div class="ap-side-actions">
+            <el-button size="small" plain class="ap-side-action" @click="scrollToSection('epd-variables')">调整变量</el-button>
+            <el-button size="small" text class="ap-side-action ap-side-action--text" @click="resetAnalysisGroups">按当前变量重算</el-button>
+          </div>
+        </aside>
+
+        <div class="ap-groups">
+          <div class="ap-groups-head">
+            <div>
+              <p class="ap-groups-eyebrow">{{ activeAnalysisType.code }} GROUPS</p>
+              <h4 class="ap-groups-title">{{ activeAnalysisType.label }}配置</h4>
+              <p class="ap-groups-sub">每组设置一个可检验假设，并明确相对 F-00 的唯一变化。</p>
+            </div>
+            <el-button type="primary" @click="addAnalysisGroup">+ 新增实验组</el-button>
+          </div>
+
+          <p v-if="!activeAnalysisGroups.length" class="ap-empty">还没有实验组，点右上角「新增实验组」或「按当前变量重算」。</p>
+          <article v-for="group in activeAnalysisGroups" :key="group.id" class="ap-group" :class="'ap-group--' + activeAnalysis">
+            <button type="button" class="ap-group-remove" title="删除该实验组" @click="removeAnalysisGroup(group.id)">&times;</button>
+            <header class="ap-group-head">
+              <span class="ap-group-id">{{ group.id }}</span>
+              <input v-model="group.name" class="ap-group-name" placeholder="实验组名称" />
+            </header>
+            <div class="ap-group-grid">
+              <label class="ap-field">
+                <span>改变的因素</span>
+                <input v-model="group.factor" list="ap-factor-options" placeholder="选择或填写因素" />
+              </label>
+              <label class="ap-field">
+                <span>水平 / 组合设置</span>
+                <input v-model="group.levels" placeholder="例如：低 / 中 / 高，或 基线 → 干预值" />
+              </label>
+              <label class="ap-field ap-field--wide">
+                <span>可检验假设</span>
+                <input v-model="group.hypothesis" placeholder="写清预期方向与判定指标" />
+              </label>
+            </div>
+            <p class="ap-group-foot">
+              <span>对照 <b>{{ group.control || 'F-00' }}</b></span>
+              <span>方法 <b>{{ group.method || activeAnalysisType.groupMethod }}</b></span>
+            </p>
+          </article>
+          <datalist id="ap-factor-options">
+            <option v-for="chip in confirmedVariableChips" :key="chip" :value="chip" />
+          </datalist>
+        </div>
+      </div>
+
+      <div class="ap-answer">
+        <div>
+          <p class="ap-answer-label">本方案回答</p>
+          <p class="ap-answer-text">{{ activeAnalysisType.answer }}</p>
+        </div>
+        <ul class="ap-outputs">
+          <li v-for="output in activeAnalysisType.outputs" :key="output">✓ {{ output }}</li>
+        </ul>
+      </div>
+
+      <div class="ap-nav">
+        <el-button plain @click="scrollToSection('epd-variables')">← 目标与变量设计</el-button>
+        <span class="ap-nav-tip">每组只相对 F-00 改变一个因素</span>
+        <el-button type="primary" plain @click="scrollToSection('epd-path')">查看分析路径 →</el-button>
+      </div>
+    </section>
+
+    <!-- ④ 分析路径：三套方案如何逐级产出结论 -->
+    <section id="epd-path" class="plan-card">
+      <header class="card-head">
+        <div>
+          <p class="card-eyebrow">ANALYSIS PATH</p>
+          <h2><span class="card-index">4</span>分析路径</h2>
+          <p class="card-desc">实验组设计好之后，按「观察 → 干预 → 机制」逐级分析：先看哪条世界线更好，再解释哪些因素影响结果，最后还原微观到宏观的涌现机制。</p>
+        </div>
+        <span class="card-tag card-tag--muted">3 套方案 · 逐级分析</span>
+      </header>
+      <ol class="path-list">
+        <li v-for="(tab, index) in analysisTabs" :key="tab.key" class="path-item" :class="'path-item--' + tab.key">
+          <span class="path-index">{{ index + 1 }}</span>
+          <div class="path-main">
+            <p class="path-title">{{ tab.label }}<span class="path-count">{{ tab.count }} 组</span></p>
+            <p class="path-question">{{ tab.coreQuestion }}</p>
+            <p class="path-answer">产出：{{ tab.answer }}</p>
+          </div>
+        </li>
+      </ol>
+      <p class="hint-line">平台会用这套实验组生成事实 / 反事实成对世界；三阶段分析页可直接读取本页配置的实验组与目标指标。</p>
+    </section>
+
+    <!-- ⑤ 落地校验 -->
+    <section id="epd-ledger" class="plan-card">
+      <header class="card-head">
+        <div>
+          <p class="card-eyebrow">GO-LIVE CHECK</p>
+          <h2><span class="card-index">5</span>落地校验</h2>
           <p class="card-desc">这里用与平台同一份面板口径做对账：真正写入发生在反事实实验平台点「写入参数面板」时，平台会用绿色方案条显示是否已按本方案写入。</p>
         </div>
         <span class="card-tag card-tag--muted">方案 {{ planIdText }}</span>
@@ -183,10 +330,14 @@
         <li v-if="panelControls.length"><b>本场景面板参数</b>{{ panelKeysText }}</li>
         <li><b>对照组</b> {{ PLAN_CONTROL_LABEL }}</li>
         <li><b>目标指标</b> {{ metricText }}</li>
+        <li><b>实验组设计</b> {{ analysisCountText }}</li>
         <li><b>观测轮次</b> {{ roundsText }}</li>
       </ul>
 
       <p v-if="blockedHint" class="warn-line">{{ blockedHint }}</p>
+      <p v-if="missingValueLevers.length" class="warn-line">
+        已勾选但尚未填取值：{{ missingValueNames }}。请补全后再保存，否则写不进参数面板。
+      </p>
       <p v-if="panelUnknown" class="warn-line">
         没能取到{{ scenarioLabel }}的参数面板口径，本页无法预先对账；平台运行前仍会再校验一次。
       </p>
@@ -244,7 +395,7 @@
 
         <div class="epd-assistant-input">
           <textarea v-model="assistantDraft" class="epd-assistant-textarea" rows="2"
-            placeholder="例如：新增一组提前 10 分钟限流的实验……"
+            placeholder="例如：把需求强度调到 1.2 会更显著吗？（助手只做设计咨询，不自动改方案）"
             @keydown.enter.exact.prevent="sendAssistant"></textarea>
           <button type="button" class="epd-assistant-send"
             :disabled="!assistantDraft.trim() || assistantSending" @click="sendAssistant">&#10148;</button>
@@ -263,12 +414,12 @@ import { SCENARIO_VALUES, SCENARIO_LABELS } from '@/constants/scnetScenario'
 import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 import { unwrapApiData } from '@/utils/session'
 import { getParameterCatalog } from '@/api/supplyChain'
-import { addChatMessage } from '@/api/scenarioSession'
 import { startAgentChat, streamAgentTask, getAgentModels, getAgentConversation } from '@/api/scnet/chatAgent'
 import { resolvePanelControls } from '@/utils/scnetPanelParams'
 import {
   PLAN_QUERY_KEY, PLAN_CONTROL_LABEL, PLATFORM_LEVER_TARGETS, composePlanPurpose,
   buildLeverOptions, buildMetricOptions, resolveLeverWrites,
+  ANALYSIS_PLAN_TYPES, ANALYSIS_FIXED_CONDITIONS, resolveAnalysisPlans, buildDefaultAnalysisPlans, analysisPlanGroupCount,
   newExperimentPlanId, readExperimentPlan, readLatestExperimentPlan, saveExperimentPlan,
   savePlanTranscript, readPlanTranscript, saveConversationTranscript, readConversationTranscript
 } from '@/constants/scnetExperimentPlan'
@@ -288,9 +439,14 @@ const fromConversation = ref(false)
 const conversationId = ref('')
 const purpose = ref('')
 const basis = ref({ question: '', conclusion: '' })
+// 进入本页时实验目的是否已在对话里确认过；本页保存动作本身即视为确认
+const purposeConfirmed = ref(true)
 const leverKeys = ref([])
 const leverValues = reactive({})
 const metricKeys = ref([])
+// 三套分析方案的实验组设计（观察 / 干预 / 机制），随方案一起保存
+const analysisPlans = ref(resolveAnalysisPlans(null))
+const activeAnalysis = ref('observe')
 const rounds = ref(null)
 const catalog = ref(null)
 const catalogLoading = ref(false)
@@ -341,6 +497,8 @@ const unlandableLevers = computed(() => mappableLevers.value.filter((lever) => !
 const unlandableNames = computed(() => unlandableLevers.value.map((lever) => lever.label).join('、'))
 // 目录拿到了但面板口径算不出来（多是目录结构异常），如实说明本页没能对账
 const panelUnknown = computed(() => Boolean(catalog.value) && !panelControls.value.length)
+// 本场景面板真的写得进去的候选（概览计数用，不把置灰变量也算成"可调参数"）
+const landableMappableLevers = computed(() => mappableLevers.value.filter((lever) => isLeverLandable(lever.key)))
 
 const formatNumber = (value) => {
   const num = Number(value)
@@ -359,11 +517,79 @@ const formatLeverValue = (lever) => {
   if (value === undefined || value === null || value === '') return '未设定'
   return formatNumber(value)
 }
+// 勾选但没填取值：resolveLeverWrites 会判为落不了地，保存前必须挡住，别让它到平台变成写 0
+const isLeverValueSet = (lever) => {
+  const value = leverValues[lever.key]
+  if (Array.isArray(value)) return value.length >= 2 && value.every((item) => Number.isFinite(Number(item)))
+  return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))
+}
+const missingValueLevers = computed(() => selectedLevers.value.filter((lever) => !isLeverValueSet(lever)))
+const missingValueNames = computed(() => missingValueLevers.value.map((lever) => lever.label).join('、'))
 
 const metricText = computed(() => {
   const picked = metricOptions.value.filter((item) => metricKeys.value.includes(item.key))
   return picked.length ? picked.map((item) => item.label).join(' / ') : '未指定'
 })
+// 目录里勾了、但在观察分析口径里匹配不上的指标：只做方案记录，不会落到分布视图
+const unmappedMetricNames = computed(() => metricOptions.value
+  .filter((item) => metricKeys.value.includes(item.key) && !item.analysisKey)
+  .map((item) => item.label)
+  .join('、'))
+
+// ── 实验组设计：观察 / 干预 / 机制三套分析方案的实验组 ──
+const activeAnalysisType = computed(() => ANALYSIS_PLAN_TYPES.find((type) => type.key === activeAnalysis.value) || ANALYSIS_PLAN_TYPES[0])
+const analysisTabs = computed(() => ANALYSIS_PLAN_TYPES.map((type) => ({ ...type, count: analysisPlanGroupCount(analysisPlans.value, type.key) })))
+const activeAnalysisGroups = computed(() => (analysisPlans.value[activeAnalysis.value] || {}).groups || [])
+const activeAnalysisMethod = computed({
+  get: () => (analysisPlans.value[activeAnalysis.value] || {}).method || '',
+  set: (value) => {
+    const plan = analysisPlans.value[activeAnalysis.value]
+    if (plan) plan.method = value
+  }
+})
+// 变量设计页已确认的干预变量 + 目标指标，作为实验组的待选因素
+const confirmedVariableChips = computed(() => [
+  ...selectedLevers.value.map((lever) => lever.label),
+  ...metricOptions.value.filter((item) => metricKeys.value.includes(item.key)).map((item) => item.label)
+])
+
+const currentPlanSnapshotForGroups = () => ({
+  levers: buildPlanLevers(),
+  metrics: metricOptions.value
+    .filter((item) => metricKeys.value.includes(item.key))
+    .map((item) => ({ key: item.key, label: item.label }))
+})
+const addAnalysisGroup = () => {
+  const type = activeAnalysisType.value
+  const plan = analysisPlans.value[type.key]
+  if (!plan) return
+  // 先删中间组再新增时，按数组长度编号会撞上已有 id（:key 与删除都会跟着出错），
+  // 这里取「第一个没被占用的编号」，保证 id 唯一
+  const usedIds = new Set(plan.groups.map((group) => group.id))
+  let seq = plan.groups.length + 1
+  while (usedIds.has(`${type.code}-${String(seq).padStart(2, '0')}`)) seq += 1
+  plan.groups.push({
+    id: `${type.code}-${String(seq).padStart(2, '0')}`,
+    name: '新实验组',
+    factor: '',
+    levels: '',
+    hypothesis: '',
+    control: 'F-00',
+    method: type.groupMethod
+  })
+}
+const removeAnalysisGroup = (id) => {
+  const plan = analysisPlans.value[activeAnalysis.value]
+  if (!plan) return
+  plan.groups = plan.groups.filter((group) => group.id !== id)
+}
+// 变量设计改了以后按当前干预变量重算这一套方案的实验组（只重置当前页签）
+const resetAnalysisGroups = () => {
+  const defaults = buildDefaultAnalysisPlans(currentPlanSnapshotForGroups())
+  const type = activeAnalysisType.value
+  analysisPlans.value = { ...analysisPlans.value, [type.key]: defaults[type.key] }
+  ElMessage.info(`已按当前干预变量重算「${type.short}」实验组`)
+}
 const roundsText = computed(() => (rounds.value ? `${rounds.value} 轮（提交后端 iterations=${rounds.value}）` : '未指定'))
 const blockedHint = computed(() => (
   selectedLevers.value.length
@@ -381,6 +607,7 @@ const fillFromPlan = (plan) => {
     question: (plan.purposeBasis && plan.purposeBasis.question) || '',
     conclusion: (plan.purposeBasis && plan.purposeBasis.conclusion) || ''
   }
+  purposeConfirmed.value = plan.purposeConfirmed !== false
   Object.keys(leverValues).forEach((key) => { delete leverValues[key] })
   leverKeys.value = []
   ;(Array.isArray(plan.levers) ? plan.levers : []).forEach((lever) => {
@@ -391,6 +618,7 @@ const fillFromPlan = (plan) => {
     leverValues[lever.key] = Array.isArray(lever.value) ? lever.value.slice() : lever.value
   })
   metricKeys.value = (Array.isArray(plan.metrics) ? plan.metrics : []).map((item) => item && item.key).filter(Boolean)
+  analysisPlans.value = resolveAnalysisPlans(plan)
   rounds.value = plan.rounds ? Number(plan.rounds) : null
   conversationId.value = String(plan.conversationId || route.query.session_id || '').trim()
   fromConversation.value = Boolean(plan.purposeBasis && (plan.purposeBasis.question || plan.purposeBasis.conclusion))
@@ -426,6 +654,15 @@ const goStage = (step) => {
   router.push({ path: step.path, query })
 }
 
+// 章节导航「参数总览」：回到反事实实验平台（参数面板所在处），带上闭环上下文
+const backToParamOverview = () => {
+  const query = { phase: 'post', scenario: scenarioStore.currentScenario }
+  if (planId.value) query[PLAN_QUERY_KEY] = planId.value
+  if (experimentId.value) query.experiment_id = experimentId.value
+  if (conversationId.value) { query.from_chat = '1'; query.session_id = conversationId.value }
+  router.push({ path: SCNET_ROUTES.counterfactualExperiment, query })
+}
+
 // 工作流程卡片点一下滚到对应段落
 const scrollToSection = (id) => {
   const el = document.getElementById(id)
@@ -457,10 +694,18 @@ const overviewTiles = computed(() => [
   { icon: '🔁', label: '观测轮次', value: rounds.value ? `${rounds.value} 轮` : '未指定' },
   { icon: '🕒', label: '生成时间', value: createdAtText.value }
 ])
+// 「人工社会」的模型类数：优先取参数目录里登记的 agent 类型，取不到就退回本场景文案
+const agentModelCount = computed(() => {
+  const agents = catalog.value?.agent_graph?.agents || catalog.value?.entities?.agents
+  return Array.isArray(agents) ? agents.length : 0
+})
+const totalGroupCount = computed(() => analysisTabs.value.reduce((sum, tab) => sum + tab.count, 0))
+const analysisCountText = computed(() => analysisTabs.value.map((tab) => `${tab.short} ${tab.count} 组`).join(' · '))
 const workflowCards = computed(() => [
-  { key: 'society', index: '01', icon: '🏭', label: scenarioLabel.value || '场景', meta: `${mappableLevers.value.length} 类可调参数`, target: 'epd-variables' },
+  { key: 'society', index: '01', icon: '🏭', label: '人工社会', meta: agentModelCount.value ? `${agentModelCount.value} 类模型` : `${landableMappableLevers.value.length} 类可调参数`, target: 'epd-overview' },
   { key: 'objective', index: '02', icon: '🎯', label: '目标与变量设计', meta: `${metricKeys.value.length} 指标 · ${selectedLevers.value.length} 干预变量`, target: 'epd-variables' },
-  { key: 'groups', index: '03', icon: '🧪', label: '实验组设计', meta: `1 组对照 + ${cfGroupCount.value} 组干预`, target: 'epd-ledger' }
+  { key: 'groups', index: '03', icon: '🧪', label: '实验组设计', meta: `${analysisTabs.value.length} 类实验 · ${totalGroupCount.value} 组`, target: 'epd-groups' },
+  { key: 'path', index: '04', icon: '📈', label: '分析路径', meta: `${stageSteps.value.length - 1} 步产出`, target: 'epd-path' }
 ])
 // 刷新方案 = 按参数目录重取一遍候选（换场景或目录更新后要能重算）
 const refreshPlan = async () => {
@@ -629,8 +874,6 @@ const sendAssistant = async () => {
   assistantSending.value = true
   persistTranscript()
   nextTick(scrollAssistant)
-  // 同步回原对话：回到对话页也能看到这次追加的问题
-  if (conversationId.value) addChatMessage(conversationId.value, { type: 'user', content: text }).catch(() => {})
   try {
     const res = await startAgentChat({
       message: text,
@@ -643,6 +886,14 @@ const sendAssistant = async () => {
     })
     const data = unwrapApiData(res) || res?.data || res || {}
     if (!data?.task_id) throw new Error(data?.message || 'Agent 任务启动失败')
+    // 后端会返回/复用会话 id：此前丢弃它，从侧边栏等没有 session_id 的入口进来时，
+    // 每问一句都新起一个后端会话，多轮上下文直接断掉。拿到就记下来并补存一份快照，
+    // 后续提问才会续在同一段对话里（用户/助手消息由 agent 任务在后端落库）。
+    const nextConversationId = String(data.conversation_id || '').trim()
+    if (nextConversationId && nextConversationId !== conversationId.value) {
+      conversationId.value = nextConversationId
+      persistTranscript()
+    }
     assistantStream = streamAgentTask({
       taskId: data.task_id,
       afterSeq: 0,
@@ -673,6 +924,7 @@ const sendAssistant = async () => {
 }
 
 const restorePlan = () => {
+  loadFailure.value = ''
   const idFromQuery = String(route.query[PLAN_QUERY_KEY] || '').trim()
   const plan = idFromQuery ? readExperimentPlan(idFromQuery) : readLatestExperimentPlan(scenarioStore.currentScenario)
   if (plan) { fillFromPlan(plan); loadTranscript(); return }
@@ -694,8 +946,13 @@ const loadCatalog = async () => {
     const defaultRounds = Number(stepsParam ? stepsParam.default : NaN)
     if (!rounds.value && Number.isFinite(defaultRounds)) rounds.value = defaultRounds
     if (!metricKeys.value.length) {
-      const preferred = ['order_completion_rate', 'net_profit']
-      metricKeys.value = buildMetricOptions(data).filter((item) => preferred.includes(item.key)).map((item) => item.key)
+      // 默认勾「订单完成率 / 系统总利润」：优先按观察分析口径匹配，退回到目录 key
+      const options = buildMetricOptions(data)
+      const preferredAnalysis = ['completion_rate', 'total_profit']
+      const preferredKeys = ['order_completion_rate', 'net_profit']
+      metricKeys.value = options
+        .filter((item) => preferredAnalysis.includes(item.analysisKey) || preferredKeys.includes(item.key))
+        .map((item) => item.key)
     }
     if (!buildLeverOptions(data).length) {
       catalogError.value = '参数目录未返回可用干预变量，可直接去平台手动设置参数。'
@@ -713,13 +970,17 @@ const loadCatalog = async () => {
 // 与其到平台才被红字拦住，不如在确认这一步就说清并移除。
 const pruneUnlandableLevers = () => {
   if (!panelControls.value.length) return
-  const dropped = leverKeys.value.filter((key) => !isLeverLandable(key))
+  // 目录也不再提供的变量一并清掉：否则它不出现在候选里、却还留在 leverKeys 中，
+  // 保存时被 buildPlanLevers 静默丢弃，用户完全看不到发生了什么。
+  const known = new Set(leverOptions.value.map((lever) => lever.key))
+  const isDroppable = (key) => !known.has(key) || !isLeverLandable(key)
+  const dropped = leverKeys.value.filter(isDroppable)
   if (!dropped.length) return
-  leverKeys.value = leverKeys.value.filter((key) => isLeverLandable(key))
+  leverKeys.value = leverKeys.value.filter((key) => !isDroppable(key))
   const names = dropped
     .map((key) => (leverOptions.value.find((lever) => lever.key === key) || {}).label || key)
     .join('、')
-  ElMessage.info(`${scenarioLabel.value}参数面板没有「${names}」，已从方案中移除（写不进面板，不会参与实验）`)
+  ElMessage.info(`「${names}」在${scenarioLabel.value}参数面板没有对应输入框（或目录已不提供），已从方案中移除，不会参与实验`)
 }
 
 // 勾选干预变量时用目录给出的真实默认值初始化取值，不编造数
@@ -741,13 +1002,16 @@ const regeneratePurpose = () => {
 
 const buildPlanLevers = () => selectedLevers.value.map((lever) => {
   const raw = leverValues[lever.key]
+  const value = isLeverValueSet(lever)
+    ? (Array.isArray(raw) ? raw.map((item) => Number(item)) : Number(raw))
+    : null
   return {
     key: lever.key,
     label: lever.label,
     source: lever.source || '',
     rangeText: lever.rangeText || '',
     mappable: true,
-    value: Array.isArray(raw) ? raw.map((item) => Number(item)) : Number(raw)
+    value
   }
 })
 
@@ -764,7 +1028,8 @@ const buildPlanPayload = () => ({
   levers: buildPlanLevers(),
   metrics: metricOptions.value
     .filter((item) => metricKeys.value.includes(item.key))
-    .map((item) => ({ key: item.key, label: item.label })),
+    .map((item) => ({ key: item.key, label: item.label, analysisKey: item.analysisKey || '' })),
+  analysisPlans: analysisPlans.value,
   rounds: rounds.value || null,
   conversationId: conversationId.value || ''
 })
@@ -772,6 +1037,10 @@ const buildPlanPayload = () => ({
 const savePlan = () => {
   if (!canSubmit.value) {
     ElMessage.warning('请先填写实验目的')
+    return null
+  }
+  if (missingValueLevers.value.length) {
+    ElMessage.warning(`请先填写「${missingValueNames.value}」的取值，否则写不进参数面板`)
     return null
   }
   const plan = buildPlanPayload()
@@ -1093,6 +1362,98 @@ onUnmounted(() => {
 }
 .epd-assistant-send:disabled { background: #cbd5e1; cursor: not-allowed; }
 
+/* ── 实验组设计（观察 / 干预 / 机制） ───────────── */
+.ap-tabs { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.ap-tab {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 12px 14px; border: 1px solid var(--plan-border); border-radius: 12px;
+  background: #fff; cursor: pointer; text-align: left; transition: all 0.18s;
+}
+.ap-tab:hover { border-color: #c7d2fe; }
+.ap-tab.is-active.ap-tab--observe { border-color: #93c5fd; background: #eff6ff; box-shadow: 0 6px 16px rgba(59, 130, 246, 0.12); }
+.ap-tab.is-active.ap-tab--intervention { border-color: #fcd34d; background: #fffbeb; box-shadow: 0 6px 16px rgba(245, 158, 11, 0.14); }
+.ap-tab.is-active.ap-tab--mechanism { border-color: #c4b5fd; background: #f5f3ff; box-shadow: 0 6px 16px rgba(139, 92, 246, 0.14); }
+.ap-tab-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ap-tab-eyebrow { font-size: 10.5px; font-weight: 800; letter-spacing: 0.06em; color: #94a3b8; }
+.ap-tab-label { font-size: 14px; font-weight: 800; color: #0f172a; }
+.ap-tab-desc { font-size: 11.5px; color: #94a3b8; }
+.ap-tab-count { flex: 0 0 auto; padding: 2px 8px; border-radius: 999px; background: #eef2ff; color: #4338ca; font-size: 11.5px; font-weight: 700; }
+.ap-tab--observe.is-active .ap-tab-count { background: #dbeafe; color: #1d4ed8; }
+.ap-tab--intervention.is-active .ap-tab-count { background: #fef3c7; color: #b45309; }
+.ap-tab--mechanism.is-active .ap-tab-count { background: #ede9fe; color: #6d28d9; }
+
+.ap-body { display: grid; grid-template-columns: 300px 1fr; gap: 14px; }
+.ap-side { border: 1px solid var(--plan-border); border-radius: 12px; background: #fbfcfe; padding: 14px; }
+.ap-side-eyebrow { margin: 0 0 6px; color: #94a3b8; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; }
+.ap-side-title { margin: 0 0 12px; font-size: 17px; font-weight: 800; }
+.ap-side-label { margin: 12px 0 5px; color: #3730a3; font-size: 12px; font-weight: 700; }
+.ap-side-question { margin: 0; font-size: 13.5px; font-weight: 700; color: #1d4ed8; line-height: 1.6; }
+.ap-side-select { width: 100%; }
+.ap-side-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.ap-side-list li { position: relative; padding-left: 12px; color: #475569; font-size: 12.5px; line-height: 1.6; }
+.ap-side-list li::before { content: '·'; position: absolute; left: 2px; color: #94a3b8; }
+.ap-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ap-chip { padding: 2px 8px; border-radius: 6px; background: #eef2ff; color: #4338ca; font-size: 11.5px; font-weight: 600; }
+.ap-chip--muted { background: #f1f5f9; color: #94a3b8; font-weight: 400; }
+
+.ap-groups { border: 1px solid var(--plan-border); border-radius: 12px; background: #fff; padding: 14px; }
+.ap-groups-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.ap-groups-eyebrow { margin: 0; color: #2563eb; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; }
+.ap-groups-title { margin: 4px 0 0; font-size: 16px; font-weight: 800; }
+.ap-groups-sub { margin: 4px 0 0; color: #94a3b8; font-size: 12px; }
+.ap-empty { margin: 0; padding: 18px; border: 1px dashed #dbe3f1; border-radius: 10px; color: #94a3b8; font-size: 12.5px; text-align: center; }
+.ap-group { position: relative; margin-bottom: 10px; padding: 12px 14px; border: 1px solid var(--plan-border); border-radius: 12px; background: #fbfcfe; }
+.ap-group::before { content: ''; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 0 3px 3px 0; }
+.ap-group--observe::before { background: #3b82f6; }
+.ap-group--intervention::before { background: #f59e0b; }
+.ap-group--mechanism::before { background: #8b5cf6; }
+.ap-group-remove { position: absolute; top: 8px; right: 10px; width: 22px; height: 22px; border: none; border-radius: 50%; background: transparent; color: #cbd5e1; font-size: 15px; line-height: 1; cursor: pointer; }
+.ap-group-remove:hover { background: #fee2e2; color: #dc2626; }
+.ap-group-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.ap-group-id { flex: 0 0 auto; padding: 2px 8px; border-radius: 6px; background: #eef2ff; color: #4338ca; font-size: 11.5px; font-weight: 800; }
+.ap-group-name { flex: 1; min-width: 0; border: none; border-bottom: 1px dashed transparent; background: transparent; font-size: 14.5px; font-weight: 800; color: #0f172a; outline: none; font-family: inherit; }
+.ap-group-name:focus { border-bottom-color: #a5b4fc; }
+.ap-group-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ap-field { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: #64748b; }
+.ap-field--wide { grid-column: 1 / -1; }
+.ap-field input { padding: 7px 10px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; font-family: inherit; font-size: 12.5px; color: #0f172a; outline: none; }
+.ap-field input:focus { border-color: #93c5fd; }
+.ap-group-foot { display: flex; gap: 18px; margin: 10px 0 0; color: #94a3b8; font-size: 11.5px; }
+.ap-group-foot b { color: #475569; font-weight: 700; }
+.ap-answer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 14px; padding: 12px 16px; border: 1px solid #e3ebfb; border-radius: 12px; background: #f8fafc; flex-wrap: wrap; }
+.ap-answer-label { margin: 0 0 4px; color: #94a3b8; font-size: 11.5px; }
+.ap-answer-text { margin: 0; font-size: 14px; font-weight: 800; color: #1d4ed8; }
+.ap-outputs { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 0; padding: 0; list-style: none; }
+.ap-outputs li { color: #475569; font-size: 12.5px; }
+
+/* ── 分析路径 ───────────── */
+.path-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.path-item { display: flex; gap: 10px; padding: 12px 14px; border: 1px solid var(--plan-border); border-top: 3px solid #93c5fd; border-radius: 12px; background: #fff; }
+.path-item--observe { border-top-color: #3b82f6; }
+.path-item--intervention { border-top-color: #f59e0b; }
+.path-item--mechanism { border-top-color: #8b5cf6; }
+.path-index { flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%; background: #eef2ff; color: #4338ca; font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+.path-main { min-width: 0; }
+.path-title { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13.5px; font-weight: 800; }
+.path-count { padding: 1px 7px; border-radius: 999px; background: #f1f5f9; color: #64748b; font-size: 11px; font-weight: 700; }
+.path-question { margin: 5px 0 0; color: #475569; font-size: 12.5px; line-height: 1.6; }
+.path-answer { margin: 5px 0 0; color: #2563eb; font-size: 12px; font-weight: 600; }
+
+.epd-subnav { position: sticky; top: 0; z-index: 6; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0 0 14px; padding: 8px 12px; border: 1px solid var(--plan-border); border-radius: 10px; background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(6px); }
+.epd-subnav-back { padding: 4px 10px; border: 1px solid #cbd5e1; border-radius: 999px; background: #fff; color: #475569; font-size: 12px; cursor: pointer; }
+.epd-subnav-back:hover { border-color: #93c5fd; color: #1d4ed8; }
+.epd-subnav-sep { width: 1px; height: 18px; background: #e2e8f0; }
+.epd-subnav-item { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border: none; border-radius: 8px; background: transparent; color: #475569; font-size: 12.5px; cursor: pointer; }
+.epd-subnav-item:hover { background: #eef2ff; color: #4338ca; }
+.epd-subnav-icon { font-size: 13px; }
+.ap-fixed { margin: 0 0 14px; padding: 9px 12px; border: 1px solid #bbf7d0; border-radius: 10px; background: #f0fdf4; color: #166534; font-size: 12px; line-height: 1.6; }
+.ap-side-intent { margin: 6px 0 0; color: #64748b; font-size: 12px; line-height: 1.6; }
+.ap-side-actions { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
+.ap-side-action { width: 100%; margin: 0 !important; }
+.ap-side-action--text { color: #64748b; }
+.ap-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
+.ap-nav-tip { color: #94a3b8; font-size: 11.5px; }
+@media (max-width: 1080px) { .ap-body { grid-template-columns: 1fr; } }
 @media (max-width: 1280px) {
   .exp-plan-design.has-assistant { padding-right: 16px; }
 }

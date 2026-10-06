@@ -3,6 +3,8 @@
     <!-- K5-PIPELINE:实验闭环导航(运行实验 → 观察 → 干预 → 机制),实验 id 从 URL 带入 -->
     <ExperimentStageNav :experiment-id="routeExperimentId" current="mechanism" />
 
+    <PlanGroupStrip stage="mechanism" />
+
     <!-- P2：机制分析横切因果阶梯三层（论文：机制分析是核心，行为机制分析可设计各种反事实实验） -->
     <section class="evidence-level" role="note">
       <span class="evidence-level__badge">机制分析 · 横切三层</span>
@@ -282,6 +284,7 @@ import { postCounterfactualReasoning } from '@/api/counterfactual'
 import { unwrapApiData } from '@/utils/apiEnvelope'
 import VerticalCausalGraph from './components/VerticalCausalGraph.vue'
 import ExperimentStageNav from '@/components/SCnet/ExperimentStageNav.vue'
+import PlanGroupStrip from '@/components/SCnet/PlanGroupStrip.vue'
 import { useSupplyChainScenario } from '@/composables/useSupplyChainScenario'
 import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 import { PLAN_CONTEXT_KEYS } from '@/constants/scnetExperimentPlan'

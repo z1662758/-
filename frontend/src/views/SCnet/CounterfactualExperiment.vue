@@ -564,6 +564,7 @@ import { filterExperimentsByScenario, sortExperimentsByRecency } from '@/composa
 import {
   toFiniteNumber, normalizeRate, roundNumber, detectUraniumReport,
   buildCatalogIndex, AUTO_FACTOR_NAMES,
+  buildAutoParameterControls,
   buildCounterfactualParameterControls as buildPanelControls
 } from '@/utils/scnetPanelParams'
 
@@ -831,7 +832,14 @@ const parseNumberFromText = (text, fallback = 0) => {
   return match ? toFiniteNumber(match[0], fallback) : fallback
 }
 
-const buildStoredParameterFallback = (experiment) => {
+const buildStoredParameterFallback = (experiment, catalog = null) => {
+  // 目录可用时优先走与「实验方案设计」页同一份面板口径（汽车场景按目录决定输入框），
+  // 否则这里固定给 adjustment_ratio、不给 collaboration_radius，会和设计页对不上：
+  // 设计页标可写入的变量到平台被拦、平台真有的输入框在设计页反被置灰。
+  if (catalog && !detectUraniumReport(experiment?.report)) {
+    const controls = buildAutoParameterControls(experiment?.report, catalog)
+    if (controls.length) return controls
+  }
   const parameters = experiment?.report?.parametersToModify || []
   const demand = parameters.find((item) => item.key === 'order_multiplier')
   const capacity = parameters.find((item) => item.key === 'factory_capacity_range')
@@ -1171,7 +1179,7 @@ const normalizeStoredExperiments = (storedExperiments) => {
           }
         }
         if (restored.report && !Array.isArray(restored.report.counterfactualParameters)) {
-          restored.report.counterfactualParameters = buildStoredParameterFallback(restored)
+          restored.report.counterfactualParameters = buildStoredParameterFallback(restored, autoCatalog.value)
         }
         return restored
       })
@@ -1604,6 +1612,12 @@ const buildSharedRunBase = (seed) => {
         label: item.label,
         value: item.value,
         unit: item.unit
+      })),
+      // 方案设计页勾选的目标指标：随运行一起提交后端，供观察分析/报告对齐口径
+      selected_metrics: (Array.isArray(activePlan.value?.metrics) ? activePlan.value.metrics : []).map((metric) => ({
+        key: metric.key,
+        label: metric.label,
+        analysis_key: metric.analysisKey || ''
       }))
     }
   }
@@ -2529,7 +2543,7 @@ const handleReportUpload = async (event) => {
 
 const applyCounterfactualObject = (experiment) => {
   if (experiment.report && !Array.isArray(experiment.report.counterfactualParameters)) {
-    experiment.report.counterfactualParameters = buildStoredParameterFallback(experiment)
+    experiment.report.counterfactualParameters = buildStoredParameterFallback(experiment, autoCatalog.value)
   }
   // 将参数保存到该实验的独立副本中
   const parameters = experiment.report?.counterfactualParameters || []
