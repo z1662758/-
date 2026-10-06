@@ -39,6 +39,12 @@
           <template #title>知识平台</template>
         </el-menu-item>
 
+        <!--	返回想定生成（回到对话/想定页）	-->
+        <el-menu-item index="/chatHome" class="back-select-item">
+          <el-icon size="18"><ChatDotSquare/></el-icon>
+          <template #title>想定生成</template>
+        </el-menu-item>
+
         <!-- ===== 以下随阶段（事前 / 事中 / 事后）整组切换 ===== -->
         <!-- li 而非 div：el-menu 渲染的就是 ul，插 div 是非法嵌套 -->
         <li class="phase-menu-divider" aria-hidden="true"></li>
@@ -217,7 +223,7 @@
 <script>
 import {
   Aim, Box, Coin, Collection, Connection, DataAnalysis, DataLine, Document, DocumentDelete, Edit,
-  FolderOpened, Grid, House, MapLocation, Memo, Monitor, Notification, Operation, Orange,
+  FolderOpened, Grid, House, Memo, Monitor, Notification, Operation, Orange,
   PieChart, Place, Postcard, Promotion, ScaleToOriginal, Search as SearchIcon, Setting,
   SwitchButton, TrendCharts, User, WarningFilled, ChatDotSquare, CircleCheck
 } from "@element-plus/icons-vue";
@@ -225,15 +231,9 @@ import {ref, onMounted, onUnmounted, computed, watch} from "vue";
 import {useRoute} from "vue-router";
 import {Files, Refresh} from "@element-plus/icons-vue";
 import AppHeader from "@/components/Header.vue";
-import EventPhaseStepper from "@/components/EventPhaseStepper.vue";
 import ScnetPhaseNav from "@/components/ScnetPhaseNav.vue";
 import ExpertWorkflowProgressFloat from "@/views/SCnet/components/ExpertWorkflowProgressFloat.vue";
 import { useExpertWorkflowStore } from "@/stores/scnet/useExpertWorkflowStore";
-import { useDuringFlowSteps, routeToStepKey } from "@/views/SCnet/composables/useDuringFlowSteps";
-import {
-  useDuringFlowSteps as useUraniumDuringFlowSteps,
-  routeToStepKey as uraniumRouteToStepKey
-} from "@/views/SCnet/composables/useDuringFlowSteps_uranium";
 import { useScenarioStore } from "@/stores/scenario";
 import { useKnowledgePlatform } from "@/views/SCnet/composables/useKnowledgePlatform";
 import { PHASE_EVENT, PHASE_STORAGE_KEY, ROUTE_TO_PHASE } from "@/constants/scnetPhase";
@@ -282,19 +282,19 @@ const DURING_ANALYSIS_MENU_ITEMS = Object.freeze([
 
 // 实验分析子菜单之前展示的主菜单项
 const POST_MAIN_MENU_ITEMS = Object.freeze([
-  { index: '/home/SCnet/counterfactualExperiment', label: '反事实实验', icon: PieChart }
+  { index: '/home/SCnet/experimentPlan', label: '实验方案设计', icon: Edit },
+  { index: '/home/SCnet/counterfactualExperiment', label: '反事实实验平台', icon: PieChart }
 ])
 
 const POST_ANALYSIS_MENU_ITEMS = Object.freeze([
   { index: '/home/SCnet/expAnalysisObserve', label: '观察分析', icon: SearchIcon },
   { index: '/home/SCnet/expAnalysisIntervention', label: '干预分析', icon: Operation },
-  { index: '/home/SCnet/expAnalysisMechanism', label: '机制与因果', icon: ScaleToOriginal }
+  { index: '/home/SCnet/expAnalysisMechanism', label: '机制分析', icon: ScaleToOriginal }
 ])
 
 // 实验分析子菜单之后展示的主菜单项
 const POST_TAIL_MENU_ITEMS = Object.freeze([
-  { index: '/home/SCnet/expAnalysisMap', label: '供应链态势地图', icon: MapLocation },
-  { index: '/home/SCnet/EXreport', label: '供应链实验报告', icon: Postcard }
+  { index: '/home/SCnet/EXreport', label: '复盘报告', icon: Postcard }
 ])
 
 export default {
@@ -335,25 +335,6 @@ export default {
 
     // 场景标签
     const scenarioLabel = computed(() => currentScenario.value === 'supply_chain' ? '🚗 汽车' : '☢️ 铀')
-
-    // ── 知识库（左侧栏常驻入口）──
-    // 与 /SCnet/total 右上角「知识平台」共用同一个全屏浮层
-    const {
-      KnowledgePlatform,
-      visible: showKnowledgePlatform,
-      open: openKnowledgePlatform,
-      close: closeKnowledgePlatform
-    } = useKnowledgePlatform()
-    /**
-     * 知识库菜单项不是真路由：el-menu 开了 router 模式，会把 index 当 path 推。
-     * 这里把 route 顶成"当前地址"，push 退化成重复导航（不跳转、不报错），
-     * 菜单项的选中态再由 onMenuSelect 跳过，避免它把高亮抢走。
-     */
-    const currentLocation = computed(() => ({
-      path: route.path,
-      query: route.query,
-      hash: route.hash
-    }))
 
     // ── 知识库（左侧栏常驻入口）──
     // 与 /SCnet/total 右上角「知识平台」共用同一个全屏浮层
@@ -478,11 +459,6 @@ export default {
       postMainMenuItems: POST_MAIN_MENU_ITEMS,
       postAnalysisMenuItems: POST_ANALYSIS_MENU_ITEMS,
       postTailMenuItems: POST_TAIL_MENU_ITEMS,
-      duringSteps,
-      duringCurrentKey,
-      showDuringFlowStepper,
-      isDuringStepCompleted,
-      onDuringStepClick,
       showExpertProgress
     }
   },
