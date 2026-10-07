@@ -5,253 +5,276 @@
 
     <PlanGroupStrip stage="intervention" />
 
-    <!-- P2：因果阶梯定位条 —— 干预分析 = 第 2 层·干预（do(X)） -->
-    <section class="evidence-level" role="note">
-      <span class="evidence-level__badge">因果阶梯 · 第 2 层</span>
-      <div class="evidence-level__body">
-        <p class="evidence-level__title">本页是「干预级」证据：看的是 do(X) 的效果</p>
-        <p class="evidence-level__desc">
-          策略库里的每条策略都是一次「打算施加的干预」——改的是产能、阈值、协作范围这些变量本身。
-          但只有真的跑出实验、且两次运行除该策略外其它条件可比时，A/B 差异才算干预效应；
-          若手里只有策略自带的<b>预置参数</b>，那仍然只是设计意图，不构成实验证据。
-          第 1 层看「谁和谁一起变」（观察分析），第 3 层看「这次结果若当时 X 不同会怎样」（反事实实验）。
-        </p>
-      </div>
-    </section>
-
     <section class="page-head">
       <div>
         <h1>干预分析与异常检测</h1>
         <p class="subtitle">基于实验结果进行干预策略对比评估，检测指标突变与网络异常。</p>
       </div>
       <div class="head-actions">
-        <span class="inline-stat">异常 <b>{{ anomalyCount }}</b></span>
-        <span class="inline-stat inline-stat--danger">高严重 <b>{{ highSeverityCount }}</b></span>
+        <div class="stat-item">
+          <span>异常事件</span>
+          <strong>{{ anomalyCount }}</strong>
+        </div>
+        <div class="stat-item stat-item--danger">
+          <span>高严重</span>
+          <strong>{{ highSeverityCount }}</strong>
+        </div>
       </div>
     </section>
 
-    <div class="intervention-layout">
-      <!-- 篮筐1：干预策略库 -->
-      <aside class="observe-panel observe-panel--lib">
-        <div class="panel-head-bar panel-head-bar--blue">
-          <el-icon><Folder /></el-icon>
-          <span>干预策略库</span>
+    <!-- 干预分析子问题：把用户的实验目的拆成干预阶段要回答的子问题，默认展开 -->
+    <section class="iv-subq">
+      <header class="iv-subq__head">
+        <span class="iv-subq__badge">干预分析子问题</span>
+        <p class="iv-subq__main">围绕「{{ interventionProblem }}」，{{ subqLead }}</p>
+        <button type="button" class="iv-subq__toggle" @click="subqOpen = !subqOpen">{{ subqOpen ? '收起' : '展开' }}</button>
+      </header>
+      <div v-show="subqOpen" class="iv-subq__body">
+        <ul class="iv-subq__list">
+          <li v-for="item in interventionSubQuestions" :key="item.key">
+            <b>{{ item.title }}</b>：{{ item.text }}
+          </li>
+        </ul>
+        <p class="iv-subq__label">本阶段回答</p>
+        <p class="iv-subq__answer">{{ interventionStageAnswer }}</p>
+        <p class="iv-subq__source">{{ subqSourceText }}</p>
+      </div>
+    </section>
+
+    <!-- ===== 干预实验树 + 横向因果图（中间结论）=====
+         影响因素组合与「SEM 预测响应」为前端示例口径（已在界面标注「示例数据」）；
+         横向因果图的路径系数优先取后端实测 structural_model。 -->
+    <section class="iv-top">
+      <div class="iv-top__tabs" role="tablist">
+        <button
+          class="iv-top__tab" :class="{ 'is-active': topTab === 'tree' }"
+          role="tab" :aria-selected="topTab === 'tree'"
+          @click="topTab = 'tree'"
+        >干预实验树 · 影响因素组合</button>
+        <button
+          class="iv-top__tab" :class="{ 'is-active': topTab === 'causal' }"
+          role="tab" :aria-selected="topTab === 'causal'"
+          @click="topTab = 'causal'"
+        >横向因果图 · 中间结论</button>
+        <button
+          class="iv-top__tab" :class="{ 'is-active': topTab === 'sem' }"
+          role="tab" :aria-selected="topTab === 'sem'"
+          @click="topTab = 'sem'"
+        >结构方程模型 · SEM</button>
+        <button
+          class="iv-top__tab" :class="{ 'is-active': topTab === 'compare' }"
+          role="tab" :aria-selected="topTab === 'compare'"
+          @click="topTab = 'compare'"
+        >策略对比 · 统计检验</button>
+      </div>
+
+      <!-- 策略选择条：原「干预策略库」的选取与运行入口，常驻在中间结论区 -->
+      <div class="iv-top__picks">
+        <span class="iv-pick">
+          <span class="iv-pick__badge iv-pick__badge--a">A</span>
+          <el-select
+            :model-value="currentStrategy.id || ''"
+            placeholder="选择策略A" size="small" class="iv-pick__select"
+            @change="(id) => setStrategyBySlot('primary', id)"
+          >
+            <el-option-group v-for="folder in strategyFolders" :key="folder.id" :label="folder.label">
+              <el-option v-for="child in folder.children" :key="child.id" :label="child.name" :value="child.id" />
+            </el-option-group>
+          </el-select>
+        </span>
+        <span class="iv-pick__vs">VS</span>
+        <span class="iv-pick">
+          <span class="iv-pick__badge iv-pick__badge--b">B</span>
+          <el-select
+            :model-value="selectedStrategy?.id || ''"
+            placeholder="选择策略B" size="small" class="iv-pick__select"
+            @change="(id) => setStrategyBySlot('secondary', id)"
+          >
+            <el-option-group v-for="folder in strategyFolders" :key="folder.id" :label="folder.label">
+              <el-option v-for="child in folder.children" :key="child.id" :label="child.name" :value="child.id" />
+            </el-option-group>
+          </el-select>
+        </span>
+        <span class="head-spacer"></span>
+        <el-button type="primary" size="small" :icon="VideoPlay" :loading="runState.running" @click="startInterventionRun()">
+          {{ runState.running ? '运行中' : '开始运行' }}
+        </el-button>
+        <el-dropdown trigger="click" @command="exportRunReport">
+          <el-button size="small" plain :icon="Download" :disabled="!hasRunResults">导出结果</el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="html">HTML（.html）</el-dropdown-item>
+              <el-dropdown-item command="txt">文本（.txt）</el-dropdown-item>
+              <el-dropdown-item command="pdf">PDF（打印保存）</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
+
+      <div v-show="topTab === 'tree'" class="iv-top__body iv-top__body--split">
+        <div class="iv-top__left">
+          <InterventionExperimentTree
+            :factors="treeFactors"
+            :experiments="treeExperiments"
+            :selected-id="selectedExperimentId"
+            @select="selectExperiment"
+          />
         </div>
-        <div class="slot-switch">
-          <el-radio-group v-model="activeStrategySlot" size="small">
-            <el-radio-button label="primary">选择策略A</el-radio-button>
-            <el-radio-button label="secondary">选择策略B</el-radio-button>
-          </el-radio-group>
-        </div>
-        <div class="panel-body-fill">
-          <div v-for="folder in strategyFolders" :key="folder.id" class="tree-folder">
-            <div class="tree-folder-head" :class="{ expanded: folder.expanded }" @click="folder.expanded = !folder.expanded">
-              <el-icon><component :is="folderToggleIcon(folder.expanded)" /></el-icon>
-              <el-icon><FolderOpened v-if="folder.expanded" /><Folder v-else /></el-icon>
-              <span class="folder-name">{{ folder.label }}</span>
-              <span class="folder-count">{{ folder.children.length }}</span>
+        <aside class="iv-top__right">
+          <div class="iv-exp-card">
+            <header class="iv-exp-card__head">
+              <el-icon><Promotion /></el-icon>
+              <span>{{ selectedExperiment?.label || '未选择实验' }}</span>
+              <span class="head-spacer"></span>
+              <span class="iv-exp-card__demo">示例数据</span>
+            </header>
+            <div v-if="selectedExperiment" class="iv-exp-card__body">
+              <div class="iv-exp-combo">
+                <span v-for="chip in selectedExperimentChips" :key="chip.key" class="iv-exp-chip">{{ chip.label }}</span>
+              </div>
+              <div class="iv-exp-outcome">
+                <span class="iv-exp-outcome__label">SEM 预测响应</span>
+                <b class="iv-exp-outcome__value">{{ semPredictedOutcome }}</b>
+              </div>
+              <p class="iv-exp-note">{{ semPredictionNote }}</p>
             </div>
-            <div v-show="folder.expanded" class="tree-folder-children">
-              <div
-                v-for="child in folder.children" :key="child.id"
-                class="tree-leaf"
-                :class="{
-                  active: isStrategySelected(child.id),
-                  'active-primary': currentStrategy.id === child.id,
-                  'active-secondary': selectedStrategy?.id === child.id
-                }"
-                @click="selectStrategy(child)"
-              >
-                <el-icon><Document /></el-icon>
-                <span class="leaf-name">{{ child.name }}</span>
-                <span v-if="currentStrategy.id === child.id" class="leaf-badge leaf-badge--primary">A</span>
-                <span v-if="selectedStrategy?.id === child.id" class="leaf-badge leaf-badge--secondary">B</span>
+            <div v-else class="iv-exp-card__body">
+              <p class="iv-exp-pending">在左侧实验树里逐层选择档位，点末级「实验N」查看该组合的干预结果。</p>
+              <ul class="iv-exp-factors">
+                <li v-for="f in treeFactors" :key="f.key">
+                  <span class="iv-exp-factors__name">{{ f.label }}</span>
+                  <span class="iv-exp-factors__levels">{{ f.levels.map((l) => l.label).join(' / ') }}</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <div v-show="topTab === 'causal'" class="iv-top__body">
+        <HorizontalCausalGraph
+          :sides="horizontalSides"
+          :fallback="SEM_DEMO_COEF"
+          :conclusion="horizontalConclusion"
+        />
+      </div>
+
+      <div v-show="topTab === 'sem'" class="iv-top__body">
+        <div v-if="!currentStrategy.id || !selectedStrategy" class="iv-exp-card__empty">
+          先在上方策略选择条里选定策略 A / 策略 B，再查看结构方程路径模型
+        </div>
+        <div
+          v-show="currentStrategy.id && selectedStrategy"
+          ref="topSemChartRef"
+          class="sem-chart iv-top__sem"
+        ></div>
+      </div>
+
+      <!-- 策略对比与统计检验：原底部三列「策略对比 / 干预策略对比」的数据 -->
+      <div v-show="topTab === 'compare'" class="iv-top__body iv-top__body--compare">
+        <div v-if="!currentStrategy.id || !selectedStrategy" class="compare-empty">
+          <el-icon :size="38"><DataAnalysis /></el-icon>
+          <p>选择两个干预策略后查看对比详情</p>
+          <span>在上方策略选择条里分别指定策略 A 与策略 B，即可组成可调整的双策略对比</span>
+        </div>
+
+        <div v-else class="compare-content">
+          <div class="cmp-card cmp-card--unified cmp-card--sm">
+            <div class="cmp-card-head">
+              <span>策略对比</span>
+              <span class="head-spacer"></span>
+              <span class="cmp-card-pip blue"></span><span>策略A</span>
+              <span class="cmp-card-pip purple" style="margin-left:8px"></span><span>策略B</span>
+            </div>
+            <div class="cmp-card-body">
+              <div class="strategy-compare-table">
+                <div class="strategy-compare-header">
+                  <span class="sc-label-col"></span>
+                  <span class="sc-val-col sc-val--a">{{ currentStrategy.name }}</span>
+                  <span class="sc-val-col sc-val--b">{{ selectedStrategy.name }}</span>
+                </div>
+                <div class="strategy-compare-row" v-for="f in strategyAllFields" :key="f.key">
+                  <span class="sc-label-col">{{ f.label }}</span>
+                  <span class="sc-val-col sc-val--a">{{ currentStrategy[f.key] || '--' }}</span>
+                  <span class="sc-val-col sc-val--b">{{ selectedStrategy[f.key] || '--' }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="cmp-card cmp-card--stats">
+            <div class="cmp-card-head">
+              <el-icon><DataAnalysis /></el-icon>
+              <span>统计检验与综合评分</span>
+              <span class="head-spacer"></span>
+              <el-tag size="small" type="info" round>{{ statsLoading ? '计算中' : 'Welch t 检验' }}</el-tag>
+            </div>
+            <div class="cmp-card-body">
+              <p v-if="comparisonHint" class="stats-hint">{{ comparisonHint }}</p>
+              <template v-else>
+                <div class="score-row">
+                  <span class="score-chip score-chip--a">策略A 综合评分 {{ comparison?.strategy_a?.score ?? '--' }} · 第 {{ comparison?.strategy_a?.rank ?? '--' }} 名</span>
+                  <span class="score-chip score-chip--b">策略B 综合评分 {{ comparison?.strategy_b?.score ?? '--' }} · 第 {{ comparison?.strategy_b?.rank ?? '--' }} 名</span>
+                </div>
+                <p class="stats-note">{{ scoringSummary }}</p>
+                <div class="strategy-compare-table stats-table">
+                  <div class="strategy-compare-header">
+                    <span class="sc-label-col">指标</span>
+                    <span class="sc-val-col sc-val--a">策略A 均值（样本量）</span>
+                    <span class="sc-val-col sc-val--b">策略B 均值（样本量）</span>
+                    <span class="sc-val-col">差值（95%CI）/ p / 效应量</span>
+                    <span class="sc-val-col">检验结论</span>
+                  </div>
+                  <div class="strategy-compare-row" v-for="row in comparisonStats" :key="row.key">
+                    <span class="sc-label-col">{{ row.label }}</span>
+                    <span class="sc-val-col sc-val--a">{{ formatStatValue(row.mean_a, row.kind) }}<span v-if="row.available && row.n_a != null" class="stats-muted"> (n={{ row.n_a }})</span></span>
+                    <span class="sc-val-col sc-val--b">{{ formatStatValue(row.mean_b, row.kind) }}<span v-if="row.available && row.n_b != null" class="stats-muted"> (n={{ row.n_b }})</span></span>
+                    <span class="sc-val-col">
+                      <template v-if="row.available">
+                        {{ formatSigned(row.mean_diff, row.kind) }}<span v-if="row.ci_95" class="stats-muted">（95%CI {{ formatCI(row.ci_95, row.kind) }}）</span>
+                        <br />p={{ formatPValue(row.p_value) }}<span class="stats-muted">（校正后 {{ formatPValue(row.p_adjusted) }}）</span>
+                        <br />d={{ row.cohens_d }}<span v-if="row.effect_note" class="stats-muted">（{{ row.effect_note }}）</span>
+                      </template>
+                      <template v-else>--</template>
+                    </span>
+                    <span class="sc-val-col">
+                      <el-tag v-if="row.available" size="small" :type="rowAdjustedSignificant(row) ? 'success' : 'info'" round>{{ rowVerdictText(row) }}</el-tag>
+                      <span v-else class="stats-muted">{{ row.unavailable_reason || '无法检验' }}</span>
+                    </span>
+                  </div>
+                </div>
+                <p class="stats-note stats-note--muted">
+                  口径：以月度为观测单位（n = 该策略的月度观测数）的 Welch t 检验 + Cohen's d + Bonferroni 多重检验校正；
+                  <b>判定优劣只看校正后的 p 值</b>，未通过校正的差异一律记为「校正后不显著」，不据此排序。
+                  注意月度数之间高度自相关，Welch t 的独立性假设并不严格成立，p 值用于筛信号而非精确推断；
+                  要得到可推断的区间，需按计算实验规范固定随机种子做多次独立重复（见「反事实实验」的成对世界）。
+                  综合评分为组内相对排名分，反映的是「本组策略内」的相对位置。
+                </p>
+              </template>
+            </div>
+          </div>
+
+          <div class="cmp-card cmp-card--conclusion">
+            <div class="cmp-card-head"><el-icon><Setting /></el-icon><span>策略A vs 策略B · 综合结论</span></div>
+            <div class="cmp-card-body">
+              <p class="conclusion-text">{{ interventionConclusion }}</p>
+              <p class="conclusion-evidence" :class="{ 'conclusion-evidence--warn': conclusionEvidence.level !== 'verified' }">{{ conclusionEvidence.text }}</p>
+              <div v-if="runState.running" class="run-inline-status">⏳ 正在运行干预策略对比实验...</div>
+              <div v-else-if="runState.error" class="run-inline-status run-inline-status--error">{{ runState.error }}</div>
+              <div v-else-if="hasRunResults" class="run-inline-result">
+                <span v-for="row in runComparisonRows" :key="row.key" class="run-result-chip">
+                  {{ row.label }}：A {{ row.primary }} / B {{ row.secondary }}
+                </span>
               </div>
             </div>
           </div>
         </div>
-      </aside>
-
-      <!-- 篮筐2：策略对比 -->
-      <section class="observe-panel observe-panel--cmp">
-        <div class="panel-head-bar panel-head-bar--blue">
-          <el-icon><DataAnalysis /></el-icon>
-          <span>策略对比</span>
-          <span class="head-spacer"></span>
-          <el-tag size="small" type="primary" round>策略 A</el-tag>
-          <span class="vs-inline vs-inline--sm">VS</span>
-          <el-tag size="small" type="success" round>策略 B</el-tag>
-        </div>
-        <div class="panel-body-fill">
-          <div class="strategy-compare-table">
-            <div class="strategy-compare-header">
-              <span class="sc-label-col"></span>
-              <span class="sc-val-col sc-val--a">策略 A</span>
-              <span class="sc-val-col sc-val--b">策略 B</span>
-            </div>
-            <div class="strategy-compare-row" v-for="f in strategyInfoFields" :key="f.key">
-              <span class="sc-label-col">{{ f.label }}</span>
-              <span class="sc-val-col sc-val--a">{{ currentStrategy[f.key] || '--' }}</span>
-              <span class="sc-val-col sc-val--b" :class="{ muted: !selectedStrategy }">{{ selectedStrategy?.[f.key] || '--' }}</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 篮筐3：干预策略对比 -->
-      <section class="observe-panel observe-panel--chart">
-        <div class="panel-head-bar panel-head-bar--purple">
-          <el-icon :size="18"><TrendCharts /></el-icon>
-          <span>干预策略对比</span>
-          <el-tag size="small" type="info" round style="margin-left:auto">对比视图</el-tag>
-        </div>
-
-        <div class="panel-body-fill compare-body">
-            <div v-if="!currentStrategy.id || !selectedStrategy" class="compare-empty">
-              <el-icon :size="44"><TrendCharts /></el-icon>
-              <p>选择两个干预策略后查看对比详情</p>
-              <span>先指定策略A或策略B，再在左侧干预策略库中点击策略，即可组成可调整的双策略对比</span>
-            </div>
-
-            <div v-else class="compare-content">
-              <!-- AB策略参数+效果 水平共用列名 -->
-              <div class="cmp-card cmp-card--unified cmp-card--sm">
-                <div class="cmp-card-head">
-                  <span>策略对比</span>
-                  <span class="head-spacer"></span>
-                  <span class="cmp-card-pip blue"></span><span>策略A</span>
-                  <span class="cmp-card-pip purple" style="margin-left:8px"></span><span>策略B</span>
-                </div>
-                <div class="cmp-card-body">
-                  <div class="strategy-compare-table">
-                    <div class="strategy-compare-header">
-                      <span class="sc-label-col"></span>
-                      <span class="sc-val-col sc-val--a">{{ currentStrategy.name }}</span>
-                      <span class="sc-val-col sc-val--b">{{ selectedStrategy.name }}</span>
-                    </div>
-                    <div class="strategy-compare-row" v-for="f in strategyAllFields" :key="f.key">
-                      <span class="sc-label-col">{{ f.label }}</span>
-                      <span class="sc-val-col sc-val--a">{{ currentStrategy[f.key] || '--' }}</span>
-                      <span class="sc-val-col sc-val--b">{{ selectedStrategy[f.key] || '--' }}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 统计检验与综合评分（后端结算） -->
-            <div class="cmp-card cmp-card--stats" v-if="currentStrategy.id && selectedStrategy">
-              <div class="cmp-card-head">
-                <el-icon><DataAnalysis /></el-icon>
-                <span>统计检验与综合评分</span>
-                <span class="head-spacer"></span>
-                <el-tag size="small" type="info" round>{{ statsLoading ? '计算中' : 'Welch t 检验' }}</el-tag>
-              </div>
-              <div class="cmp-card-body">
-                <p v-if="comparisonHint" class="stats-hint">{{ comparisonHint }}</p>
-                <template v-else>
-                  <div class="score-row">
-                    <span class="score-chip score-chip--a">策略A 综合评分 {{ comparison?.strategy_a?.score ?? '--' }} · 第 {{ comparison?.strategy_a?.rank ?? '--' }} 名</span>
-                    <span class="score-chip score-chip--b">策略B 综合评分 {{ comparison?.strategy_b?.score ?? '--' }} · 第 {{ comparison?.strategy_b?.rank ?? '--' }} 名</span>
-                  </div>
-                  <p class="stats-note">{{ scoringSummary }}</p>
-                  <div class="strategy-compare-table stats-table">
-                    <div class="strategy-compare-header">
-                      <span class="sc-label-col">指标</span>
-                      <span class="sc-val-col sc-val--a">策略A 均值（样本量）</span>
-                      <span class="sc-val-col sc-val--b">策略B 均值（样本量）</span>
-                      <span class="sc-val-col">差值（95%CI）/ p / 效应量</span>
-                      <span class="sc-val-col">检验结论</span>
-                    </div>
-                    <div class="strategy-compare-row" v-for="row in comparisonStats" :key="row.key">
-                      <span class="sc-label-col">{{ row.label }}</span>
-                      <span class="sc-val-col sc-val--a">{{ formatStatValue(row.mean_a, row.kind) }}<span v-if="row.available && row.n_a != null" class="stats-muted"> (n={{ row.n_a }})</span></span>
-                      <span class="sc-val-col sc-val--b">{{ formatStatValue(row.mean_b, row.kind) }}<span v-if="row.available && row.n_b != null" class="stats-muted"> (n={{ row.n_b }})</span></span>
-                      <span class="sc-val-col">
-                        <template v-if="row.available">
-                           {{ formatSigned(row.mean_diff, row.kind) }}<span v-if="row.ci_95" class="stats-muted">（95%CI {{ formatCI(row.ci_95, row.kind) }}）</span>
-                           <br />p={{ formatPValue(row.p_value) }}<span class="stats-muted">（校正后 {{ formatPValue(row.p_adjusted) }}）</span>
-                          <br />d={{ row.cohens_d }}<span v-if="row.effect_note" class="stats-muted">（{{ row.effect_note }}）</span>
-                        </template>
-                        <template v-else>--</template>
-                      </span>
-                      <span class="sc-val-col">
-                        <el-tag v-if="row.available" size="small" :type="rowAdjustedSignificant(row) ? 'success' : 'info'" round>{{ rowVerdictText(row) }}</el-tag>
-                        <span v-else class="stats-muted">{{ row.unavailable_reason || '无法检验' }}</span>
-                      </span>
-                    </div>
-                  </div>
-                  <p class="stats-note stats-note--muted">
-                    口径：以月度为观测单位（n = 该策略的月度观测数）的 Welch t 检验 + Cohen's d + Bonferroni 多重检验校正；
-                    <b>判定优劣只看校正后的 p 值</b>，未通过校正的差异一律记为「校正后不显著」，不据此排序。
-                    注意月度数之间高度自相关，Welch t 的独立性假设并不严格成立，p 值用于筛信号而非精确推断；
-                    要得到可推断的区间，需按计算实验规范固定随机种子做多次独立重复（见「反事实实验」的成对世界）。
-                    综合评分为组内相对排名分，反映的是「本组策略内」的相对位置。
-                  </p>
-                </template>
-              </div>
-            </div>
-
-            <!-- AB综合结论 -->
-            <div class="cmp-card cmp-card--conclusion" v-if="currentStrategy.id && selectedStrategy">
-              <div class="cmp-card-head"><el-icon><Setting /></el-icon><span>策略A vs 策略B · 综合结论</span></div>
-              <div class="cmp-card-body">
-                <p class="conclusion-text">{{ interventionConclusion }}</p>
-                <p class="conclusion-evidence" :class="{ 'conclusion-evidence--warn': conclusionEvidence.level !== 'verified' }">{{ conclusionEvidence.text }}</p>
-                <div v-if="runState.running" class="run-inline-status">⏳ 正在运行干预策略对比实验...</div>
-                <div v-else-if="runState.error" class="run-inline-status run-inline-status--error">{{ runState.error }}</div>
-                <div v-else-if="hasRunResults" class="run-inline-result">
-                  <span v-for="row in runComparisonRows" :key="row.key" class="run-result-chip">
-                    {{ row.label }}：A {{ row.primary }} / B {{ row.secondary }}
-                  </span>
-                </div>
-                <div class="conclusion-actions">
-                  <el-button type="primary" size="small" :icon="VideoPlay" :loading="runState.running" @click="startInterventionRun()">
-                    {{ runState.running ? '运行中' : '开始运行' }}
-                  </el-button>
-                  <el-dropdown trigger="click" @command="exportRunReport">
-                    <el-button size="small" plain :icon="Download" :disabled="!hasRunResults">导出结果</el-button>
-                    <template #dropdown>
-                      <el-dropdown-menu>
-                        <el-dropdown-item command="html">HTML（.html）</el-dropdown-item>
-                        <el-dropdown-item command="txt">文本（.txt）</el-dropdown-item>
-                        <el-dropdown-item command="pdf">PDF（打印保存）</el-dropdown-item>
-                      </el-dropdown-menu>
-                    </template>
-                  </el-dropdown>
-                </div>
-              </div>
-            </div>
-
-            <!-- 结构方程可视化：A vs B 路径系数对比（后端实测估计） -->
-            <div class="sem-panel" v-if="currentStrategy.id && selectedStrategy">
-              <div class="sem-head">
-                <el-icon><Promotion /></el-icon>
-                <span>结构方程路径模型</span>
-                <el-tag size="small" :type="structuralModel?.available ? 'success' : 'info'" round>{{ structuralModel?.available ? '实测路径系数' : '结构示意' }}</el-tag>
-                <el-tooltip placement="top" effect="dark" :show-after="120">
-                  <template #content>
-                    <div class="sem-help-pop">
-                      以月度为观测单位做标准化 OLS：<br />
-                      需求压力（订单量）→ 协作强度 → 供应完成率<br />
-                      a、b 为两条中介路径系数，c′ 为控制协作强度后的直接效应，c 为总效应（c = c′ + a×b），间接效应用 Sobel 检验。<br />
-                      显著性：* p&lt;0.05，** p&lt;0.01，*** p&lt;0.001；灰色虚线表示该路径不显著。<br />
-                      β 为标准化路径系数，属统计关联结构，不做因果识别。
-                    </div>
-                  </template>
-                  <el-icon class="sem-help"><QuestionFilled /></el-icon>
-                </el-tooltip>
-              </div>
-              <div ref="semChartRef" class="sem-chart"></div>
-            </div>
-
-          </div>
-      </section>
-    </div>
+      </div>
+    </section>
 
     <!-- ===== 供应链态势地图：铀 / 汽车各自的网络拓扑与演化（原独立页面已并入本页）===== -->
     <section class="situation-map-section">
-      <!-- :experiment-id 让地图锁定与下方策略库 / 异常事件同一个实验，避免两处各看一份数据 -->
+      <!-- :experiment-id 让地图锁定与上方策略选择条 / 异常事件同一个实验，避免两处各看一份数据 -->
       <SupplyChainSituationMap :experiment-id="currentExperimentId" />
     </section>
 
@@ -315,8 +338,7 @@
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
-  ArrowDown, ArrowRight, DataAnalysis, DataLine, Document, Download, Folder,
-  FolderOpened, Promotion, QuestionFilled, Setting, TrendCharts, VideoPlay, WarningFilled
+  DataAnalysis, DataLine, Download, Promotion, Setting, VideoPlay, WarningFilled
 } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import { runExperiment } from '@/api/scenarioModeling'
@@ -327,6 +349,8 @@ import { resolveExperimentIdFromTask } from '@/utils/scnetTaskUtils'
 import ExperimentStageNav from '@/components/SCnet/ExperimentStageNav.vue'
 import PlanGroupStrip from '@/components/SCnet/PlanGroupStrip.vue'
 import { useSupplyChainScenario } from '@/composables/useSupplyChainScenario'
+import InterventionExperimentTree from '@/components/SCnet/InterventionExperimentTree.vue'
+import HorizontalCausalGraph from '@/components/SCnet/HorizontalCausalGraph.vue'
 
 // 供应链态势地图：由原独立页面抽成的面板（场景跟随全局选择，铀/汽车各自一张）
 const SupplyChainSituationMap = defineAsyncComponent(
@@ -525,14 +549,14 @@ const selectAnomaly = async (index) => {
   } catch (e) { console.warn('加载异常详情失败:', e) }
 }
 
-const activeStrategySlot = ref('secondary')
-
-const strategyInfoFields = [
-  { key: 'name', label: '策略' },
-  { key: 'desc', label: '核心参数' },
-  { key: 'mechanism', label: '机制' },
-  { key: 'trigger', label: '触发' }
-]
+// 策略选择条：按 id 在策略库（含文件夹）里定位策略对象
+const findStrategyById = (strategyId) => {
+  for (const folder of strategyFolders) {
+    const hit = folder.children.find(child => child.id === strategyId)
+    if (hit) return hit
+  }
+  return null
+}
 
 const interventionConclusion = computed(() => {
   const a = currentStrategy, b = selectedStrategy.value
@@ -568,6 +592,173 @@ const comparison = computed(() => backendComparison.value?.comparison || null)
 const comparisonStats = computed(() => comparison.value?.statistics || [])
 const cohortScoring = computed(() => backendComparison.value?.cohort_scoring || null)
 const structuralModel = computed(() => comparison.value?.structural_model || null)
+
+// ---- 干预实验树 + 横向因果图（中间结论）----
+// 说明：实验树的影响因素/档位与「SEM 预测响应」为前端示例口径，界面上已标注「示例数据」；
+// 横向因果图的路径系数优先取后端实测 structural_model，缺失时退回示例系数并标注结构示意。
+const topTab = ref('tree')
+
+const TREE_FACTOR_SETS = {
+  uranium: [
+    { key: 'elasticity', label: '供给弹性', levels: ['低', '中', '高'] },
+    { key: 'channel', label: '通道韧性', levels: ['单通道', '双通道', '多通道'] },
+    { key: 'control', label: '出口管制', levels: ['宽松', '中性', '严格'] }
+  ],
+  supply_chain: [
+    { key: 'capacity', label: '产能弹性', levels: ['低', '中', '高'] },
+    { key: 'radius', label: '协作半径', levels: ['单集群', '双集群', '多集群'] },
+    { key: 'order', label: '订单策略', levels: ['保守', '中性', '激进'] }
+  ]
+}
+const LEVEL_WEIGHTS = [0.35, 0.6, 0.85]
+
+const treeFactors = computed(() => {
+  const defs = TREE_FACTOR_SETS[isUraniumScene.value ? 'uranium' : 'supply_chain'] || TREE_FACTOR_SETS.uranium
+  return defs.map((f) => ({
+    key: f.key,
+    label: f.label,
+    levels: f.levels.map((label, i) => ({ key: `${f.key}_${i}`, label, weight: LEVEL_WEIGHTS[i] }))
+  }))
+})
+
+// 三个因素 × 三档 = 27 个组合实验
+const treeExperiments = computed(() => {
+  const fs = treeFactors.value
+  if (fs.length < 3) return []
+  const list = []
+  let n = 0
+  fs[0].levels.forEach((l0) => fs[1].levels.forEach((l1) => fs[2].levels.forEach((l2) => {
+    n += 1
+    list.push({
+      id: `E${n}`,
+      label: `实验${n}`,
+      combo: { [fs[0].key]: l0.key, [fs[1].key]: l1.key, [fs[2].key]: l2.key },
+      intensity: Number(((l0.weight + l1.weight + l2.weight) / 3).toFixed(3))
+    })
+  })))
+  return list
+})
+
+const selectedExperimentId = ref('')
+const selectExperiment = (id) => { selectedExperimentId.value = id }
+
+const selectedExperiment = computed(
+  () => treeExperiments.value.find((e) => e.id === selectedExperimentId.value) || null
+)
+
+const selectedExperimentChips = computed(() => {
+  const exp = selectedExperiment.value
+  if (!exp) return []
+  return treeFactors.value.map((f) => {
+    const lv = f.levels.find((l) => l.key === exp.combo[f.key])
+    return { key: f.key, label: `${f.label}：${lv?.label ?? '--'}` }
+  })
+})
+
+// SEM 平衡方程模型：a = 需求压力 → 协作强度，b = 协作强度 → 供应完成率，
+// c′ = 控制中介后的直接效应，总效应 c = c′ + a×b（与顶部「结构方程模型 · SEM」页签同一口径）
+const SEM_DEMO_COEF = Object.freeze({ a: 0.42, b: 0.51, cPrime: 0.18 })
+const semCoef = computed(() => {
+  const est = structuralModel.value?.estimates?.strategy_a
+    || structuralModel.value?.estimates?.strategy_b
+    || null
+  const num = (v, d) => (Number.isFinite(Number(v)) ? Number(v) : d)
+  return {
+    available: Boolean(est?.available),
+    a: num(est?.a?.beta, SEM_DEMO_COEF.a),
+    b: num(est?.b?.beta, SEM_DEMO_COEF.b),
+    cPrime: num(est?.direct?.beta, SEM_DEMO_COEF.cPrime)
+  }
+})
+
+const semPredictedOutcome = computed(() => {
+  const exp = selectedExperiment.value
+  if (!exp) return '--'
+  const { a, b, cPrime } = semCoef.value
+  const value = Math.max(0, Math.min(1, 0.55 + (cPrime + a * b) * exp.intensity))
+  return `${(value * 100).toFixed(1)}%`
+})
+
+const semPredictionNote = computed(() => {
+  const exp = selectedExperiment.value
+  if (!exp) return ''
+  const { a, b, cPrime, available } = semCoef.value
+  const total = cPrime + a * b
+  return `按平衡方程组 c = c′ + a×b 估计：a = ${a.toFixed(2)}，b = ${b.toFixed(2)}，c′ = ${cPrime.toFixed(2)}`
+    + ` → 总效应 c = ${total.toFixed(3)}；干预强度 x = ${exp.intensity} 代入得预测供应完成率。`
+    + (available ? '系数取后端实测结构方程估计。' : '当前为示例系数（后端未返回结构方程估计），仅供结构示意。')
+})
+
+// 横向因果图的每一侧都读同一份后端结构方程估计（estimates.strategy_a / strategy_b），
+// 后端没给估计时才退回 SEM_DEMO_COEF 并标注「示例数据」。
+const causalSide = (key, strategy, color, slot) => {
+  const est = structuralModel.value?.estimates?.[slot] || null
+  const available = Boolean(est?.available)
+  return {
+    key,
+    tag: key,
+    color,
+    name: strategy?.name || `策略${key}`,
+    available,
+    mediation: available && est.variant === 'mediation',
+    reason: available
+      ? (est.degraded && est.degrade_reason ? est.degrade_reason : '')
+      : (est?.reason || '后端未返回该策略的月度结构方程估计'),
+    n: available ? Number(est.n) : null,
+    r2: available && est.r2_completion !== null && est.r2_completion !== undefined
+      ? Number(est.r2_completion) : null,
+    a: est?.a || null,
+    b: est?.b || null,
+    direct: est?.direct || null,
+    total: est?.total || null,
+    path: est?.path || null,
+    indirect: est?.indirect || null
+  }
+}
+const horizontalSides = computed(() => {
+  const list = []
+  if (currentStrategy?.id) list.push(causalSide('A', currentStrategy, '#2563eb', 'strategy_a'))
+  if (selectedStrategy.value?.id) list.push(causalSide('B', selectedStrategy.value, '#059669', 'strategy_b'))
+  return list
+})
+
+const horizontalConclusion = computed(() => {
+  const list = horizontalSides.value
+  const measured = list.filter((side) => side.available)
+  const mediated = measured.filter((side) => side.mediation)
+  // ① 后端完全没给估计：只能用示例系数讲模型形状，必须说明不是实测
+  if (!measured.length) {
+    const { a, b, cPrime } = semCoef.value
+    const indirect = a * b
+    const total = cPrime + indirect
+    const share = total ? Math.round((indirect / total) * 100) : 0
+    return `结构示意（示例系数，非实测）：需求压力 → 协作强度 → 供应完成率，间接效应 a×b = ${indirect.toFixed(3)}（示例占比 ${share}%）、直接效应 c′ = ${cPrime.toFixed(2)}。`
+      + '后端未返回本实验的结构方程估计，该图只说明模型形状，不构成实验结论。'
+  }
+  // ② 有估计但中介段降级（协作强度无波动）：只报总效应，不做效应分解
+  if (!mediated.length) {
+    const side = measured[0]
+    const total = side.total?.beta ?? side.path?.beta
+    return `实测口径 · 策略${side.tag}｜中介段不可估计：${side.reason || '协作强度月度序列无波动'}，`
+      + `因此只保留总效应 c = ${formatBeta(total)}${formatStars(side.total?.p_value ?? side.path?.p_value)}；`
+      + '中间结论：本实验无法在「协作强度」这条中介路径上做效应分解，需先产生协作事件再重跑，或到「结构方程模型 · SEM」页签查看降级说明。'
+  }
+  // ③ 中介模型可估计：真实系数 + Sobel 检验
+  const side = mediated[0]
+  const indirect = side.indirect?.indirect_effect !== undefined && side.indirect?.indirect_effect !== null
+    ? Number(side.indirect.indirect_effect)
+    : (Number(side.a?.beta) || 0) * (Number(side.b?.beta) || 0)
+  const total = indirect + (Number(side.direct?.beta) || 0)
+  const share = total ? Math.round((indirect / total) * 100) : 0
+  const sobelZ = Number.isFinite(Number(side.indirect?.z)) ? Number(side.indirect.z).toFixed(3) : '--'
+  const sobel = side.indirect
+    ? `（Sobel z = ${sobelZ}，p ${formatPValue(side.indirect.p_value)}，${side.indirect.significant ? '显著' : '不显著'}）`
+    : ''
+  return `实测口径 · 策略${side.tag}：a（需求压力 → 协作强度）= ${formatBeta(side.a?.beta)}${formatStars(side.a?.p_value)}，`
+    + `b（协作强度 → 供应完成率）= ${formatBeta(side.b?.beta)}${formatStars(side.b?.p_value)}，`
+    + `间接效应 a×b = ${indirect.toFixed(3)}${sobel}，占总效应 ${share}%；直接效应 c′ = ${formatBeta(side.direct?.beta)}${formatStars(side.direct?.p_value)}。`
+    + '中间结论：需求压力主要经由「协作强度」这条中介路径传导到供应完成率，直接路径的边际作用有限；可用右侧 A/B 系数对比判断两条策略对中介段的撬动差异。'
+})
 const scoringSummary = computed(() => (
   comparison.value?.scoring_summary || cohortScoring.value?.summary || ''
 ))
@@ -652,7 +843,7 @@ const loadStrategyComparison = async () => {
   const bId = selectedStrategy.value?._backend?.id
   if (!currentExperimentId.value || !aId || !bId || aId === bId) {
     backendComparison.value = null
-    renderSEMChart()
+    renderTopSemChart()
     return
   }
   statsLoading.value = true
@@ -664,13 +855,11 @@ const loadStrategyComparison = async () => {
     backendComparison.value = null
   } finally {
     statsLoading.value = false
-    renderSEMChart()
+    renderTopSemChart()
   }
 }
 
 // ---- 结构方程可视化 ----
-const semChartRef = ref(null)
-let semChartInstance = null
 const SEM_HEIGHT = 360
 
 const formatStars = (p) => {
@@ -716,7 +905,7 @@ const buildSEMOption = (width, height) => {
   const strategyB = selectedStrategy.value
   if (!strategyA?.id || !strategyB?.id) return null
   try {
-    const W = Math.max(Number(width) || semChartRef.value?.clientWidth || 700, 380)
+    const W = Math.max(Number(width) || topSemChartRef.value?.clientWidth || 700, 380)
     const H = Math.max(Number(height) || SEM_HEIGHT, 240)
     const model = structuralModel.value
     const colorA = '#2563eb'
@@ -926,40 +1115,50 @@ const buildSEMOption = (width, height) => {
   } catch (e) { console.warn('SEM build failed:', e); return null }
 }
 
-let _semTimer = null
-const renderSEMChart = () => {
-  if (_semTimer) clearTimeout(_semTimer)
-  _semTimer = setTimeout(function() {
+// 顶部「结构方程模型 · SEM」页签：复用同一份 buildSEMOption —— 同一个实验、同一份 structural_model，
+// 只是搬到页面上方的「中间结论」区，避免必须滚到第三列底部才看得到。
+const topSemChartRef = ref(null)
+let topSemChartInstance = null
+let _topSemTimer = null
+const renderTopSemChart = () => {
+  if (_topSemTimer) clearTimeout(_topSemTimer)
+  _topSemTimer = setTimeout(function() {
     try {
-      const el = semChartRef.value
+      const el = topSemChartRef.value
       if (!el) return
-      if (semChartInstance) { semChartInstance.dispose(); semChartInstance = null }
+      if (topSemChartInstance) { topSemChartInstance.dispose(); topSemChartInstance = null }
       const option = buildSEMOption(el.clientWidth, el.clientHeight)
       if (!option) return
-      semChartInstance = echarts.init(el)
-      semChartInstance.setOption(option)
-    } catch (e) { console.warn('SEM render failed:', e) }
+      topSemChartInstance = echarts.init(el)
+      topSemChartInstance.setOption(option)
+    } catch (e) { console.warn('top SEM render failed:', e) }
   }, 300)
 }
 
-let _semResizeHandler = null
-const bindSEMResize = () => {
-  if (_semResizeHandler) return
-  _semResizeHandler = () => renderSEMChart()
-  window.addEventListener('resize', _semResizeHandler)
+// 切到 SEM 页签时补渲染一次（隐藏期间容器宽度为 0，量不出正确尺寸）
+watch(topTab, (v) => { if (v === 'sem') setTimeout(() => renderTopSemChart(), 60) })
+
+let _topSemResizeHandler = null
+const bindTopSemResize = () => {
+  if (_topSemResizeHandler) return
+  _topSemResizeHandler = () => renderTopSemChart()
+  window.addEventListener('resize', _topSemResizeHandler)
 }
-const unbindSEMResize = () => {
-  if (!_semResizeHandler) return
-  window.removeEventListener('resize', _semResizeHandler)
-  _semResizeHandler = null
+const unbindTopSemResize = () => {
+  if (!_topSemResizeHandler) return
+  window.removeEventListener('resize', _topSemResizeHandler)
+  _topSemResizeHandler = null
 }
 
-// 选策略时触发渲染
-function selectStrategy(child) {
+// 策略选择条切换 A/B：更新槽位、作废旧运行结果、重渲染 SEM 与统计对比
+function setStrategyBySlot(slot, strategyId) {
   if (runState.running) { ElMessage.warning('实验运行中，暂不能切换干预策略'); return }
-  if (activeStrategySlot.value === 'primary') { Object.assign(currentStrategy, child); clearRunOutputForSelectionChange() }
-  else { selectedStrategy.value = child; clearRunOutputForSelectionChange() }
-  renderSEMChart()
+  const child = findStrategyById(strategyId)
+  if (!child) return
+  if (slot === 'primary') Object.assign(currentStrategy, child)
+  else selectedStrategy.value = { ...child }
+  clearRunOutputForSelectionChange()
+  renderTopSemChart()
   loadStrategyComparison()
 }
 // 干预问题：按场景表述，直接作为后端实验的 user_goal
@@ -968,6 +1167,59 @@ const interventionProblem = computed(() => (isUraniumScene.value
   : '汽车供应链工厂产能与库存受限、市场需求波动背景下，如何选择最优干预策略以维持订单完成率与协作网络稳定？'))
 const interventionIterations = 15
 const pollingIntervalMs = 5000
+
+// ---- 干预分析子问题：把实验目的拆成干预阶段要回答的子问题（默认收起，点「展开」查看）----
+const subqOpen = ref(false)
+const subqLead = computed(() => '本阶段的子问题都围绕一件事：施加一次干预之后结果会不会变、变了多少，也就是 do(X) 的效果。')
+const interventionSubQuestions = computed(() => {
+  const aName = currentStrategy?.name || '策略A'
+  const bName = selectedStrategy.value?.name || '策略B'
+  return [
+    {
+      key: 'applied',
+      title: '干预是否真的被施加',
+      text: `A「${aName}」与 B「${bName}」各自改动了哪些变量、幅度多少？两次运行除该策略外其它条件是否可比？——对应上方「干预实验树 · 影响因素组合」。`
+    },
+    {
+      key: 'path',
+      title: '哪一段传导被撬动',
+      text: `${sceneText.value.systemLabel}的因果链（需求压力 → 协作强度 → 供应完成率）里，干预主要改变的是中介段还是直接段？——对应「横向因果图 · 中间结论」与「结构方程模型 · SEM」。`
+    },
+    {
+      key: 'significance',
+      title: '差异是否可信',
+      text: 'A/B 的指标差异经多重比较校正后是否仍显著，扣掉随机种子波动后还剩多少？——对应「策略对比 · 统计检验」。'
+    },
+    {
+      key: 'residual',
+      title: '还需要继续干预什么',
+      text: '施加干预之后，哪些指标仍在异常区间、需要二次干预？——对应下方「供应链态势地图 / 异常检测」。'
+    }
+  ]
+})
+// 「本阶段回答」只汇总本实验实测的统计检验结果与异常检出，没有实测数据时明确说明「不给数值」
+const interventionStageAnswer = computed(() => {
+  const a = currentStrategy
+  const b = selectedStrategy.value
+  if (!a?.id || !b?.id) {
+    return '尚未选定两个策略：先在上方选好策略A与策略B并点「开始运行」，本阶段才会给出干预效应的数值结论。'
+  }
+  if (!comparison.value) {
+    return `当前只有策略自带的预置参数（A「${a.name}」完成率 ${a.expectedCompletionDelta || '—'}，B「${b.name}」完成率 ${b.expectedCompletionDelta || '—'}），属于设计意图、不是实测的干预效应；请点「开始运行」跑出真实结果。`
+  }
+  const rows = comparisonStats.value
+  const significantCount = rows.filter(rowAdjustedSignificant).length
+  const recommendation = String(comparison.value.recommendation || '').trim()
+  const anomalyText = anomalyCount.value
+    ? `本实验同时检出 ${anomalyCount.value} 条异常事件（高严重 ${highSeverityCount.value} 条），可作为「干预后还需加码哪里」的线索。`
+    : '本实验未检出异常事件，干预后指标未见突变。'
+  return `${rows.length} 项指标中有 ${significantCount} 项经 Bonferroni 校正后仍显著；`
+    + (recommendation ? `后端推荐：${recommendation}` : '后端未给出推荐策略。')
+    + anomalyText
+})
+const subqSourceText = computed(() => (comparison.value
+  ? `本结论以${sceneText.value.systemLabel}${currentExperimentId.value ? ` 实验 ${currentExperimentId.value}` : ''}的实测统计检验为基线；只有 do(X) 的干预级证据，不含反事实的第 3 层推断（那在「反事实实验」里）。`
+  : '尚未跑出实测结果：以上子问题是干预阶段的口径模板，本区块不给出任何估算数值。'))
 
 const runState = reactive({
   running: false,
@@ -1587,24 +1839,16 @@ onMounted(async () => {
   await loadStrategiesFromBackend()
   loadAnomalies()
   // 初始渲染结构方程图
-  setTimeout(() => renderSEMChart(), 600)
-  bindSEMResize()
+  setTimeout(() => renderTopSemChart(), 600)
+  bindTopSemResize()
   loadStrategyComparison()
 })
 
 onBeforeUnmount(() => {
   stopRunPolling()
-  unbindSEMResize()
-  if (semChartInstance) { semChartInstance.dispose(); semChartInstance = null }
+  unbindTopSemResize()
+  if (topSemChartInstance) { topSemChartInstance.dispose(); topSemChartInstance = null }
 })
-
-function isStrategySelected(strategyId) {
-  return currentStrategy.id === strategyId || selectedStrategy.value?.id === strategyId
-}
-
-function folderToggleIcon(expanded) {
-  return expanded ? ArrowDown : ArrowRight
-}
 
 function clearRunOutputForSelectionChange() {
   if (!runState.tasks.primary && !runState.tasks.secondary && !runState.results.primary && !runState.results.secondary) return
@@ -1629,14 +1873,16 @@ function clearRunOutputForSelectionChange() {
   flex: 0 0 auto;
   display: flex;
   justify-content: space-between;
-  gap: 24px;
   align-items: center;
-  padding: 18px 28px;
+  gap: 24px;
+  padding: 20px 30px;
   margin-bottom: 14px;
   border: none;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 40%, #3b82f6 70%, #60a5fa 100%);
-  box-shadow: 0 8px 32px rgba(37, 99, 235, 0.28), 0 2px 8px rgba(30, 58, 138, 0.15);
+  border-radius: 16px;
+  background:
+    radial-gradient(130% 190% at 88% -40%, rgba(125, 211, 252, 0.42), transparent 62%),
+    linear-gradient(120deg, #172554 0%, #1e40af 38%, #2563eb 68%, #3b82f6 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 20px 44px -26px rgba(30, 58, 138, 0.95), 0 3px 10px rgba(30, 58, 138, 0.18);
   position: relative;
   overflow: hidden;
 }
@@ -1644,20 +1890,18 @@ function clearRunOutputForSelectionChange() {
 .page-head::before {
   content: '';
   position: absolute;
-  top: -50%; right: -10%;
-  width: 300px; height: 300px;
+  top: -62%; right: -8%;
+  width: 330px; height: 330px;
   border-radius: 50%;
-  background: rgba(255,255,255,0.06);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.18), transparent 66%);
   pointer-events: none;
 }
 
 .page-head::after {
   content: '';
   position: absolute;
-  bottom: -60%; left: 5%;
-  width: 220px; height: 220px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.04);
+  inset: 0;
+  background-image: repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.055) 0 2px, transparent 2px 28px);
   pointer-events: none;
 }
 
@@ -1674,197 +1918,59 @@ function clearRunOutputForSelectionChange() {
 
 .page-head h1 {
   margin: 0;
-  font-size: 24px;
+  font-size: 25px;
   line-height: 1.2;
   font-weight: 900;
   color: #ffffff;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
+  text-shadow: 0 2px 14px rgba(15, 23, 42, 0.38);
 }
 
 .subtitle {
-  margin: 6px 0 0;
-  color: rgba(255,255,255,0.75);
+  margin: 7px 0 0;
+  color: rgba(255,255,255,0.82);
   font-size: 13px;
   font-weight: 500;
+  letter-spacing: 0.01em;
 }
 
-/* ---- 因果阶梯定位条：干预分析 = 第 2 层·干预 ---- */
-.evidence-level {
+/* ---- 干预分析子问题：实验目的 → 干预阶段子问题（可展开/收起）---- */
+.iv-subq {
   flex: 0 0 auto;
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin: 0;
-  padding: 12px 16px;
-  border: 1px solid #bfdbfe;
-  border-left: 4px solid #2563eb;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #eff6ff, #ffffff);
+  padding: 12px 16px 14px;
+  border: 1px solid #e6ebf2;
+  border-left: 4px solid #f59e0b;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #fffbeb, #ffffff 62%);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
 }
-.evidence-level__badge {
-  flex-shrink: 0;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: #2563eb;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.5px;
-  white-space: nowrap;
+.iv-subq__head { display: flex; align-items: center; gap: 10px; }
+.iv-subq__badge {
+  flex: 0 0 auto; padding: 3px 10px;
+  border: 1px solid #fcd34d; border-radius: 999px;
+  background: linear-gradient(180deg, #fffbeb, #fef3c7); color: #b45309;
+  font-size: 11.5px; font-weight: 800; white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(180, 83, 9, 0.16);
 }
-.evidence-level__body { min-width: 0; }
-.evidence-level__title { margin: 0; font-size: 13px; font-weight: 800; color: #1e3a8a; }
-.evidence-level__desc { margin: 4px 0 0; font-size: 12px; line-height: 1.7; color: #475569; }
-
-.intervention-layout {
-  flex: 0 0 auto;
-  display: grid;
-  grid-template-columns: 1fr 1fr 1.5fr;
-  gap: 10px;
-  min-height: 500px;
-  height: calc(100vh - 280px);
-  align-items: stretch;
+.iv-subq__main { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 12.5px; font-weight: 700; color: #1e293b; line-height: 1.6; }
+.iv-subq__toggle {
+  flex: 0 0 auto; padding: 3px 12px;
+  border: 1px solid #fcd34d; border-radius: 999px;
+  background: #fff; color: #b45309; font-size: 12px; font-weight: 700; cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
-
-.observe-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; box-shadow: 0 6px 16px rgba(15,23,42,0.06); overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
-.panel-head-bar { display: flex; align-items: center; gap: 8px; padding: 10px 12px; font-size: 13px; font-weight: 800; color: #1e293b; border-bottom: 1px solid #eef2f7; flex-shrink: 0; }
-.panel-head-bar--blue { border-top: 3px solid #3b82f6; background: linear-gradient(180deg, #eff6ff, #ffffff); }
-.panel-head-bar--blue .el-icon { color: #3b82f6; }
-.panel-head-bar--purple { border-top: 3px solid #8b5cf6; background: linear-gradient(180deg, #f5f3ff, #ffffff); }
-.panel-head-bar--purple .el-icon { color: #8b5cf6; }
-.panel-body-fill { flex: 1; overflow-y: auto; padding: 6px; min-height: 0; }
-
-.slot-switch {
-  padding: 10px 12px;
-  border-bottom: 1px solid #eef2f7;
-  background: #ffffff;
+.iv-subq__toggle:hover { background: #b45309; border-color: #b45309; color: #fff; }
+.iv-subq__body { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #fcd34d; }
+.iv-subq__list { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.iv-subq__list li { font-size: 12.5px; line-height: 1.7; color: #334155; }
+.iv-subq__list b { color: #1e293b; }
+.iv-subq__label { margin: 10px 0 0; font-size: 11.5px; font-weight: 800; color: #b45309; letter-spacing: 0.3px; }
+.iv-subq__answer {
+  margin: 4px 0 0; padding: 9px 12px;
+  border: 1px solid #e6ebf2; border-radius: 10px; background: #f8fafc;
+  font-size: 12.5px; line-height: 1.75; color: #1e293b;
 }
-
-.slot-switch :deep(.el-radio-group) {
-  width: 100%;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-}
-
-.slot-switch :deep(.el-radio-button__inner) {
-  width: 100%;
-  padding: 7px 8px;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.library-tree {
-  flex: 1 1 auto;
-  overflow-y: auto;
-  padding: 6px 0;
-}
-
-.tree-folder { margin-bottom: 2px; }
-
-.tree-folder-head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 700;
-  color: #334155;
-  transition: background 0.15s;
-}
-
-.tree-folder-head:hover { background: #f1f5f9; }
-
-.tree-folder-head .el-icon {
-  font-size: 14px;
-  color: #94a3b8;
-  flex-shrink: 0;
-}
-
-.folder-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.folder-count {
-  font-size: 11px;
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: #e2e8f0;
-  color: #64748b;
-  font-weight: 600;
-}
-
-.tree-folder-children { padding-left: 0; }
-
-.tree-leaf {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px 6px 36px;
-  cursor: pointer;
-  font-size: 12px;
-  color: #475569;
-  transition: background 0.15s;
-}
-
-.tree-leaf:hover { background: #f8fafc; }
-
-.tree-leaf.active {
-  background: #eff6ff;
-  color: #1d4ed8;
-  font-weight: 700;
-}
-
-.tree-leaf.active-primary {
-  background: #eff6ff;
-  color: #1d4ed8;
-}
-
-.tree-leaf.active-secondary {
-  background: #f5f3ff;
-  color: #6d28d9;
-}
-
-.tree-leaf .el-icon {
-  font-size: 14px;
-  color: #cbd5e1;
-  flex-shrink: 0;
-}
-
-.tree-leaf.active .el-icon { color: #3b82f6; }
-.tree-leaf.active-secondary .el-icon { color: #8b5cf6; }
-
-.leaf-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.leaf-badge {
-  flex-shrink: 0;
-  min-width: 18px;
-  height: 18px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 900;
-}
-
-.leaf-badge--primary {
-  color: #1d4ed8;
-  background: #dbeafe;
-}
-
-.leaf-badge--secondary {
-  color: #6d28d9;
-  background: #ede9fe;
-}
+.iv-subq__source { margin: 6px 0 0; font-size: 11.5px; line-height: 1.6; color: #64748b; }
 
 /* ---- 当前干预策略 ---- */
 .current-experiment {
@@ -2154,13 +2260,97 @@ function clearRunOutputForSelectionChange() {
 
 /* ---- 实际运行模块 ---- */
 /* ---- 结构方程图 ---- */
-.sem-panel { margin-top: 14px; border: 1px solid #ddd6fe; border-radius: 10px; background: #fff; overflow: hidden; }
-.sem-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #ede9fe; background: linear-gradient(90deg, #faf5ff, #fff); font-size: 13px; font-weight: 800; color: #5b21b6; }
-.sem-head .el-icon { color: #7c3aed; }
-.sem-help { margin-left: auto; color: #a78bfa; cursor: help; font-size: 15px; }
-.sem-help:hover { color: #7c3aed; }
-.sem-help-pop { max-width: 320px; line-height: 1.75; font-size: 12px; }
 .sem-chart { width: 100%; height: 360px; }
+
+/* ===== 干预实验树 + 横向因果图（中间结论）===== */
+.iv-top {
+  margin-bottom: 14px; padding: 14px 16px;
+  border: 1px solid #e6ebf2; border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.iv-top__tabs {
+  display: inline-flex; gap: 2px; margin-bottom: 12px;
+  padding: 4px; border-radius: 999px;
+  background: #eff6ff; border: 1px solid #dbeafe;
+}
+.iv-top__picks {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 14px; padding: 9px 12px;
+  border: 1px solid #dbeafe; border-radius: 12px;
+  background: linear-gradient(90deg, #eff6ff, #f8fafc 55%, #f5f3ff);
+}
+.iv-pick {
+  display: flex; align-items: center; gap: 7px;
+  padding: 3px 10px 3px 5px; border-radius: 999px;
+  background: #ffffff; border: 1px solid #e6ebf2;
+}
+.iv-pick__badge {
+  width: 22px; height: 22px; border-radius: 999px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 900; color: #ffffff;
+}
+.iv-pick__badge--a { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+.iv-pick__badge--b { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+.iv-pick__select { width: 178px; }
+.iv-pick__select :deep(.el-select__wrapper) { box-shadow: none; background: transparent; }
+.iv-pick__select :deep(.el-select__wrapper.is-focused) { box-shadow: 0 0 0 1px #a5b4fc inset; }
+.iv-pick__vs { font-size: 11px; font-weight: 900; color: #94a3b8; letter-spacing: .5px; }
+.iv-top__body--compare { display: block; }
+.iv-top__body--compare .compare-empty { min-height: 220px; }
+.iv-top__tab {
+  padding: 6px 15px; border-radius: 999px; border: none; background: transparent;
+  font-size: 12.5px; font-weight: 700; color: #64748b;
+  cursor: pointer; transition: all .16s; white-space: nowrap;
+}
+.iv-top__tab:hover { color: #4338ca; background: #e8edff; }
+.iv-top__tab.is-active { background: #ffffff; color: #4338ca; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12); }
+.iv-top__tab:focus-visible { outline: 2px solid #6366f1; outline-offset: 2px; }
+.iv-top__sem { height: 380px; }
+.iv-top__body--split {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+  gap: 14px; align-items: start;
+}
+.iv-exp-card {
+  border: 1px solid #e6ebf2; border-radius: 16px; background: #ffffff; overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.iv-exp-card__head {
+  display: flex; align-items: center; gap: 8px; padding: 9px 12px;
+  border-bottom: 1px solid #eef2f7;
+  background: linear-gradient(90deg, #eef2ff, #ffffff);
+  font-size: 13px; font-weight: 800; color: #312e81;
+}
+.iv-exp-card__demo {
+  font-size: 11.5px; font-weight: 800; padding: 4px 11px; border-radius: 999px; white-space: nowrap;
+  color: #b45309; background: linear-gradient(180deg, #fffbeb, #fef3c7); border: 1px solid #fcd34d;
+  box-shadow: 0 1px 2px rgba(180, 83, 9, 0.16);
+}
+.iv-exp-card__body { padding: 12px; }
+.iv-exp-card__empty { padding: 28px 14px; text-align: center; font-size: 12.5px; line-height: 1.7; color: #94a3b8; }
+.iv-exp-combo { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.iv-exp-chip {
+  padding: 3px 10px; border-radius: 999px; background: #eef2ff;
+  border: 1px solid #c7d2fe; color: #3730a3; font-size: 11.5px; font-weight: 700;
+}
+.iv-exp-outcome {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  padding: 10px 12px; border-radius: 10px;
+  background: linear-gradient(90deg, #f0fdf4, #ffffff); border: 1px solid #a7f3d0;
+}
+.iv-exp-outcome__label { font-size: 12px; font-weight: 700; color: #166534; }
+.iv-exp-outcome__value { font-size: 22px; font-weight: 800; letter-spacing: -.5px; color: #15803d; }
+.iv-exp-note { margin: 10px 0 0; font-size: 12px; line-height: 1.7; color: #64748b; }
+.iv-exp-pending { margin: 0 0 10px; font-size: 12px; line-height: 1.7; color: #64748b; }
+.iv-exp-factors { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.iv-exp-factors li {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 6px 10px; border-radius: 8px; background: #f8fafc; border: 1px solid #eef2f7;
+}
+.iv-exp-factors__name { font-size: 12px; font-weight: 800; color: #334155; }
+.iv-exp-factors__levels { font-size: 11.5px; color: #94a3b8; }
+@media (max-width: 1100px) { .iv-top__body--split { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .iv-top__tab { transition: none; } }
 
 .cmp-card--conclusion { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; border-top: 3px solid #6366f1; margin-bottom: 8px; }
 .cmp-card--conclusion .cmp-card-head { background: linear-gradient(180deg, #eef2ff, #fafbfc); border-bottom: 1px solid #eef2f7; padding: 8px 12px; font-size: 12px; font-weight: 800; display: flex; align-items: center; gap: 6px; color: #4338ca; }
@@ -2388,11 +2578,19 @@ function clearRunOutputForSelectionChange() {
 }
 
 /* ---- 异常区域 ---- */
-.head-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; position: relative; z-index: 1; }
-.inline-stat { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 6px; background: rgba(255,255,255,0.15); font-size: 12px; color: rgba(255,255,255,0.8); font-weight: 600; }
-.inline-stat b { color: #fff; font-size: 14px; }
-.inline-stat--danger { background: rgba(239,68,68,0.25); }
-.inline-stat--danger b { color: #fecaca; }
+.head-actions { display: flex; align-items: center; gap: 14px; flex-shrink: 0; position: relative; z-index: 1; }
+.stat-item {
+  min-width: 86px; padding: 7px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.24); border-radius: 10px;
+  background: rgba(255, 255, 255, 0.14); backdrop-filter: blur(6px);
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.stat-item:hover { transform: translateY(-1px); background: rgba(255, 255, 255, 0.2); border-color: rgba(255, 255, 255, 0.42); }
+.stat-item span { display: block; color: rgba(255, 255, 255, 0.74); font-size: 10px; font-weight: 800; letter-spacing: 0.06em; }
+.stat-item strong { display: block; margin-top: 3px; color: #ffffff; font-size: 19px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat-item--danger { border-color: rgba(248, 113, 113, 0.45); background: rgba(239, 68, 68, 0.18); }
+.stat-item--danger span { color: rgba(254, 202, 202, 0.92); }
+.stat-item--danger strong { color: #fecaca; }
 .overview-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .overview-card { display: grid; grid-template-columns: 38px 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center; min-height: 56px; padding: 8px 14px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; }
 .overview-card .el-icon { grid-row: 1/3; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; background: #fecaca; color: #ef4444; font-size: 16px; }
@@ -2400,10 +2598,12 @@ function clearRunOutputForSelectionChange() {
 .overview-card strong { color: #0f172a; font-size: 18px; }
 .anomaly-section { flex: 0 0 auto; margin-top: 10px; }
 .anomaly-grid { display: grid; grid-template-columns: 380px 1fr; gap: 10px; }
-.anomaly-list-panel { border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 6px 16px rgba(15,23,42,0.04); max-height: 360px; }
-.anomaly-detail-panel { border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 6px 16px rgba(15,23,42,0.04); max-height: 360px; }
-.anomaly-list-panel .panel-head { border-top: 3px solid #ef4444; }
-.anomaly-detail-panel .panel-head { border-top: 3px solid #f59e0b; }
+.anomaly-list-panel { border: 1px solid #e6ebf2; border-radius: 14px; background: #fff; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 6px 16px rgba(15,23,42,0.04); max-height: 360px; }
+.anomaly-detail-panel { border: 1px solid #e6ebf2; border-radius: 14px; background: #fff; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 6px 16px rgba(15,23,42,0.04); max-height: 360px; }
+.anomaly-list-panel .panel-head { border-top: 3px solid #3b82f6; background: linear-gradient(180deg, #eff6ff, #ffffff); }
+.anomaly-list-panel .panel-head .el-icon { color: #3b82f6; }
+.anomaly-detail-panel .panel-head { border-top: 3px solid #8b5cf6; background: linear-gradient(180deg, #f5f3ff, #ffffff); }
+.anomaly-detail-panel .panel-head .el-icon { color: #8b5cf6; }
 .panel-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #eef2f7; font-weight: 800; font-size: 13px; flex-shrink: 0; background: #fafbfc; }
 .panel-body { flex: 1; overflow-y: auto; padding: 6px; }
 .anomaly-item { display: flex; align-items: center; gap: 8px; padding: 9px 10px; margin: 2px 0; border: 1px solid #eef2f7; border-radius: 8px; cursor: pointer; transition: all 0.2s; }

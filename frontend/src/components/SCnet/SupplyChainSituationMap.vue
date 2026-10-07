@@ -296,8 +296,8 @@ onMounted(() => {
   height: clamp(600px, 70vh, 780px);
   box-sizing: border-box;
   padding: 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
+  border: 1px solid #e6ebf2;
+  border-radius: 16px;
   background: #ffffff;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
   overflow: hidden;
@@ -312,10 +312,11 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  padding: 8px 12px;
-  border: 1px solid #e2e8f0;
+  padding: 10px 14px;
+  border: 1px solid #dbeafe;
+  border-top: 3px solid #3b82f6;
   border-radius: 12px;
-  background: linear-gradient(180deg, #f8fafc, #ffffff);
+  background: linear-gradient(180deg, #eff6ff, #ffffff);
 }
 
 .toolbar-title {
@@ -329,6 +330,7 @@ onMounted(() => {
 }
 
 .toolbar-title .el-icon { color: #3b82f6; }
+.toolbar-title .el-tag--primary { border-color: #bfdbfe; background: linear-gradient(180deg, #eff6ff, #dbeafe); color: #1d4ed8; font-weight: 800; }
 
 .toolbar-hint {
   font-size: 12px;

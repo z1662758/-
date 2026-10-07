@@ -5,28 +5,20 @@
 
     <PlanGroupStrip stage="mechanism" />
 
-    <!-- P2：机制分析横切因果阶梯三层（论文：机制分析是核心，行为机制分析可设计各种反事实实验） -->
-    <section class="evidence-level" role="note">
-      <span class="evidence-level__badge">机制分析 · 横切三层</span>
-      <div class="evidence-level__body">
-        <p class="evidence-level__title">本页回答「为什么」，并负责把机制假设变成可执行的反事实实验</p>
-        <p class="evidence-level__desc">
-          因果图上的链路系数是<b>统计关联结构</b>（面板 OLS），说明的是「谁跟着谁动」，本身不等于因果效应；
-          要把一条链路读成机制，需要干预证据（第 2 层）与成对世界反事实（第 3 层）去验证同一个假设。
-          下方的反事实推演调用后端真实引擎，并标明结论实际来自哪一层（后端仿真 / 数据驱动 / 启发式），
-          不用前端估算顶替真实结果。
-        </p>
-      </div>
-    </section>
-
     <section class="page-head">
       <div>
         <h1>因果分析</h1>
         <p class="subtitle">从异常现象回推机制假设，结合因果图与反事实推理，判断主导驱动力。</p>
       </div>
       <div class="head-actions">
-        <span class="inline-stat">事件 <b>{{ eventRecordCount }}</b></span>
-        <span class="inline-stat">驱力 <b>{{ dominantDriver }}</b></span>
+        <div class="stat-item">
+          <span>异常事件</span>
+          <strong>{{ eventRecordCount }}</strong>
+        </div>
+        <div class="stat-item">
+          <span>主导驱动力</span>
+          <strong>{{ dominantDriver }}</strong>
+        </div>
         <el-button text size="small" :icon="Refresh" @click="refreshData" />
       </div>
     </section>
@@ -963,47 +955,44 @@ onMounted(() => {
 }
 
 .page-head {
-  flex: 0 0 auto;
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  align-items: center;
-  padding: 16px 28px;
-  margin-bottom: 14px;
-  border: none;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 40%, #3b82f6 70%, #60a5fa 100%);
-  box-shadow: 0 8px 32px rgba(37, 99, 235, 0.28), 0 2px 8px rgba(30, 58, 138, 0.15);
-  min-height: 72px;
+  flex: 0 0 auto; display: flex; justify-content: space-between; gap: 24px; align-items: center;
+  padding: 20px 30px; border: none; border-radius: 16px; margin-bottom: 14px;
+  background:
+    radial-gradient(130% 190% at 88% -40%, rgba(125, 211, 252, 0.42), transparent 62%),
+    linear-gradient(120deg, #172554 0%, #1e40af 38%, #2563eb 68%, #3b82f6 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 20px 44px -26px rgba(30, 58, 138, 0.95), 0 3px 10px rgba(30, 58, 138, 0.18);
+  position: relative; overflow: hidden;
 }
-.page-head > div:first-child { flex-shrink: 0; }
+.page-head::before { content: ''; position: absolute; top: -62%; right: -8%; width: 330px; height: 330px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 255, 255, 0.18), transparent 66%); pointer-events: none; }
+.page-head::after { content: ''; position: absolute; inset: 0; background-image: repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.055) 0 2px, transparent 2px 28px); pointer-events: none; }
+.page-head > div:first-child { flex-shrink: 0; position: relative; z-index: 1; }
 
 .page-head h1 {
   margin: 0;
-  font-size: 24px;
+  font-size: 25px;
   line-height: 1.2;
   font-weight: 900;
   color: #ffffff;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
+  text-shadow: 0 2px 14px rgba(15, 23, 42, 0.38);
   white-space: nowrap;
 }
 
 .subtitle {
-  margin: 6px 0 0;
-  color: rgba(255,255,255,0.75);
+  margin: 7px 0 0;
+  color: rgba(255, 255, 255, 0.82);
   font-size: 13px;
   font-weight: 500;
+  letter-spacing: 0.01em;
 }
 
-.head-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
-.inline-stat { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 6px; background: rgba(255,255,255,0.15); font-size: 12px; color: rgba(255,255,255,0.8); font-weight: 600; white-space: nowrap; }
-.inline-stat b { color: #fff; font-size: 14px; }
+.head-actions { display: flex; align-items: center; gap: 14px; flex-shrink: 0; position: relative; z-index: 1; }
+.stat-item { min-width: 86px; padding: 7px 12px; border: 1px solid rgba(255,255,255,0.24); border-radius: 10px; background: rgba(255,255,255,0.14); backdrop-filter: blur(6px); transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease; }
+.stat-item:hover { transform: translateY(-1px); background: rgba(255, 255, 255, 0.2); border-color: rgba(255, 255, 255, 0.42); }
+.stat-item span { display: block; color: rgba(255, 255, 255, 0.74); font-size: 10px; font-weight: 800; letter-spacing: 0.06em; }
+.stat-item strong { display: block; margin-top: 3px; color: #ffffff; font-size: 19px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.head-actions :deep(.el-button.is-text) { width: 30px; height: 30px; border-radius: 50%; color: rgba(255, 255, 255, 0.92); background: rgba(255, 255, 255, 0.14); }
+.head-actions :deep(.el-button.is-text:hover) { color: #fff; background: rgba(255, 255, 255, 0.26); }
 
 .overview-strip {
   display: grid;
@@ -1019,11 +1008,11 @@ onMounted(() => {
   align-items: center;
   min-height: 52px;
   padding: 8px 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e6ebf2;
   border-top: 3px solid #3b82f6;
-  border-radius: 10px;
+  border-radius: 14px;
   background: #ffffff;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
 }
 
 .overview-item .el-icon {
@@ -1053,10 +1042,10 @@ onMounted(() => {
 .analysis-pipeline {
   flex: 0 0 auto;
   min-height: 360px;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
+  border: 1px solid #e6ebf2;
+  border-radius: 16px;
   background: #ffffff;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -1533,7 +1522,7 @@ onMounted(() => {
 }
 
 /* ---- 因果推断 ---- */
-.causal-section { flex:0 0 auto; margin-top:12px; border:1px solid #e2e8f0; border-radius:14px; background:#fff; box-shadow:0 6px 16px rgba(15,23,42,0.06); overflow:hidden; }
+.causal-section { flex:0 0 auto; margin-top:12px; border:1px solid #e6ebf2; border-radius:16px; background:#fff; box-shadow:0 1px 2px rgba(15,23,42,0.04); overflow:hidden; }
 .causal-section-head { display:flex; align-items:center; gap:10px; padding:10px 16px; border-top:3px solid #10b981; border-bottom:1px solid #eef2f7; background:linear-gradient(180deg,#ecfdf5,#fff); font-size:14px; font-weight:800; color:#065f46; }
 .causal-legend { display:flex; gap:12px; font-size:11px; font-weight:600; color:#64748b; }
 .causal-method-tags { margin-left:auto; display:flex; gap:8px; align-items:center; }
@@ -1575,13 +1564,6 @@ onMounted(() => {
 .cf-error p { margin: 0 0 4px; line-height: 1.6; }
 .cf-error-title { font-weight: 800; }
 .cf-error-hint { color: #b91c1c; font-size: 11px; }
-
-/* ---- 机制分析定位条：横切因果阶梯三层（论文：机制分析是核心，行为机制分析可设计反事实实验） ---- */
-.evidence-level { flex: 0 0 auto; display: flex; align-items: flex-start; gap: 12px; margin: 0; padding: 12px 16px; border: 1px solid #bfdbfe; border-left: 4px solid #2563eb; border-radius: 10px; background: linear-gradient(135deg, #eff6ff, #ffffff); }
-.evidence-level__badge { flex-shrink: 0; padding: 3px 10px; border-radius: 999px; background: #2563eb; color: #fff; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; white-space: nowrap; }
-.evidence-level__body { min-width: 0; }
-.evidence-level__title { margin: 0; font-size: 13px; font-weight: 800; color: #1e3a8a; }
-.evidence-level__desc { margin: 4px 0 0; font-size: 12px; line-height: 1.7; color: #475569; }
 
 .detail-slide-leave-to {
   opacity: 0;
