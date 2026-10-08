@@ -11,7 +11,7 @@
 
     <template v-else>
       <AnalysisPageHero
-        eyebrow="策略分析 · 情景"
+        eyebrow="决策分析 · 情景"
         :title="scenarioVm.hero.title"
         :headline="scenarioVm.hero.headline"
         :summary="scenarioVm.hero.summary"

@@ -1,5 +1,42 @@
 <template>
   <div class="simulation-interface mid-stage-bg">
+    <MidStagePageHeader
+      title="沙盘推演 · 推演剧场"
+      subtitle="复杂网络拓扑与空间地理走廊联动推演 · 时序态势回放与瓶颈监控"
+      :icon="VideoPlay"
+    >
+      <template #right>
+        <div class="theater-mode-badge-wrap">
+          <el-tag
+            :type="isLiveSimulationMode ? 'danger' : 'success'"
+            size="small"
+            effect="dark"
+          >
+            {{ isLiveSimulationMode ? '● 过程推演 · 仿真运行态' : '● 时序回放 · 历史基线' }}
+          </el-tag>
+          <span class="theater-year-chip">锚定年度：{{ uraniumActiveYearLabel || '2024 年' }}</span>
+        </div>
+        <el-button type="primary" size="small" @click="goToDecision">
+          <span>下一步：决策方案</span>
+          <el-icon><ArrowRight /></el-icon>
+        </el-button>
+      </template>
+    </MidStagePageHeader>
+
+    <!-- 业务核心问题导引条（阐明“沙盘推演想解决什么问题”） -->
+    <section class="simulation-core-question-strip glass-panel">
+      <div class="core-question-badge">推演剧场核心聚焦</div>
+      <div class="core-question-text">
+        <strong>将宏观地缘外部冲击与微观复杂网络级联失效相融合，在真实空间地理走廊上动态呈现供给断链全过程</strong>
+        <p>通过下方时间轴滑动（2022–2028），推演俄乌冲突爆发与西方制裁升级时，中哈阿拉山口口岸拥堵（负荷率94%）与北方基地库存破警戒线（破14周）的连锁反应，验证多通道分流潜力。</p>
+      </div>
+      <div class="theater-actions-quick">
+        <el-button size="small" plain @click="selectYearIndex(0)">2022 冲突爆发</el-button>
+        <el-button size="small" type="primary" plain @click="selectYearIndex(2)">2024 关键决策点</el-button>
+        <el-button size="small" type="success" plain @click="selectYearIndex(4)">2026 方案稳态</el-button>
+      </div>
+    </section>
+
     <!-- 错误提示 -->
     <el-alert
       v-if="loadError"
@@ -181,24 +218,31 @@
                       </small>
                     </div>
 
-                    <div class="critical-node-table">
-                      <div class="critical-node-head">
-                        <span>关键节点 (度/介数)</span>
-                        <span>功能角色</span>
-                        <span>抗扰动状态</span>
-                      </div>
+                    <div class="critical-node-list">
                       <div
                         v-for="node in uraniumCriticalNodes"
                         :key="node.name"
-                        class="critical-node-row"
+                        class="critical-node-card"
                         :class="node.statusType"
                       >
-                        <div class="node-cell-main">
-                          <strong>{{ node.name }}</strong>
-                          <small>度 {{ node.degree }} · 介数 {{ node.betweenness }}</small>
+                        <div class="node-card-head">
+                          <div class="node-title-group">
+                            <span class="node-status-dot" :class="node.statusType"></span>
+                            <strong class="node-name" :title="node.name">{{ node.name }}</strong>
+                          </div>
+                          <span class="node-status-badge" :class="node.statusType">{{ node.status }}</span>
                         </div>
-                        <span class="node-cell-role">{{ node.role }}</span>
-                        <span class="node-cell-status" :class="node.statusType">{{ node.status }}</span>
+                        <div class="node-card-metrics-row">
+                          <div class="node-centrality-strip">
+                            <span class="centrality-item"><small>度</small> <b>{{ node.degree }}</b></span>
+                            <span class="centrality-sep">·</span>
+                            <span class="centrality-item"><small>介数</small> <b>{{ node.betweenness }}</b></span>
+                          </div>
+                          <span class="node-type-pill">{{ node.type }}</span>
+                        </div>
+                        <div class="node-card-role-row">
+                          <span class="node-role-text">{{ node.role }}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -299,7 +343,6 @@
         </div>
       </div>
     </div>
-
   </div>
 </template>
 
@@ -311,7 +354,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 import { formatUraniumEvent } from '@/utils/uraniumScene'
 import { storeToRefs } from 'pinia'
-import { Loading, RefreshLeft, Monitor } from '@element-plus/icons-vue'
+import { Loading, RefreshLeft, Monitor, ArrowLeft, ArrowRight, VideoPlay } from '@element-plus/icons-vue'
+import MidStagePageHeader from './components/shared/MidStagePageHeader.vue'
 import MidStagePanelHeader from './components/shared/MidStagePanelHeader.vue'
 import AsyncPanelPlaceholder from './components/shared/AsyncPanelPlaceholder.vue'
 import UraniumFlowMap from './components/UraniumFlowMap.vue'
@@ -335,9 +379,37 @@ const {
 } = storeToRefs(uraniumDemoStore)
 
 // ================== 状态 ==================
+const router = useRouter()
+const route = useRoute()
 const loadError = ref('')
 const uraniumSelectedYearIndex = ref(0)
 const uraniumFocusedRouteKey = ref('')
+const isLiveSimulationMode = computed(() => route.query.theaterMode === 'live')
+
+function selectYearIndex(idx) {
+  uraniumSelectedYearIndex.value = idx
+}
+
+function goToExperimentManager() {
+  router.push({
+    path: '/home/SCnet/experimentManager',
+    query: { ...route.query, scenario: 'uranium', view: 'run' }
+  })
+}
+
+function goToDecision() {
+  router.push({
+    path: '/home/SCnet/experimentManager',
+    query: { ...route.query, scenario: 'uranium', view: 'decision' }
+  })
+}
+
+function goToAnalysis() {
+  router.push({
+    path: '/home/SCnet/expAnalysisGameTheory',
+    query: { ...route.query, scenario: 'uranium' }
+  })
+}
 
 const URANIUM_PORT_LABELS = Object.freeze({
   LAND_NW: '西北陆路口岸',
@@ -587,8 +659,6 @@ const uraniumFocusedRouteFacts = computed(() => {
     { label: '制造端', value: route.manufacturer_group || URANIUM_LOCATION_LABELS[route.manufacturer_location] || route.manufacturer_location || '-' }
   ]
 })
-const route = useRoute()
-const router = useRouter()
 function goToRunManager() {
   router.replace({ query: { ...route.query, view: 'run' } })
 }
@@ -1261,70 +1331,172 @@ watch(uraniumStaticCorridorId, (next) => {
 .vulnerability-cascade-text b {
   color: #334155;
 }
-.critical-node-table {
+.critical-node-list {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  font-size: 11px;
+  gap: 8px;
 }
-.critical-node-head {
-  display: grid;
-  grid-template-columns: 1fr 68px 100px;
+.critical-node-card {
+  display: flex;
+  flex-direction: column;
   gap: 6px;
-  color: #94a3b8;
-  font-size: 10px;
-  padding: 0 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  transition: all 0.2s ease;
 }
-.critical-node-row {
-  display: grid;
-  grid-template-columns: 1fr 68px 100px;
-  gap: 6px;
-  align-items: center;
-  padding: 6px 8px;
-  border-radius: 6px;
-  background: #fff;
-  border: 1px solid #f1f5f9;
+.critical-node-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
 }
-.critical-node-row.danger {
-  border-color: #fecaca;
+.critical-node-card.danger {
+  border-color: #fca5a5;
   background: #fffafa;
 }
-.critical-node-row.safe {
+.critical-node-card.danger:hover {
+  border-color: #f87171;
+}
+.critical-node-card.normal {
+  border-color: #fde68a;
+  background: #fffdf5;
+}
+.critical-node-card.safe {
   border-color: #e2e8f0;
+  background: #fafcff;
 }
-.node-cell-main strong {
-  display: block;
-  font-size: 11px;
+.node-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.node-title-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+.node-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #94a3b8;
+}
+.node-status-dot.danger {
+  background: #ef4444;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+}
+.node-status-dot.normal {
+  background: #f59e0b;
+}
+.node-status-dot.safe {
+  background: #10b981;
+}
+.node-name {
+  font-size: 12px;
+  font-weight: 700;
   color: #1e293b;
-  line-height: 1.2;
-}
-.node-cell-main small {
-  display: block;
-  font-size: 9.5px;
-  color: #64748b;
-  margin-top: 1px;
-}
-.node-cell-role {
-  color: #475569;
-  font-size: 10px;
-}
-.node-cell-status {
-  font-size: 10px;
-  font-weight: 500;
-  text-align: right;
+  line-height: 1.3;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.node-cell-status.danger {
-  color: #b91c1c;
+.node-status-badge {
+  font-size: 10px;
   font-weight: 600;
+  white-space: nowrap;
+  padding: 1px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
 }
-.node-cell-status.normal {
-  color: #d97706;
+.node-status-badge.danger {
+  color: #b91c1c;
+  background: #fee2e2;
 }
-.node-cell-status.safe {
+.node-status-badge.normal {
+  color: #b45309;
+  background: #fef3c7;
+}
+.node-status-badge.safe {
   color: #15803d;
+  background: #dcfce7;
+}
+.node-card-metrics-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 2px 0;
+}
+.node-centrality-strip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #475569;
+}
+.centrality-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.centrality-item small {
+  color: #64748b;
+  font-size: 10.5px;
+}
+.centrality-item b {
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 11.5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+.centrality-sep {
+  color: #94a3b8;
+  font-size: 10px;
+}
+.node-type-pill {
+  font-size: 10px;
+  color: #475569;
+  background: #f1f5f9;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.node-card-role-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  color: #475569;
+  background: rgba(241, 245, 249, 0.6);
+  padding: 3px 7px;
+  border-radius: 4px;
+  border-left: 2px solid #3b82f6;
+}
+.critical-node-card.danger .node-card-role-row {
+  border-left-color: #ef4444;
+  background: rgba(254, 242, 242, 0.7);
+  color: #7f1d1d;
+}
+.critical-node-card.normal .node-card-role-row {
+  border-left-color: #f59e0b;
+  background: rgba(254, 243, 199, 0.7);
+  color: #78350f;
+}
+.critical-node-card.safe .node-card-role-row {
+  border-left-color: #10b981;
+  background: rgba(240, 253, 244, 0.7);
+  color: #14532d;
+}
+.node-role-text {
+  line-height: 1.3;
+  font-weight: 500;
 }
 
 /* ========== 响应式：窄屏收窄侧栏，避免中间地图被挤裁切 ========== */
@@ -1343,4 +1515,62 @@ watch(uraniumStaticCorridorId, (next) => {
   .top-section { grid-template-columns: minmax(0, 1fr); grid-template-rows: 320px 520px 640px; }
   .right-panel { grid-template-columns: minmax(0, 1fr); }
 }
+
+.theater-mode-badge-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.theater-year-chip {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1e3a8a;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.simulation-core-question-strip {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 18px;
+  margin: 6px 16px 8px;
+  background: linear-gradient(135deg, rgba(238, 242, 255, 0.95) 0%, rgba(240, 253, 250, 0.9) 100%);
+  border: 1px solid #c7d2fe;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.05);
+}
+.core-question-badge {
+  font-size: 11px;
+  font-weight: 800;
+  color: #4f46e5;
+  background: #e0e7ff;
+  border: 1px solid #c7d2fe;
+  padding: 4px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.core-question-text {
+  flex: 1;
+}
+.core-question-text strong {
+  display: block;
+  font-size: 13px;
+  color: #1e1b4b;
+  margin-bottom: 2px;
+}
+.core-question-text p {
+  margin: 0;
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.45;
+}
+.theater-actions-quick {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 </style>

@@ -63,14 +63,14 @@
           </div>
         </section>
 
-        <!-- 01 俄乌冲突高风险节点与通道【脆弱性排行榜】 (事前脆弱断点直通事中三大调度令) -->
+        <!-- 01 俄乌冲突高风险节点与通道【脆弱性排行榜】 (脆弱断点直通事中应对调控措施) -->
         <section class="vulnerability-ranking-panel glass-panel">
           <div class="ranking-panel-head">
             <div class="analysis-column-head">
               <span class="analysis-column-index">01</span>
               <div>
                 <h3>俄乌冲突高风险节点与通道【脆弱性排行榜】</h3>
-                <p>基于地缘制裁断航、中欧口岸换装挤兑与原料库存警戒线综合测算，事前脆弱点直接映射事中保供/绕行/补库调度令</p>
+                <p>基于地缘制裁断航、中欧口岸换装挤兑与原料库存警戒线综合测算，脆弱断点直接映射事中保供/绕行/补库调控措施</p>
               </div>
             </div>
             <div class="ranking-head-meta">
@@ -130,7 +130,7 @@
                 </template>
               </el-table-column>
 
-              <el-table-column label="事中定向破局调度令映射" min-width="260">
+              <el-table-column label="事中定向破局措施映射" min-width="260">
                 <template #default="{ row }">
                   <div class="dispatch-mapping-cell">
                     <div class="dispatch-chip-row">
@@ -153,7 +153,7 @@
                 </template>
               </el-table-column>
 
-              <el-table-column label="调度联动" width="130" align="center" fixed="right">
+              <el-table-column label="应对方案联动" width="130" align="center" fixed="right">
                 <template #default="{ row }">
                   <el-button
                     size="small"
@@ -161,7 +161,7 @@
                     plain
                     @click="goToDispatchOrder(row.dispatchOrder.id)"
                   >
-                    查阅调度令 →
+                    查看应对措施 →
                   </el-button>
                 </template>
               </el-table-column>
@@ -319,28 +319,6 @@
             </div>
           </div>
         </section>
-
-        <!-- 流转到 Step 02 策略分析的贯通卡片 -->
-        <section class="handoff-next-step-panel glass-panel">
-          <div class="handoff-content">
-            <div class="handoff-badge-group">
-              <span class="handoff-badge">Step 01 诊断完成</span>
-              <el-tag size="small" type="success" effect="plain">高危断点参数已打包注入</el-tag>
-            </div>
-            <h4>已锁定首要系统性断裂点：黑海通道阻断、阿拉山口铁路口岸与包头制造基地</h4>
-            <p>
-              针对上述单一依赖与地缘冲击风险，下一步需进入【Step 02 · 策略分析】：在 2022–2028 年俄乌冲突长周期演化背景下，
-              调用扩展式博弈决策树展开多路径寻优，求出能以最低成本保障反应堆零非停的最优调控对策。
-            </p>
-          </div>
-          <div class="handoff-action">
-            <el-button type="primary" size="large" @click="goToStrategyAnalysis">
-              <span>下一步：前往策略分析展开寻优</span>
-              <el-icon><Right /></el-icon>
-            </el-button>
-          </div>
-        </section>
-
       </main>
     </template>
   </div>
@@ -351,7 +329,7 @@ import { buildUraniumVulnerability, uraniumVulnerabilityLevel } from '@/utils/ur
 import { computed, nextTick, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
-import { Right, WarningFilled, CircleCheckFilled, Location, TrendCharts, Document, Promotion, Finished } from '@element-plus/icons-vue'
+import { Right, WarningFilled, CircleCheckFilled, Location, TrendCharts, Document, Promotion, Finished, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 import AnalysisLinkTabs from './components/shared/AnalysisLinkTabs.vue'
@@ -365,6 +343,13 @@ useUraniumAnalysisExperiment()
 const route = useRoute()
 const router = useRouter()
 
+function goToSimulation() {
+  router.push({
+    path: '/home/SCnet/interface',
+    query: { ...route.query, scenario: 'uranium' }
+  })
+}
+
 function goToStrategyAnalysis() {
   router.push({
     path: '/home/SCnet/expAnalysisScenario',
@@ -374,8 +359,8 @@ function goToStrategyAnalysis() {
 
 function goToDispatchOrder(orderId = '') {
   router.push({
-    path: '/home/SCnet/decisionGeneration',
-    query: { ...route.query, scenario: 'uranium', orderId: orderId || undefined }
+    path: '/home/SCnet/experimentManager',
+    query: { ...route.query, scenario: 'uranium', view: 'decision', orderId: orderId || undefined }
   })
 }
 
@@ -729,53 +714,6 @@ watch(() => snapshotStore.activeSnapshotId, (next, prev) => {
   font-size: 11px;
   color: #475569;
   line-height: 1.4;
-}
-
-/* 底部流转面板 */
-.handoff-next-step-panel {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  margin-top: 14px;
-  padding: 16px 20px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #f8fafc, #eff6ff);
-  border: 1px solid #bfdbfe;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.06);
-}
-.handoff-content {
-  flex: 1;
-  min-width: 0;
-}
-.handoff-badge-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-.handoff-badge {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 7px;
-  border-radius: 4px;
-  background: #2563eb;
-  color: #ffffff;
-}
-.handoff-content h4 {
-  margin: 0 0 4px;
-  font-size: 14.5px;
-  font-weight: 700;
-  color: #0f172a;
-}
-.handoff-content p {
-  margin: 0;
-  font-size: 12px;
-  color: #475569;
-  line-height: 1.5;
-}
-.handoff-action {
-  flex-shrink: 0;
 }
 
 .vulnerability-workspace {

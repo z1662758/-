@@ -31,6 +31,7 @@ export const ROUTE_TO_PHASE = Object.freeze({
   '/home/SCnet/openSourceIntelligence': 'pre',
   '/home/SCnet/reportGeneration': 'pre',
   '/home/SCnet/situationResearch-main': 'pre',
+  '/home/SCnet/expertSeminar': 'pre',
 
   '/home/SCnet/modelingSetup': 'during',
   '/home/SCnet/scenarioModeling': 'during',
@@ -44,6 +45,7 @@ export const ROUTE_TO_PHASE = Object.freeze({
   '/home/SCnet/expAnalysisScenario': 'during',
   '/home/SCnet/expAnalysisGameTheory': 'during',
   '/home/SCnet/expAnalysisOverview': 'during',
+  '/home/SCnet/decisionGeneration': 'during',
 
   '/home/SCnet/expAnalysisObserve': 'post',
   '/home/SCnet/expAnalysisIntervention': 'post',

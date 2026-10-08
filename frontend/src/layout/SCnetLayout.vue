@@ -39,12 +39,6 @@
           <template #title>知识平台</template>
         </el-menu-item>
 
-        <!--	返回想定生成（回到对话/想定页）	-->
-        <el-menu-item index="/chatHome" class="back-select-item">
-          <el-icon size="18"><ChatDotSquare/></el-icon>
-          <template #title>想定生成</template>
-        </el-menu-item>
-
         <!-- ===== 以下随阶段（事前 / 事中 / 事后）整组切换 ===== -->
         <!-- li 而非 div：el-menu 渲染的就是 ul，插 div 是非法嵌套 -->
         <li class="phase-menu-divider" aria-hidden="true"></li>
@@ -89,6 +83,11 @@
             <el-icon size="18"><component :is="item.icon" /></el-icon>
             <template #title>{{ item.label }}</template>
           </el-menu-item>
+          <!-- 专家研讨厅：仅作为事前阶段的辅助研判工具 -->
+          <el-menu-item index="/home/SCnet/expertSeminar">
+            <el-icon size="18"><Connection/></el-icon>
+            <template #title>专家研讨厅</template>
+          </el-menu-item>
         </template>
 
         <!-- ========== 事中：应急响应与调度 ========== -->
@@ -112,7 +111,7 @@
           <el-sub-menu index="during-analysis">
             <template #title>
               <el-icon size="18"><DataAnalysis/></el-icon>
-              <span>策略与脆弱性分析</span>
+              <span>决策分析</span>
             </template>
             <el-menu-item
               v-for="item in duringAnalysisMenuItems"
@@ -167,12 +166,6 @@
           </el-menu-item>
         </template>
 
-        <!-- 独立附加功能，不参与任何阶段工作流 -->
-        <el-menu-item index="/home/SCnet/expertSeminar">
-          <el-icon size="18"><Connection/></el-icon>
-          <template #title>专家研讨厅</template>
-        </el-menu-item>
-
         <!-- index 不可为 "0"：router 模式下会执行 router.push("0") 导致无法访问 -->
         <el-menu-item index="scnet-menu-exit" :route="'/home'">
           <el-icon size="18"><SwitchButton/></el-icon>
@@ -225,7 +218,7 @@ import {
   Aim, Box, Coin, Collection, Connection, Cpu, DataAnalysis, DataLine, Document, DocumentDelete, Edit,
   FolderOpened, Grid, House, Memo, Monitor, Notification, Operation, Orange,
   PieChart, Place, Postcard, Promotion, ScaleToOriginal, Search as SearchIcon, Setting,
-  SwitchButton, TrendCharts, User, WarningFilled, ChatDotSquare, CircleCheck
+  SwitchButton, TrendCharts, User, WarningFilled, ChatDotSquare, CircleCheck, VideoPlay
 } from "@element-plus/icons-vue";
 import {ref, onMounted, onUnmounted, computed, watch} from "vue";
 import {useRoute, useRouter} from "vue-router";
@@ -262,14 +255,15 @@ const PRE_TAIL_MENU_ITEMS = Object.freeze([
 ])
 
 const DURING_MAIN_MENU_ITEMS = Object.freeze([
-  // 铀场景事中主线：建模设定 → 想定生成 → 实验推演 → 决策生成（实体关系图作为想定生成的“下一步”流转，不展示在左侧菜单栏）
-  { index: '/home/SCnet/modelingSetup', label: '建模设定', icon: Cpu, uraniumOnly: true },
+  // 铀场景事中主线：沙盘模型 → 想定生成 → 实验管理 → 沙盘推演 → 决策方案 → 决策分析
+  { index: '/home/SCnet/modelingSetup', label: '沙盘模型', icon: Cpu, uraniumOnly: true },
   { path: 'scenario', key: 'scenario', label: '想定生成', icon: Edit },
-  { index: '/home/SCnet/experimentManager', label: '实验推演', icon: Monitor }
+  { index: '/home/SCnet/experimentManager', label: '实验管理', icon: Monitor },
+  { index: '/home/SCnet/interface', label: '沙盘推演', icon: VideoPlay, extraQuery: 'view=simulation' }
 ])
 
 const DURING_DECISION_MENU_ITEMS = Object.freeze([
-  { path: 'decision', key: 'decision', label: '决策生成', icon: Promotion }
+  { path: 'decision', key: 'decision', label: '决策方案', icon: Promotion }
 ])
 
 const DURING_TAIL_MENU_ITEMS = Object.freeze([
@@ -278,7 +272,7 @@ const DURING_TAIL_MENU_ITEMS = Object.freeze([
 
 const DURING_ANALYSIS_MENU_ITEMS = Object.freeze([
   { index: '/home/SCnet/expAnalysisGameTheory', label: '脆弱性分析', icon: Grid },
-  { index: '/home/SCnet/expAnalysisScenario', label: '策略分析', icon: TrendCharts }
+  { index: '/home/SCnet/expAnalysisScenario', label: '决策分析', icon: TrendCharts }
 ])
 
 // 实验分析子菜单之前展示的主菜单项
@@ -344,7 +338,7 @@ export default {
     Refresh, Files, DataAnalysis, DataLine, DocumentDelete, House, Aim, Box, Collection,
     Document, Notification, Operation, Postcard, Promotion, ScaleToOriginal, SearchIcon, Setting,
     Coin, PieChart, FolderOpened, Grid, SwitchButton, Orange, TrendCharts, User, AppHeader, WarningFilled, ChatDotSquare, CircleCheck,
-    ScnetPhaseNav
+    ScnetPhaseNav, VideoPlay
   },
   setup() {
     const route = useRoute()
@@ -354,7 +348,7 @@ export default {
     // currentPhase 优先按当前路由推断，避免旧的 localStorage 状态把菜单带偏；
     // 仅当路由无法识别时再回落到 localStorage。
     const currentPhase = computed(() => {
-      if (route.path === '/home/SCnet/expertSeminar') return ''
+      if (route.path === '/home/SCnet/expertSeminar') return 'pre'
       return ROUTE_TO_PHASE[route.path] || storedPhase.value || ''
     })
 

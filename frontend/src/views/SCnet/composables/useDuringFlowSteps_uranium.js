@@ -11,7 +11,7 @@ export const DURING_FLOW_STEPS = [
   { key: 'analysis', label: '想定生成', route: SCNET_ROUTES.scenarioAnalysis, query: {} },
   { key: 'workflow', label: '实体关系图', route: SCNET_ROUTES.agentSimulationStudio, query: { view: 'workflow' } },
   { key: 'experiment', label: '实验推演', route: SCNET_ROUTES.experimentManager, query: { view: 'run' } },
-  { key: 'decision', label: '决策生成', route: SCNET_ROUTES.experimentManager, query: { view: 'decision' } },
+  { key: 'decision', label: '决策方案', route: SCNET_ROUTES.experimentManager, query: { view: 'decision' } },
 ]
 
 export function routeToStepKey(routePath, routeQuery = {}) {

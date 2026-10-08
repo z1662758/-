@@ -58,8 +58,8 @@ const total = computed(() => props.groups.reduce((sum, group) => sum + group.mem
 const nodes = computed(() => props.groups.map((group, index) => ({
   id: group.tier, type: 'agentGroup',
   position: direction.value === 'LR'
-    ? { x: (index % 2) * 310, y: Math.floor(index / 2) * 235 }
-    : { x: Math.floor(index / 2) * 310, y: (index % 2) * 235 },
+    ? { x: index * 280, y: 70 }
+    : { x: 260, y: index * 210 },
   data: { ...group, ...meta[group.tier], count: group.members.length, members: group.members.slice(0, 2).map(item => item.name).join(' / ') },
 })))
 const agentTiers = new Map(URANIUM_REFERENCE_GRAPH.agents.map(agent => [agent.id, agent.category]))

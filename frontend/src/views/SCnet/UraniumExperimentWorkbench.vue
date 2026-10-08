@@ -1,58 +1,17 @@
 <template>
   <div class="uranium-workbench">
-    <header class="workbench-toolbar">
-      <nav class="workbench-tabs" aria-label="实验推演视图">
-        <button v-for="item in workbenchViews" :key="item.value" type="button"
-          :class="{ active: activeView === item.value }"
-          :aria-current="activeView === item.value ? 'page' : undefined"
-          @click="switchView(item.value)">{{ item.label }}</button>
-        <span v-if="activeView === 'case'" class="case-label">案例分析</span>
-      </nav>
-      <div class="workbench-context">
-        <label for="workbench-experiment">当前实验</label>
-        <el-select id="workbench-experiment" :model-value="demoStore.selectedExperimentId"
-          class="workbench-experiment-select" size="small" placeholder="选择已完成的实验"
-          filterable @change="selectExperiment">
-          <el-option v-for="item in demoStore.history" :key="item.experiment_id"
-            :label="item.name || item.experiment_id" :value="item.experiment_id" />
-        </el-select>
-        <el-button size="small" text :disabled="!demoStore.selectedExperiment" @click="askAboutExperiment">询问当前实验</el-button>
-        <el-button v-if="activeView === 'case'" size="small" @click="backToRun">返回实验管理</el-button>
-      </div>
-    </header>
-
     <main v-if="ready" class="workbench-content">
       <ExperimentManager v-if="activeView === 'run'" />
       <SimulationInterface v-else-if="activeView === 'simulation'" />
       <UraniumCaseAnalysis v-else-if="activeView === 'case'" :case-id="activeCaseId" />
       <DecisionGeneration v-else />
     </main>
-
-    <!-- 独立操作栏预留空间，不覆盖图表、地图时间轴和结果内容 -->
-    <div v-if="nextViewMeta || prevViewMeta || activeView === 'run'" class="workbench-next-fab workbench-flow-footer">
-      <el-button v-if="activeView === 'run'" class="workbench-prev-button" size="large" @click="goToStudio">
-        <el-icon class="prev-icon"><ArrowLeft /></el-icon>
-        <span class="prev-text">上一步：实体关系图</span>
-      </el-button>
-      <el-button v-else-if="prevViewMeta" class="workbench-prev-button" size="large" @click="switchView(prevViewMeta.value)">
-        <el-icon class="prev-icon"><ArrowLeft /></el-icon>
-        <span class="prev-text">上一步：{{ prevViewMeta.label }}</span>
-      </el-button>
-      <el-button v-if="nextViewMeta" class="workbench-next-button" type="primary" size="large" @click="switchView(nextViewMeta.value)">
-        <span class="next-text">下一步：{{ nextViewMeta.label }}</span>
-        <el-icon class="next-icon"><ArrowRight /></el-icon>
-      </el-button>
-      <el-button v-if="activeView === 'decision'" class="workbench-next-button" type="primary" size="large" :disabled="!demoStore.selectedExperiment" @click="openAnalysis">
-        查看情景分析<el-icon><ArrowRight /></el-icon>
-      </el-button>
-    </div>
   </div>
 </template>
 
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import ExperimentManager from './ExperimentManager_uranium.vue'
 import SimulationInterface from './interface_uranium.vue'
 import DecisionGeneration from './DecisionGeneration_uranium.vue'
@@ -90,12 +49,6 @@ async function selectExperiment(id) {
   await demoStore.loadExperiment(id)
 }
 
-function openAnalysis() {
-  router.push({ path: SCNET_ROUTES.expAnalysisScenario, query: {
-    scenario: 'uranium', experiment_id: demoStore.selectedExperimentId,
-  } })
-}
-
 function askAboutExperiment() {
   if (!demoStore.selectedExperiment) return
   router.push({ path: SCNET_ROUTES.chatHome, query: {
@@ -107,7 +60,7 @@ function askAboutExperiment() {
 const workbenchViews = Object.freeze([
   { value: 'run', label: '实验管理' },
   { value: 'simulation', label: '态势推演' },
-  { value: 'decision', label: '决策生成' },
+  { value: 'decision', label: '决策方案' },
 ])
 
 const VIEW_KEYS = ['run', 'simulation', 'case', 'decision']
@@ -117,13 +70,6 @@ const activeView = computed(() => (
   VIEW_KEYS.includes(route.query.view) ? route.query.view : routeDefault.value
 ))
 const activeCaseId = computed(() => String(route.query.case || ''))
-
-// 事中推进顺序：运行管理 → 态势推演 → 决策生成；案例分析只保留返回入口
-const NEXT_VIEW = Object.freeze({ run: 'simulation', simulation: 'decision' })
-const PREV_VIEW = Object.freeze({ simulation: 'run', decision: 'simulation' })
-const findView = (value) => workbenchViews.find(item => item.value === value) || null
-const nextViewMeta = computed(() => findView(NEXT_VIEW[activeView.value]))
-const prevViewMeta = computed(() => findView(PREV_VIEW[activeView.value]))
 
 function switchView(view) {
   if (view === activeView.value) return
@@ -136,10 +82,6 @@ function backToRun() {
   const query = { ...route.query, view: 'run' }
   delete query.case
   router.replace({ query })
-}
-
-function goToStudio() {
-  router.push({ path: SCNET_ROUTES.agentSimulationStudio, query: { ...route.query, scenario: 'uranium', view: 'workflow' } })
 }
 </script>
 

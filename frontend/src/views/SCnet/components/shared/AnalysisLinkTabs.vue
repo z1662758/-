@@ -109,6 +109,7 @@ import {
   Check,
   Document,
   Grid,
+  Promotion,
   Right,
   TrendCharts
 } from '@element-plus/icons-vue'
@@ -121,7 +122,7 @@ const props = defineProps({
   active: {
     type: String,
     required: true,
-    validator: v => ['gameTheory', 'strategy', 'decisionTree', 'scenario', 'report'].includes(v)
+    validator: v => ['decision', 'gameTheory', 'strategy', 'decisionTree', 'scenario', 'report', 'overview'].includes(v)
   }
 })
 
@@ -135,8 +136,15 @@ async function changeExperiment(id) {
   router.replace({ query: { ...router.currentRoute.value.query, experiment_id: id } })
 }
 
-// 统一的 3 阶段流水线步骤定义
+// 统一的 4 阶段流水线步骤定义：决策方案置于决策分析之上
 const pipelineSteps = [
+  {
+    key: 'decision',
+    title: '决策方案',
+    subtitle: '落地闭环 · 核心措施与方案比选',
+    question: '“如何将推演成果转化为落地应对调度指令与评估？”',
+    icon: markRaw(Promotion)
+  },
   {
     key: 'gameTheory',
     title: '脆弱性分析',
@@ -146,16 +154,16 @@ const pipelineSteps = [
   },
   {
     key: 'strategy',
-    title: '策略分析',
+    title: '决策分析',
     subtitle: '对策寻优 · 情景与决策树',
-    question: '“面对脆弱断点与外部冲击，如何动态调控？”',
+    question: '“面对脆弱断点与外部冲击，如何形成可比较的决策建议？”',
     icon: markRaw(TrendCharts)
   },
   {
     key: 'report',
-    title: '决策报告',
-    subtitle: '落地闭环 · 集团调度令清单',
-    question: '“如何将算法对策转化为具体执行指令？”',
+    title: '报告生成',
+    subtitle: '专报输出 · 闭环决策专报',
+    question: '“如何汇总推演结论与调控建议形成综合专报？”',
     icon: markRaw(Document)
   }
 ]
@@ -163,51 +171,65 @@ const pipelineSteps = [
 // 规格化当前激活 key
 const activeStepKey = computed(() => {
   if (['scenario', 'decisionTree', 'strategy'].includes(props.active)) return 'strategy'
+  if (['report', 'overview'].includes(props.active)) return 'report'
   return props.active
 })
 
 const currentStepIndex = computed(() => {
   const idx = pipelineSteps.findIndex(s => s.key === activeStepKey.value)
-  return idx >= 0 ? idx : 1
+  return idx >= 0 ? idx : 0
 })
 
 // 当前步骤的业务逻辑导引信息（直击用户“几个分析想说明什么”的核心痛点）
 const currentStepInfo = computed(() => {
+  if (activeStepKey.value === 'decision') {
+    return {
+      tone: 'tone-strategy',
+      badge: 'Step 01 · 决策方案',
+      headline: '本方案想说明：面对突发外部冲击，下达哪些具体应对调控指令？',
+      desc: '汇总仿真推演与宏观情景，创新生成包含“跨里海绕行 + 保税库借调 + 长协现货配比优化”的落地执行措施，明确分阶段执行时序与前置法规审批，下达战情应急调度指令。',
+      handoffLabel: '下一步流转：',
+      handoffTarget: '排查网络拓扑结构与关键瓶颈',
+      nextStepKey: 'gameTheory',
+      nextStepBtnText: '下一步：前往脆弱性分析'
+    }
+  }
+
   if (activeStepKey.value === 'gameTheory') {
     return {
       tone: 'tone-vulnerability',
-      badge: 'Step 01 · 诊断定点',
+      badge: 'Step 02 · 诊断定点',
       headline: '本分析想说明：面对突发外部冲击，系统哪里最脆弱？',
       desc: '承接 2024–2030 年长周期推演运行异常，通过网络拓扑介数与依赖矩阵排查单点失效。已诊断出：中哈阿拉山口口岸（介数 0.84，负荷率 94%）与包头制造基地（库存破 14 周警戒线）构成全网首要脆弱咽喉。',
       handoffLabel: '下一步流转：',
-      handoffTarget: '将上述脆弱点作为约束输入，送入策略分析',
+      handoffTarget: '将上述脆弱点作为约束输入，送入决策分析',
       nextStepKey: 'strategy',
-      nextStepBtnText: '下一步：前往策略分析寻优'
+      nextStepBtnText: '下一步：前往决策分析寻优'
     }
   }
 
   if (activeStepKey.value === 'strategy') {
     return {
       tone: 'tone-strategy',
-      badge: 'Step 02 · 对策寻优',
+      badge: 'Step 03 · 对策寻优',
       headline: '本分析想说明：面对已确定的脆弱断点，如何科学调控保证反应堆零非停？',
       desc: '承接上一步【脆弱性诊断】结果：上层锚定 2024–2030 宏观扰动情景画像，下层展开扩展式博弈决策树多路径寻优。已求解出最优方案：“跨里海多式联运绕行 + 防城港保税库应急借调平准”（综合评分 91.5 分，较基线提升 +23.5 分）。',
       handoffLabel: '下一步流转：',
-      handoffTarget: '将 91.5 分最优方案转化为具有法律效力的执行指令',
+      handoffTarget: '将应对措施与推演证据链汇总生成综合决策研报',
       nextStepKey: 'report',
-      nextStepBtnText: '下一步：前往决策报告落地闭环'
+      nextStepBtnText: '下一步：前往报告生成'
     }
   }
 
   return {
     tone: 'tone-report',
-    badge: 'Step 03 · 落地闭环',
-    headline: '本分析想说明：如何把算法寻优结果转化为具体可下达的调度指令与应急预案？',
-    desc: '汇总 Step 01 脆弱性诊断（定点）与 Step 02 决策树博弈求解（寻优）的完整因果证据链，生成带有正式编号的国家/集团级应急调度令清单（#2026-U-01 等）、核验 4 项合规前置审批，形成闭环白皮书。',
-    handoffLabel: '流程状态：',
-    handoffTarget: '决策闭环已达成，可归档或重新仿真',
+    badge: 'Step 04 · 闭环专报',
+    headline: '本报告想说明：汇总推演全链路分析结论，输出高管级综合决策专报',
+    desc: '汇总脆弱性诊断（定点）、决策树博弈求解（寻优）与落地决策调控措施的完整因果证据链，形成高管级闭环决策报告并支持导出 PDF。',
+    handoffLabel: '推演闭环：',
+    handoffTarget: '全链路决策推演已完成闭环',
     nextStepKey: null,
-    nextStepBtnText: ''
+    nextStepBtnText: '返回沙盘推演'
   }
 })
 
@@ -223,10 +245,10 @@ function navigateStep(key) {
 
 function goToSimulation() {
   router.push({
-    path: '/home/SCnet/experimentManager',
+    path: '/home/SCnet/interface',
     query: {
       scenario: 'uranium',
-      view: 'run'
+      view: 'simulation'
     }
   })
 }

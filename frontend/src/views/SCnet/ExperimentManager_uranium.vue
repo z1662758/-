@@ -1,72 +1,5 @@
 <template>
   <div class="experiment-manager mid-stage-bg">
-    <MidStagePageHeader
-      title="实验管理"
-      subtitle="提交、排队并跟踪铀供应链实验任务"
-      :icon="Monitor"
-    >
-      <template #right>
-        <el-tooltip
-          :content="launchDisabledReason || '基于当前需求生成一组铀供应链实验任务'"
-          placement="bottom"
-        >
-          <span class="launch-btn-wrap">
-            <el-button
-              type="primary"
-              size="small"
-              :disabled="!canLaunch || launching"
-              :loading="launching"
-              @click="launchCurrentSession"
-            >
-              <el-icon><VideoPlay /></el-icon>
-              <span>启动实验</span>
-            </el-button>
-          </span>
-        </el-tooltip>
-        <el-button
-          :type="showRunningSection ? 'danger' : 'default'"
-          size="small"
-          :disabled="!showRunningSection || stoppingExperiment"
-          :loading="stoppingExperiment"
-          @click="stopRunningExperiment"
-        >
-          <el-icon><Warning /></el-icon>
-          <span>停止当前实验</span>
-        </el-button>
-        <el-button size="small" @click="createNewExperiment">
-          <el-icon><Plus /></el-icon>
-          <span>新建实验</span>
-        </el-button>
-        <!-- 案例分析挂在运行管理之下：这里是统一入口，选一个历史案例去核验当前焦点实验 -->
-        <el-dropdown trigger="click" placement="bottom-end" @command="openCaseAnalysis">
-          <el-button size="small" class="case-entry-btn">
-            <el-icon><Reading /></el-icon>
-            <span>案例分析</span>
-            <el-icon class="case-entry-caret"><ArrowDown /></el-icon>
-          </el-button>
-          <template #dropdown>
-            <el-dropdown-menu class="case-entry-menu">
-              <div class="case-entry-menu-head">选择案例，查看事件背景与实验结果</div>
-              <el-dropdown-item
-                v-for="item in caseLibrary"
-                :key="item.id"
-                :command="item"
-                :class="{ 'is-research': item.status !== 'ready' }"
-              >
-                <span class="case-entry-item">
-                  <b>{{ item.title }}</b>
-                  <small>
-                    <em :class="item.status === 'ready' ? 'ready' : 'research'">{{ item.status === 'ready' ? '可验证' : '调研中' }}</em>
-                    {{ item.period }} · {{ item.category }}
-                  </small>
-                </span>
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-      </template>
-    </MidStagePageHeader>
-
     <!-- 选中实验快捷入口（替代原 MessageBox 弹窗） -->
     <SelectedExperimentBanner
       :visible="selectedExperimentBanner.visible"
@@ -74,6 +7,24 @@
       :session-id="selectedExperimentBanner.sessionId"
       @dismiss="selectedExperimentBanner.visible = false"
     />
+
+    <!-- 业务核心问题导引条（阐明“推演实验想解决什么问题”） -->
+    <section class="experiment-core-question-strip glass-panel">
+      <div class="core-question-badge">推演实验目标</div>
+      <div class="core-question-text">
+        <strong>面向突发外部断供与极端现货冲击，评估保供策略在多轮蒙特卡洛仿真下的收敛性与鲁棒性</strong>
+        <p>通过多轮级联失效演化，量化测算不同采购配比（长协/现货）与海陆通量分流方案下，北方包头基地、南方宜宾基地的库存消耗速度与机组停堆概率，为后续脆弱性诊断与策略寻优提供硬核仿真证据支撑。</p>
+      </div>
+      <el-button
+        size="small"
+        type="warning"
+        plain
+        @click="goToSimulationTheatre(showRunningSection ? 'live' : 'replay')"
+      >
+        <el-icon><VideoPlay /></el-icon>
+        <span>{{ showRunningSection ? '过程监控 (推演中)' : '过程回放 (剧场)' }}</span>
+      </el-button>
+    </section>
 
     <div v-if="showRunningSection || pendingTask" class="iteration-progress-section">
       <el-card shadow="never" class="progress-card">
@@ -129,49 +80,6 @@
       </el-card>
     </div>
 
-    <!-- 俄乌冲突推演时序与自适应调度回溯带 -->
-    <div class="ukraine-timeline-strip glass-panel">
-      <div class="ut-head">
-        <div class="ut-head-left">
-          <span class="ut-badge">时序推演与关键决策</span>
-          <strong>俄乌冲突与西方禁俄铀法案应对轨迹 (2022–2028)</strong>
-        </div>
-        <div class="ut-head-right">
-          <el-button type="primary" size="small" @click="$router.push({ path: '/home/SCnet/interface', query: { ...$route.query, scenario: 'uranium', view: 'decision' } })">
-            <span>查看 3 项应急调度令 ➔</span>
-          </el-button>
-        </div>
-      </div>
-      <div class="ut-steps-row">
-        <div class="ut-step-item past">
-          <div class="ut-step-dot danger"></div>
-          <div class="ut-step-content">
-            <span class="ut-year">2022 年</span>
-            <strong>冲突爆发 · 现货暴涨</strong>
-            <p>俄乌战事升级，恐慌抢单导致现货冲破 $85/lb，欧洲转运通道受阻。</p>
-          </div>
-        </div>
-        <div class="ut-step-arrow">➔</div>
-        <div class="ut-step-item current">
-          <div class="ut-step-dot danger"></div>
-          <div class="ut-step-content">
-            <span class="ut-year">2024 年 (关键决策点)</span>
-            <strong>禁俄令生效 · 储备削峰</strong>
-            <p>现货达 $106/lb 极值。Agent 否决高位追涨，启动战略储备借调 400 tU。</p>
-          </div>
-        </div>
-        <div class="ut-step-arrow">➔</div>
-        <div class="ut-step-item future">
-          <div class="ut-step-dot success"></div>
-          <div class="ut-step-content">
-            <span class="ut-year">2025–2028 年</span>
-            <strong>海陆重构 · 韧性稳态</strong>
-            <p>纳米比亚海运分流 55% 到港防城港，首炉装料 0 停堆，牛鞭效应平抑。</p>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <details v-if="focusTask && focusIterationRows.length" class="focus-experiment-section" @toggle="showIterationDetails = $event.target.open">
       <summary>迭代结果 <span>{{ focusExperiment?.name || focusTask.user_goal }} · {{ focusIterationRows.length }} 条记录</span></summary>
       <UraniumExperimentFocusPanel
@@ -208,6 +116,76 @@
                 <div class="overview-label">已完成</div>
                 <div class="overview-value">{{ overviewStats.completed }}</div>
               </div>
+            </div>
+
+            <!-- 核心推演实验操作按钮 -->
+            <div class="list-header-actions">
+              <el-tooltip
+                :content="launchDisabledReason || '基于当前需求生成一组铀供应链实验任务'"
+                placement="bottom"
+              >
+                <span class="launch-btn-wrap">
+                  <el-button
+                    type="primary"
+                    size="small"
+                    :disabled="!canLaunch || launching"
+                    :loading="launching"
+                    @click="launchCurrentSession"
+                  >
+                    <el-icon><VideoPlay /></el-icon>
+                    <span>启动实验</span>
+                  </el-button>
+                </span>
+              </el-tooltip>
+              <el-button
+                :type="showRunningSection ? 'danger' : 'default'"
+                size="small"
+                :disabled="!showRunningSection || stoppingExperiment"
+                :loading="stoppingExperiment"
+                @click="stopRunningExperiment"
+              >
+                <el-icon><Warning /></el-icon>
+                <span>停止当前实验</span>
+              </el-button>
+              <el-button size="small" @click="createNewExperiment">
+                <el-icon><Plus /></el-icon>
+                <span>新建实验</span>
+              </el-button>
+              <el-dropdown trigger="click" placement="bottom-end" @command="openCaseAnalysis">
+                <el-button size="small" class="case-entry-btn">
+                  <el-icon><Reading /></el-icon>
+                  <span>案例分析</span>
+                  <el-icon class="case-entry-caret"><ArrowDown /></el-icon>
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu class="case-entry-menu">
+                    <div class="case-entry-menu-head">选择案例，查看事件背景与实验结果</div>
+                    <el-dropdown-item
+                      v-for="item in caseLibrary"
+                      :key="item.id"
+                      :command="item"
+                      :class="{ 'is-research': item.status !== 'ready' }"
+                    >
+                      <span class="case-entry-item">
+                        <b>{{ item.title }}</b>
+                        <small>
+                          <em :class="item.status === 'ready' ? 'ready' : 'research'">{{ item.status === 'ready' ? '可验证' : '调研中' }}</em>
+                          {{ item.period }} · {{ item.category }}
+                        </small>
+                      </span>
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+              <el-button
+                type="primary"
+                size="small"
+                plain
+                @click="goToSimulationTheatre('replay')"
+              >
+                <span>进入沙盘推演</span>
+                <el-icon><ArrowRight /></el-icon>
+              </el-button>
             </div>
           </div>
         </template>
@@ -389,6 +367,24 @@
                     @click.stop="viewExperiment(row)"
                   >
                     查看结果
+                  </el-button>
+                  <el-button
+                    v-if="row.status === 'completed'"
+                    type="warning"
+                    size="small"
+                    link
+                    @click.stop="goToSimulationTheatre('replay', row)"
+                  >
+                    过程回放
+                  </el-button>
+                  <el-button
+                    v-if="row.status === 'running'"
+                    type="warning"
+                    size="small"
+                    link
+                    @click.stop="goToSimulationTheatre('live', row)"
+                  >
+                    过程监控
                   </el-button>
                   <el-button
                     v-if="row.status === 'completed' && isUraniumTask(row)"
@@ -670,7 +666,10 @@ import {
   ArrowDown,
   ArrowUp,
   Histogram,
-  Top
+  Top,
+  Check,
+  ArrowRight,
+  ArrowLeft
 } from '@element-plus/icons-vue'
 import './components/shared/midStage.css'
 import MidStagePageHeader from './components/shared/MidStagePageHeader.vue'
@@ -699,6 +698,39 @@ const route = useRoute()
 const store = useSupplyChainStore()
 const uraniumStore = useUraniumDuringStore()
 const demoStore = useUraniumDemoStore()
+
+function goToScenario() {
+  router.push({
+    path: SCNET_ROUTES.scenarioAnalysis,
+    query: { ...route.query, scenario: 'uranium' }
+  })
+}
+
+function goToNextAnalysis() {
+  router.push({
+    path: SCNET_ROUTES.expAnalysisGameTheory,
+    query: { ...route.query, scenario: 'uranium' }
+  })
+}
+
+function goToSimulationTheatre(mode = 'replay', row = null) {
+  if (row) {
+    const expId = resolveExperimentIdFromTask(row)
+    if (expId) {
+      demoStore.loadExperiment(expId)
+    }
+  }
+  router.push({
+    path: '/home/SCnet/interface',
+    query: {
+      ...route.query,
+      scenario: 'uranium',
+      view: 'simulation',
+      theaterMode: mode,
+      experiment_id: demoStore.selectedExperimentId || undefined
+    }
+  })
+}
 
 const strategyDialogVisible = ref(false)
 
@@ -1015,6 +1047,24 @@ const pendingPosition = computed(() => {
 
 const showRunningSection = computed(() => {
   return Boolean(runningProgress.value.is_running || runningTask.value)
+})
+
+const simulationPipelineStages = Object.freeze([
+  { key: 'topo', title: '拓扑基线构建', desc: '4 级实体拓扑与基线吞吐' },
+  { key: 'perturb', title: '外部扰动注入', desc: '现货 $106/lb & 禁俄脱钩' },
+  { key: 'cascade', title: '级联失效演化', desc: '蒙特卡洛多轮仿真口岸挤兑' },
+  { key: 'vulnerability', title: '脆弱性诊断', desc: '计算介数中心度与断点排行' },
+  { key: 'policy', title: '策略求解收敛', desc: '求解最优绕行与储备平准' }
+])
+
+const currentSimulationStageIndex = computed(() => {
+  if (!showRunningSection.value) return 4
+  const pct = Number(runningProgress.value?.percentage || 0)
+  if (pct < 20) return 0
+  if (pct < 40) return 1
+  if (pct < 65) return 2
+  if (pct < 85) return 3
+  return 4
 })
 
 const showIterationDetails = ref(false)
@@ -1966,6 +2016,136 @@ watch(showRunningSection, (running) => {
   color: #64748b;
 }
 
+/* 置顶仿真推演 5 阶段全局进度条 */
+.simulation-pipeline-strip {
+  margin: 10px 0 16px;
+  padding: 14px 18px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+.simulation-pipeline-strip.is-running {
+  border-color: #93c5fd;
+  background: linear-gradient(180deg, #f0f7ff 0%, #ffffff 100%);
+}
+.pipeline-strip-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.strip-top-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.pipeline-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+}
+.pipeline-pulse-dot.live {
+  background: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.2);
+}
+.pipeline-pulse-dot.idle {
+  background: #10b981;
+}
+.pipeline-task-name {
+  color: #64748b;
+  font-size: 12px;
+  padding-left: 8px;
+  border-left: 1px solid #cbd5e1;
+}
+.strip-top-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+.pipeline-timer-pill, .pipeline-ready-pill {
+  color: #475569;
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.simulation-steps-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.sim-step-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  position: relative;
+}
+.sim-step-item.passed {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+}
+.sim-step-item.active {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+.sim-step-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #cbd5e1;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.sim-step-item.passed .sim-step-num {
+  background: #10b981;
+}
+.sim-step-item.active .sim-step-num {
+  background: #2563eb;
+}
+.sim-step-copy {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sim-step-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1e293b;
+  white-space: nowrap;
+}
+.sim-step-desc {
+  font-size: 10px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sim-step-arrow {
+  position: absolute;
+  right: -7px;
+  color: #94a3b8;
+  font-size: 10px;
+  z-index: 2;
+}
+.pipeline-progress-bar-wrap {
+  width: 100%;
+}
+
 .run-progress-body { display: grid; gap: 10px; }
 .run-progress-caption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; font-size: 13px; }
 .run-progress-caption strong { font-weight: 500; color: #334155; }
@@ -2264,11 +2444,10 @@ watch(showRunningSection, (running) => {
 .list-card-header {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
   width: 100%;
 }
-
 
 .list-title {
   font-size: var(--mid-fs-title);
@@ -2276,9 +2455,15 @@ watch(showRunningSection, (running) => {
   color: var(--ux-ink);
 }
 
-
 .list-header-stats {
   display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.list-header-actions {
+  display: flex;
+  align-items: center;
   gap: 8px;
   margin-left: auto;
   flex-wrap: wrap;
@@ -3215,5 +3400,42 @@ watch(showRunningSection, (running) => {
   .ut-step-arrow {
     transform: rotate(90deg);
   }
+}
+
+.experiment-core-question-strip {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 18px;
+  margin: 10px 16px 12px;
+  background: linear-gradient(135deg, rgba(238, 242, 255, 0.95) 0%, rgba(240, 253, 250, 0.9) 100%);
+  border: 1px solid #c7d2fe;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.05);
+}
+.core-question-badge {
+  font-size: 11px;
+  font-weight: 800;
+  color: #4f46e5;
+  background: #e0e7ff;
+  border: 1px solid #c7d2fe;
+  padding: 4px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.core-question-text {
+  flex: 1;
+}
+.core-question-text strong {
+  display: block;
+  font-size: 13px;
+  color: #1e1b4b;
+  margin-bottom: 2px;
+}
+.core-question-text p {
+  margin: 0;
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.45;
 }
 </style>

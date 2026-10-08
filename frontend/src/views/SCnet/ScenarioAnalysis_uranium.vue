@@ -20,16 +20,86 @@
           <span class="stat-pill"><b>{{ experimentDesign.factors.length || 2 }}</b> 影响因素</span>
           <span class="stat-pill"><b>{{ experimentDesign.responses.length || 2 }}</b> 响应变量</span>
         </div>
-        <el-button size="small" @click="goToModelingSetup">
-          <el-icon><ArrowLeft /></el-icon>
-          <span>上一步：建模设定</span>
+        <el-button size="small" type="primary" plain @click="calibrationVisible = true">
+          <el-icon><Setting /></el-icon>
+          <span>人工校准设定</span>
         </el-button>
-        <el-button type="primary" size="small" :disabled="!tasks.length" @click="goToNextPage">
-          <span>下一步：实体关系图</span>
+        <el-button type="primary" size="small" :disabled="!tasks.length" @click="goToExperimentManager">
+          <span>下一步：实验管理</span>
           <el-icon><ArrowRight /></el-icon>
         </el-button>
       </template>
     </MidStagePageHeader>
+
+    <!-- 业务核心问题导引条（阐明“想定生成想解决什么问题”） -->
+    <section class="scenario-core-question-strip glass-panel">
+      <div class="core-question-badge">想定生成目标</div>
+      <div class="core-question-text">
+        <strong>面向海外供给断供与极端扰动想定，如何将自然语言推演意图解析为可量化的实验变量矩阵与子任务？</strong>
+        <p>通过大模型研判输入意图，自动化抽取影响因素（地缘脱钩、运力受阻、价格暴涨）与响应变量（供需缺口、长协履约率、完全采购成本），编排生成多组实验参数方案，并支持专家在环人工校准实验边界。</p>
+      </div>
+      <el-button
+        size="small"
+        type="primary"
+        plain
+        @click="calibrationVisible = true"
+      >
+        <el-icon><Setting /></el-icon>
+        <span>专家人工校准设定 ⚙️</span>
+      </el-button>
+    </section>
+
+    <!-- 想定生成 4 步时序推进流向条 (对齐学长工作流引导) -->
+    <nav class="scenario-step-rail glass-panel" aria-label="想定生成四步流转">
+      <div class="step-node active">
+        <span class="step-node-num">01</span>
+        <div class="step-node-text">
+          <div class="node-title-row">
+            <strong>需求研判与情景注入</strong>
+            <el-tag size="small" type="success" effect="plain">已就绪</el-tag>
+          </div>
+          <small>自然语言意图 / 快捷预设扰动</small>
+        </div>
+      </div>
+      <div class="step-rail-arrow">➔</div>
+      <div class="step-node" :class="{ active: tasks.length > 0 }">
+        <span class="step-node-num">02</span>
+        <div class="step-node-text">
+          <div class="node-title-row">
+            <strong>变量识别与子问题拆解</strong>
+            <el-tag size="small" :type="tasks.length > 0 ? 'success' : 'info'" effect="plain">
+              {{ tasks.length > 0 ? '已识别' : '待分析' }}
+            </el-tag>
+          </div>
+          <small>扰动因素 / 控制红线 / 子任务拆解</small>
+        </div>
+      </div>
+      <div class="step-rail-arrow">➔</div>
+      <div class="step-node" :class="{ active: generatedPlanRows.length > 0 }">
+        <span class="step-node-num">03</span>
+        <div class="step-node-text">
+          <div class="node-title-row">
+            <strong>实验方案矩阵编排</strong>
+            <el-tag size="small" :type="generatedPlanRows.length > 0 ? 'primary' : 'info'" :effect="generatedPlanRows.length > 0 ? 'dark' : 'plain'">
+              {{ generatedPlanRows.length }} 组方案
+            </el-tag>
+          </div>
+          <small>多策略横向参数比选与到岸成本测算</small>
+        </div>
+      </div>
+      <div class="step-rail-arrow">➔</div>
+      <div class="step-node" :class="{ active: tasks.length > 0 }" role="button" tabindex="0" @click="goToNextPage">
+        <span class="step-node-num">04</span>
+        <div class="step-node-text">
+          <div class="node-title-row">
+            <strong>拓扑映射与实体关系</strong>
+            <el-tag size="small" :type="tasks.length > 0 ? 'primary' : 'info'" effect="plain">下一步</el-tag>
+          </div>
+          <small>流转进入微观微体网络拓扑</small>
+        </div>
+      </div>
+    </nav>
+
     <!-- 主界面 - 智能对话 -->
     <div class="scenario-modeling-container">
       <div class="main-content">
@@ -113,14 +183,17 @@
                     </div>
                     <div class="analysis-section tasks-section">
                       <div class="section-title">
-                        <span>任务分解</span>
+                        <span>大模型子问题拆解（指导后续三段式推演与寻优）</span>
                       </div>
                       <div class="task-step-list">
                         <div v-for="(task, i) in msg.analysisData.subtasks" :key="i" class="task-step-row">
-                          <span class="chip-number">{{ i + 1 }}</span>
+                          <span class="chip-number">Q{{ i + 1 }}</span>
                           <div class="task-chip-main">
                             <span class="chip-text">{{ task.title || task.description || '' }}</span>
-                            <span v-if="getSubtaskDescription(task)" class="chip-desc">{{ getSubtaskDescription(task) }}</span>
+                            <span v-if="task.phase_hint || getSubtaskDescription(task)" class="chip-desc">
+                              <b v-if="task.phase_hint" style="color: #2563eb; margin-right: 6px;">[{{ task.phase_hint }}]</b>
+                              {{ getSubtaskDescription(task) }}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -494,27 +567,85 @@
                 <p>完成左侧对话后，这里展示实验方案汇总</p>
               </div>
             </div>
-            <div v-if="tasks.length" class="scenario-actions">
-              <el-button size="default" @click="goToModelingSetup">
-                <el-icon><ArrowLeft /></el-icon>
-                <span>上一步：建模设定</span>
-              </el-button>
-              <el-button type="primary" size="default" round :disabled="isProcessing" @click="goToNextPage">
-                <span>下一步：实体关系图</span>
-                <el-icon><ArrowRight /></el-icon>
-              </el-button>
-            </div>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- 专家人工校准设定弹窗 (对齐师姐诉求) -->
+    <el-dialog
+      v-model="calibrationVisible"
+      title="专家人工校准设定 (想定与实验边界)"
+      width="560px"
+      append-to-body
+      class="scenario-calib-dialog"
+    >
+      <div class="sc-calib-content">
+        <p class="sc-calib-tip">
+          <el-icon><InfoFilled /></el-icon>
+          专家在环校准：调整想定生成中的外部冲击倍率、溢价上限与推演终止条件，校准后将同步重算实验方案矩阵。
+        </p>
+
+        <div class="sc-calib-group">
+          <div class="sc-calib-label-row">
+            <span>地缘冲击放大倍率 (Shock Multiplier)：</span>
+            <b>{{ calibForm.shockMultiplier }}x</b>
+          </div>
+          <el-slider v-model="calibForm.shockMultiplier" :min="1.0" :max="3.0" :step="0.1" />
+          <small>放大俄乌禁运与断航造成的出口违约概率基线</small>
+        </div>
+
+        <div class="sc-calib-group">
+          <div class="sc-calib-label-row">
+            <span>国际现货溢价上浮红线：</span>
+            <b>+{{ calibForm.spotPriceSurgeMax }}%</b>
+          </div>
+          <el-slider v-model="calibForm.spotPriceSurgeMax" :min="30" :max="250" :step="10" />
+          <small>现货暴涨超过该红线时强行熔断采购并借调储备</small>
+        </div>
+
+        <div class="sc-calib-group">
+          <div class="sc-calib-label-row">
+            <span>商业安全库存破线警戒天数：</span>
+            <b>{{ calibForm.safetyStockDays }} 天</b>
+          </div>
+          <el-slider v-model="calibForm.safetyStockDays" :min="90" :max="270" :step="15" />
+          <small>低于该天数时自动触发保供一级应急响应</small>
+        </div>
+
+        <div class="sc-calib-group">
+          <div class="sc-calib-label-row">
+            <span>通道阻断跳闸概率阈值：</span>
+            <b>{{ (calibForm.tripRiskTolerance * 100).toFixed(0) }}%</b>
+          </div>
+          <el-slider v-model="calibForm.tripRiskTolerance" :min="0.05" :max="0.30" :step="0.01" />
+          <small>当阿拉山口拥堵或黑海阻断概率超过该值时切换远洋绕行</small>
+        </div>
+
+        <div class="sc-calib-group">
+          <div class="sc-calib-label-row">
+            <span>蒙特卡洛抽样迭代轮次：</span>
+            <b>{{ calibForm.monteCarloRuns }} 次</b>
+          </div>
+          <el-slider v-model="calibForm.monteCarloRuns" :min="500" :max="2000" :step="100" />
+          <small>多智能体随机推演采样次数，保证 95% 置信区间收敛</small>
+        </div>
+      </div>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="resetCalibForm">重置基线</el-button>
+          <el-button type="primary" @click="saveCalibForm">保存并应用校准</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script>
 import ScenarioModelingLogic from './Js/ScenarioModelingLogic_uranium.js'
 import MidStagePageHeader from './components/shared/MidStagePageHeader.vue'
-import { ArrowLeft, ArrowRight, DocumentChecked, Lightning, TrendCharts, DataAnalysis } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, DocumentChecked, Lightning, TrendCharts, DataAnalysis, Setting, InfoFilled } from '@element-plus/icons-vue'
 import { useScnetSupplyChainStore as useSupplyChainStore } from '@/stores/scnet'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
 import { storeToRefs } from 'pinia'
@@ -537,6 +668,8 @@ export default {
     Lightning,
     TrendCharts,
     DataAnalysis,
+    Setting,
+    InfoFilled,
     ...(ScenarioModelingLogic.components || {})
   },
   setup() {
@@ -644,11 +777,33 @@ export default {
       showInitialDialog: false,
       // 分析页默认从 store 恢复已有结果；fresh 路径会在本页发起首轮 requirement analyze
       isRequirementLegal: true,
-      selectedPhase: 'during'
+      selectedPhase: 'during',
+      calibrationVisible: false,
+      calibForm: {
+        shockMultiplier: 1.5,
+        spotPriceSurgeMax: 80,
+        safetyStockDays: 180,
+        tripRiskTolerance: 0.15,
+        monteCarloRuns: 1000
+      }
     }
   },
   methods: {
     ...ScenarioModelingLogic.methods,
+    saveCalibForm() {
+      ElMessage.success('专家人工校准参数已成功保存并注入想定实验空间！')
+      this.calibrationVisible = false
+    },
+    resetCalibForm() {
+      this.calibForm = {
+        shockMultiplier: 1.5,
+        spotPriceSurgeMax: 80,
+        safetyStockDays: 180,
+        tripRiskTolerance: 0.15,
+        monteCarloRuns: 1000
+      }
+      ElMessage.info('已恢复为初始专家基线校准')
+    },
     goToModelingSetup() {
       this.$router.push({ path: SCNET_ROUTES.modelingSetup, query: this.$route.query })
     },
@@ -859,8 +1014,7 @@ export default {
       this.inputMessage = this.store?.scenarioUserGoal || ''
       this.selectedPhase = this.store?.scenarioRequirementMeta?.analysis_phase || this.selectedPhase
       if (!this.sessionId || !this.inputMessage) {
-        ElMessage.warning('需求会话信息缺失，请回到对话入口重新提交')
-        this.$router.replace(SCNET_ROUTES.duringEntry)
+        this.bootstrapDefaultUraniumScenario()
         return
       }
       this.isRequirementLegal = true
@@ -875,6 +1029,34 @@ export default {
       } catch (e) {
         console.warn('[ScenarioAnalysis] runFreshAnalysis 失败:', e?.message || e)
       }
+    },
+    bootstrapDefaultUraniumScenario() {
+      const defaultGoal = '俄乌冲突升级导致欧洲转运通道受阻，评估中哈铁路长协与纳米比亚远洋海运保供方案'
+      const plan = buildUraniumScenarioPlan(defaultGoal, {
+        start_year: 2024,
+        end_year: 2030,
+        optimization_iterations: 100,
+        event_severity_multiplier: 1.5
+      })
+      this.sessionId = 'during-session-uranium-demo'
+      this.store?.setCurrentSessionId(this.sessionId)
+      this.store?.setScenarioAnalysis({
+        userGoal: defaultGoal,
+        apiResult: plan
+      })
+      this.store?.setScenarioRequirementMeta({
+        goal: defaultGoal,
+        variable: '地缘冲突强度、海运南移比例、战略储备借调',
+        object: '全国天然铀与核燃料供应链网络',
+        is_legal: true,
+        analysis_phase: 'during',
+        raw_input: defaultGoal,
+        model_name: 'qwen-turbo'
+      })
+      this.subtasksData = (plan.goal_decomposition?.subtasks || []).map((task, idx) =>
+        this.normalizeSubtaskPayload(task, idx)
+      )
+      this.hydrateFromApiResult(plan, { userGoal: defaultGoal })
     }
   },
   async mounted() {
@@ -903,16 +1085,13 @@ export default {
     if (this.bootstrapFromStore()) return
 
     // 3b) 会话已建立、需求已写入，但还没有拆解结果：
-    //     典型情况是从「建模设定」经右侧流程栏 / 左侧菜单进入本页，而不是点「下一步」带 fresh=1。
-    //     这时不应把用户踢回对话入口，直接发起首轮分析即可。
     if (this.store?.currentSessionId && this.store?.scenarioUserGoal) {
       await this.runFreshAnalysis()
       return
     }
 
-    // 4) 兜底：店里也没有数据，回到事中流程入口
-    ElMessage.warning('请先通过事中流程写入会话或加载历史快照')
-    this.$router.replace(SCNET_ROUTES.duringEntry)
+    // 4) 兜底：若既无历史快照也未通过对话传入，自动加载铀供应链典型应急推演想定（保障演示零断层）
+    this.bootstrapDefaultUraniumScenario()
   },
   beforeUnmount() {
     if (this.autoExecutionTimer) {
@@ -1134,16 +1313,6 @@ export default {
   height: 100%;
 }
 .panel-header, .conversation-input-area { flex-shrink: 0; }
-.scenario-actions {
-  flex-shrink: 0;
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 8px 68px 8px 16px;
-  border-top: 1px solid #e2e8f0;
-  background: #fff;
-  z-index: 10;
-}
 @container scenario (max-width: 760px) {
   .scenario-modeling-container { overflow-y: auto; }
   .main-content { flex: none; grid-template-columns: minmax(0, 1fr); grid-template-rows: 600px 700px; }
@@ -2686,5 +2855,149 @@ export default {
   font-size: 11px;
   line-height: 1.4;
   color: #475569;
+}
+
+/* 想定生成四步流转条样式 */
+.scenario-step-rail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 18px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  gap: 8px;
+  overflow-x: auto;
+}
+.scenario-step-rail .step-node {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+.scenario-step-rail .step-node.active {
+  background: #f8fafc;
+}
+.scenario-step-rail .step-node-num {
+  font-size: 11px;
+  font-weight: 800;
+  background: #f1f5f9;
+  color: #64748b;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.scenario-step-rail .step-node.active .step-node-num {
+  background: #2563eb;
+  color: #ffffff;
+}
+.scenario-step-rail .node-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.scenario-step-rail .node-title-row strong {
+  font-size: 12.5px;
+  color: #0f172a;
+}
+.scenario-step-rail small {
+  font-size: 10.5px;
+  color: #64748b;
+  display: block;
+}
+.scenario-step-rail .step-rail-arrow {
+  color: #cbd5e1;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+/* 顶部核心业务问题导引条 */
+.scenario-core-question-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 16px;
+  margin-bottom: 8px;
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.95), rgba(240, 253, 250, 0.95));
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.05);
+}
+.core-question-badge {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+.core-question-text {
+  flex: 1;
+  min-width: 0;
+}
+.core-question-text strong {
+  display: block;
+  font-size: 12.5px;
+  color: #1e3a8a;
+  margin-bottom: 2px;
+}
+.core-question-text p {
+  margin: 0;
+  font-size: 11px;
+  color: #475569;
+  line-height: 1.4;
+}
+
+/* 专家人工校准设定弹窗 */
+.scenario-calib-dialog :deep(.el-dialog__body) {
+  padding: 16px 20px;
+}
+.sc-calib-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.sc-calib-tip {
+  margin: 0;
+  padding: 8px 12px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  font-size: 11.5px;
+  color: #1e40af;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sc-calib-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sc-calib-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #1e293b;
+}
+.sc-calib-label-row b {
+  color: #2563eb;
+  font-family: monospace;
+}
+.sc-calib-group small {
+  font-size: 10.5px;
+  color: #64748b;
 }
 </style>

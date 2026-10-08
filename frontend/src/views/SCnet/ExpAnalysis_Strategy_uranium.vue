@@ -6,13 +6,13 @@
     <header class="strategy-hero glass-panel">
       <div class="strategy-hero-left">
         <div class="strategy-hero-badge-row">
-          <span class="strategy-hero-badge">02 · 策略分析与方案优化</span>
+          <span class="strategy-hero-badge">02 · 决策分析与方案优化</span>
           <el-tag size="small" type="primary" effect="plain">情景演化与决策树双方法融合</el-tag>
           <el-tag size="small" type="success" effect="light">2022–2028 俄乌冲突推演时空</el-tag>
         </div>
-        <h1 class="strategy-hero-title">供应链抗扰动策略分析与方案落地</h1>
+        <h1 class="strategy-hero-title">供应链抗扰动决策分析与方案优化</h1>
         <p class="strategy-hero-sub">
-          融汇宏观情景演化与微观决策树寻优：上游锚定俄乌地缘制裁冲击与脆弱节点，下游动态求解最优调控对策，核验规章前置依赖并输出具体化公文调度令。
+          融汇宏观情景演化与微观决策树寻优：上游锚定俄乌地缘制裁冲击与脆弱节点，下游动态求解最优调控对策，核验规章前置依赖并输出具体应对措施清单。
         </p>
       </div>
 
@@ -38,13 +38,13 @@
 
     <!-- 模式一：联合分析全景（上下级联融合单页，答辩与推演汇报最佳实践） -->
     <div v-if="viewMode === 'cascade'" class="cascade-workspace">
-      <!-- 策略分析核心逻辑看板：彻底阐明“本分析想说明什么” -->
+      <!-- 决策分析核心逻辑看板：说明分析如何支撑方案选择 -->
       <section class="strategy-narrative-strip glass-panel">
         <div class="narrative-strip-head">
-          <span class="narrative-step-pill">Step 02 · 求解优选</span>
+          <span class="narrative-step-pill">Step 02 · 决策评估</span>
           <div class="narrative-title-box">
-            <h3>策略分析在说明什么？</h3>
-            <p>承接上一步【Step 01 · 脆弱性诊断】确定的“黑海断航、阿拉山口拥堵与包头库存破线”风险，通过上下两层模型级联回答：<b>“面对突发外部冲击，如何调控才能以最小代价保障核电机组零非停？”</b></p>
+            <h3>【决策分析在说明什么？】</h3>
+            <p>承接【沙盘推演与脆弱性诊断】暴露的断链风险，通过宏观情景演化与决策树博弈寻优，<b>对现有方案进行客观评估</b>，回答：“面对突发外部冲击，如何调控才能以最小代价保障核电机组零非停？”，评估完成后将输出最优解支撑下一步【决策方案生成】。</p>
           </div>
         </div>
 
@@ -57,7 +57,7 @@
           <div class="half-role-card lower">
             <div class="half-role-badge">下半部 · 决策树博弈寻优想说明：</div>
             <strong>面对上述冲击，多路径应对中哪套方案最优且真能落地？</strong>
-            <p>扩展式决策树对比“未干预基线”与“主动调控路径”，综合求解出 91.5 分的最优方案（远洋海运分流 55% + 防城港保税库借调 400 tU），并核验 4 项严苛规章审批，生成实打实可下达的调度令，避免方案流于口号。</p>
+            <p>扩展式决策树对比“未干预基线”与“主动调控路径”，综合求解出 91.5 分的最优方案（远洋海运分流 55% + 防城港保税库借调 400 tU），并核验 4 项严苛规章审批，生成切实可行的调控应对措施，避免方案流于口号。</p>
           </div>
         </div>
       </section>
@@ -205,19 +205,16 @@
             <el-icon><Refresh /></el-icon>
             重置树视图
           </el-button>
-          <el-button size="small" type="success" @click="goToDecisionGeneration">
-            落地决策报告 →
-          </el-button>
         </div>
       </section>
 
-      <!-- ==================== 下半区：02 · 策略决策树推演与落地方案寻优 ==================== -->
+      <!-- ==================== 下半区：02 · 决策树推演与落地方案寻优 ==================== -->
       <section class="decision-section glass-panel">
         <div class="section-head">
           <div class="section-title-wrap">
             <span class="analysis-column-index">02</span>
             <div>
-              <h3>策略决策树推演与落地方案寻优</h3>
+              <h3>决策树推演与落地方案寻优</h3>
               <p>以左侧扩展式决策树推演多阶段应对路径，在右侧核验综合得分榜、落地前置规章与具体化下发调度令。</p>
             </div>
           </div>
@@ -265,7 +262,7 @@
               <div class="sub-panel-head">
                 <div class="sub-head-left">
                   <el-icon><TrendCharts /></el-icon>
-                  <strong>候选调控策略综合评分榜</strong>
+                  <strong>候选调控方案综合评分榜</strong>
                 </div>
                 <el-tag size="small" type="success" effect="plain">最优已收敛</el-tag>
               </div>
@@ -327,19 +324,19 @@
               </div>
             </div>
 
-            <!-- 具体化落地执行调度令 (非模糊方案，实打实的可操作调度) -->
+            <!-- 具体化落地执行应对措施 (非模糊方案，实打实的可操作措施) -->
             <div class="sub-panel dispatch-order-card">
               <div class="sub-panel-head">
                 <div class="sub-head-left">
                   <el-icon><Promotion /></el-icon>
-                  <strong>具体化执行调度令 (Dispatch Order)</strong>
+                  <strong>核心应对调控动作 (Action Plan)</strong>
                 </div>
-                <span class="dispatch-no">编号: U-2026-DISPATCH-01</span>
+                <span class="dispatch-no">措施编号: ACT-2026-01</span>
               </div>
 
               <div class="dispatch-body">
                 <div class="dispatch-row">
-                  <span class="dispatch-label">主调度动作：</span>
+                  <span class="dispatch-label">核心动作：</span>
                   <strong class="dispatch-val highlight">{{ currentDispatchOrder.primaryAction }}</strong>
                 </div>
                 <div class="dispatch-row">
@@ -357,33 +354,12 @@
               </div>
 
               <div class="dispatch-footer">
-                <el-button type="primary" size="small" @click="goToDecisionGeneration">
-                  确认并带入决策报告生成
-                </el-button>
+                <el-tag size="small" type="success" effect="plain">
+                  已匹配最优对策 · 可在顶部进入决策方案
+                </el-tag>
               </div>
             </div>
           </div>
-        </div>
-      </section>
-
-      <!-- 流转到 Step 03 决策报告的闭环卡片 -->
-      <section class="handoff-to-report-panel glass-panel">
-        <div class="handoff-report-left">
-          <div class="handoff-report-badge-row">
-            <span class="handoff-report-badge">Step 02 寻优收敛</span>
-            <el-tag size="small" type="success" effect="plain">最优对策综合得分 91.5 分</el-tag>
-          </div>
-          <h4>已优选调控方案：“跨里海多式联运绕行 + 防城港保税库应急借调平准”</h4>
-          <p>
-            对策较基线提升 +23.5 分，履约完成率达 98.2%，将反应堆非计划停堆风险压缩至 0.2%。
-            下一步需进入【Step 03 · 决策报告】，将上述成果固化为正式国家/集团级应急调度令清单，形成最终闭环。
-          </p>
-        </div>
-        <div class="handoff-report-right">
-          <el-button type="success" size="large" @click="goToDecisionReport">
-            <span>下一步：前往决策报告生成落地文件</span>
-            <el-icon><Right /></el-icon>
-          </el-button>
         </div>
       </section>
     </div>
@@ -505,6 +481,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import * as echarts from 'echarts'
 import {
+  ArrowLeft,
   ArrowRight,
   Check,
   CircleCheckFilled,
@@ -515,6 +492,7 @@ import {
   Refresh,
   Right,
   TrendCharts,
+  VideoPlay,
   WarningFilled
 } from '@element-plus/icons-vue'
 
@@ -873,19 +851,30 @@ function locateStrategyNode(nodeId) {
   }
 }
 
-function goToDecisionGeneration() {
+function goToSimulationTheatre(mode = 'replay') {
   router.push({
-    path: '/home/SCnet/experimentManager',
+    path: '/home/SCnet/interface',
     query: {
       scenario: 'uranium',
-      view: 'decision'
+      view: 'simulation',
+      theaterMode: mode
     }
   })
 }
 
-function goToDecisionReport() {
+function goToPrevAnalysis() {
   router.push({
-    path: '/home/SCnet/expAnalysisOverview',
+    path: '/home/SCnet/expAnalysisGameTheory',
+    query: {
+      ...route.query,
+      scenario: 'uranium'
+    }
+  })
+}
+
+function goToDecisionGeneration() {
+  router.push({
+    path: '/home/SCnet/decisionGeneration',
     query: {
       ...route.query,
       scenario: 'uranium'
@@ -1225,52 +1214,6 @@ onBeforeUnmount(() => {
   font-size: 11.5px;
   color: #475569;
   line-height: 1.45;
-}
-
-/* 底部流转面板 */
-.handoff-to-report-panel {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 16px 20px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #f0fdf4, #eff6ff);
-  border: 1px solid #86efac;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.08);
-}
-.handoff-report-left {
-  flex: 1;
-  min-width: 0;
-}
-.handoff-report-badge-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-.handoff-report-badge {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 7px;
-  border-radius: 4px;
-  background: #10b981;
-  color: #ffffff;
-}
-.handoff-report-left h4 {
-  margin: 0 0 4px;
-  font-size: 14.5px;
-  font-weight: 700;
-  color: #0f172a;
-}
-.handoff-report-left p {
-  margin: 0;
-  font-size: 12px;
-  color: #475569;
-  line-height: 1.5;
-}
-.handoff-report-right {
-  flex-shrink: 0;
 }
 
 .glass-panel {

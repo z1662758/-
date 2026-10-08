@@ -212,6 +212,14 @@ const routes = [
         name: 'SCnet_ExpAnalysisGameTheory',
         component: () => import("../views/SCnet/ExpAnalysis_GameTheoryWrapper.vue")
       },
+      {
+        path: 'decisionGeneration',
+        name: 'SCnet_DecisionGeneration',
+        redirect: (to) => ({
+          path: '/home/SCnet/experimentManager',
+          query: { ...to.query, scenario: to.query.scenario || 'uranium', view: 'decision' }
+        })
+      },
 
       // ========== 事后 · 实验分析 placeholder ==========
       {

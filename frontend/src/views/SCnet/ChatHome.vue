@@ -20,6 +20,25 @@
 
     <div class="chat-main" :class="[sidebarCollapsed ? 'chat-main-shrink' : 'chat-main-expand', isPostMode ? 'has-post' : (execPanelVisible ? 'has-exec' : '')]">
 
+      <!-- 事中研判时顶部常驻流程导引条 -->
+      <header v-if="currentMode === 'during' && messages.length > 0" class="chat-top-during-bar glass-panel">
+        <div class="ct-left">
+          <span class="ct-tag">事中决策</span>
+          <span class="ct-title">突发扰动需求分析</span>
+        </div>
+        <div class="ct-right">
+          <el-button
+            type="primary"
+            size="small"
+            :disabled="isStreaming"
+            @click="goVisualization()"
+          >
+            <span>下一步：进入沙盘模型</span>
+            <el-icon><ArrowRight /></el-icon>
+          </el-button>
+        </div>
+      </header>
+
       <section v-if="duringExperimentId && currentMode === 'during' && scenarioStore.currentScenario === 'uranium'" class="chat-expert-context">
         <div>
           <strong>关联专家实验 · {{ duringExperimentId }}</strong>
@@ -243,7 +262,7 @@
           <!-- 事中研判/推演入口 -->
           <div v-else-if="currentMode === 'during'" class="chat-handoff-zone">
             <button class="chat-visualize-btn" @click="goVisualization()">
-              <span>{{ activeDuringPlan ? '查看建模设定' : '进入可视化界面' }}</span>
+              <span>{{ activeDuringPlan ? '下一步：进入沙盘模型' : '进入沙盘模型' }}</span>
               <b class="chat-visualize-arrow">&rarr;</b>
             </button>
           </div>
@@ -416,7 +435,7 @@
               </div>
               <p class="step-card-desc">绑定 Monte-Carlo 采样约束，决策参数已持久化，可直接载入建模设定开展实盘推演。</p>
               <div v-if="execSections.includes('三') || execState === 'done'" class="step-card-btn-wrap">
-                <button class="chat-mini-action-btn" @click="goVisualization">查看建模设定 →</button>
+                <button class="chat-mini-action-btn" @click="goVisualization">进入沙盘模型 →</button>
               </div>
             </div>
           </div>
@@ -479,7 +498,7 @@
               <div><dt>南方基地周数</dt><dd class="safe-text">剩余 36 周（安全）</dd></div>
             </dl>
             <p class="chat-mini-risk-hint">当前态势：南北基地原料库存失衡正在扩大，需进入建模设定配置口岸通量与分配规则。</p>
-            <button class="chat-visualize-btn" @click="goVisualization">进入建模设定 →</button>
+            <button class="chat-visualize-btn" @click="goVisualization">进入沙盘模型 →</button>
           </template>
           <div v-else class="chat-mini-risk-empty">
             <div class="chat-alert-banner info">
@@ -552,7 +571,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   Switch, Cpu, Position, MagicStick, TrendCharts, Aim, DataAnalysis,
-  Link, Document, View, ChatDotRound, List, Monitor
+  Link, Document, View, ChatDotRound, List, Monitor, ArrowRight
 } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import ChatSidebar from './ChatSidebar.vue'
@@ -2077,7 +2096,40 @@ export default {
 .chat-exec-parameters dd { color: #0f172a; font-weight: 600; margin: 0; }
 .chat-msg-bubble :deep(table) { width: 100%; border-collapse: collapse; font-size: 12px; margin: 12px 0; }
 .chat-msg-bubble :deep(th), .chat-msg-bubble :deep(td) { padding: 8px; border: 1px solid #dce5ee; text-align: left; }
-.chat-msg-bubble :deep(th) { background: #edf3fa; }
+.chat-top-during-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 18px;
+  background: #f8fbff;
+  border-bottom: 1px solid #dbeafe;
+  flex-shrink: 0;
+  z-index: 10;
+}
+.ct-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ct-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+.ct-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+}
+.ct-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .chat-expert-context { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 12px 20px; border-bottom: 1px solid #dbeafe; background: #f8fbff; color: #334155; font-size: 12px; }
 .chat-expert-context > div { flex: 1; min-width: 200px; overflow-wrap: anywhere; }
 .chat-expert-context p { margin: 4px 0 0; }

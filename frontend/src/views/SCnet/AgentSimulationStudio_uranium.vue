@@ -14,6 +14,10 @@
               <strong>{{ item.value }}</strong>
             </article>
           </div>
+          <el-button type="primary" size="small" @click="goToExperiment">
+            <span>下一步：实验管理</span>
+            <el-icon><ArrowRight /></el-icon>
+          </el-button>
         </template>
       </MidStagePageHeader>
       <div class="main-container">
@@ -43,17 +47,6 @@
             @confirm-method-selection="confirmMethodSelection"
           />
         </div>
-      </div>
-
-      <div class="workbench-next-fab workbench-flow-footer">
-        <el-button class="workbench-prev-button" size="large" @click="goToScenario">
-          <el-icon class="prev-icon"><ArrowLeft /></el-icon>
-          <span class="prev-text">上一步：想定生成</span>
-        </el-button>
-        <el-button class="workbench-next-button" type="primary" size="large" @click="goToExperiment">
-          <span class="next-text">下一步：实验推演</span>
-          <el-icon class="next-icon"><ArrowRight /></el-icon>
-        </el-button>
       </div>
     </div>
   </div>
@@ -484,17 +477,6 @@ watch(graphSource, (next) => {
   border-radius: var(--mid-radius-md);
   overflow: hidden;
 }
-
-.workbench-next-button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 18px;
-  border-radius: 26px;
-  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.22);
-}
-.workbench-next-button .next-text { font-size: 13px; font-weight: 700; }
-.workbench-next-button .next-icon { font-size: 16px; }
 
 ::-webkit-scrollbar {
   width: 6px;

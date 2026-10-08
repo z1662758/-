@@ -19,6 +19,7 @@ export const SCNET_ROUTES = Object.freeze({
   agentSimulationStudio: `${SCNET_BASE}/agentSimulationStudio`,
   agentSimulationWorkbench: `${SCNET_BASE}/agentSimulationStudio/workbench`,
   experimentManager: `${SCNET_BASE}/experimentManager`,
+  decisionGeneration: `${SCNET_BASE}/decisionGeneration`,
   interface: `${SCNET_BASE}/interface`,
   EXreport: `${SCNET_BASE}/EXreport`,
 
@@ -54,7 +55,9 @@ export const SCNET_DECISION_ROUTE_BY_TAB = Object.freeze({
   scenario: SCNET_ROUTES.expAnalysisScenario,
   gameTheory: SCNET_ROUTES.expAnalysisGameTheory,
   decisionTree: SCNET_ROUTES.expAnalysisDecisionTree,
+  decision: SCNET_ROUTES.decisionGeneration,
   report: SCNET_ROUTES.expAnalysisOverview,
+  overview: SCNET_ROUTES.expAnalysisOverview,
 })
 
 /** 专家模式各步骤的路由键,顺序即流程顺序 */

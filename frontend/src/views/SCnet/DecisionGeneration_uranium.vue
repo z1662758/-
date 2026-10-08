@@ -1,35 +1,134 @@
 <template>
   <div class="decision-page mid-stage-bg">
     <MidStagePageHeader
-      title="决策生成 · 俄乌冲突地缘脱钩应对方案"
-      subtitle="面对西方《禁俄铀法案》与国际现货 $106/lb 极端暴涨的多智能体自适应应急调度令"
+      title="事中决策建议"
+      subtitle="根据当前实验结果整理候选建议、适用条件与风险触发点；建议需经业务确认后执行"
       :icon="Promotion"
     >
       <template #right>
         <div class="scenario-header-stats">
-          <span class="stat-pill"><b>3</b> 项公文调度令</span>
-          <span class="stat-pill"><b>94.8</b> 综合韧性评分</span>
-          <span class="stat-pill"><b>0</b> 机组停堆风险</span>
+          <span class="stat-pill"><b>{{ actionRows.length }}</b> 项建议动作</span>
+          <span class="stat-pill"><b>{{ recommendedScore }}</b> 推荐评分</span>
+          <span class="stat-pill"><b>{{ bestCandidate?.reactorTripRisk || '—' }}</b> 非计划停堆风险</span>
         </div>
-        <el-button size="small" @click="goToRun">
-          <el-icon><ArrowLeft /></el-icon>
-          <span>上一步：实验推演</span>
+        <el-button size="small" plain @click="exportDecisionBrief">
+          <el-icon><DocumentCopy /></el-icon>
+          <span>复制决策摘要</span>
         </el-button>
-        <el-button type="primary" size="small" @click="goToAnalysis">
-          <span>下一步：策略分析</span>
+        <el-button type="primary" size="small" @click="goToStrategy">
+          <span>查看决策分析</span>
           <el-icon><ArrowRight /></el-icon>
+        </el-button>
+        <el-button size="small" plain @click="goToOverviewReport">
+          <span>查看实验总结</span>
         </el-button>
       </template>
     </MidStagePageHeader>
 
     <div v-if="reportVm" class="decision-scroll">
+      <!-- 业务核心问题导引条（阐明“决策方案想解决什么问题”） -->
+      <section class="decision-core-question-strip glass-panel">
+        <div class="core-question-badge">决策方案目标</div>
+        <div class="core-question-text">
+          <strong>基于本次实验结果，哪些候选动作值得优先评估？</strong>
+          <p>本页展示的是模型建议，不代表已经下达或执行的调度指令。请结合实时态势、审批条件和业务约束进行复核。</p>
+        </div>
+      </section>
+
+      <!-- 事中全链路推演流程导引横幅 -->
+      <nav class="decision-hero-flow glass-panel" aria-label="事中全链路推演时序流">
+        <div class="flow-step done">
+          <div class="step-badge"><el-icon><Check /></el-icon></div>
+          <div class="step-meta">
+            <div class="step-title-row">
+              <span class="step-num">01</span>
+              <strong>沙盘模型</strong>
+              <el-tag size="small" type="success" effect="plain">底座就绪</el-tag>
+            </div>
+            <span class="step-desc">Agent合约 / 环境 / 规则模型</span>
+          </div>
+        </div>
+        <div class="flow-arrow"><el-icon><Right /></el-icon></div>
+        <div class="flow-step done">
+          <div class="step-badge"><el-icon><Check /></el-icon></div>
+          <div class="step-meta">
+            <div class="step-title-row">
+              <span class="step-num">02</span>
+              <strong>想定生成</strong>
+              <el-tag size="small" type="success" effect="plain">需求解析</el-tag>
+            </div>
+            <span class="step-desc">变量拆解与多方案矩阵</span>
+          </div>
+        </div>
+        <div class="flow-arrow"><el-icon><Right /></el-icon></div>
+        <div class="flow-step done">
+          <div class="step-badge"><el-icon><Check /></el-icon></div>
+          <div class="step-meta">
+            <div class="step-title-row">
+              <span class="step-num">03</span>
+              <strong>实验管理</strong>
+              <el-tag size="small" type="success" effect="plain">仿真收敛</el-tag>
+            </div>
+            <span class="step-desc">100轮蒙特卡洛多智能体仿真</span>
+          </div>
+        </div>
+        <div class="flow-arrow"><el-icon><Right /></el-icon></div>
+        <div class="flow-step done">
+          <div class="step-badge"><el-icon><Check /></el-icon></div>
+          <div class="step-meta">
+            <div class="step-title-row">
+              <span class="step-num">04</span>
+              <strong>沙盘推演</strong>
+              <el-tag size="small" type="success" effect="plain">剧场回放</el-tag>
+            </div>
+            <span class="step-desc">复杂网络与地理走廊联动</span>
+          </div>
+        </div>
+        <div class="flow-arrow"><el-icon><Right /></el-icon></div>
+        <div class="flow-step active">
+          <div class="step-badge"><span>05</span></div>
+          <div class="step-meta">
+            <div class="step-title-row">
+              <span class="step-num">05</span>
+              <strong>决策方案</strong>
+              <el-tag size="small" type="primary" effect="dark">当前方案</el-tag>
+            </div>
+          <span class="step-desc">候选建议与适用条件</span>
+          </div>
+        </div>
+        <div class="flow-arrow"><el-icon><Right /></el-icon></div>
+        <div class="flow-step" style="cursor: pointer" @click="goToStrategy">
+          <div class="step-badge"><span>06</span></div>
+          <div class="step-meta">
+            <div class="step-title-row">
+              <span class="step-num">06</span>
+              <strong>决策分析</strong>
+              <el-tag size="small" type="info" effect="plain">评估优选</el-tag>
+            </div>
+            <span class="step-desc">多目标博弈帕累托寻优</span>
+          </div>
+        </div>
+        <div class="flow-arrow"><el-icon><Right /></el-icon></div>
+        <div class="flow-step" style="cursor: pointer" @click="goToOverviewReport">
+          <div class="step-badge"><span>07</span></div>
+          <div class="step-meta">
+            <div class="step-title-row">
+              <span class="step-num">07</span>
+          <strong>实验总结</strong>
+              <el-tag size="small" type="info" effect="plain">闭环专报</el-tag>
+            </div>
+          <span class="step-desc">结果、证据与风险复盘</span>
+          </div>
+        </div>
+      </nav>
+
       <section class="decision-summary">
         <div class="decision-heading">
           <div>
-            <span class="decision-label">推荐调度方案</span>
-            <h1>俄乌地缘重塑 · 海陆重构与逆周期储备削峰调度方案</h1>
+            <span class="decision-label">实验结果生成的候选建议</span>
+            <h1>{{ recommendedStrategy }}</h1>
           </div>
-          <div class="decision-gain"><span>平准化成本压降</span><strong>-21.0%</strong></div>
+          <div class="decision-gain"><span>较基线变化</span><strong>{{ bestCandidate?.improvementText || '—' }}</strong></div>
         </div>
         <p class="decision-conclusion">{{ simulationConclusion }}</p>
         <dl class="decision-context">
@@ -37,163 +136,120 @@
         </dl>
       </section>
 
-      <dl class="decision-metrics" aria-label="关键结果">
-        <div v-for="item in evidenceRows" :key="item.label"><dt>{{ item.label }}</dt><dd>{{ item.value }}</dd></div>
-      </dl>
+      <section class="decision-panel decision-evidence-panel">
+        <MidStagePanelHeader title="实验事实与比较结论" :description="`候选方案 ${candidateRows.length} 项，当前优选评分 ${recommendedScore}`" />
+        <div class="decision-evidence-grid">
+          <article class="decision-evidence-card">
+            <span class="decision-evidence-kicker">实验事实</span>
+            <strong>本次实验返回的关键指标</strong>
+            <div class="decision-evidence-list">
+              <div v-for="item in evidenceRows" :key="item.label"><span>{{ item.label }}</span><b>{{ item.value }}</b></div>
+            </div>
+          </article>
+          <article class="decision-evidence-card">
+            <span class="decision-evidence-kicker">比较结论</span>
+            <strong>{{ bestCandidate?.name || '暂无优选方案' }}</strong>
+            <p>{{ bestCandidate?.note || bestCandidate?.outcome || '当前实验没有返回足够的候选方案说明。' }}</p>
+            <div class="decision-evidence-note">评分只用于本次实验内的相对比较，不等同于实际执行许可。</div>
+          </article>
+        </div>
+      </section>
 
-      <!-- 五维决策风控评估雷达图与综合得分拆解 -->
-      <section class="decision-panel radar-section">
-        <MidStagePanelHeader title="策略评估五维风控雷达" :description="'推荐方案综合加权评分 94.8 分（俄乌战事极端冲击下自适应韧性评估）'" />
-        <div class="radar-body">
-          <div class="radar-chart-container">
-            <svg viewBox="0 0 320 280" class="radar-svg">
-              <!-- Concentric Pentagons -->
-              <polygon points="160,50 245.6,112.2 212.9,212.8 107.1,212.8 74.4,112.2" fill="none" stroke="#e2e8f0" stroke-width="1" />
-              <polygon points="160,72 228.5,121.8 202.3,202.2 117.7,202.2 91.5,121.8" fill="none" stroke="#e2e8f0" stroke-width="1" />
-              <polygon points="160,95 211.4,131.3 191.7,191.7 128.3,191.7 108.6,131.3" fill="none" stroke="#e2e8f0" stroke-width="1" />
-              <polygon points="160,117 194.2,140.9 181.2,181.1 138.8,181.1 125.8,140.9" fill="none" stroke="#e2e8f0" stroke-width="1" />
-              
-              <!-- Axes -->
-              <line x1="160" y1="140" x2="160" y2="50" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="2 2" />
-              <line x1="160" y1="140" x2="245.6" y2="112.2" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="2 2" />
-              <line x1="160" y1="140" x2="212.9" y2="212.8" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="2 2" />
-              <line x1="160" y1="140" x2="107.1" y2="212.8" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="2 2" />
-              <line x1="160" y1="140" x2="74.4" y2="112.2" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="2 2" />
-              
-              <!-- Baseline Polygon: (72, 60, 55, 50, 68) -->
-              <polygon points="160,75.2 211.3,123.3 189.1,180.0 133.5,176.4 101.4,127.3" fill="rgba(148, 163, 184, 0.12)" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="3 3" />
-
-              <!-- Recommended Data Polygon: (100, 86, 88, 92, 95) -->
-              <polygon points="160,50.0 233.6,116.1 206.6,204.0 111.3,206.9 78.7,113.6" fill="rgba(37, 99, 235, 0.20)" stroke="#2563eb" stroke-width="2.5" />
-              
-              <!-- Dots on vertices -->
-              <circle cx="160" cy="50.0" r="4.5" fill="#2563eb" />
-              <circle cx="233.6" cy="116.1" r="4.5" fill="#2563eb" />
-              <circle cx="206.6" cy="204.0" r="4.5" fill="#2563eb" />
-              <circle cx="111.3" cy="206.9" r="4.5" fill="#2563eb" />
-              <circle cx="78.7" cy="113.6" r="4.5" fill="#2563eb" />
-              
-              <!-- Labels -->
-              <text x="160" y="38" text-anchor="middle" font-size="11" font-weight="700" fill="#1e293b">战略保供刚性达成率 (100分 / 30%)</text>
-              <text x="252" y="112" text-anchor="start" font-size="11" font-weight="700" fill="#1e293b">平抑完全成本 (86分 / 25%)</text>
-              <text x="218" y="230" text-anchor="start" font-size="11" font-weight="700" fill="#1e293b">地缘断链冗余度 (88分 / 20%)</text>
-              <text x="100" y="230" text-anchor="end" font-size="11" font-weight="700" fill="#1e293b">恐慌牛鞭效应抑制比 (92分 / 15%)</text>
-              <text x="68" y="112" text-anchor="end" font-size="11" font-weight="700" fill="#1e293b">长协刚性防违约 (95分 / 10%)</text>
-            </svg>
-          </div>
-          <div class="radar-score-cards">
-            <div class="score-card-item">
-              <span class="score-dim">战略保供刚性达成率</span>
-              <strong class="score-val safe">100 分</strong>
-              <small>权重 30% · 4台华龙一号首炉 0 停堆</small>
+      <!-- 核心特色 2：自适应量化触发与切换条件 (Adaptive Thresholds & Circuit-Breakers) -->
+      <section class="decision-panel trigger-rules-panel">
+        <MidStagePanelHeader
+          title="风险触发与切换条件"
+          description="把实验中识别出的风险信号整理为后续监测建议，实际阈值仍需结合实时数据校准。"
+          :count="`${adaptiveTriggerRules.length} 条自适应规则`"
+        />
+        <div class="trigger-rules-grid">
+          <div v-for="rule in adaptiveTriggerRules" :key="rule.id" class="trigger-rule-card" :class="'tone-' + rule.tone">
+            <div class="rule-head">
+              <span class="rule-code">{{ rule.code }}</span>
+              <el-tag :type="rule.tagType" size="small" effect="plain">{{ rule.category }}</el-tag>
             </div>
-            <div class="score-card-item">
-              <span class="score-dim">平抑到岸综合成本</span>
-              <strong class="score-val safe">86 分</strong>
-              <small>权重 25% · 平抑$106/lb暴涨，成本压降-21%</small>
+            <strong class="rule-name">{{ rule.name }}</strong>
+            <div class="rule-threshold-box">
+              <span class="thresh-label">量化触发阈值：</span>
+              <strong class="thresh-val">{{ rule.threshold }}</strong>
             </div>
-            <div class="score-card-item">
-              <span class="score-dim">地缘通道断链冗余度</span>
-              <strong class="score-val safe">88 分</strong>
-              <small>权重 20% · 纳米比亚海运分流 55% 避险</small>
-            </div>
-            <div class="score-card-item">
-              <span class="score-dim">恐慌牛鞭效应抑制比</span>
-              <strong class="score-val safe">92 分</strong>
-              <small>权重 15% · 虚报系数回调，方差比降至1.35x</small>
-            </div>
-            <div class="score-card-item">
-              <span class="score-dim">长协契约刚性防违约</span>
-              <strong class="score-val safe">95 分</strong>
-              <small>权重 10% · 刚性锁定中哈长协，0 违约敞口</small>
+            <p class="rule-action-desc"><b>建议响应：</b>{{ rule.action }}</p>
+            <div class="rule-footer">
+              <span><b>恢复解除条件：</b>{{ rule.recovery }}</span>
             </div>
           </div>
         </div>
       </section>
 
+      <!-- 核心特色 3：建议动作清单 -->
       <section class="decision-panel">
-        <MidStagePanelHeader title="国家/集团级应急调度令清单" description="按优先顺序下达【海运改道绕行】、【逆周期储备削峰】与【首炉定向保供】红头指令" :count="'3 项指令'" />
-        <div class="dispatch-order-grid">
-          <article v-for="(item, index) in actionRows" :key="item" class="dispatch-order-card" :class="'order-' + actionTagType(index)">
-            <div class="doc-header">
-              <div class="doc-badge-row">
-                <span class="doc-num">调度令 #2026-U-0{{ index + 1 }}</span>
-                <el-tag :type="actionTagType(index)" size="small" effect="dark">{{ actionTagText(index) }}</el-tag>
-              </div>
-              <strong class="doc-title">{{ actionTitles[index] || `应急调度令 ${index + 1}` }}</strong>
+        <MidStagePanelHeader
+          title="本次输出：决策建议"
+          description="这里展示实验实际生成的方案内容；下达、审批和执行不属于本页面。"
+          :count="`${actionRows.length} 项建议`"
+        />
+        <div class="decision-output-lead">
+          <span>方案名称</span>
+          <strong>{{ recommendedStrategy }}</strong>
+          <p>{{ simulationConclusion }}</p>
+        </div>
+        <div class="decision-output-subtitle">具体方案内容</div>
+        <div class="recommendation-grid">
+          <article v-for="(item, index) in actionRows" :key="item.title" class="recommendation-card">
+            <div class="recommendation-card__head">
+              <span class="recommendation-index">0{{ index + 1 }}</span>
+              <el-tag size="small" type="warning" effect="plain">待确认</el-tag>
             </div>
-            <p class="doc-content">{{ item }}</p>
-            <div class="doc-footer">
-              <span class="doc-dept">签发：国家核能与供应链应急联合指挥部</span>
-              <span class="doc-status">时效：72 小时内响应闭环</span>
+            <strong>{{ item.title }}</strong>
+            <p>{{ item.detail }}</p>
+            <div class="recommendation-card__foot">
+              <span>建议来源：实验对比结果</span>
+              <span>执行状态：未下达</span>
             </div>
           </article>
         </div>
       </section>
 
-      <!-- 方案落地可行性与前置保障检查 -->
+      <!-- 实验结果中的关键采购链路 -->
       <section class="decision-panel">
         <MidStagePanelHeader
-          title="落地执行前置条件与保障清单"
-          description="核对推荐方案在进出口合规、专运运力、储备借调与外汇核销等维度的落地可行性"
-          :count="`${feasibilityChecklist.length} 项前置检查`"
-        />
-        <div class="feasibility-grid">
-          <div v-for="item in feasibilityChecklist" :key="item.title" class="feasibility-card" :class="item.status">
-            <div class="feasibility-top">
-              <span class="feasibility-tag" :class="item.status">{{ item.statusText }}</span>
-              <span class="feasibility-dept">{{ item.dept }}</span>
-            </div>
-            <strong class="feasibility-title">{{ item.title }}</strong>
-            <p class="feasibility-detail">{{ item.detail }}</p>
-            <div class="feasibility-meta">
-              <span>完成时限：{{ item.deadline }}</span>
-              <span>核验凭据：{{ item.doc }}</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 多通道替代物流走廊与来源国推荐 -->
-      <section class="decision-panel">
-        <MidStagePanelHeader
-          title="多通道替代物流走廊与来源国推荐"
-          description="基于低风险(30%)、可用容量(20%)、断链韧性(20%)、分散度(15%)与舆情清洁度(15%)算法加权输出"
-          :count="`${alternativeRoutes.length} 条走廊`"
+          title="关键采购链路"
+          description="这里只展示本次实验返回的采购分配结果，不对未验证的替代通道做额外推荐。"
+          :count="`${reportVm.routeDigestRows?.length || 0} 条链路`"
         />
         <div class="route-cards-list">
-          <div v-for="item in alternativeRoutes" :key="item.route_id" class="route-card-item">
+          <div v-for="(item, index) in reportVm.routeDigestRows" :key="item.id || item.label" class="route-card-item">
             <div class="route-card-head">
-              <span class="route-rank">0{{ item.rank }}</span>
+              <span class="route-rank">0{{ index + 1 }}</span>
               <div class="route-title-wrap">
                 <div class="route-name-row">
-                  <strong>{{ item.name }}</strong>
-                  <el-tag :type="item.tagType" size="small" effect="plain">{{ item.level }}</el-tag>
+                  <strong>{{ item.label }}</strong>
+                  <el-tag type="info" size="small" effect="plain">实验结果</el-tag>
                 </div>
-                <span class="route-path">{{ item.path }}</span>
+                <span class="route-path">采购量 {{ item.quantityText }}</span>
               </div>
               <div class="route-score-badge">
-                <small>算法评分</small>
-                <b>{{ item.score }}</b>
+                <small>采购占比</small>
+                <b>{{ item.shareText }}</b>
               </div>
             </div>
             <div class="route-meta-row">
-              <span>可用容量：<b>{{ item.capacity }}</b></span>
-              <span>路径风险指数：<b>{{ item.risk }}</b></span>
-              <span>断链冗余度：<b>{{ item.resilience }}</b></span>
+              <span>来源：<b>{{ item.label.split(' → ')[0] || '—' }}</b></span>
+              <span>承接方：<b>{{ item.label.split(' → ')[1] || '—' }}</b></span>
             </div>
-            <p class="route-adv"><strong>决策评估：</strong>{{ item.advantages }}</p>
+            <p class="route-adv"><strong>使用说明：</strong>该链路来自当前实验分配结果，是否纳入决策建议需结合实时通道状态复核。</p>
           </div>
+          <el-empty v-if="!reportVm.routeDigestRows?.length" description="当前实验未返回采购链路" :image-size="60" />
         </div>
       </section>
 
       <section class="decision-panel">
-        <MidStagePanelHeader title="候选方案对比" description="结合策略评分、停堆风险与落地执行条件综合比选执行方案" :count="`${candidateRows.length} 项`" />
+        <MidStagePanelHeader title="候选方案对比" description="仅比较本次实验返回的方案结果，不代表已经批准执行" :count="`${candidateRows.length} 项`" />
         <el-table :data="candidateRows" class="decision-table" empty-text="暂无候选方案">
           <el-table-column label="方案" min-width="160">
             <template #default="{ row }">
               <strong>{{ row.name }}</strong>
-              <el-tag v-if="row.isBest" size="small" type="success" effect="plain" class="recommended-tag">推荐</el-tag>
+              <el-tag v-if="row.isBest" size="small" type="success" effect="plain" class="recommended-tag">实验优选</el-tag>
             </template>
           </el-table-column>
           <el-table-column label="机组停堆风险率" width="130">
@@ -208,7 +264,7 @@
           <el-table-column prop="inventoryBalance" label="基地库存均衡" min-width="160" />
           <el-table-column prop="scoreText" label="综合评分" width="100" />
           <el-table-column prop="improvementText" label="较基线变化" width="110" />
-          <el-table-column label="调度适用说明" min-width="240">
+          <el-table-column label="比较说明" min-width="240">
             <template #default="{ row }">{{ row.note || row.outcome || '暂无说明' }}</template>
           </el-table-column>
         </el-table>
@@ -227,265 +283,488 @@ import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import MidStagePageHeader from './components/shared/MidStagePageHeader.vue'
 import MidStagePanelHeader from './components/shared/MidStagePanelHeader.vue'
-import { ArrowLeft, ArrowRight, Promotion } from '@element-plus/icons-vue'
+import {
+  ArrowRight,
+  Promotion,
+  Check,
+  Right,
+  DocumentCopy
+} from '@element-plus/icons-vue'
 import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 import { storeToRefs } from 'pinia'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
 import { buildUraniumReportViewModel } from '@/views/SCnet/adapters/uraniumMockAnalysisAdapter'
+import { ElMessage } from 'element-plus'
 
 const route = useRoute()
 const router = useRouter()
+
 function goToRun() {
-  const query = { ...route.query, view: 'run' }
-  router.replace({ query })
+  router.push({ path: SCNET_ROUTES.experimentManager, query: { ...route.query, scenario: 'uranium', view: 'run' } })
 }
-function goToAnalysis() {
+function goToStrategy() {
   router.push({ path: SCNET_ROUTES.expAnalysisScenario, query: { ...route.query, scenario: 'uranium' } })
 }
+function goToOverviewReport() {
+  router.push({ path: SCNET_ROUTES.expAnalysisOverview, query: { ...route.query, scenario: 'uranium' } })
+}
 
-const alternativeRoutes = [
-  {
-    rank: 1,
-    route_id: 'namibia',
-    name: '纳米比亚西非远洋航线 (鲸湾港-连云港/广州港)',
-    country: '纳米比亚',
-    capacity: '6,504 tU',
-    risk: '56.2',
-    resilience: '1.0',
-    score: '73.6分',
-    level: '强烈推荐',
-    tagType: 'success',
-    path: '湖山/罗辛矿区 → 鲸湾港(Walvis Bay) → 南非好望角/东亚海运段 → 中国沿海接收港 → 国内核燃料转运网络',
-    advantages: '中广核独资大矿直控；可用容量充足；与欧亚大陆中断路线无共同脆弱瓶颈；海运走廊无负面舆情干预'
-  },
-  {
-    rank: 2,
-    route_id: 'uzbekistan',
-    name: '乌兹别克斯坦中亚铁路直达班列',
-    country: '乌兹别克斯坦',
-    capacity: '3,500 tU',
-    risk: '51.3',
-    resilience: '1.0',
-    score: '64.6分',
-    level: '推荐',
-    tagType: 'primary',
-    path: '纳沃伊矿区 → 中亚跨国铁路走廊 → 霍尔果斯/阿拉山口口岸 → 兰州/包头核燃料元件基地',
-    advantages: '陆路直达，规避地中海/红海狭窄海峡风险；中乌双边本币结算通道稳定；常态化专运列车保障'
-  },
-  {
-    rank: 3,
-    route_id: 'australia',
-    name: '澳大利亚西太平洋远洋航线 (奥林匹克坝)',
-    country: '澳大利亚',
-    capacity: '3,800 tU',
-    risk: '51.4',
-    resilience: '0.85',
-    score: '60.8分',
-    level: '推荐',
-    tagType: 'warning',
-    path: '奥林匹克坝矿区 → 阿德莱德/达尔文港 → 西太平洋海运航线 → 连云港/防城港',
-    advantages: '副产物规模化生产成本低；海运周期仅18-22天；受地缘政策许可波动影响需保持长协跟踪'
-  },
-  {
-    rank: 4,
-    route_id: 'niger',
-    name: '尼日尔西非多式联运走廊 (Somaïr / Arlit)',
-    country: '尼日尔',
-    capacity: '2,000 tU',
-    risk: '47.4',
-    resilience: '0.7',
-    score: '58.3分',
-    level: '备选',
-    tagType: 'info',
-    path: '阿利特矿区 → 贝宁科托努港 → 远洋海运段 → 连云港',
-    advantages: '高品位原料来源；但受西非政局与萨赫勒地缘局势扰动，需配置陆运安保冗余'
-  },
-  {
-    rank: 5,
-    route_id: 'canada',
-    name: '加拿大萨斯喀彻温北太平洋航线 (Cameco / Cigar Lake)',
-    country: '加拿大',
-    capacity: '5,800 tU',
-    risk: '51.9',
-    resilience: '0.75',
-    score: '56.9分',
-    level: '备选',
-    tagType: 'info',
-    path: '阿萨巴斯卡盆地 → 蒙特利尔/温哥华港 → 北太平洋海运 → 沿海港口',
-    advantages: '世界最高品位优质矿石；作为全球现货压舱石，但出口许可受西方双重管制制约'
+async function exportDecisionBrief() {
+  const text = [
+    `决策建议：${recommendedStrategy.value}`,
+    `实验范围：${contextRows.value.map(item => `${item.label} ${item.value}`).join('；')}`,
+    `比较结论：${simulationConclusion.value}`,
+    `关键指标：${evidenceRows.value.map(item => `${item.label} ${item.value}`).join('；')}`,
+    '说明：以上为实验结果生成的候选建议，需结合实时态势和业务流程确认。'
+  ].join('\n')
+  if (!navigator?.clipboard?.writeText) {
+    ElMessage.warning('当前环境不支持复制，请使用页面内容手动保存')
+    return
   }
-]
+  await navigator.clipboard.writeText(text)
+  ElMessage.success('决策摘要已复制')
+}
+
+const fallbackAdaptiveTriggerRules = Object.freeze([
+  {
+    id: 'tr-01',
+    code: 'RULE-STOCK-45D',
+    name: '安全库存破位自适应储备借调',
+    category: '库存熔断',
+    tagType: 'danger',
+    tone: 'danger',
+    threshold: '沿海基地在役安全库存 < 45 天标称需求量',
+    action: '立即触发国家战略储备 400 tU 应急平准借调机制，定向锁定装料，免除任何停堆断料风险。',
+    recovery: '沿海基地储备回升至 90 天以上且在途海运货物抵港。'
+  },
+  {
+    id: 'tr-02',
+    code: 'RULE-PRICE-SPIKE',
+    name: '国际现货暴涨价格上限熔断机制',
+    category: '价格平抑',
+    tagType: 'warning',
+    tone: 'warning',
+    threshold: '国际现货单周涨幅 > 25% 或绝对价格突破 $95/lb',
+    action: '启动现货限价防恐慌机制，冻结国内非紧急高位追涨接盘，全面转入中亚与非洲长协提货。',
+    recovery: '国际现货回调至 $80/lb 以下且投机性远期溢价消除。'
+  },
+  {
+    id: 'tr-03',
+    code: 'RULE-PORT-BLOCK',
+    name: '陆路通道滞留自动南移远洋海运',
+    category: '通道切换',
+    tagType: 'primary',
+    tone: 'primary',
+    threshold: '霍尔果斯/阿拉山口口岸在途滞留时间 > 120 小时',
+    action: '自动激活纳米比亚湖山矿远洋海运增量 55% 方案，在途散货转为集装箱封闭专运直达沿海。',
+    recovery: '边境陆路班列通关时间稳定在 48 小时以内达连续 14 天。'
+  },
+  {
+    id: 'tr-04',
+    code: 'RULE-REACTOR-PRIORITY',
+    name: '战略主力堆型首炉燃料特级保障',
+    category: '优先级管控',
+    tagType: 'success',
+    tone: 'success',
+    threshold: '预测机组停堆断料风险率 > 0.1%',
+    action: '启动刚性调度优先级，华龙一号首炉机组享受 100% 转化与制造产能独占，商运机组大修柔性后移。',
+    recovery: '首炉装料全部完成并并网发电，系统恢复常规均衡排产。'
+  }
+])
+
+const adaptiveTriggerRules = computed(() => {
+  const alerts = reportVm.value?.alerts || []
+  if (!alerts.length) return fallbackAdaptiveTriggerRules
+  return alerts.slice(0, 6).map((text, index) => {
+    const [name, detail = text] = String(text).split('：')
+    return {
+      id: `alert-${index + 1}`,
+      code: `ALERT-${String(index + 1).padStart(2, '0')}`,
+      name: name || `风险监测点 ${index + 1}`,
+      category: '实验风险提示',
+      tagType: /红线|停堆|超限|突破/.test(text) ? 'danger' : 'warning',
+      tone: /红线|停堆|超限|突破/.test(text) ? 'danger' : 'warning',
+      threshold: detail.split('，')[0] || '请结合实时数据确认触发阈值',
+      action: detail.split('，').slice(1).join('，') || '重新测算候选方案并提交人工复核。',
+      recovery: '待业务确认解除条件'
+    }
+  })
+})
 
 const uraniumStore = useUraniumDemoStore()
 const snapshotStore = useAnalysisSnapshotStore()
 const { history, selectedExperiment } = storeToRefs(uraniumStore)
-const reportVm = computed(() => buildUraniumReportViewModel({
-  experiment: selectedExperiment.value,
-  history: history.value,
-  snapshot: snapshotStore.getActiveSnapshot()
-}))
-const candidateRows = computed(() => {
-  const raw = summary.value?.candidateRows
-  if (Array.isArray(raw) && raw.length > 0) return raw
-  return [
-    {
-      name: '推荐方案：海陆重构 + 逆周期储备削峰',
-      isBest: true,
-      reactorTripRisk: '0.0%',
-      budgetDelta: '+4.8%',
-      cifCost: '$246.8/kgU',
-      inventoryBalance: '北方 210天 / 南方 240天',
-      scoreText: '94.8分',
-      improvementText: '+43.6分',
-      note: '海运直航分流 55%，借调 400 tU 平抑现货暴涨，首炉机组零停堆，牛鞭比压制至 1.35x。'
-    },
-    {
-      name: '候选方案 A：纯远洋海运绕行方案',
-      isBest: false,
-      reactorTripRisk: '2.1%',
-      budgetDelta: '+22.4%',
-      cifCost: '$288.5/kgU',
-      inventoryBalance: '北方 120天 / 南方 310天 (失衡)',
-      scoreText: '78.5分',
-      improvementText: '+27.3分',
-      note: '单一押注海运航线，沿海港口集港排队积压，北方基地陆运周转出现 2.1% 短期缺口。'
-    },
-    {
-      name: '候选方案 B：现货高位跟随抢购方案',
-      isBest: false,
-      reactorTripRisk: '0.0%',
-      budgetDelta: '+65.0%',
-      cifCost: '$378.0/kgU',
-      inventoryBalance: '北方 190天 / 南方 200天',
-      scoreText: '62.0分',
-      improvementText: '+10.8分',
-      note: '在 $106/lb 历史高位恐慌抢单，虽保障供给但外汇预算严重超支 65%，高位套牢风险极高。'
-    },
-    {
-      name: '候选方案 C：无干预被动等待基线',
-      isBest: false,
-      reactorTripRisk: '6.5%',
-      budgetDelta: '0.0%',
-      cifCost: '$210.0/kgU',
-      inventoryBalance: '北方 80天 / 南方 160天 (告急)',
-      scoreText: '51.2分',
-      improvementText: '基准',
-      note: '维持既有采购路线，受制裁阻断导致原料无法按期通关，首炉装料面临 42 天停堆断供。'
-    }
-  ]
+
+const effectiveExperiment = computed(() => {
+  if (selectedExperiment.value) return selectedExperiment.value
+  if (snapshotStore.getActiveSnapshot()?.experiment) return snapshotStore.getActiveSnapshot().experiment
+  if (history.value && history.value[0]) return history.value[0]
+  const list = Object.values(uraniumStore.experiments || {})
+  if (list.length) return list[0]
+  return null
 })
+
+const reportVm = computed(() => {
+  return buildUraniumReportViewModel({
+    experiment: effectiveExperiment.value,
+    history: history.value,
+    snapshot: snapshotStore.getActiveSnapshot()
+  })
+})
+const candidateRows = computed(() => reportVm.value?.decisionSummary?.candidateRows || [])
+const bestCandidate = computed(() => candidateRows.value.find(item => item.isBest) || candidateRows.value[0] || null)
 const recommendedScore = computed(() => {
-  const bestCandidate = candidateRows.value.find(item => item.isBest)
-  if (bestCandidate?.score) return bestCandidate.score
-  return 94.8
+  if (bestCandidate.value?.scoreText) return bestCandidate.value.scoreText
+  if (bestCandidate.value?.score != null) return `${bestCandidate.value.score} 分`
+  return '—'
 })
-const stressedWindow = computed(() => {
-  const windows = reportVm.value?.focusWindowCards || []
-  return windows.find(item => item.isPeak) || windows.find(item => item.tone === 'danger') || windows[0] || null
-})
+const recommendedStrategy = computed(() => reportVm.value?.decisionSummary?.recommendedStrategy || bestCandidate.value?.name || '暂无推荐方案')
 const contextRows = computed(() => [
-  { label: '适用场景', value: '俄乌冲突与西方禁俄脱钩 (2022–2028)' },
-  { label: '决策时点', value: '2024.Q2（禁俄铀法案完全生效窗口）' },
-  { label: '触发危机', value: '全球现货暴涨至 $106/lb · 欧洲港口停运 · 恐慌牛鞭效应' }
+  { label: '实验范围', value: reportVm.value?.selectedYearRange ? `${reportVm.value.selectedYearRange} 年` : '—' },
+  { label: '分析场景', value: reportVm.value?.decisionSummary?.scenarioLabel || '—' },
+  { label: '关键事件', value: reportVm.value?.decisionSummary?.eventName || '—' }
 ])
 const simulationConclusion = computed(() => {
-  return '针对俄乌战事升级引发的国际现货暴涨（$106/lb）与欧洲转运通道受阻，多智能体决策内核否决高位追涨接盘，自适应生成【南向远洋海运分流 55% + 战略储备削峰借调 400 tU + 首炉机组定向保供】应急调度闭环。实证显示核心机组 0 停堆，到岸采购成本平准化压降 21.0%，恐慌性订单方差比由 3.84x 压制至 1.35x (-64.8%)。'
+  return reportVm.value?.decisionSummary?.headline
+    || bestCandidate.value?.note
+    || '当前实验尚未形成可用的建议，请先完成一次实验推演。'
 })
 const evidenceRows = computed(() => (reportVm.value?.keyResultCards || []).slice(0, 4))
-const actionTitles = [
-  '调度令 01：【海运航线紧急南移改道令 · 绕行】远洋直航防城港接卸',
-  '调度令 02：【国家战略储备逆周期削峰借调令 · 补库】防城港保税库借调',
-  '调度令 03：【战略核电堆型刚性保供令 · 保供】华龙一号首炉定向保供'
-]
-const actionRows = computed(() => [
-  '鉴于俄乌战事波及欧洲航道与黑海转运港，指令中远海运将纳米比亚湖山矿远洋海运配额调高至 55%，改道直航华南防城港接卸；基准运费锁定 $17.0/kgU，72 小时内锁定船期舱位，彻底规避地缘险区。',
-  '面对国际现货 $106/lb 暴涨，启动应急借调机制，由国家储备库紧急借调 400 tU 原料支援北方包头基地，到岸综合采购成本压降 21.0%；设定在 18 个月内由中哈新长协足额实物回补。',
-  '原料分配严格执行刚性调度优先级，100% 优先锁定 4 台华龙一号首炉装料工期（商运大修机组次之），实现关键换料窗口 0 停堆、0 延期，严防战略断料。'
-])
-function actionTagText(index) {
-  return index === 0 ? '绕行改道' : index === 1 ? '削峰借调' : '刚性保供'
-}
-
-function actionTagType(index) {
-  return index === 0 ? 'warning' : index === 1 ? 'primary' : 'danger'
-}
-
-const feasibilityChecklist = Object.freeze([
-  {
-    title: '放射性两用物项进出口通关备案',
-    dept: '商务部 / 国家原子能机构',
-    status: 'passed',
-    statusText: '已核准办结',
-    detail: '防城港海关对纳米比亚远洋直航 1,000 tU 原料特许绿通方案已获批，免除公海中转二次查验滞留。',
-    deadline: '24 小时内',
-    doc: '国核出入函 [2026] 042号'
-  },
-  {
-    title: 'Class 7 危险品跨省铁路专运车皮配额',
-    dept: '中国国家铁路集团调度中心',
-    status: 'passed',
-    statusText: '车皮已就位',
-    detail: '防城港至北方包头特种铅封屏蔽集装箱专运班列已编组 2 批次，保障跨省铁路干线运力无挤占。',
-    deadline: '48 小时内起运',
-    doc: '铁总特调度 [2026] U-18号'
-  },
-  {
-    title: '国家战略储备逆周期削峰借调审批',
-    dept: '国家发改委 / 战略物资储备局',
-    status: 'in_progress',
-    statusText: '部委终审中',
-    detail: '申请借调 400 tU 平抑北方装料缺口，中核集团已提交等量实物置换协议及 18 个月新长协回填计划书。',
-    deadline: '72 小时内批复',
-    doc: '发改储请 [2026] 109号'
-  },
-  {
-    title: '远洋现货美元远期结售汇与长协专户',
-    dept: '集团财务部 / 进出口银行',
-    status: 'passed',
-    statusText: '外汇已锁定',
-    detail: '锁定远洋采购美元远期结售汇上限 ($85/lb)，彻底规避国际汇率剧烈波动与现货溢价风险。',
-    deadline: '即时生效',
-    doc: '银核专保字第 2026038号'
+const actionRows = computed(() => {
+  const recommendations = Array.isArray(reportVm.value?.recommendations)
+    ? reportVm.value.recommendations.filter(Boolean)
+    : []
+  if (recommendations.length) {
+    return recommendations.slice(0, 4).map((detail, index) => ({
+      title: `建议动作 ${String(index + 1).padStart(2, '0')}`,
+      detail
+    }))
   }
-])
+  return candidateRows.value.slice(0, 3).map((item, index) => ({
+    title: item.name || `候选动作 ${String(index + 1).padStart(2, '0')}`,
+    detail: item.note || item.outcome || '暂无补充说明'
+  }))
+})
 
 onMounted(() => uraniumStore.ensureInitialized())
 </script>
 
 <style scoped>
-/* 头部步骤向导徽章 */
-.step-guide-badge {
-  display: inline-flex;
+/* 事中全链路推演时序流横幅 */
+.decision-hero-flow {
+  display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  padding: 12px 18px;
+  margin-bottom: 14px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  gap: 8px;
+  overflow-x: auto;
+}
+.flow-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: default;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+.flow-step.active {
   background: #eff6ff;
   border: 1px solid #bfdbfe;
-  padding: 3px 8px;
-  border-radius: 6px;
 }
-.step-guide-num {
+.flow-step .step-badge {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 11px;
   font-weight: 800;
-  color: #ffffff;
+}
+.flow-step.done .step-badge {
+  background: #dcfce7;
+  color: #15803d;
+}
+.flow-step.active .step-badge {
   background: #2563eb;
+  color: #ffffff;
+}
+.step-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.step-title-row strong {
+  font-size: 13px;
+  color: #0f172a;
+}
+.step-num {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+}
+.step-desc {
+  font-size: 11px;
+  color: #64748b;
+  display: block;
+}
+.flow-arrow {
+  color: #cbd5e1;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+/* 核心特色 1：分阶段执行时序与推进图样式 */
+.phased-timeline-container {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  padding: 16px 18px 20px;
+}
+.phase-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: all 0.2s ease;
+  position: relative;
+  cursor: pointer;
+}
+.phase-card:hover {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+  transform: translateY(-2px);
+}
+.phase-card.phase-active {
+  border-top: 3px solid #10b981;
+  background: linear-gradient(180deg, rgba(240, 253, 244, 0.4) 0%, #ffffff 40%);
+}
+.phase-card.phase-running {
+  border-top: 3px solid #2563eb;
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.4) 0%, #ffffff 40%);
+}
+.phase-card.phase-ready {
+  border-top: 3px solid #f59e0b;
+  background: linear-gradient(180deg, rgba(254, 243, 199, 0.3) 0%, #ffffff 40%);
+}
+.phase-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.phase-tag-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.phase-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #0f172a;
+  color: #ffffff;
+  letter-spacing: 0.04em;
+}
+.phase-time-pill {
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  background: #f1f5f9;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+.phase-card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.phase-title {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.phase-progress-val {
+  font-size: 13px;
+  font-weight: 800;
+  color: #2563eb;
+}
+.phase-progress-bar-wrap {
+  margin-top: -4px;
+}
+.phase-responsible {
+  font-size: 11px;
+  background: #f8fafc;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #f1f5f9;
+  color: #334155;
+}
+.resp-label { color: #64748b; font-weight: 600; }
+.phase-actions-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.actions-heading {
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+}
+.phase-action-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.phase-action-list li {
+  font-size: 11.5px;
+  color: #334155;
+  line-height: 1.5;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.act-dot {
+  color: #2563eb;
+  font-weight: bold;
+}
+.phase-criteria-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px dashed #e2e8f0;
+}
+.criteria-box {
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+}
+.criteria-finish {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+.criteria-finish .crit-label {
+  color: #15803d;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+.criteria-finish p {
+  margin: 0;
+  color: #166534;
+  line-height: 1.4;
+}
+.criteria-next {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+.criteria-next .crit-label {
+  color: #1d4ed8;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+.criteria-next p {
+  margin: 0;
+  color: #1e40af;
+  line-height: 1.4;
+}
+
+/* 核心特色 2：自适应量化触发与切换规则样式 */
+.trigger-rules-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px 18px 18px;
+}
+.trigger-rule-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 3px solid #94a3b8;
+  transition: all 0.2s ease;
+}
+.trigger-rule-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+}
+.trigger-rule-card.tone-danger { border-top-color: #ef4444; }
+.trigger-rule-card.tone-warning { border-top-color: #f59e0b; }
+.trigger-rule-card.tone-primary { border-top-color: #3b82f6; }
+.trigger-rule-card.tone-success { border-top-color: #10b981; }
+
+.rule-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.rule-code {
+  font-family: var(--mid-font-mono, monospace);
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+  background: #f1f5f9;
   padding: 1px 5px;
   border-radius: 4px;
 }
-.step-guide-name {
-  font-size: 12px;
-  font-weight: 700;
-  color: #1e3a8a;
+.rule-name {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #0f172a;
 }
-.step-guide-phase {
+.rule-threshold-box {
+  background: #f8fafc;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border-left: 3px solid #2563eb;
   font-size: 11px;
+}
+.thresh-label { color: #64748b; font-size: 10px; }
+.thresh-val { color: #1e293b; display: block; margin-top: 1px; }
+.rule-action-desc {
+  margin: 0;
+  font-size: 11.5px;
+  color: #334155;
+  line-height: 1.5;
+}
+.rule-footer {
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px dashed #e2e8f0;
+  font-size: 10.5px;
   color: #64748b;
 }
 
-/* 调度令卡片网格 */
+/* 核心特色 3：战情文书化调度令样式与公章水印 */
 .dispatch-order-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   padding: 14px 18px 18px;
 }
@@ -494,12 +773,14 @@ onMounted(() => uraniumStore.ensureInitialized())
   border-radius: 10px;
   border: 1px solid #e2e8f0;
   background: #ffffff;
-  padding: 14px 16px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   transition: all 0.2s ease;
   border-left-width: 4px;
+  position: relative;
+  overflow: hidden;
 }
 
 .dispatch-order-card:hover {
@@ -512,10 +793,148 @@ onMounted(() => uraniumStore.ensureInitialized())
 .dispatch-order-card.order-primary { border-left-color: #3b82f6; }
 .dispatch-order-card.order-success { border-left-color: #10b981; }
 
-.doc-header {
+.doc-entities-row {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  font-size: 11px;
+  color: #334155;
+  background: #f8fafc;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+.ent-label { color: #64748b; }
+.doc-hash {
+  font-family: var(--mid-font-mono, monospace);
+  font-size: 9.5px;
+  color: #94a3b8;
+}
+
+/* 官方红色印章水印设计 */
+.stamp-watermark {
+  position: absolute;
+  right: 12px;
+  bottom: 34px;
+  width: 82px;
+  height: 82px;
+  border-radius: 50%;
+  border: 2px dashed rgba(220, 38, 38, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: rotate(-12deg);
+  pointer-events: none;
+  user-select: none;
+}
+.stamp-inner {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  border: 1px solid rgba(220, 38, 38, 0.45);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: rgba(220, 38, 38, 0.65);
+}
+.stamp-star {
+  font-size: 11px;
+  line-height: 1;
+}
+.stamp-title {
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  line-height: 1.15;
+  padding: 1px 4px;
+}
+.stamp-sub {
+  font-size: 7.5px;
+  font-weight: 700;
+  margin-top: 1px;
+}
+
+/* 核心特色 4：大模型策略提示词与溯源案例 */
+.copilot-body {
+  display: grid;
+  grid-template-columns: 1.25fr 0.75fr;
+  gap: 14px;
+  padding: 14px 18px 18px;
+}
+.copilot-prompt-card,
+.copilot-benchmark-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.prompt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.prompt-header-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #0f172a;
+}
+.prompt-box {
+  margin: 0;
+  padding: 12px;
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: 8px;
+  font-family: var(--mid-font-mono, monospace);
+  font-size: 11.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.benchmark-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #0f172a;
+}
+.benchmark-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.benchmark-item {
+  padding: 10px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.b-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #0f172a;
+}
+.b-org {
+  font-size: 10.5px;
+  color: #64748b;
+}
+.b-desc {
+  margin: 0;
+  font-size: 11px;
+  color: #334155;
+  line-height: 1.45;
 }
 
 .doc-badge-row {
@@ -581,10 +1000,16 @@ h1 { margin: 6px 0 0; font-size: 20px; line-height: 1.5; font-weight: 600; }
 .decision-context > div { display: flex; gap: 8px; font-size: 12px; line-height: 1.6; }
 dt { color: #64748b; }
 dd { margin: 0; }
-.decision-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 16px 0; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; }
-.decision-metrics > div { padding: 14px 20px; }
-.decision-metrics dt { font-size: 12px; }
-.decision-metrics dd { margin-top: 6px; font-size: 18px; font-weight: 600; }
+.decision-evidence-grid { display: grid; gap: 12px; padding: 14px 16px 16px; }
+.decision-evidence-card { padding: 14px 16px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; }
+.decision-evidence-kicker { display: block; margin-bottom: 5px; color: #2563eb; font-size: 11px; font-weight: 700; letter-spacing: .04em; }
+.decision-evidence-card > strong { display: block; color: #0f172a; font-size: 14px; line-height: 1.5; }
+.decision-evidence-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.decision-evidence-list > div { display: flex; min-width: 0; flex-direction: column; gap: 5px; padding: 10px 12px; border-radius: 8px; background: #ffffff; }
+.decision-evidence-list span { overflow: hidden; color: #64748b; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.decision-evidence-list b { color: #0f172a; font-size: 16px; line-height: 1.25; }
+.decision-evidence-card > p { margin: 8px 0 0; color: #475569; font-size: 12px; line-height: 1.7; }
+.decision-evidence-note { margin-top: 12px; padding: 8px 10px; border-left: 3px solid #f59e0b; color: #92400e; background: #fffbeb; font-size: 11px; line-height: 1.5; }
 .decision-panel + .decision-panel { margin-top: 16px; }
 .action-list { margin: 0; padding: 0 16px; list-style: none; }
 .action-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 14px 0; }
@@ -595,7 +1020,21 @@ dd { margin: 0; }
 .decision-table { border-radius: 0 0 8px 8px; font-size: 13px; }
 .recommended-tag { margin-left: 8px; }
 .decision-empty { display: grid; place-items: center; height: 100%; }
-@media (max-width: 900px) { .decision-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.recommendation-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.decision-output-lead { margin: 0 16px; padding: 14px 16px; border-left: 4px solid #2563eb; border-radius: 8px; background: #eff6ff; }
+.decision-output-lead > span, .decision-output-subtitle { color: #64748b; font-size: 11px; font-weight: 700; }
+.decision-output-lead > strong { display: block; margin-top: 4px; color: #1e3a8a; font-size: 17px; line-height: 1.45; }
+.decision-output-lead > p { margin: 6px 0 0; color: #475569; font-size: 12px; line-height: 1.6; }
+.decision-output-subtitle { margin: 14px 16px 0; color: #334155; }
+.recommendation-card { display: flex; flex-direction: column; gap: 9px; min-height: 150px; padding: 14px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; }
+.recommendation-card__head, .recommendation-card__foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.recommendation-index { color: #2563eb; font: 700 12px var(--mid-font-mono, monospace); }
+.recommendation-card > strong { color: #0f172a; font-size: 13px; line-height: 1.5; }
+.recommendation-card > p { flex: 1; margin: 0; color: #64748b; font-size: 11px; line-height: 1.65; }
+.recommendation-card__foot { padding-top: 8px; border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: 10px; }
+@media (max-width: 900px) { .recommendation-grid { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .decision-evidence-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .decision-evidence-list { grid-template-columns: 1fr; } }
 @media (max-width: 600px) {
   .decision-scroll { padding: 10px; }
   .decision-heading { align-items: start; }
@@ -849,5 +1288,44 @@ dd { margin: 0; }
     grid-template-columns: 1fr;
   }
 }
-</style>
 
+/* 顶部核心业务问题导引条 */
+.decision-core-question-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 16px;
+  margin-bottom: 10px;
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.95), rgba(240, 253, 250, 0.95));
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.05);
+}
+.decision-core-question-strip .core-question-badge {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+.decision-core-question-strip .core-question-text {
+  flex: 1;
+  min-width: 0;
+}
+.decision-core-question-strip .core-question-text strong {
+  display: block;
+  font-size: 12.5px;
+  color: #1e3a8a;
+  margin-bottom: 2px;
+}
+.decision-core-question-strip .core-question-text p {
+  margin: 0;
+  font-size: 11px;
+  color: #475569;
+  line-height: 1.4;
+}
+</style>
