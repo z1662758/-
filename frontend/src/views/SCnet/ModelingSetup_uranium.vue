@@ -13,6 +13,10 @@
             <strong>{{ item.value }}</strong>
           </article>
         </div>
+        <el-button size="small" @click="openRoleWorkshop">
+          <el-icon><User /></el-icon>
+          <span>角色工坊 (独立入口)</span>
+        </el-button>
         <el-button size="small" @click="goDuringEntry">
           <el-icon><ChatDotRound /></el-icon>
           <span>回到对话</span>
@@ -63,8 +67,8 @@
           <el-empty v-if="!filteredGroups.length" description="没有匹配的 Agent，请调整搜索内容" :image-size="48" />
         </el-scrollbar>
         <div class="ms-left-foot">
-          <div class="ms-foot-title">建模范围</div>
-          <p class="ms-note">供给方 · 物流通道 · 采购方三层实体结构，依托历史数据设定仿真基线与约束边界。</p>
+          <div class="ms-foot-title">建模设定与独立入口</div>
+          <p class="ms-note">当前为实验推演的 Agent 参数与实体设定。角色生成已拆出独立入口（角色工坊），避免影响本次实验配置。</p>
         </div>
       </aside>
 
@@ -283,7 +287,56 @@
             </div>
           </section>
 
+          <!-- 供应链陆海通道基线成本与运力时效矩阵 (来自仿真物理引擎) -->
+          <section class="ms-env-section">
+            <div class="ms-env-title"><el-icon><Guide /></el-icon><span>陆海通道时效与基线运费</span></div>
+            <div class="ms-route-matrix">
+              <div class="ms-route-item">
+                <div class="ms-route-head">
+                  <strong>中哈铁路专列 (阿拉山口/霍尔果斯)</strong>
+                  <span class="ms-route-cost">$8.0/kgU</span>
+                </div>
+                <div class="ms-route-sub">时效 15-18 天 · 专列月限额 12 列 · 俄欧转运受阻避险通道</div>
+              </div>
+              <div class="ms-route-item">
+                <div class="ms-route-head">
+                  <strong>远洋直航海运 (纳米比亚-华南防城港)</strong>
+                  <span class="ms-route-cost">$17.0/kgU</span>
+                </div>
+                <div class="ms-route-sub">时效 45 天 · 运力充足 (6,500 tU) · 规避黑海/欧洲险区主干线</div>
+              </div>
+              <div class="ms-route-item">
+                <div class="ms-route-head">
+                  <strong>跨里海中间走廊 (TITR 铁海联运)</strong>
+                  <span class="ms-route-cost">$28.0/kgU</span>
+                </div>
+                <div class="ms-route-sub">时效 38 天 · 含阿克套港集装箱换装 · 备选走廊</div>
+              </div>
+            </div>
+          </section>
 
+          <!-- 俄乌断供冲击自适应风控红线规则 -->
+          <section class="ms-env-section">
+            <div class="ms-env-title"><el-icon><Warning /></el-icon><span>自适应调度风控红线</span></div>
+            <dl class="ms-rule-list">
+              <div>
+                <dt>安全库存警戒底线</dt>
+                <dd><b style="color: #ef4444;">16 周</b> (低于强制触发国家储备借调)</dd>
+              </div>
+              <div>
+                <dt>现货追涨熔断阈值</dt>
+                <dd><b style="color: #f59e0b;">$85/lb</b> (现货溢价超标强制禁止追高)</dd>
+              </div>
+              <div>
+                <dt>主导来源分散度上限</dt>
+                <dd><b>45.0%</b> (防范单一地缘阵营断供绑架)</dd>
+              </div>
+              <div>
+                <dt>首炉机组刚性优先级</dt>
+                <dd><b style="color: #10b981;">最高 P0</b> (华龙一号装料停堆惩罚系数 10x)</dd>
+              </div>
+            </dl>
+          </section>
         </el-scrollbar>
         </template>
         <template v-else>
@@ -323,7 +376,7 @@ import { formatUraniumEvent } from '@/utils/uraniumScene'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Aim, ArrowRight, Bell, Box, Calendar, ChatDotRound, Cpu, Guide, OfficeBuilding, Search, Sell } from '@element-plus/icons-vue'
+import { Aim, ArrowRight, Bell, Box, Calendar, ChatDotRound, Cpu, Guide, OfficeBuilding, Search, Sell, User } from '@element-plus/icons-vue'
 import MidStagePanelHeader from './components/shared/MidStagePanelHeader.vue'
 import MidStagePageHeader from './components/shared/MidStagePageHeader.vue'
 import UraniumModelingTopology from './components/simulation/UraniumModelingTopology.vue'
@@ -633,6 +686,10 @@ function goNext() {
 
 function goDuringEntry() {
   router.push(SCNET_ROUTES.duringEntry)
+}
+
+function openRoleWorkshop() {
+  router.push({ path: '/home/SCnet/knowledgeGraph', query: { tab: 'role' } })
 }
 
 onMounted(() => {
@@ -1151,12 +1208,43 @@ onMounted(() => {
   .ms-footer > span { display: none; }
   .ms-footer { justify-content: flex-end; }
 }
-@container modeling (max-width: 640px) {
-  .ms-studio { grid-template-columns: minmax(0, 1fr); grid-template-rows: 280px 480px minmax(360px, auto); }
-  .ms-right { grid-column: auto; }
-  .ms-left { max-height: 280px; }
-  .ms-attr-grid, .ms-posture-grid, .ms-two-col, .ms-ooda-detail { grid-template-columns: 1fr; }
-  .ms-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ms-footer { padding-right: 54px; }
+/* 陆海通道矩阵样式 */
+.ms-route-matrix {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+.ms-route-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ms-route-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.ms-route-head strong {
+  font-size: 11.5px;
+  color: #0f172a;
+  font-weight: 700;
+}
+.ms-route-cost {
+  font-size: 11px;
+  font-weight: 800;
+  color: #2563eb;
+  background: #eff6ff;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.ms-route-sub {
+  font-size: 10.5px;
+  color: #64748b;
+  line-height: 1.4;
 }
 </style>

@@ -1,53 +1,127 @@
 <template>
-  <nav class="analysis-link-tabs glass-panel" aria-label="决策分析子页面">
-    <div class="alt-left">
-      <el-icon class="alt-icon"><DataAnalysis /></el-icon>
+  <nav class="analysis-pipeline-container glass-panel" aria-label="事中决策分析业务流水线">
+    <!-- 顶部：三阶段业务流水线流转条 (对齐人群聚集与大国博弈的贯通式工作流) -->
+    <div class="pipeline-flow-row">
+      <div class="pipeline-steps">
+        <div
+          v-for="(step, idx) in pipelineSteps"
+          :key="step.key"
+          class="pipeline-step-item"
+          :class="{
+            active: activeStepKey === step.key,
+            passed: currentStepIndex > idx
+          }"
+          role="button"
+          tabindex="0"
+          @click="navigateStep(step.key)"
+          @keydown.enter.prevent="navigateStep(step.key)"
+        >
+          <div class="step-num-badge">
+            <el-icon v-if="currentStepIndex > idx"><Check /></el-icon>
+            <span v-else>0{{ idx + 1 }}</span>
+          </div>
+          <div class="step-content">
+            <div class="step-title-row">
+              <span class="step-title">{{ step.title }}</span>
+              <el-tag
+                size="small"
+                :type="activeStepKey === step.key ? 'primary' : currentStepIndex > idx ? 'success' : 'info'"
+                effect="plain"
+                class="step-status-tag"
+              >
+                {{ activeStepKey === step.key ? '正在分析' : currentStepIndex > idx ? '已完成' : '待流转' }}
+              </el-tag>
+            </div>
+            <span class="step-subtitle">{{ step.subtitle }}</span>
+            <small class="step-question">{{ step.question }}</small>
+          </div>
+          <!-- 步骤连接箭头 -->
+          <div v-if="idx < pipelineSteps.length - 1" class="step-arrow">
+            <el-icon><Right /></el-icon>
+          </div>
+        </div>
+      </div>
 
-      <el-segmented
-        v-model="activeRef"
-        :options="tabs"
-        size="small"
-        class="alt-segmented"
-        @change="handleChange"
-        aria-label="切换决策分析页面"
-      >
-        <template #default="{ item }">
-          <span class="alt-segment-item">
-            <el-icon :size="14"><component :is="item.icon" /></el-icon>
-            {{ item.label }}
-          </span>
-        </template>
-      </el-segmented>
+      <!-- 右侧：当前实验快速切换与行动入口 -->
+      <div class="pipeline-actions">
+        <el-select
+          v-if="isUranium"
+          :model-value="experimentStore.selectedExperimentId"
+          class="analysis-experiment-select"
+          size="small"
+          aria-label="分析实验"
+          placeholder="选择实验"
+          @change="changeExperiment"
+        >
+          <el-option
+            v-for="item in experimentStore.history"
+            :key="item.experiment_id"
+            :label="item.name || item.experiment_id"
+            :value="item.experiment_id"
+          />
+        </el-select>
+        <slot name="right" />
+      </div>
     </div>
 
-    <div class="alt-right">
-      <el-select v-if="isUranium" :model-value="experimentStore.selectedExperimentId" class="analysis-experiment-select" size="small" aria-label="分析实验" placeholder="选择实验" @change="changeExperiment">
-        <el-option v-for="item in experimentStore.history" :key="item.experiment_id" :label="item.name || item.experiment_id" :value="item.experiment_id" />
-      </el-select>
-      <slot name="right" />
+    <!-- 底部：当前步骤业务逻辑导引横幅 (彻底回答“本分析想说明什么”) -->
+    <div class="pipeline-narrative-banner" :class="currentStepInfo.tone">
+      <div class="narrative-left">
+        <span class="narrative-badge">{{ currentStepInfo.badge }}</span>
+        <div class="narrative-text-wrap">
+          <strong class="narrative-headline">{{ currentStepInfo.headline }}</strong>
+          <p class="narrative-desc">{{ currentStepInfo.desc }}</p>
+        </div>
+      </div>
+
+      <div class="narrative-right">
+        <div class="narrative-handoff-hint">
+          <small>{{ currentStepInfo.handoffLabel }}</small>
+          <strong>{{ currentStepInfo.handoffTarget }}</strong>
+        </div>
+        <el-button
+          v-if="currentStepInfo.nextStepKey"
+          type="primary"
+          size="small"
+          @click="navigateStep(currentStepInfo.nextStepKey)"
+        >
+          <span>{{ currentStepInfo.nextStepBtnText }}</span>
+          <el-icon><Right /></el-icon>
+        </el-button>
+        <el-button
+          v-else
+          type="success"
+          size="small"
+          @click="goToSimulation"
+        >
+          <span>返回仿真推演大盘</span>
+          <el-icon><Right /></el-icon>
+        </el-button>
+      </div>
     </div>
   </nav>
 </template>
 
 <script setup>
-import { computed, markRaw, ref, watch } from 'vue'
+import { computed, markRaw } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  DataAnalysis,
+  Check,
+  Document,
   Grid,
-  Promotion,
-  TrendCharts, Document
+  Right,
+  TrendCharts
 } from '@element-plus/icons-vue'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 import { useScenarioStore } from '@/stores/scenario'
-import { SCNET_DECISION_ROUTE_BY_TAB } from '@/constants/scnetRoutes'
+import { SCNET_DECISION_ROUTE_BY_TAB, SCNET_ROUTES } from '@/constants/scnetRoutes'
 import './midStage.css'
 
 const props = defineProps({
   active: {
     type: String,
     required: true,
-    validator: v => ['gameTheory', 'decisionTree', 'scenario', 'report'].includes(v)
+    validator: v => ['gameTheory', 'strategy', 'decisionTree', 'scenario', 'report'].includes(v)
   }
 })
 
@@ -55,140 +129,340 @@ const router = useRouter()
 const experimentStore = useUraniumDemoStore()
 const scenarioStore = useScenarioStore()
 const isUranium = computed(() => (router.currentRoute.value.query.scenario || scenarioStore.currentScenario) === 'uranium')
+
 async function changeExperiment(id) {
   await experimentStore.loadExperiment(id)
   router.replace({ query: { ...router.currentRoute.value.query, experiment_id: id } })
 }
 
-const tabs = computed(() => [
-  { value: 'scenario',     label: '情景分析', icon: markRaw(TrendCharts) },
-  { value: 'gameTheory',   label: '脆弱性分析', icon: markRaw(Grid) },
-  { value: 'decisionTree', label: '对策分析', icon: markRaw(Promotion) },
-  { value: 'report', label: '决策报告', icon: markRaw(Document) }
-])
+// 统一的 3 阶段流水线步骤定义
+const pipelineSteps = [
+  {
+    key: 'gameTheory',
+    title: '脆弱性分析',
+    subtitle: '诊断定点 · 排查断供咽喉',
+    question: '“供应链网络里，谁最脆弱、谁最难替代？”',
+    icon: markRaw(Grid)
+  },
+  {
+    key: 'strategy',
+    title: '策略分析',
+    subtitle: '对策寻优 · 情景与决策树',
+    question: '“面对脆弱断点与外部冲击，如何动态调控？”',
+    icon: markRaw(TrendCharts)
+  },
+  {
+    key: 'report',
+    title: '决策报告',
+    subtitle: '落地闭环 · 集团调度令清单',
+    question: '“如何将算法对策转化为具体执行指令？”',
+    icon: markRaw(Document)
+  }
+]
 
-const activeRef = ref(props.active)
-watch(() => props.active, v => { activeRef.value = v })
+// 规格化当前激活 key
+const activeStepKey = computed(() => {
+  if (['scenario', 'decisionTree', 'strategy'].includes(props.active)) return 'strategy'
+  return props.active
+})
 
-function handleChange(value) {
-  if (value === props.active) return
-  const target = SCNET_DECISION_ROUTE_BY_TAB[value]
+const currentStepIndex = computed(() => {
+  const idx = pipelineSteps.findIndex(s => s.key === activeStepKey.value)
+  return idx >= 0 ? idx : 1
+})
+
+// 当前步骤的业务逻辑导引信息（直击用户“几个分析想说明什么”的核心痛点）
+const currentStepInfo = computed(() => {
+  if (activeStepKey.value === 'gameTheory') {
+    return {
+      tone: 'tone-vulnerability',
+      badge: 'Step 01 · 诊断定点',
+      headline: '本分析想说明：面对突发外部冲击，系统哪里最脆弱？',
+      desc: '承接 2024–2030 年长周期推演运行异常，通过网络拓扑介数与依赖矩阵排查单点失效。已诊断出：中哈阿拉山口口岸（介数 0.84，负荷率 94%）与包头制造基地（库存破 14 周警戒线）构成全网首要脆弱咽喉。',
+      handoffLabel: '下一步流转：',
+      handoffTarget: '将上述脆弱点作为约束输入，送入策略分析',
+      nextStepKey: 'strategy',
+      nextStepBtnText: '下一步：前往策略分析寻优'
+    }
+  }
+
+  if (activeStepKey.value === 'strategy') {
+    return {
+      tone: 'tone-strategy',
+      badge: 'Step 02 · 对策寻优',
+      headline: '本分析想说明：面对已确定的脆弱断点，如何科学调控保证反应堆零非停？',
+      desc: '承接上一步【脆弱性诊断】结果：上层锚定 2024–2030 宏观扰动情景画像，下层展开扩展式博弈决策树多路径寻优。已求解出最优方案：“跨里海多式联运绕行 + 防城港保税库应急借调平准”（综合评分 91.5 分，较基线提升 +23.5 分）。',
+      handoffLabel: '下一步流转：',
+      handoffTarget: '将 91.5 分最优方案转化为具有法律效力的执行指令',
+      nextStepKey: 'report',
+      nextStepBtnText: '下一步：前往决策报告落地闭环'
+    }
+  }
+
+  return {
+    tone: 'tone-report',
+    badge: 'Step 03 · 落地闭环',
+    headline: '本分析想说明：如何把算法寻优结果转化为具体可下达的调度指令与应急预案？',
+    desc: '汇总 Step 01 脆弱性诊断（定点）与 Step 02 决策树博弈求解（寻优）的完整因果证据链，生成带有正式编号的国家/集团级应急调度令清单（#2026-U-01 等）、核验 4 项合规前置审批，形成闭环白皮书。',
+    handoffLabel: '流程状态：',
+    handoffTarget: '决策闭环已达成，可归档或重新仿真',
+    nextStepKey: null,
+    nextStepBtnText: ''
+  }
+})
+
+function navigateStep(key) {
+  if (key === activeStepKey.value) return
+  const target = SCNET_DECISION_ROUTE_BY_TAB[key] || (key === 'strategy' ? SCNET_ROUTES.expAnalysisScenario : null)
   if (target) {
     const query = { ...router.currentRoute.value.query }
     delete query.section
     router.push({ path: target, query })
   }
 }
+
+function goToSimulation() {
+  router.push({
+    path: '/home/SCnet/experimentManager',
+    query: {
+      scenario: 'uranium',
+      view: 'run'
+    }
+  })
+}
 </script>
 
 <style scoped>
-.analysis-link-tabs {
+.analysis-pipeline-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px 12px;
+  margin: 6px 8px 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+/* 流水线步骤行 */
+.pipeline-flow-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 6px 10px;
-  margin: 6px 8px 0;
-  flex-shrink: 0;
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  box-shadow: none;
+  gap: 16px;
   flex-wrap: wrap;
 }
 
-.alt-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  min-width: 0;
-}
-
-.alt-icon {
-  color: #409eff;
-  font-size: 16px;
-}
-
-.alt-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: #1f2937;
-  margin-right: 2px;
-}
-
-.alt-segmented {
-  --el-segmented-bg-color: rgba(255, 255, 255, 0.6);
-  min-width: 0;
-  max-width: 100%;
-}
-
-.alt-segment-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-}
-
-.alt-right {
+.pipeline-steps {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  margin-left: auto;
+  flex: 1;
   min-width: 0;
 }
 
-.alt-right :deep(.el-select) {
-  max-width: 100%;
+.pipeline-step-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex: 1;
+  min-width: 220px;
 }
-/* 复用 mid-page-header 的按钮节奏:32px 高 + icon/文字 6px 间距 */
-.alt-right :deep(.el-button) {
-  --el-button-size: 30px;
-  min-height: 30px;
+.pipeline-step-item:hover {
+  background: #f0f7ff;
+  border-color: #3b82f6;
+  transform: translateY(-1px);
 }
-.alt-right :deep(.el-button > .el-icon + span),
-.alt-right :deep(.el-button > span + .el-icon) {
-  margin-left: 6px;
+.pipeline-step-item.active {
+  background: #eff6ff;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
 }
-@media (max-width: 800px) {
-  .analysis-link-tabs { flex-wrap: wrap; }
-  .alt-left { width: 100%; flex-wrap: nowrap; }
-  .alt-segmented { flex: 1; min-width: 0; }
-  .alt-right { flex-wrap: wrap; }
+.pipeline-step-item.passed {
+  border-color: #cbd5e1;
 }
 
-@media (max-width: 640px) {
-  .analysis-link-tabs {
-    margin-inline: 4px;
-    padding: 6px;
+.step-num-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  background: #e2e8f0;
+  color: #475569;
+  flex-shrink: 0;
+}
+.pipeline-step-item.active .step-num-badge {
+  background: #2563eb;
+  color: #ffffff;
+}
+.pipeline-step-item.passed .step-num-badge {
+  background: #10b981;
+  color: #ffffff;
+}
+
+.step-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.step-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.step-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.step-status-tag {
+  font-size: 10px;
+  height: 18px;
+  padding: 0 6px;
+}
+.step-subtitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: #2563eb;
+}
+.pipeline-step-item.passed .step-subtitle {
+  color: #10b981;
+}
+.step-question {
+  font-size: 10px;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.step-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 14px;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
+.pipeline-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.analysis-experiment-select {
+  width: 240px;
+}
+
+/* 底部业务导引横幅 */
+.pipeline-narrative-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  background: #f8fafc;
+  border-left: 4px solid #3b82f6;
+  font-size: 11.5px;
+}
+.pipeline-narrative-banner.tone-vulnerability {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+}
+.pipeline-narrative-banner.tone-strategy {
+  border-left-color: #10b981;
+  background: #f0fdf4;
+}
+.pipeline-narrative-banner.tone-report {
+  border-left-color: #8b5cf6;
+  background: #f5f3ff;
+}
+
+.narrative-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+.narrative-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.06);
+  color: #0f172a;
+  white-space: nowrap;
+}
+.narrative-text-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.narrative-headline {
+  font-size: 12.5px;
+  color: #0f172a;
+}
+.narrative-desc {
+  margin: 0;
+  font-size: 11.5px;
+  color: #475569;
+  line-height: 1.4;
+}
+
+.narrative-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+.narrative-handoff-hint {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+  gap: 1px;
+}
+.narrative-handoff-hint small {
+  font-size: 10px;
+  color: #64748b;
+}
+.narrative-handoff-hint strong {
+  font-size: 11.5px;
+  color: #0f172a;
+}
+
+@media (max-width: 1280px) {
+  .pipeline-steps {
+    flex-wrap: wrap;
   }
-  .alt-icon,
-  .alt-title {
-    display: none;
+  .pipeline-step-item {
+    min-width: 180px;
   }
-  .alt-left,
-  .alt-segmented {
+  .pipeline-narrative-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .narrative-right {
     width: 100%;
-  }
-  .alt-segmented {
-    min-width: 0;
-    overflow-x: auto;
-  }
-  .alt-segment-item {
-    white-space: nowrap;
-    font-size: 11px;
-  }
-  .alt-right {
-    width: 100%;
-    justify-content: stretch;
-  }
-  .alt-right :deep(.el-select),
-  .alt-right :deep(.el-button) {
-    flex: 1 1 auto;
+    justify-content: space-between;
   }
 }
-.analysis-experiment-select { width: 250px; max-width: 100%; }
-@media (max-width: 800px) { .analysis-experiment-select { width: 200px; } }
 </style>

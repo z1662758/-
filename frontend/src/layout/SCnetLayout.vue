@@ -87,7 +87,7 @@
           <el-sub-menu index="during-analysis">
             <template #title>
               <el-icon size="18"><DataAnalysis/></el-icon>
-              <span>决策分析</span>
+              <span>策略与脆弱性分析</span>
             </template>
             <el-menu-item
               v-for="item in duringAnalysisMenuItems"
@@ -224,9 +224,8 @@ const DURING_TAIL_MENU_ITEMS = Object.freeze([
 ])
 
 const DURING_ANALYSIS_MENU_ITEMS = Object.freeze([
-  { index: '/home/SCnet/expAnalysisScenario', label: '情景分析', icon: TrendCharts },
   { index: '/home/SCnet/expAnalysisGameTheory', label: '脆弱性分析', icon: Grid },
-  { index: '/home/SCnet/expAnalysisDecisionTree', label: '对策分析', icon: Promotion }
+  { index: '/home/SCnet/expAnalysisScenario', label: '策略分析', icon: TrendCharts }
 ])
 
 // 实验分析子菜单之前展示的主菜单项

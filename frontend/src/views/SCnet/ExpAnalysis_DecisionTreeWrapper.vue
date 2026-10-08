@@ -1,5 +1,5 @@
 <template>
-  <UraniumView v-if="scenario === 'uranium'" />
+  <UraniumView v-if="scenario === 'uranium'" initial-method="decisionTree" />
   <AutoView v-else />
 </template>
 
@@ -7,7 +7,7 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useScenarioStore } from '@/stores/scenario'
-import UraniumView from './ExpAnalysis_DecisionTree_uranium.vue'
+import UraniumView from './ExpAnalysis_Strategy_uranium.vue'
 import AutoView from './ExpAnalysis_DecisionTree.vue'
 
 const route = useRoute()

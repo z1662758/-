@@ -272,6 +272,22 @@ const YEARLY_SUPPLIER_ROUTE_MULTIPLIERS = Object.freeze({
     sup_aus: 1.08,
     sup_uzb: 1.06,
     sup_niger: 1.06
+  },
+  2029: {
+    sup_kaz: 0.92,
+    sup_can: 1.20,
+    sup_nam: 1.15,
+    sup_aus: 1.10,
+    sup_uzb: 1.05,
+    sup_niger: 1.08
+  },
+  2030: {
+    sup_kaz: 0.90,
+    sup_can: 1.22,
+    sup_nam: 1.20,
+    sup_aus: 1.12,
+    sup_uzb: 1.05,
+    sup_niger: 1.10
   }
 })
 
@@ -345,6 +361,34 @@ const BASE_YEAR_ROWS = Object.freeze([
     supply_concentration_hhi: 0.233,
     dominant_supplier_share: 0.32,
     active_events: ['美国禁俄铀完全生效']
+  },
+  {
+    year: 2029,
+    market_price_usd_lb: 87.2,
+    total_supply_tU: 13620,
+    total_procured_tU: 13400,
+    total_demand_tU: 13680,
+    unmet_demand_tU: 280,
+    average_cost_usd_kgU: 250.8,
+    average_risk_exposure: 0.218,
+    inventory_coverage_years: 1.08,
+    supply_concentration_hhi: 0.228,
+    dominant_supplier_share: 0.31,
+    active_events: ['新一代天然铀中长期长协生效', '纳米比亚深海运力扩容']
+  },
+  {
+    year: 2030,
+    market_price_usd_lb: 85.0,
+    total_supply_tU: 14100,
+    total_procured_tU: 13950,
+    total_demand_tU: 14100,
+    unmet_demand_tU: 150,
+    average_cost_usd_kgU: 246.5,
+    average_risk_exposure: 0.205,
+    inventory_coverage_years: 1.15,
+    supply_concentration_hhi: 0.221,
+    dominant_supplier_share: 0.30,
+    active_events: ['华龙一号批量化稳定商运', '双源双通道保供格局全面成熟']
   }
 ])
 
@@ -650,7 +694,7 @@ function buildContractMix(totalProcured, variant) {
 function buildTimelineRows(variantKey, draft = {}) {
   const variant = VARIANT_PROFILES[variantKey] || VARIANT_PROFILES.balanced
   const start = Number.isInteger(draft.start_year) ? draft.start_year : 2024
-  const end = Number.isInteger(draft.end_year) ? draft.end_year : 2028
+  const end = Number.isInteger(draft.end_year) ? draft.end_year : 2030
   const severity = Number.isFinite(draft.event_severity_multiplier) ? draft.event_severity_multiplier : 1
   const baseRows = Array.from({ length: Math.max(0, Math.min(44, end - start + 1)) }, (_, index) => {
     const year = start + index
@@ -888,7 +932,7 @@ function buildUraniumDemoTask(experiment, {
       template_name: experiment.template_name,
       optimization_iterations: experiment.plan?.optimization_iterations ?? experiment.optimization_iterations ?? 1,
       start_year: experiment.plan?.start_year ?? 2024,
-      end_year: experiment.plan?.end_year ?? 2028,
+      end_year: experiment.plan?.end_year ?? 2030,
       experiment_id: experiment.experiment_id
     },
     summary: deepClone(experiment.summary || {}),
@@ -933,7 +977,7 @@ export function createUraniumDemoSeed() {
     experimentId: buildExperimentId('balanced', balancedCreatedAt),
     presetName: 'balanced',
     name: '平衡方案 · 三港口分流校准',
-    description: '评估在 2024-2028 年窗口下，长协与现货平衡配置对供应稳定性的影响。',
+    description: '评估在 2024-2030 年窗口下，长协与现货平衡配置对供应稳定性的影响。',
     optimizationIterations: 2,
     createdAt: balancedCreatedAt,
     completedAt: '2026-07-08 11:02:00'

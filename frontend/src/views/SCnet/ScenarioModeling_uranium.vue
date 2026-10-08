@@ -78,6 +78,35 @@
           </div>
         </div>
 
+        <!-- 典型地缘断供预设想定库 (主推俄乌冲突场景) -->
+        <div class="preset-scenarios-container">
+          <div class="preset-scenarios-head">
+            <span>⚡ 典型地缘冲突与保供冲击想定（一键载入）</span>
+            <small>预置参数与扰动事件已与推演内核对齐</small>
+          </div>
+          <div class="preset-cards-grid">
+            <div
+              v-for="preset in presetScenarios"
+              :key="preset.id"
+              class="preset-card"
+              :class="{ 'is-featured': preset.isFeatured, 'is-active': activePresetId === preset.id }"
+              @click="applyPresetScenario(preset)"
+            >
+              <div class="preset-card-top">
+                <span class="preset-icon">{{ preset.icon }}</span>
+                <el-tag v-if="preset.badge" :type="preset.badgeType" size="small" effect="dark" round>
+                  {{ preset.badge }}
+                </el-tag>
+              </div>
+              <strong class="preset-title">{{ preset.title }}</strong>
+              <p class="preset-desc">{{ preset.desc }}</p>
+              <div class="preset-tags">
+                <span v-for="tag in preset.tags" :key="tag" class="preset-tag">{{ tag }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- 需求不完整时的内联提示（拆分两步后,这里直接给反馈,不再切到聊天面板） -->
         <el-alert
           v-if="judgementError"
@@ -151,6 +180,42 @@ export default {
         { label: 'Kimi-K2', value: 'kimi', disabled: false }
       ],
       selectedPhase: 'during',
+      activePresetId: 'ukraine-war',
+      presetScenarios: [
+        {
+          id: 'ukraine-war',
+          title: '俄乌冲突与西方禁俄铀法案 (2022–2028)',
+          desc: '俄44%浓缩产能受制裁脱钩，国际现货暴涨至 $106/lb，黑海通道阻断，华龙一号提前装料保供。',
+          prompt: '俄乌冲突爆发及西方禁俄铀法案生效背景下，国际现货暴涨至 $106/lb，黑海与欧洲航道阻断，国内新增 4 台华龙一号机组提前装料（年需约 1,600 tU），如何协同中哈铁路与国家战略储备开展应急保供调度？',
+          icon: '⚔️',
+          badge: '主推想定',
+          badgeType: 'danger',
+          isFeatured: true,
+          tags: ['现货 $106/lb', '物流风险 +0.40', '装料 1,600 tU']
+        },
+        {
+          id: 'rail-shock',
+          title: '中哈阿拉山口铁路口岸中断 30 天',
+          desc: '极寒暴雪与边境车皮积压导致陆路班列停运，北方包头基地库存骤降至 14 周预警线。',
+          prompt: '中哈边境阿拉山口铁路口岸突发极端暴雪停运 30 天，北方包头燃料元件基地可用库存降至 14 周，如何启动南向海运分流与跨基地调剂？',
+          icon: '❄️',
+          badge: '陆运断链',
+          badgeType: 'warning',
+          isFeatured: false,
+          tags: ['陆运中断 30天', '北方缺口 1,380 tU', '库存 14周']
+        },
+        {
+          id: 'sea-shock',
+          title: '海运通道受阻与现货高溢价冲击',
+          desc: '红海与好望角远洋航线保险与转运费率上涨，南方沿海基地大修换料窗口面临交货延期。',
+          prompt: '纳米比亚至中国海运通道受地缘冲突波及，运费上涨 35% 且到岸延期 25 天，如何优化国内战略保税库借调与长协刚性履约？',
+          icon: '🌊',
+          badge: '海运扰动',
+          badgeType: 'primary',
+          isFeatured: false,
+          tags: ['海运到岸 +25天', '运费 +35%', '保税库借调']
+        }
+      ],
       phases: [
         { value: 'pre',  label: '事前', icon: '📊', description: '铀网络设计、供给规划、制造节点布局策略' },
         { value: 'during',  label: '事中', icon: '🚨', description: '供给调度优化、节点协同、库存动态管理' },
@@ -162,6 +227,16 @@ export default {
     ...ScenarioModelingLogic.methods,
     handleModelChange(value) {
       this.selectedModel = value
+    },
+    applyPresetScenario(preset) {
+      this.activePresetId = preset.id
+      this.inputMessage = preset.prompt
+      this.selectedPhase = 'during'
+      this.$nextTick(() => {
+        if (this.$refs.initialInput) {
+          this.$refs.initialInput.focus()
+        }
+      })
     },
     /**
      * 重写需求判断成功的回调：
@@ -291,5 +366,101 @@ export default {
 }
 .judgement-inline-content :deep(.judgement-tip-text) {
   color: #475569;
+}
+
+/* 预设想定选择区 */
+.preset-scenarios-container {
+  margin-top: 24px;
+  width: 100%;
+  text-align: left;
+}
+.preset-scenarios-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 12px;
+}
+.preset-scenarios-head small {
+  font-size: 11px;
+  font-weight: 400;
+  color: #64748b;
+}
+.preset-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.preset-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+.preset-card:hover {
+  transform: translateY(-2px);
+  border-color: #3b82f6;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.12);
+}
+.preset-card.is-featured {
+  border-color: #fca5a5;
+  background: linear-gradient(to bottom, #fff5f5, #ffffff);
+}
+.preset-card.is-active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+.preset-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.preset-icon {
+  font-size: 18px;
+}
+.preset-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.4;
+}
+.preset-desc {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.preset-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: auto;
+  padding-top: 6px;
+}
+.preset-tag {
+  font-size: 10px;
+  color: #3b82f6;
+  background: #eff6ff;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+@media (max-width: 768px) {
+  .preset-cards-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

@@ -129,6 +129,49 @@
       </el-card>
     </div>
 
+    <!-- 俄乌冲突推演时序与自适应调度回溯带 -->
+    <div class="ukraine-timeline-strip glass-panel">
+      <div class="ut-head">
+        <div class="ut-head-left">
+          <span class="ut-badge">时序推演与关键决策</span>
+          <strong>俄乌冲突与西方禁俄铀法案应对轨迹 (2022–2028)</strong>
+        </div>
+        <div class="ut-head-right">
+          <el-button type="primary" size="small" @click="$router.push({ path: '/home/SCnet/interface', query: { ...$route.query, scenario: 'uranium', view: 'decision' } })">
+            <span>查看 3 项应急调度令 ➔</span>
+          </el-button>
+        </div>
+      </div>
+      <div class="ut-steps-row">
+        <div class="ut-step-item past">
+          <div class="ut-step-dot danger"></div>
+          <div class="ut-step-content">
+            <span class="ut-year">2022 年</span>
+            <strong>冲突爆发 · 现货暴涨</strong>
+            <p>俄乌战事升级，恐慌抢单导致现货冲破 $85/lb，欧洲转运通道受阻。</p>
+          </div>
+        </div>
+        <div class="ut-step-arrow">➔</div>
+        <div class="ut-step-item current">
+          <div class="ut-step-dot danger"></div>
+          <div class="ut-step-content">
+            <span class="ut-year">2024 年 (关键决策点)</span>
+            <strong>禁俄令生效 · 储备削峰</strong>
+            <p>现货达 $106/lb 极值。Agent 否决高位追涨，启动战略储备借调 400 tU。</p>
+          </div>
+        </div>
+        <div class="ut-step-arrow">➔</div>
+        <div class="ut-step-item future">
+          <div class="ut-step-dot success"></div>
+          <div class="ut-step-content">
+            <span class="ut-year">2025–2028 年</span>
+            <strong>海陆重构 · 韧性稳态</strong>
+            <p>纳米比亚海运分流 55% 到港防城港，首炉装料 0 停堆，牛鞭效应平抑。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <details v-if="focusTask && focusIterationRows.length" class="focus-experiment-section" @toggle="showIterationDetails = $event.target.open">
       <summary>迭代结果 <span>{{ focusExperiment?.name || focusTask.user_goal }} · {{ focusIterationRows.length }} 条记录</span></summary>
       <UraniumExperimentFocusPanel
@@ -3068,5 +3111,109 @@ watch(showRunningSection, (running) => {
   color: #4b5563;
   font-size: 13px;
   line-height: 1.6;
+}
+
+/* 俄乌冲突推演时序与自适应调度回溯带 */
+.ukraine-timeline-strip {
+  margin: 16px 0;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 18px;
+}
+.ut-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.ut-head-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ut-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #dc2626;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.ut-head-left strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.ut-steps-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ut-step-item {
+  flex: 1;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  transition: all 0.2s ease;
+}
+.ut-step-item.current {
+  border-color: #fca5a5;
+  background: #fff5f5;
+  box-shadow: 0 0 0 1px #fca5a5;
+}
+.ut-step-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+.ut-step-dot.danger {
+  background: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+}
+.ut-step-dot.success {
+  background: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+}
+.ut-step-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ut-year {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+}
+.ut-step-content strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.ut-step-content p {
+  font-size: 11.5px;
+  color: #475569;
+  line-height: 1.5;
+  margin: 2px 0 0;
+}
+.ut-step-arrow {
+  color: #94a3b8;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+@media (max-width: 900px) {
+  .ut-steps-row {
+    flex-direction: column;
+  }
+  .ut-step-arrow {
+    transform: rotate(90deg);
+  }
 }
 </style>

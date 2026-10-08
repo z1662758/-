@@ -29,7 +29,7 @@ test('证据与专家实验同源，回答引用所选年度并保留单位', as
   assert.match(answer, /\| 2026 \|/)
   assert.doesNotMatch(answer, /\| 2024 \|/)
   assert.match(answer, /美元\/kgU/)
-  assert.match(buildUraniumExpertAnswer('分析 2030 年', evidence), /未覆盖 2030 年/)
+  assert.match(buildUraniumExpertAnswer('分析 2035 年', evidence), /未覆盖 2035 年/)
 })
 
 test('不将缺失指标转换为零，不以其他实验替换失效 ID', async () => {

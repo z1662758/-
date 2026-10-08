@@ -192,6 +192,7 @@ import { Download, Grid, Promotion, Refresh, TrendCharts } from '@element-plus/i
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
 import { buildUraniumReportViewModel } from '@/views/SCnet/adapters/uraniumMockAnalysisAdapter'
+import { createUraniumDemoSeed } from '@/views/SCnet/mock/uraniumDemoLab'
 import AnalysisLinkTabs from './components/shared/AnalysisLinkTabs.vue'
 import { useUraniumAnalysisExperiment } from './composables/useUraniumAnalysisExperiment'
 import AnalysisPageHero from './components/shared/AnalysisPageHero.vue'
@@ -210,12 +211,31 @@ const reportSections = computed(() => [
   { id: 'report-windows', label: '年度变化' }, { id: 'report-strategies', label: '候选策略' },
   { id: 'report-risks', label: '风险监测' },
 ].filter(item => !isAuto.value || ['report-summary', 'report-actions'].includes(item.id)))
-function scrollToSection(id) { reportRef.value?.querySelector(`#${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+
+function scrollToSection(id) {
+  reportRef.value?.querySelector(`#${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
 const uraniumStore = useUraniumDemoStore()
 const snapshotStore = useAnalysisSnapshotStore()
 const { history, selectedExperiment, selectedExperimentId } = storeToRefs(uraniumStore)
+
+// 稳健实验回退保障
+const effectiveExperiment = computed(() => {
+  if (selectedExperiment.value) return selectedExperiment.value
+  if (snapshotStore.getActiveSnapshot()?.experiment) return snapshotStore.getActiveSnapshot().experiment
+  const list = Object.values(uraniumStore.experiments || {})
+  if (list.length) return list[0]
+  try {
+    const seed = createUraniumDemoSeed()
+    return seed?.experiments?.['uranium-security-first-20260708-131000'] || (seed?.experiments ? Object.values(seed.experiments)[0] : null)
+  } catch (e) {
+    return null
+  }
+})
+
 const reportVm = computed(() => isAuto.value ? null : buildUraniumReportViewModel({
-  experiment: selectedExperiment.value,
+  experiment: effectiveExperiment.value,
   history: history.value,
   snapshot: snapshotStore.getActiveSnapshot()
 }))
@@ -267,37 +287,58 @@ const analysisDigestCards = computed(() => {
     || reportVm.value?.decisionSummary?.candidateRows?.[0]
   return [
     {
-      step: '情景分析', status: '年度分布', tagType: 'primary', tone: 'scenario',
-      conclusion: severeWindows ? `存在 ${severeWindows} 个高压力年度窗口` : '整体仍处于可控窗口',
-      metrics: [{ label: '高压年度占比', value: `${extremeShare}%` }, { label: '年度窗口', value: `${windows.length || '--'} 个` }]
+      step: 'Step 01 · 脆弱性分析 (诊断定点)', status: `指数 ${metrics.find(m => m.label === '鲁棒性')?.score || 78}分 (${level.label})`, tagType: level.type, tone: 'vulnerability',
+      conclusion: '排查出首要断供软肋：中哈阿拉山口口岸（负荷94%）与包头元件基地（库存仅14周破线）',
+      metrics: [
+        { label: '第一咽喉节点', value: '阿拉山口 (介数0.84)' },
+        { label: '库存缓冲压力', value: `${inventoryPressure} 分` }
+      ]
     },
     {
-      step: '脆弱性分析', status: level.label, tagType: level.type, tone: 'vulnerability',
-      conclusion: `结构脆弱性评估：${level.label}`,
-      metrics: [{ label: '库存压力', value: `${inventoryPressure} 分` }, { label: '恢复难度', value: `${recoveryDifficulty} 分` }]
+      step: 'Step 02 · 策略分析 (对策寻优)', status: best ? `最优评分 ${best.scoreText || '91.5分'}` : '寻优已收敛', tagType: 'success', tone: 'strategy',
+      conclusion: best?.name || reportVm.value?.decisionSummary?.recommendedStrategy || '跨里海多式联运绕行 + 防城港保税库应急借调平准',
+      metrics: [
+        { label: '较基线增益', value: best?.improvementText || '+23.5 分' },
+        { label: '核电非停风险', value: '0.2% (极低)' }
+      ]
     },
     {
-      step: '对策分析', status: best ? '已形成推荐' : '待评估', tagType: best ? 'success' : 'info', tone: 'strategy',
-      conclusion: best?.name || reportVm.value?.decisionSummary?.recommendedStrategy || '优先保障关键交付与备份通道',
-      metrics: [{ label: '策略得分', value: best?.scoreText || '--' }, { label: '相对改善', value: best?.improvementText || '--' }]
+      step: 'Step 03 · 决策落地 (闭环调度)', status: '4项调度令签发', tagType: 'primary', tone: 'scenario',
+      conclusion: '下发国家/集团级应急调度令，核验车皮、通关、战略借调与锁汇 4 项合规前置审批',
+      metrics: [
+        { label: '前置合规核验', value: '4/4 满足' },
+        { label: '应急响应闭环', value: '72 小时时效' }
+      ]
     }
   ]
 })
-const actionTitles = ['稳定主供与核心通道', '前置配置替代资源', '滚动校准库存与合同', '建立风险触发机制']
-const actions = computed(() => reportVm.value?.recommendations?.map((item, index) => ({
-  title: actionTitles[index] || `行动建议 ${index + 1}`,
-  detail: item,
-  tag: index === 0 ? '优先执行' : index === 1 ? '同步准备' : '持续跟踪',
-  type: index === 0 ? 'danger' : index === 1 ? 'warning' : 'success'
-})) || (isAuto.value ? [
-  { title: '锁定关键产能', detail: '将有限资源优先配置至核心工厂与高优先级订单。', tag: '立即执行', type: 'danger' },
-  { title: '启用替代供应', detail: '提前校验第二供应源，降低单节点中断的连锁影响。', tag: '优先准备', type: 'warning' },
-  { title: '滚动监测缺口', detail: '以短周期更新需求、库存和产能状态，触发动态重算。', tag: '持续跟踪', type: 'success' }
-] : [
-  { title: '保障核心需求', detail: '优先锁定核心用户和关键交付窗口，避免供给中断。', tag: '立即执行', type: 'danger' },
-  { title: '分散关键通道', detail: '校验替代供应商和运输路径，降低单点暴露。', tag: '优先准备', type: 'warning' },
-  { title: '滚动调整库存', detail: '结合价格、库存和风险变化，动态修正补库节奏。', tag: '持续跟踪', type: 'success' }
-]))
+const uraniumDispatchActions = [
+  {
+    title: '调度令 01：【中哈陆路定向分流令】阿拉山口专列直达直供',
+    detail: '指令哈萨克斯坦 Inkai 矿区 1,680 tU 原料全部经阿拉山口铁路口岸专列直达北方包头基地，优先保障华龙一号首炉装料工期，严防停堆断料。',
+    tag: '立即执行',
+    type: 'danger'
+  },
+  {
+    title: '调度令 02：【远洋现货锁定与船期加速令】纳米比亚专船起运',
+    detail: '指令中广核纳米比亚湖山矿通过鲸湾港提前 20 天装船起运 1,000 tU，直航连云港/广州港，定向补足南方沿海机组商业大修换料缺口。',
+    tag: '船期加速',
+    type: 'warning'
+  },
+  {
+    title: '调度令 03：【中央战略储备紧急平抑令】防城港保税库借调',
+    detail: '向国家能源局与战略物资储备局申请从防城港保税库应急借调 300 tU 天然铀原料，平抑南方基地短期交货缺口，承诺于 2026.Q4 前滚动回填归还。',
+    tag: '审批借调',
+    type: 'primary'
+  },
+  {
+    title: '调度令 04：【跨基地动态安全库存均衡令】两用物项调运平衡',
+    detail: '启动北方包头（14周）与南方沿海（36周）基地库存联动监测，在 180 天商业安全库存红线约束下执行横向转运与 Class 7 危运报备。',
+    tag: '持续监控',
+    type: 'success'
+  }
+]
+const actions = computed(() => uraniumDispatchActions)
 
 const monitoringTriggerRows = computed(() => {
   const alerts = reportVm.value?.alerts || []
@@ -334,7 +375,7 @@ const monitoringTriggerRows = computed(() => {
     {
       name: '商业安全库存红线预警',
       trigger: '核心基地库存覆盖天数低于 180 天红线',
-      action: '向集团与国家储备申请 200 tU 战略借调，确保关键堆型 0 停堆。',
+      action: '向集团与国家战略储备局申请 300 tU 战略平准借调，确保关键堆型 0 停堆。',
       level: '一级告警',
       levelType: 'danger'
     },
@@ -356,9 +397,9 @@ const evidence = computed(() => reportVm.value?.analysisRecoveryCards?.slice(1).
   icon: evidenceIcons[index],
   tone: evidenceTones[index]
 })) || [
-  { title: '情景分析', detail: '统计各类年度风险的占比，识别关键年度压力窗口。', icon: markRaw(TrendCharts), tone: 'green' },
   { title: '脆弱性分析', detail: '从节点依赖矩阵、结构替代能力和物流稳定性识别关键脆弱点。', icon: markRaw(Grid), tone: 'blue' },
-  { title: '对策分析', detail: '对比不干预基线与调控路径，评估动作的时间、成本和改善效果。', icon: markRaw(Promotion), tone: 'orange' }
+  { title: '策略分析 (情景)', detail: '统计各类年度风险的占比，识别关键年度压力窗口并预演演化格局。', icon: markRaw(TrendCharts), tone: 'green' },
+  { title: '策略分析 (决策树)', detail: '对比不干预基线与调控路径，评估动作的时间、成本和改善效果。', icon: markRaw(Promotion), tone: 'orange' }
 ])
 function toneType(tone) {
   return ({ danger: 'danger', warning: 'warning', success: 'success' })[tone] || 'info'

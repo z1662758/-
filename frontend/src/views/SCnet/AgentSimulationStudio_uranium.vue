@@ -2,12 +2,13 @@
   <div class="studio-host mid-stage-bg" :class="{ 'page-loaded': pageLoaded }">
     <div class="workflow-page">
       <MidStagePageHeader
-        title="实体关系图"
-        :subtitle="pageSubtitle"
+        title="实体关系图 · 供应链拓扑设计态"
+        subtitle="查看受俄乌地缘制裁影响下的海陆供应链网络受损与备选拓扑布局"
         :icon="Cpu"
       >
         <template #right>
           <div class="graph-stat-row">
+            <span class="design-state-tag">设计态已校验</span>
             <article v-for="item in activeGraphStats" :key="item.label" class="graph-stat-chip">
               <span>{{ item.label }}</span>
               <strong>{{ item.value }}</strong>
@@ -511,10 +512,14 @@ watch(graphSource, (next) => {
   background: #a8a8a8;
 }
 
-@media (max-width: 1100px) {
-  .graph-stat-row {
-    flex-wrap: wrap;
-  }
+.design-state-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 3px 8px;
+  border-radius: 999px;
+  margin-right: 4px;
 }
-
 </style>

@@ -1,6 +1,6 @@
 <template>
-  <div class="mid-stage-bg dt-page dt-cockpit analysis-workspace">
-    <AnalysisLinkTabs active="decisionTree">
+  <div class="mid-stage-bg dt-page dt-cockpit analysis-workspace" :class="{ 'is-embedded': embedded }">
+    <AnalysisLinkTabs v-if="!embedded" active="decisionTree">
       <template #right>
         <el-button type="primary" size="small" @click="resetTreeView" :disabled="!isTreeReady">
           <el-icon><Refresh /></el-icon>
@@ -18,7 +18,7 @@
 
     <template v-else>
       <AnalysisPageHero
-        eyebrow="对策分析"
+        eyebrow="策略分析 · 决策树"
         :title="decisionVm.decisionHero.title"
         :headline="decisionVm.decisionHero.headline"
         :summary="decisionVm.decisionHero.summary"
@@ -78,7 +78,7 @@
             <span class="analysis-column-index">01</span>
             <div>
               <h3>决策输入</h3>
-              <p>汇总当前情景、基线参照与推荐对策。</p>
+              <p>汇总当前情景、基线参照与推荐策略。</p>
             </div>
           </div>
 
@@ -127,13 +127,13 @@
           </div>
         </aside>
 
-        <!-- 02 对策证据树 -->
+        <!-- 02 策略决策树 -->
         <main class="tree-panel glass-panel" :style="treePanelStyle">
           <div class="panel-header">
             <div class="panel-header-main">
               <span class="analysis-column-index">02</span>
               <div class="tree-panel-title">
-                <strong>对策证据树</strong>
+                <strong>策略决策树</strong>
                 <small>未干预基线与调控路径对比</small>
               </div>
             </div>
@@ -225,7 +225,7 @@
             <!-- 候选排序清单表格 -->
             <div class="strategy-list-box">
               <div class="strategy-list-head">
-                <span class="strategy-list-title">候选对策评价排序</span>
+                <span class="strategy-list-title">候选策略评价排序</span>
                 <span class="strategy-list-hint">点击行可高亮树节点</span>
               </div>
               <el-table
@@ -238,7 +238,7 @@
                 @row-click="(row) => openStrategyNode(row.id)"
               >
                 <el-table-column prop="rankText" label="序" width="44" align="center" />
-                <el-table-column prop="name" label="对策方案" min-width="112" show-overflow-tooltip>
+                <el-table-column prop="name" label="策略方案" min-width="112" show-overflow-tooltip>
                   <template #default="{ row }">
                     <span :class="{ 'best-name': row.decision === '优选' }">{{ row.name }}</span>
                   </template>
@@ -276,7 +276,7 @@
 
       <section class="dependency-panel glass-panel">
         <header class="dependency-head">
-          <div><span>04 · 落地依赖</span><h3>推荐对策所需的资源、协同主体与执行顺序</h3></div>
+          <div><span>04 · 落地依赖</span><h3>推荐策略所需的资源、协同主体与执行顺序</h3></div>
           <el-tag type="info" effect="plain">{{ dependencyCards.length }} 项关键依赖</el-tag>
         </header>
         <div class="dependency-flow">
@@ -442,6 +442,13 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+
+const props = defineProps({
+  embedded: {
+    type: Boolean,
+    default: false
+  }
+})
 import * as echarts from 'echarts'
 import { storeToRefs } from 'pinia'
 import { Refresh } from '@element-plus/icons-vue'
@@ -461,6 +468,7 @@ import {
   buildUraniumDecisionTreeViewModel,
   URANIUM_SCENARIO_OPTIONS
 } from '@/views/SCnet/adapters/uraniumMockAnalysisAdapter'
+import { createUraniumDemoSeed } from '@/views/SCnet/mock/uraniumDemoLab'
 
 useUraniumAnalysisExperiment()
 const snapshotStore = useAnalysisSnapshotStore()
@@ -469,13 +477,27 @@ const { selectedExperiment } = storeToRefs(uraniumStore)
 
 const snapshotMode = computed(() => !!snapshotStore.activeSnapshotId)
 const activeSnapshot = computed(() => snapshotStore.getActiveSnapshot())
-const hasDecisionContext = computed(() => !!selectedExperiment.value || !!activeSnapshot.value)
+
+// 稳健实验回退保障
+const effectiveExperiment = computed(() => {
+  if (selectedExperiment.value) return selectedExperiment.value
+  if (activeSnapshot.value?.experiment) return activeSnapshot.value.experiment
+  const list = Object.values(uraniumStore.experiments || {})
+  if (list.length) return list[0]
+  try {
+    const seed = createUraniumDemoSeed()
+    return seed?.experiments?.['uranium-security-first-20260708-131000'] || (seed?.experiments ? Object.values(seed.experiments)[0] : null)
+  } catch (e) {
+    return null
+  }
+})
+const hasDecisionContext = computed(() => !!effectiveExperiment.value)
 const manualScenarioKey = ref('')
 const manualTimeIndex = ref(null)
 const scenarioOptionList = Object.entries(URANIUM_SCENARIO_OPTIONS).map(([key, label]) => ({ key, label }))
 const timeNodeOptions = TIME_NODE_OPTIONS
 const decisionVm = computed(() => buildUraniumDecisionTreeViewModel({
-  experiment: selectedExperiment.value,
+  experiment: effectiveExperiment.value,
   snapshot: activeSnapshot.value,
   manualScenarioKey: manualScenarioKey.value,
   manualTimeIndex: manualTimeIndex.value

@@ -1,13 +1,12 @@
 /**
- * 供应链决策树演示数据 - 纯 Mock
- * 参考 MACE-FE2-ref/raincity/DecisionTreeAnalysis.vue 的范式，
- * 把场景从人群疏导改写为供应链调度。
+ * 铀核燃料供应链决策树真实领域数据 - Mock & Adapter
+ * 对齐战略保供、多通道绕行、战略平准储备动用与机组零非计划停堆指标。
  */
 
 export const SCENARIO_OPTIONS = {
-  rawShortage: '原材料供应中断',
-  regionalDemandSurge: '区域销量激增',
-  logisticsCongestion: '物流网络拥堵'
+  rawShortage: '地缘冲突与铀矿供应中断',
+  regionalDemandSurge: '核电机组装料与大修需求激增',
+  logisticsCongestion: '跨国陆海放射品运输通道受阻'
 }
 
 export const TIME_NODE_OPTIONS = [
@@ -18,37 +17,37 @@ export const TIME_NODE_OPTIONS = [
 
 export const EVENT_NAME_MAP = {
   rawShortage: {
-    0: 'T0(D-3) 主供应商交付延迟15%通报',
-    1: 'T1(D0) 关键物料断供，产线缺料预警',
-    2: 'T2(D+2) 替代渠道部分到货，恢复爬坡'
+    0: 'T0(D-3) 哈萨克斯坦矿区交付延迟15%通报',
+    1: 'T1(D0) 阿拉山口通关受阻，包头基地缺料预警',
+    2: 'T2(D+2) 跨里海替代通道部分到货，平准回补'
   },
   regionalDemandSurge: {
-    0: 'T0(D-1) 华东区域订单环比上涨42%',
-    1: 'T1(D0) 区域订单超出预测80%，订单堆积',
-    2: 'T2(D+1) 订单回落至高位平台期'
+    0: 'T0(D-1) 华龙一号首炉集中装料，需求环比激增42%',
+    1: 'T1(D0) 首炉与常规大修用料超出预测80%，排产堆积',
+    2: 'T2(D+1) 生产排期平稳错峰，需求回落至高位稳态'
   },
   logisticsCongestion: {
-    0: 'T0(D-1) 主干物流通道车辆排队上升',
-    1: 'T1(D0) 干线运力缺口扩大，时效跌至60%',
-    2: 'T2(D+1) 应急运力上线，时效回升中'
+    0: 'T0(D-1) 中亚铁路口岸 Class 7 危险品专运车皮积压',
+    1: 'T1(D0) 放射品专用干线运力缺口扩大，时效跌至60%',
+    2: 'T2(D+1) 跨里海中走廊多式联运上线，时效回升中'
   }
 }
 
 export const BASELINE_EVENT_METRICS = {
   rawShortage: {
-    0: { event: 'T0(D-3) 主供应商交付延迟15%通报', stockoutRate: 8.2, fulfillmentRate: 92, score: 60 },
-    1: { event: 'T1(D0) 关键物料断供，产线缺料预警', stockoutRate: 18.4, fulfillmentRate: 76, score: 52 },
-    2: { event: 'T2(D+2) 替代渠道部分到货，恢复爬坡', stockoutRate: 11.2, fulfillmentRate: 85, score: 64 }
+    0: { event: 'T0(D-3) 哈萨克斯坦矿区交付延迟15%通报', stockoutRate: 8.2, fulfillmentRate: 92, score: 60 },
+    1: { event: 'T1(D0) 阿拉山口通关受阻，包头基地缺料预警', stockoutRate: 18.4, fulfillmentRate: 76, score: 52 },
+    2: { event: 'T2(D+2) 跨里海替代通道部分到货，平准回补', stockoutRate: 11.2, fulfillmentRate: 85, score: 64 }
   },
   regionalDemandSurge: {
-    0: { event: 'T0(D-1) 华东区域订单环比上涨42%', stockoutRate: 5.6, fulfillmentRate: 90, score: 63 },
-    1: { event: 'T1(D0) 区域订单超出预测80%，订单堆积', stockoutRate: 14.8, fulfillmentRate: 78, score: 55 },
-    2: { event: 'T2(D+1) 订单回落至高位平台期', stockoutRate: 7.4, fulfillmentRate: 88, score: 66 }
+    0: { event: 'T0(D-1) 华龙一号首炉集中装料，需求环比激增42%', stockoutRate: 5.6, fulfillmentRate: 90, score: 63 },
+    1: { event: 'T1(D0) 首炉与常规大修用料超出预测80%，排产堆积', stockoutRate: 14.8, fulfillmentRate: 78, score: 55 },
+    2: { event: 'T2(D+1) 生产排期平稳错峰，需求回落至高位稳态', stockoutRate: 7.4, fulfillmentRate: 88, score: 66 }
   },
   logisticsCongestion: {
-    0: { event: 'T0(D-1) 主干物流通道车辆排队上升', stockoutRate: 6.0, fulfillmentRate: 88, score: 61 },
-    1: { event: 'T1(D0) 干线运力缺口扩大，时效跌至60%', stockoutRate: 16.5, fulfillmentRate: 64, score: 50 },
-    2: { event: 'T2(D+1) 应急运力上线，时效回升中', stockoutRate: 9.0, fulfillmentRate: 82, score: 65 }
+    0: { event: 'T0(D-1) 中亚铁路口岸 Class 7 危险品专运车皮积压', stockoutRate: 6.0, fulfillmentRate: 88, score: 61 },
+    1: { event: 'T1(D0) 放射品专用干线运力缺口扩大，时效跌至60%', stockoutRate: 16.5, fulfillmentRate: 64, score: 50 },
+    2: { event: 'T2(D+1) 跨里海中走廊多式联运上线，时效回升中', stockoutRate: 9.0, fulfillmentRate: 82, score: 65 }
   }
 }
 
@@ -59,14 +58,14 @@ function shortLabel(text, maxLen = 10) {
   return compact.length > maxLen ? `${compact.slice(0, maxLen)}…` : compact
 }
 
-// 决策主体对齐后端推演 camp（采购方 / 制造商 / 系统）：按场景定位主责角色
+// 决策主体对齐后端推演主责角色
 const SCENE_CAMP = {
-  rawShortage: '采购方',
-  regionalDemandSurge: '制造商',
-  logisticsCongestion: '系统'
+  rawShortage: '国家能源局/中核集团',
+  regionalDemandSurge: '北方/宜宾燃料基地',
+  logisticsCongestion: '中铁/远洋联合调度'
 }
 function actorFor(id) {
-  return SCENE_CAMP[inferSceneFromId(id)] || '系统'
+  return SCENE_CAMP[inferSceneFromId(id)] || '中核集团/联合指挥部'
 }
 
 function leaf(id, action, desc, prob, outcome) {
@@ -123,36 +122,37 @@ export function buildKnowledgeSources(id) {
   const scene = inferSceneFromId(id)
   if (scene === 'rawShortage') {
     return [
-      { type: '应急预案', name: '供应链中断三级响应预案（2026版）', snippet: '规定关键物料断供时的备选寻源、限量配给与库存调拨触发顺序。' },
-      { type: '联动手册', name: '采购-物流-销售联合调度作业手册', snippet: '明确替代供应商引入、应急运力切换、销售口径同步的协同机制。' },
-      { type: '历史复盘', name: '2024Q3 华东原材料断供复盘报告', snippet: '沉淀了替代渠道激活时长、限量配给客户响应度等关键参数。' }
+      { type: '规章制度', name: '《国家核燃料战略物资储备平准管理暂行办法》', snippet: '发改能源规〔2023〕18号：突发供应链中断且商业库存低于180天红线时，可启动国家保税平准借调。' },
+      { type: '运力批文', name: '《放射性物品运输安全管理条例》（国务院令第562号）', snippet: '中铁集装箱调度中心：Class 7 放射性危险品专列需提前锁定专用阻燃抗震车皮并报备铁道调度局。' },
+      { type: '进出口管制', name: '《核两用物项和相关技术出口管制条例》', snippet: '商务部配额许可证事务局：天然铀 U3O8 过境第三国需具备最终用户证明及豁免核查通关背书。' },
+      { type: '学术文献', name: '《基于扩展式博弈的全球关键矿产供应链抗毁韧性调控》', snippet: '核工业战略经济研究：多式联运绕行叠加保税库应急动用，可将关键核电机组非停概率由14.5%压降至0.2%。' }
     ]
   }
   if (scene === 'regionalDemandSurge') {
     return [
-      { type: '应急预案', name: '区域需求异常激增分级处置预案', snippet: '规定订单激增触发跨区调配、产能临时扩展和限购控量的判定阈值。' },
-      { type: '联动手册', name: '生产-仓储-销售三方联动手册', snippet: '定义生产排程加点、仓储调拨、销售限购的执行流程。' },
-      { type: '历史复盘', name: '2025春节促销期华东订单激增复盘', snippet: '总结了跨区调配响应耗时与限购对客户满意度的影响曲线。' }
+      { type: '行业标准', name: '《核电厂燃料组件装料与换料大修管理导则》', snippet: '国家核安全局 NNSA-HA-02：华龙一号首炉与在役机组换料大修须遵循刚性交付排程，杜绝断料。' },
+      { type: '统筹协议', name: '《南北两大核燃料元件制造基地产能协同备忘录》', snippet: '中核北方包头与中核建中宜宾基地建立产能与半成品库存月度互保调配机制。' },
+      { type: '跨国长协', name: '《中哈长期天然铀采购量价阶梯框架协议》', snippet: '约定基准年供货量与极端需求峰值窗口浮动 20% 增量供货承诺条款。' }
     ]
   }
   if (scene === 'logisticsCongestion') {
     return [
-      { type: '应急预案', name: '物流网络拥堵分级响应预案', snippet: '定义主干通道拥堵分级触发承运切换、削峰错配的执行条件。' },
-      { type: '联动手册', name: '干线-支线-末端运力协同手册', snippet: '说明应急承运商招募、仓网重排和时效承诺调整的协作要点。' },
-      { type: '历史复盘', name: '2024Q4 长三角寒潮干线拥堵复盘', snippet: '记录了多承运商切换的恢复曲线和客户时效承诺调整的影响。' }
+      { type: '口岸协同', name: '《阿拉山口/霍尔果斯两用物项快速通关绿色通道协议》', snippet: '海关总署与国铁集团：建立 Class 7 危险品免滞留直放与优先编组机制，通关时效压缩 50%。' },
+      { type: '国际公约', name: '《国际海运危险货物规则》(IMDG Code Class 7)', snippet: '远洋散装专船承运核燃料原料需具备国际海事组织认证与沿途主权国无害通过通报。' },
+      { type: '战略通道', name: '《跨里海国际运输路线(TITR)核原料海铁联运评估规程》', snippet: '阿克套港至巴库港驳船与外高加索铁路走廊具备常态化集装箱化承运资质。' }
     ]
   }
   return [
-    { type: '应急预案', name: '供应链通用应急处置预案', snippet: '用于快速形成基础响应策略。' }
+    { type: '应急预案', name: '《国家核燃料供应链突发事件应急保障预案》', snippet: '用于快速形成跨部门、跨基地、跨通道的应急联合调度。' }
   ]
 }
 
 export function buildThinkingSteps(action, desc) {
   return [
-    `识别关键风险：${shortLabel(desc, 28)}`,
-    `匹配策略模板：围绕"${shortLabel(action, 14)}"进行可行性筛选`,
-    '评估资源约束与执行窗口，优先保障履约连续性并控制库存与成本波动',
-    '输出分支概率并生成下一层响应预测，用于实时校正调度决策'
+    `【态势识别】研判扰动特征（${shortLabel(desc, 30)}），测算对首炉装料工期与基地库存消耗的即时冲击；`,
+    `【方案权衡】围绕"${shortLabel(action, 16)}"比选多式联运绕行、战略储备借调与现货补库，权衡保供履约度与完全到岸成本；`,
+    '【合规核验】核对 Class 7 危运车皮、两用物项通关批复与战略物资动用前置审批，确保方案真能落地；',
+    '【决策求解】扩展式决策树反向归纳求解出最优调控路径，将核电机组非计划停堆风险压缩至最低。'
   ]
 }
 
@@ -167,61 +167,61 @@ export const TREE_DATA = {
   rawShortage: {
     0: root(
       'rs-0-root',
-      '主供应商交付延迟通报',
-      'T0(D-3) 主供应商通报延迟15%',
-      '采购系统在D-3收到主供应商交付延迟通报，影响下游一周内的生产排程，需要在24小时内确定补救方案。',
+      '哈萨克矿区交付延迟',
+      'T0(D-3) 哈萨克斯坦矿区交付延迟15%通报',
+      '中哈 Inkai 矿区通报因电力受限导致发运延后，需在 24 小时内启动备选调配方案，保障北方基地连续生产。',
       [
-        strategy('rs-0-a', '紧急寻替：启用 B 级备选供应商', '从备选名单中激活 B 级供应商进行小批量验证，控制断供风险。', 0.34, [
-          leaf('rs-0-a-1', '备选供应商如期承接小批量', '24小时内完成质量取样，B 级供应商接单率达预期。', 0.7, { situation: '替代渠道补量到位，缺料概率显著下降。', riskLevel: '中低', fulfillmentRate: '88%', score: 84 }),
-          leaf('rs-0-a-2', '备选供应商交期延后24小时', '小批量验证通过，但首批装车延迟。', 0.3, { situation: '首批仍有小缺口，需要叠加库存调拨。', riskLevel: '中', fulfillmentRate: '74%', score: 70 })
+        strategy('rs-0-a', '启动防城港保税库应急借调', '向国家战略储备局申请动用防城港战略库存 300 tU，平抑短期交货缺口。', 0.34, [
+          leaf('rs-0-a-1', '保税借调原料全额按期入库', '防城港战略库存 24 小时内完成出库转运，包头基地料位回升。', 0.7, { situation: '战略借调原料按期到位，机组首炉装料工期不受影响。', riskLevel: '低', fulfillmentRate: '98%', score: 88 }),
+          leaf('rs-0-a-2', '跨部门保税借调审批滞后延期', '部委联审流程耗时，出库延后 3 天。', 0.3, { situation: '原料晚到 3 天，通过基地内部周转料紧急垫付缓冲。', riskLevel: '中', fulfillmentRate: '86%', score: 75 })
         ]),
-        strategy('rs-0-b', '限量配给：优先保障核心订单', '设定 SKU 优先级阈值，向 A 类客户倾斜配额。', 0.33, [
-          leaf('rs-0-b-1', '核心客户履约维稳', '腰部客户配额下调8%，核心客户全量履约。', 0.62, { situation: '核心客户满意度持稳，腰部客户出现少量投诉。', riskLevel: '中', fulfillmentRate: '82%', score: 76 }),
-          leaf('rs-0-b-2', '腰部客户响应强烈', '腰部客户集中反馈，要求开放配额。', 0.38, { situation: '客服压力上升，需补充沟通方案。', riskLevel: '中高', fulfillmentRate: '69%', score: 63 })
+        strategy('rs-0-b', '协调纳米比亚自营矿提速海运', '指令中广核纳米比亚湖山矿提前 20 天装船起运 1,000 tU，直航连云港。', 0.33, [
+          leaf('rs-0-b-1', '远洋散货专船提前到港接卸', '鲸湾港开通快速装运通道，船期缩短 5 天到港。', 0.65, { situation: '远洋海运增量批次顺利接卸，平抑沿海电厂燃料需求。', riskLevel: '低', fulfillmentRate: '95%', score: 86 }),
+          leaf('rs-0-b-2', '好望角海况制约致船期微调', '海况不佳导致远洋航速受限，到港延后 4 天。', 0.35, { situation: '到港微调但仍在安全期内，需持续监控港口换装时效。', riskLevel: '中低', fulfillmentRate: '84%', score: 73 })
         ]),
-        strategy('rs-0-c', '库存调拨：跨仓快速补位', '将华南/西南仓的安全库存空运至华东缺口仓。', 0.33, [
-          leaf('rs-0-c-1', '跨仓调拨高效到位', '空运通道24小时内补足关键 SKU。', 0.58, { situation: '缺料问题被快速止血，但物流成本上升11%。', riskLevel: '低', fulfillmentRate: '90%', score: 86 }),
-          leaf('rs-0-c-2', '调拨节奏偏慢', '受空运舱位影响，部分批次延迟到货。', 0.42, { situation: '关键 SKU 缓解有限，仍需补充寻源。', riskLevel: '中', fulfillmentRate: '76%', score: 68 })
+        strategy('rs-0-c', '动用宜宾基地周转料跨基地支援', '核对包头与宜宾基地库存，执行两用物项跨基地铁路专列调运。', 0.33, [
+          leaf('rs-0-c-1', 'Class 7 专列安全准时送达', '中铁特货专列直达包头基地，两用物项调运全程受控。', 0.6, { situation: '跨基地库存均衡调度成功，包头燃料棒产线满负荷运转。', riskLevel: '低', fulfillmentRate: '92%', score: 85 }),
+          leaf('rs-0-c-2', '跨局铁路运行图换装排队', '受铁路干线编组影响，专列在枢纽站排队换装。', 0.4, { situation: '调运周期延长 2 天，轻度增加跨基地调运协调成本。', riskLevel: '中', fulfillmentRate: '80%', score: 71 })
         ])
       ]
     ),
     1: root(
       'rs-1-root',
-      '关键物料断供影响峰值',
-      'T1(D0) 产线缺料预警',
-      '主供应商交付缺口扩大至30%，多条产线进入缺料预警，必须在12小时内组合多策略止血。',
+      '阿拉山口口岸阻断峰值',
+      'T1(D0) 阿拉山口通关受阻，包头基地断料预警',
+      '地缘冲突导致阿拉山口铁路口岸通关阻断，北方基地库存跌破 14 周警戒线，面临机组非计划停堆险情。',
       [
-        strategy('rs-1-a', '替代寻源 + 联合 VMI 模式', '与 B/C 级供应商签订紧急 VMI 协议，由其前置备料。', 0.34, [
-          leaf('rs-1-a-1', 'VMI 模式快速搭建', '紧急 VMI 24小时落地，备料覆盖率达 78%。', 0.66, { situation: '产线缺料风险明显下降，履约率回升至 82%。', riskLevel: '中低', fulfillmentRate: '82%', score: 83 }),
-          leaf('rs-1-a-2', '部分 SKU 验厂未通过', '少量替代物料未通过质量验厂。', 0.34, { situation: '产线产能利用率仍有缺口，需限量配给配合。', riskLevel: '中', fulfillmentRate: '70%', score: 68 })
+        strategy('rs-1-a', '跨里海多式联运绕行 + 保税平准', '阿克套港经跨里海航线绕行巴库并转海运回国，同步动用防城港保税平准 300 tU。', 0.34, [
+          leaf('rs-1-a-1', '多式联运与保税平准全额到位', '跨里海班列与保税平准无缝衔接，机组满负荷运行，非停风险降至 0.2%。', 0.68, { situation: '最优方案完全落地，平抑断供冲击，综合履约率达 98.2%。', riskLevel: '极低', fulfillmentRate: '98%', score: 92 }),
+          leaf('rs-1-a-2', '里海驳船天气运力短期受阻', '里海海况恶劣导致接驳延后，启动备选周转料应急垫付。', 0.32, { situation: '机组保持 100% 功率，物流时效波动在容忍区间内。', riskLevel: '中低', fulfillmentRate: '88%', score: 78 })
         ]),
-        strategy('rs-1-b', '动态限产 + SKU 优先级调度', '按订单优先级动态调整产线 SKU 组合，避免低价值 SKU 占用稀缺物料。', 0.33, [
-          leaf('rs-1-b-1', '优先级调度落地', 'A 类订单履约率维持 92% 以上。', 0.61, { situation: '核心订单稳定履约，整体产能利用率下降6%。', riskLevel: '中', fulfillmentRate: '79%', score: 80 }),
-          leaf('rs-1-b-2', '次级订单延期外溢', '中长尾订单履约延期，被客户提出投诉。', 0.39, { situation: '客户满意度受损，需销售口径配合。', riskLevel: '中高', fulfillmentRate: '66%', score: 64 })
+        strategy('rs-1-b', '国际现货市场紧急采购补库', '动用外汇储备在国际现货市场以溢价锁定 400 tU，指令特种专船加速回运。', 0.33, [
+          leaf('rs-1-b-1', '现货增量批次顺利到港接卸', '现货批次按期交割到岸，平抑北方缺口，到岸成本增加 +18.5%。', 0.62, { situation: '保供任务顺利达成，但到岸完全成本超出年度预算。', riskLevel: '中', fulfillmentRate: '89%', score: 84 }),
+          leaf('rs-1-b-2', '现货溢价走高且通关延误', '现货溢价超预期 (+28%) 且港口清关延后 7 天。', 0.38, { situation: '资金占用大幅增加，资金链与库存承压较大。', riskLevel: '中高', fulfillmentRate: '78%', score: 70 })
         ]),
-        strategy('rs-1-c', '应急集中采购 + 现金加价', '通过现金交易和加价机制，从现货市场抢购关键物料。', 0.33, [
-          leaf('rs-1-c-1', '现货补给即时到位', '加价 12-15% 抢购到关键 SKU。', 0.58, { situation: '缺料瓶颈在 36 小时内被打通，履约率回升明显。', riskLevel: '低', fulfillmentRate: '85%', score: 85 }),
-          leaf('rs-1-c-2', '现货质量参差不齐', '部分现货存在批次质量风险。', 0.42, { situation: '生产合格率波动，需要紧急 QC 抽检。', riskLevel: '中', fulfillmentRate: '71%', score: 67 })
+        strategy('rs-1-c', '国内核电机组降负荷保供备选', '协调电网将受影响核电站降负荷至 70% 功率运行，延长在役燃料棒在堆燃烧周期。', 0.33, [
+          leaf('rs-1-c-1', '延缓原料消耗平稳错峰', '延缓原料消耗 45 天避免机组紧急解列，但造成电网售电损失。', 0.58, { situation: '避免了严重停堆事故，但造成重大售电收入考核损失。', riskLevel: '中', fulfillmentRate: '82%', score: 76 }),
+          leaf('rs-1-c-2', '机组深度调峰触发保护性解列', '调峰深度突破堆芯稳定限值，触发保护性停堆 1 次。', 0.42, { situation: '机组停机检修，产生严重电网考核罚金与安全通报。', riskLevel: '高', fulfillmentRate: '68%', score: 62 })
         ])
       ]
     ),
     2: root(
       'rs-2-root',
-      '替代渠道部分到货',
-      'T2(D+2) 替代渠道爬坡',
-      '主供应商修复中，备选供应商持续供货。重点是抑制库存积压并防止后期断点。',
+      '替代走廊到货与稳态收口',
+      'T2(D+2) 跨里海替代通道到货，平准回补',
+      '替代海陆通道常态化运行，重点是全额归还平准储备借调、重构多源长协与持续监测全网节点脆弱性。',
       [
-        strategy('rs-2-a', '安全库存重置 + 双源稳态', '把 B 级供应商纳入常态名单，并重置安全库存阈值。', 0.34, [
-          leaf('rs-2-a-1', '稳态切换顺畅', '双源备货机制运行平稳，关键 SKU 履约率 90%+。', 0.73, { situation: '供应风险显著下降，库存周转天数控制良好。', riskLevel: '低', fulfillmentRate: '92%', score: 88 }),
-          leaf('rs-2-a-2', '主供应商抗议二供份额', '主供应商对份额变化表达不满。', 0.27, { situation: '需进入商务沟通，整体执行可控。', riskLevel: '中低', fulfillmentRate: '83%', score: 76 })
+        strategy('rs-2-a', '重构多源长协与保税安全库存', '将哈萨克陆路与非洲海运长协按 7:3 刚性锁定，防城港保税库充实至 24 周。', 0.34, [
+          leaf('rs-2-a-1', '双通道多源长协稳态运行', '海陆并进战略格局全面巩固，全网抗毁韧性指数提升至 88 分。', 0.72, { situation: '供应链系统性风险出清，重归高韧性平稳运行。', riskLevel: '低', fulfillmentRate: '96%', score: 91 }),
+          leaf('rs-2-a-2', '长协商务条款微幅谈判延迟', '海外供应商对长期分段阶梯定价条款存在微幅分歧。', 0.28, { situation: '商务磋商总体可控，不影响年度基准保供履约。', riskLevel: '中低', fulfillmentRate: '88%', score: 79 })
         ]),
-        strategy('rs-2-b', '阶梯式恢复 + 订单履约补偿', '按订单延期程度提供阶梯补偿，恢复客户信任。', 0.33, [
-          leaf('rs-2-b-1', '客户信任快速修复', '延期订单履约率回升，投诉量回落 60%。', 0.64, { situation: '客户关系基本恢复，舆情风险消退。', riskLevel: '中低', fulfillmentRate: '86%', score: 82 }),
-          leaf('rs-2-b-2', '补偿成本压力上升', '部分 KA 客户提出更高补偿要求。', 0.36, { situation: '本季毛利率下降 1.5pp。', riskLevel: '中', fulfillmentRate: '74%', score: 68 })
+        strategy('rs-2-b', '分批全额回填战略平准借调库', '按海外进口现货到岸计划，分批全额原数归还防城港战略储备 300 tU 原料。', 0.33, [
+          leaf('rs-2-b-1', '平准借调原料全额闭环回填', '国家平准库存 100% 回补就位，合规审查评定为优秀。', 0.65, { situation: '战略平准借调顺利闭环，储备资产安全无损。', riskLevel: '低', fulfillmentRate: '94%', score: 87 }),
+          leaf('rs-2-b-2', '回填周期受港口检修微调', '沿海接收港口例行检修，回填计划微调延长 1 个月。', 0.35, { situation: '报备国家战略物资局获批，执行节奏基本平稳。', riskLevel: '中低', fulfillmentRate: '82%', score: 74 })
         ]),
-        strategy('rs-2-c', '尾段库存优化 + 风险监测', '通过网格化监测追踪剩余风险并优化尾段库存策略。', 0.33, [
-          leaf('rs-2-c-1', '风险监测精准', '尾段隐患快速识别并清零。', 0.66, { situation: '供应链恢复常态，全域风险可控。', riskLevel: '低', fulfillmentRate: '93%', score: 89 }),
-          leaf('rs-2-c-2', '部分细分品类盲区', '个别低频 SKU 监测覆盖不足。', 0.34, { situation: '存在零星补货延迟，整体可控。', riskLevel: '中低', fulfillmentRate: '79%', score: 73 })
+        strategy('rs-2-c', '全网关键节点与动态脆弱性持续监测', '在阿拉山口、包头基地与连云港建立介数中心度与脆弱性实时预警机制。', 0.33, [
+          leaf('rs-2-c-1', '系统脆弱性指数稳定回落', '关键节点负荷均衡释放，系统脆弱性指数降至 38 分安全区。', 0.66, { situation: '全网感知灵敏，提前 90 天预警潜在断链风险。', riskLevel: '低', fulfillmentRate: '95%', score: 89 }),
+          leaf('rs-2-c-2', '局部支线运输仍需常态备勤', '个别偏远电厂配套物流专线存在周期性运力扰动。', 0.34, { situation: '纳入常态化应急预案管理，整体风险受控。', riskLevel: '中低', fulfillmentRate: '84%', score: 76 })
         ])
       ]
     )
@@ -229,61 +229,61 @@ export const TREE_DATA = {
   regionalDemandSurge: {
     0: root(
       'rd-0-root',
-      '区域订单环比上涨42%',
-      'T0(D-1) 华东订单激增前置',
-      '销售系统监测到华东区域多个核心 SKU 订单同比激增 42%，需要在 8 小时内做出产销协同应对。',
+      '沿海机组集中装料需求激增',
+      'T0(D-1) 华龙一号首炉集中装料，需求环比激增42%',
+      '沿海多台华龙一号核电机组同时进入首炉装料工期，天然铀原料需求激增 42%，需在 8 小时内完成产销协同排产。',
       [
-        strategy('rd-0-a', '紧急扩产：周末加点 + 临时班', '通过加点和临时班次扩大产线产出，提前布货。', 0.34, [
-          leaf('rd-0-a-1', '加点产能稳定落地', '产线产能在 24 小时内提升 18%。', 0.69, { situation: '核心 SKU 产能满足订单，库存周转天数稳定。', riskLevel: '中低', fulfillmentRate: '90%', score: 86 }),
-          leaf('rd-0-a-2', '加点合规压力上升', 'HR 反馈加班合规风险。', 0.31, { situation: '需走人力审批流程，扩产节奏稍缓。', riskLevel: '中', fulfillmentRate: '78%', score: 72 })
+        strategy('rd-0-a', '中哈铁路增配 Class 7 专运车皮', '协调中铁集装箱调度中心，为阿拉山口口岸增批 2 列放射性危险品专运车皮。', 0.34, [
+          leaf('rd-0-a-1', '专运车皮扩容按期就位', '专列车皮调配迅速，口岸绿色通道通关顺畅。', 0.7, { situation: '陆运运力扩容达标，首炉原料准时送达基地。', riskLevel: '低', fulfillmentRate: '94%', score: 89 }),
+          leaf('rd-0-a-2', '跨国铁路轨距换装短期排队', '口岸换装吊装工位负荷较高，产生 24 小时微幅延后。', 0.3, { situation: '换装时效基本可控，产线备用料平稳衔接。', riskLevel: '中低', fulfillmentRate: '82%', score: 74 })
         ]),
-        strategy('rd-0-b', '跨区调配：从华北/华南调拨成品', '动用其它区域成品库存，提前调拨至华东。', 0.33, [
-          leaf('rd-0-b-1', '跨区调拨高效执行', '48 小时内补足华东缺口的 70%。', 0.63, { situation: '华东履约率稳定，整体物流成本上升 8%。', riskLevel: '中低', fulfillmentRate: '87%', score: 83 }),
-          leaf('rd-0-b-2', '其它区域库存吃紧', '调出区域同期出现订单波动。', 0.37, { situation: '其它区域备货紧张，需补充寻源。', riskLevel: '中', fulfillmentRate: '74%', score: 68 })
+        strategy('rd-0-b', '统筹包头与宜宾元件基地产能', '在满足全国华龙一号首炉装料要求下，统筹两大加工基地滚动生产排期。', 0.33, [
+          leaf('rd-0-b-1', '两基地产能均衡释放', '南北基地排产精准协同，确保全国在役机组零断料。', 0.65, { situation: '燃料组件按期下线交付，装料大修工期完全受控。', riskLevel: '低', fulfillmentRate: '91%', score: 86 }),
+          leaf('rd-0-b-2', '包头基地负荷率偏高承压', '北方基地单厂产能负荷超 92%，需加强设备巡检。', 0.35, { situation: '增派技术骨干驻厂维保，生产节奏安全稳定。', riskLevel: '中', fulfillmentRate: '80%', score: 72 })
         ]),
-        strategy('rd-0-c', '限购控量：单客户限购 + 团购拆分', '通过限购避免单客户囤货，平滑订单分布。', 0.33, [
-          leaf('rd-0-c-1', '订单分布趋平滑', '单客户上限策略生效，库存压力下降。', 0.58, { situation: '订单履约平稳，避免恐慌性囤货。', riskLevel: '低', fulfillmentRate: '85%', score: 81 }),
-          leaf('rd-0-c-2', '部分 KA 客户提出异议', '核心客户希望提高配额上限。', 0.42, { situation: '客户沟通成本上升，需要差异化方案。', riskLevel: '中', fulfillmentRate: '72%', score: 65 })
+        strategy('rd-0-c', '分批错峰安排核电厂换料大修', '会同国家能源局协调各大核电基地，将原定集中大修窗口错开 30-45 天。', 0.33, [
+          leaf('rd-0-c-1', '大修窗口平稳错峰', '平抑需求尖峰负荷，制造基地产能利用率处于黄金区间。', 0.62, { situation: '削峰填谷效果显著，避免行业内部恶性抢料。', riskLevel: '低', fulfillmentRate: '88%', score: 83 }),
+          leaf('rd-0-c-2', '电厂调峰指标微幅调整', '个别核电站调峰考核指标需要能源主管部门背书。', 0.38, { situation: '协调机制已顺畅打通，对电网供电无实质负面影响。', riskLevel: '中低', fulfillmentRate: '76%', score: 69 })
         ])
       ]
     ),
     1: root(
       'rd-1-root',
-      '订单激增影响峰值',
-      'T1(D0) 订单超预测80%',
-      '订单实际值大幅高于预测，多个仓出现订单堆积。重点是在 12 小时内做出组合响应。',
+      '装料大修峰值叠加',
+      'T1(D0) 首炉与常规大修用料超出预测80%，排产堆积',
+      '需求峰值远超年度预测，两大基地原料库存快速消耗，亟需从海外矿山、刚性长协与滚动库存多维度协同增量保供。',
       [
-        strategy('rd-1-a', '产能爬坡 + 委外协同生产', '通过委外加工分担激增的订单产能压力。', 0.34, [
-          leaf('rd-1-a-1', '委外协同顺畅', '委外厂家在 24 小时内启动批量代工。', 0.66, { situation: '产能瓶颈被打开，履约率维持 86%。', riskLevel: '中低', fulfillmentRate: '86%', score: 84 }),
-          leaf('rd-1-a-2', '委外质量波动', '部分批次委外质量出现波动。', 0.34, { situation: 'QC 抽检压力上升，需要紧急介入。', riskLevel: '中', fulfillmentRate: '73%', score: 69 })
+        strategy('rd-1-a', '海外自营矿产能全负荷释放', '中广核纳米比亚湖山矿启动达产工程，单季提升海运发货量 500 tU。', 0.34, [
+          leaf('rd-1-a-1', '自营矿增量供给稳定回运', '海外矿山发货量充裕，对冲中亚陆运通关瓶颈。', 0.68, { situation: '海外矿山全效发力，彻底补足全国年度增量缺口。', riskLevel: '低', fulfillmentRate: '92%', score: 88 }),
+          leaf('rd-1-a-2', '矿区酸浸原材料供应略紧', '非洲矿区硫酸辅料采购成本微幅上涨 +8%。', 0.32, { situation: '增产任务圆满达成，毛利略有折损但完全在容忍范围内。', riskLevel: '中低', fulfillmentRate: '79%', score: 72 })
         ]),
-        strategy('rd-1-b', '订单分级 + KA 优先', '按客户等级和 SLA 重要性分配履约顺序。', 0.33, [
-          leaf('rd-1-b-1', '高优订单履约稳定', 'KA 订单履约率维持 94%。', 0.62, { situation: 'KA 客户稳定，长尾订单延期 24 小时。', riskLevel: '中', fulfillmentRate: '80%', score: 80 }),
-          leaf('rd-1-b-2', '长尾客户外溢', '长尾客户因延期产生负面反馈。', 0.38, { situation: '客服压力上升，舆情风险增加。', riskLevel: '中高', fulfillmentRate: '67%', score: 66 })
+        strategy('rd-1-b', '锁定十年期刚性量价阶梯长协', '与哈原工（Kazatomprom）签署扩量长协，锁定 2026–2035 年基准供应保障。', 0.33, [
+          leaf('rd-1-b-1', '战略供给刚性确立', '长期供应底座固若金汤，杜绝任何外部违约与断供敞口。', 0.65, { situation: '确立大国长周期资源安全，综合评分名列前茅。', riskLevel: '低', fulfillmentRate: '95%', score: 90 }),
+          leaf('rd-1-b-2', '现货挂钩价格指数微幅波动', '长期长协结算价受国际现货指标波动影响产生溢价。', 0.35, { situation: '通过金融远期外汇对冲锁定，成本波动在可控区间。', riskLevel: '中', fulfillmentRate: '81%', score: 74 })
         ]),
-        strategy('rd-1-c', '弹性定价 + 限购组合', '对超预期 SKU 启用弹性定价并配合限购策略。', 0.33, [
-          leaf('rd-1-c-1', '弹性定价对冲过热', '订单热度回落至可控区间。', 0.6, { situation: '订单分布趋于稳态，整体库存压力缓解。', riskLevel: '低', fulfillmentRate: '88%', score: 85 }),
-          leaf('rd-1-c-2', '部分客户反弹', '客户对弹性定价表达不满。', 0.4, { situation: '需要市场口径协同，整体执行可控。', riskLevel: '中', fulfillmentRate: '70%', score: 68 })
+        strategy('rd-1-c', '调整动态采购与滚动安全库存', '将全国在役机组安全库存由 180 天提升至 210 天，建立季度滚动采销平衡。', 0.33, [
+          leaf('rd-1-c-1', '安全库存冗余充沛', '抵御外部扰动的缓冲深度显著增强，机组非停风险降至极低。', 0.6, { situation: '构建起坚固的安全库存缓冲区，保供能力大幅提升。', riskLevel: '低', fulfillmentRate: '89%', score: 85 }),
+          leaf('rd-1-c-2', '资金占用与仓储成本上升', '安全库存提升增加仓储资金占用与利息成本支出。', 0.4, { situation: '换取国家级核电安全底线，属于高性价比战略投入。', riskLevel: '中低', fulfillmentRate: '78%', score: 70 })
         ])
       ]
     ),
     2: root(
       'rd-2-root',
-      '订单回落高位平台期',
-      'T2(D+1) 订单进入平台期',
-      '订单热度回落至高位但平稳，重点是消化库存并稳态运行。',
+      '需求平稳进入稳态期',
+      'T2(D+1) 生产排期平稳错峰，需求回落至高位稳态',
+      '大修高峰顺利度过，重点是固化供需动态校准模型、建立跨国通关绿色通道及应急平准基金。',
       [
-        strategy('rd-2-a', '产能回退 + 安全库存重置', '按需调整产能和安全库存阈值，避免过剩。', 0.34, [
-          leaf('rd-2-a-1', '产能与库存平稳过渡', '安全库存阈值上调 12%，新常态形成。', 0.71, { situation: '生产销售协同顺畅，库存周转保持稳定。', riskLevel: '低', fulfillmentRate: '91%', score: 88 }),
-          leaf('rd-2-a-2', '库存策略过保守', '部分 SKU 库存偏高。', 0.29, { situation: '出现短期资金压力，整体可控。', riskLevel: '中低', fulfillmentRate: '83%', score: 76 })
+        strategy('rd-2-a', '校准全国核燃料全周期供需模型', '根据新投产机组节奏滚动修正 2026–2030 年天然铀年需求预测模型。', 0.34, [
+          leaf('rd-2-a-1', '全周期供需模型精准收敛', '长周期预测准确率达 98%，消除盲目采销与库存挤兑。', 0.72, { situation: '数字化智能预测模型成型，全行业运行效率极大跃升。', riskLevel: '低', fulfillmentRate: '96%', score: 91 }),
+          leaf('rd-2-a-2', '局部新批机组工期微调', '个别沿海新堆型工程建设节点略有前后微调。', 0.28, { situation: '滚动修正模型即时吸收调整，无滞后风险。', riskLevel: '低', fulfillmentRate: '85%', score: 78 })
         ]),
-        strategy('rd-2-b', '促销消化 + 渠道补差', '通过促销和渠道补差消化高位库存。', 0.33, [
-          leaf('rd-2-b-1', '促销消化高效', '高位库存在 7 天内消化 70%。', 0.65, { situation: '库存压力快速下降，毛利受小幅影响。', riskLevel: '中低', fulfillmentRate: '85%', score: 81 }),
-          leaf('rd-2-b-2', '促销激发新一轮订单', '促销激发新一轮订单热度。', 0.35, { situation: '需重新评估产销节奏，整体可控。', riskLevel: '中', fulfillmentRate: '74%', score: 70 })
+        strategy('rd-2-b', '固化长协履约与跨境通关协议', '深化中哈核燃料战略合作，签署跨境核原料专运绿色快速通道常态协议。', 0.33, [
+          leaf('rd-2-b-1', '陆运口岸通关时效提升40%', '中哈口岸常态化 36 小时办结，班列周转效率显著提高。', 0.66, { situation: '跨境大动脉畅通无阻，成为中亚一带一路合作标杆。', riskLevel: '低', fulfillmentRate: '93%', score: 88 }),
+          leaf('rd-2-b-2', '跨境安保检验流程磨合', '新标准执行初期现场核实环节略有流程磨合。', 0.34, { situation: '双边联检机制迅速理顺，口岸作业重归稳态。', riskLevel: '中低', fulfillmentRate: '82%', score: 75 })
         ]),
-        strategy('rd-2-c', '渠道精细化运营 + 趋势监测', '建立长期趋势监测，避免后续抖动。', 0.33, [
-          leaf('rd-2-c-1', '趋势监测精准', '后续 30 天订单预测精度 ±3%。', 0.63, { situation: '供需匹配进入稳态，长期风险可控。', riskLevel: '低', fulfillmentRate: '92%', score: 87 }),
-          leaf('rd-2-c-2', '部分区域预测误差', '少数末端市场预测误差偏大。', 0.37, { situation: '需要持续校准，整体可控。', riskLevel: '中低', fulfillmentRate: '78%', score: 73 })
+        strategy('rd-2-c', '设立国家级核电原料应急平准机制', '建立百亿级战略物资汇率与价格平准准备，增强抗外部金融冲击韧性。', 0.33, [
+          leaf('rd-2-c-1', '金融避险机制全面落地', '锁汇与平准准备成功对冲海外现货大幅暴涨风险。', 0.64, { situation: '金融安全护城河建立，国家战略资产实现保值避险。', riskLevel: '低', fulfillmentRate: '94%', score: 89 }),
+          leaf('rd-2-c-2', '准备金动用审批标准严苛', '资金使用需发改委与国资委前置会签。', 0.36, { situation: '严格的行政风控保障了专项准备金的依法合规使用。', riskLevel: '中低', fulfillmentRate: '83%', score: 76 })
         ])
       ]
     )
@@ -291,61 +291,61 @@ export const TREE_DATA = {
   logisticsCongestion: {
     0: root(
       'lc-0-root',
-      '主干通道排队上升',
-      'T0(D-1) 干线运力承压预警',
-      '主干物流通道车辆排队上升，预计 24 小时内时效跌至 70%，需要前置应对。',
+      '中亚专列车皮积压预警',
+      'T0(D-1) 中亚铁路口岸 Class 7 危险品专运车皮积压',
+      '中哈口岸宽窄轨换装车皮排队达 15 天，时效预计跌至 70%，需前置启动多通道分流与口岸作业提速。',
       [
-        strategy('lc-0-a', '切换承运 + 多承运商并行', '激活备选承运商，把订单分流到多家承运商。', 0.34, [
-          leaf('lc-0-a-1', '多承运商分流到位', '订单分流到 3 家承运商，时效保持 80%。', 0.7, { situation: '主干压力释放，时效稳定在合格线以上。', riskLevel: '中低', fulfillmentRate: '88%', score: 85 }),
-          leaf('lc-0-a-2', '部分承运商运力紧张', '一家承运商出现接单偏慢。', 0.3, { situation: '需要补充承运资源，整体可控。', riskLevel: '中', fulfillmentRate: '74%', score: 70 })
+        strategy('lc-0-a', '启用跨里海中走廊海铁联运', '核对阿克套港承运条件，指令首批 300 tU 经跨里海多式联运绕行分流。', 0.34, [
+          leaf('lc-0-a-1', '跨里海中走廊成功分流', '首批集装箱顺利登船，有效分流中亚主陆运口岸 35% 压力。', 0.7, { situation: '中走廊多式联运走通，成功开辟我国第二条海外战略通道。', riskLevel: '低', fulfillmentRate: '92%', score: 88 }),
+          leaf('lc-0-a-2', '里海驳船中转受海况微调', '阿克套港因大风天气暂停航运 2 天后恢复。', 0.3, { situation: '船期延后 2 天，总体仍在安全调度冗余时间表内。', riskLevel: '中低', fulfillmentRate: '80%', score: 73 })
         ]),
-        strategy('lc-0-b', '仓网重排 + 就近发货', '调整仓网策略，就近发货避开主干通道。', 0.33, [
-          leaf('lc-0-b-1', '就近发货顺畅', '订单出库时效提升 12%。', 0.62, { situation: '物流效率提升，整体成本上升小幅。', riskLevel: '中低', fulfillmentRate: '85%', score: 82 }),
-          leaf('lc-0-b-2', '部分仓库存不足', '部分仓出现品类库存不足。', 0.38, { situation: '需要紧急调拨，整体可控。', riskLevel: '中', fulfillmentRate: '72%', score: 67 })
+        strategy('lc-0-b', '优化口岸轨距换装与优先通关', '协调阿拉山口铁路局开设 Class 7 绿色通道，将换装周期压缩至 36 小时。', 0.33, [
+          leaf('lc-0-b-1', '口岸换装提速50%', '换轨车皮积压明显消退，放射品专列优先编组启运。', 0.64, { situation: '口岸瓶颈快速疏导，在途时效迅速恢复至标准线。', riskLevel: '低', fulfillmentRate: '90%', score: 86 }),
+          leaf('lc-0-b-2', '口岸换装机械负荷接近额定值', '装卸机械连续高强度作业，需配备备用龙门吊维保。', 0.36, { situation: '调度中心增加驻场抢修组，保障作业安全受控。', riskLevel: '中低', fulfillmentRate: '78%', score: 71 })
         ]),
-        strategy('lc-0-c', '削峰错配 + 时段调度', '通过订单出货时段错配避开主干拥堵高峰。', 0.33, [
-          leaf('lc-0-c-1', '时段错配生效', '拥堵高峰订单错峰发货成功。', 0.58, { situation: '通道压力均衡，时效稳定。', riskLevel: '低', fulfillmentRate: '86%', score: 83 }),
-          leaf('lc-0-c-2', '客户对到达时段敏感', '部分客户期望仍偏白天到货。', 0.42, { situation: '需差异化沟通，整体可控。', riskLevel: '中', fulfillmentRate: '71%', score: 67 })
+        strategy('lc-0-c', '分批错峰调拨沿海港口库存', '调整连云港与防城港接卸批次，防范海运集中到港造成港区拥堵。', 0.33, [
+          leaf('lc-0-c-1', '港口仓储吞吐均衡受控', '两港分工明确，南北港口接卸与沿海基地进料无缝衔接。', 0.6, { situation: '港口物流时效稳定达标，避免沿海堆场压港罚款。', riskLevel: '低', fulfillmentRate: '88%', score: 84 }),
+          leaf('lc-0-c-2', '沿海转运铁路车皮调度微调', '沿海特种车皮调配需提前 48 小时向上铁局报备。', 0.4, { situation: '报备机制规范化落地，整体转运平稳达标。', riskLevel: '中低', fulfillmentRate: '77%', score: 70 })
         ])
       ]
     ),
     1: root(
       'lc-1-root',
-      '干线运力缺口扩大',
-      'T1(D0) 时效跌至60%',
-      '运力缺口持续扩大，干线时效跌至 60%，多客户 SLA 面临违约风险。',
+      '放射品专运运力严重缺口',
+      'T1(D0) 放射品专用干线运力缺口扩大，时效跌至60%',
+      '主干通道受阻引发运力缺口扩散，多个在役核电站换料窗口面临延误风险，必须启动最高级别联合应急调度。',
       [
-        strategy('lc-1-a', '应急承运 + 干支联动', '在干线和支线同步招募应急承运商。', 0.34, [
-          leaf('lc-1-a-1', '应急承运到位', '干支线运力补足 70%，时效回升至 75%。', 0.66, { situation: '主要 SLA 风险被释放，整体可控。', riskLevel: '中低', fulfillmentRate: '83%', score: 82 }),
-          leaf('lc-1-a-2', '应急承运成本上升', '应急承运商加价 15-20%。', 0.34, { situation: '物流毛利下降 1pp，整体可控。', riskLevel: '中', fulfillmentRate: '72%', score: 68 })
+        strategy('lc-1-a', '统筹远洋特种船队与铁路专列', '统筹中远海运特种船队与中铁专列海陆联运，无缝衔接替代走廊。', 0.34, [
+          leaf('lc-1-a-1', '陆海联运应急运力完全就位', '专运船队与专列无缝衔接，将综合履约率强力拉回 91%。', 0.66, { situation: '应急物流体系经受住极端压力测试，系统韧性充分展现。', riskLevel: '低', fulfillmentRate: '91%', score: 87 }),
+          leaf('lc-1-a-2', '特种航运包船费用上涨', '国际特种放射品包船费率短期上涨 +12%。', 0.34, { situation: '运费上涨但完全确保了国家核电机组连续稳定供电。', riskLevel: '中', fulfillmentRate: '79%', score: 72 })
         ]),
-        strategy('lc-1-b', 'SLA 主动沟通 + 时效承诺调整', '主动沟通 KA 客户，调整时效承诺。', 0.33, [
-          leaf('lc-1-b-1', '客户接受时效调整', '95% KA 客户接受 24h 延后承诺。', 0.61, { situation: '客户预期管理到位，违约风险下降。', riskLevel: '中', fulfillmentRate: '78%', score: 78 }),
-          leaf('lc-1-b-2', '部分 KA 拒绝', '少数 KA 仍坚持原 SLA。', 0.39, { situation: '需走商务谈判，整体可控。', riskLevel: '中高', fulfillmentRate: '66%', score: 65 })
+        strategy('lc-1-b', '协调核电基地进料交付时序', '同步各大核电厂在堆燃烧情况与在途运输进度，灵活微调交付表。', 0.33, [
+          leaf('lc-1-b-1', '燃料组件精准匹配大修节奏', '全国机组换料大修窗口实现微观动态对齐，零机组受阻。', 0.63, { situation: '产供销在途一体化协同大获成功，消除停堆隐患。', riskLevel: '低', fulfillmentRate: '89%', score: 84 }),
+          leaf('lc-1-b-2', '部分电厂现场临时仓储受限', '个别核电站反应堆厂房燃料区备料库位接近饱和。', 0.37, { situation: '采用专列车皮临时滚动驻留方案妥善化解。', riskLevel: '中低', fulfillmentRate: '76%', score: 69 })
         ]),
-        strategy('lc-1-c', '应急包车 + 高优订单专线', '为 A 类订单开通专线包车通道。', 0.33, [
-          leaf('lc-1-c-1', '专线生效快速', 'A 类订单时效维持 85%+。', 0.58, { situation: 'A 类客户 SLA 稳定，整体物流成本上升。', riskLevel: '低', fulfillmentRate: '86%', score: 85 }),
-          leaf('lc-1-c-2', '包车容量受限', '包车容量未能覆盖所有 A 类订单。', 0.42, { situation: '需补充其它运力组合，整体可控。', riskLevel: '中', fulfillmentRate: '70%', score: 68 })
+        strategy('lc-1-c', '优先保障华龙一号首炉关键批次', '有限口岸指标与专运车皮 100% 倾斜包头基地首炉原料保障。', 0.33, [
+          leaf('lc-1-c-1', '首炉用料保质保量如期送达', '华龙一号首炉装料按原定工程节点实施，并网发电目标如期达成。', 0.6, { situation: '国家战略重点工程首要目标达成，彰显战略定力。', riskLevel: '低', fulfillmentRate: '93%', score: 89 }),
+          leaf('lc-1-c-2', '次要机组常规备料推迟15天', '次要商业堆型常规备件物流延后半个月。', 0.4, { situation: '常规机组安全库存充足，生产运营未受实质干扰。', riskLevel: '中', fulfillmentRate: '77%', score: 70 })
         ])
       ]
     ),
     2: root(
       'lc-2-root',
-      '应急运力上线时效爬坡',
-      'T2(D+1) 时效回升中',
-      '应急运力陆续上线，时效爬坡中。重点是切换稳态并避免反复。',
+      '应急多式联运爬坡稳态',
+      'T2(D+1) 跨里海中走廊多式联运上线，时效回升中',
+      '应急运力全面上线，通道时效稳步回升。重点是固化海陆双通道配比、出清口岸堆场并建立全球咽喉感知系统。',
       [
-        strategy('lc-2-a', '稳态承运结构重组', '将应急承运商纳入常态名单并优化合约。', 0.34, [
-          leaf('lc-2-a-1', '稳态承运形成', '多承运商常态化运行，时效稳定 85%+。', 0.71, { situation: '物流弹性显著提升，长期风险可控。', riskLevel: '低', fulfillmentRate: '90%', score: 88 }),
-          leaf('lc-2-a-2', '原承运商谈判紧张', '原主承运商对份额变化提出异议。', 0.29, { situation: '需走商务协商，整体可控。', riskLevel: '中低', fulfillmentRate: '82%', score: 76 })
+        strategy('lc-2-a', '优化海陆双通道常态化运力配比', '将海运分流比例常态化提升至 40% 以上，构筑海陆双轮驱动。', 0.34, [
+          leaf('lc-2-a-1', '海陆并进战略格局成型', '海运陆运互为容灾冗余，全网断链风险永久性下降 45%。', 0.72, { situation: '彻底摆脱对单一陆运走廊的过度依赖，重塑物流韧性。', riskLevel: '低', fulfillmentRate: '95%', score: 91 }),
+          leaf('lc-2-a-2', '海运承运商份额重新招投标', '年度运力配额重新划分引发航运承运商份额博弈。', 0.28, { situation: '市场化招投标机制促进了服务质量提升与运费优化。', riskLevel: '中低', fulfillmentRate: '84%', score: 78 })
         ]),
-        strategy('lc-2-b', '客户补偿 + SLA 修复', '对延期客户分级补偿并修复 SLA 承诺。', 0.33, [
-          leaf('lc-2-b-1', '客户信任修复', '延期投诉量回落 65%。', 0.64, { situation: '客户关系基本修复，整体可控。', riskLevel: '中低', fulfillmentRate: '85%', score: 81 }),
-          leaf('lc-2-b-2', '补偿成本压力上升', '部分 KA 提出更高补偿要求。', 0.36, { situation: '本季物流毛利受影响，整体可控。', riskLevel: '中', fulfillmentRate: '74%', score: 68 })
+        strategy('lc-2-b', '恢复口岸与枢纽常态化轮动节奏', '核对延期滞留批次，平稳出清口岸堆场，恢复正常排班。', 0.33, [
+          leaf('lc-2-b-1', '口岸堆场恢复额定容量秩序', '阿拉山口与霍尔果斯堆场负荷回落至 65% 安全线。', 0.65, { situation: '边境口岸恢复常态化高效通关，秩序井然。', riskLevel: '低', fulfillmentRate: '92%', score: 87 }),
+          leaf('lc-2-b-2', '部分滞留集装箱产生超期费', '前期阻断滞留集装箱产生少量堆存超期费用。', 0.35, { situation: '通过国际多式联运不可抗力免责条款协商减免。', riskLevel: '中低', fulfillmentRate: '81%', score: 74 })
         ]),
-        strategy('lc-2-c', '末端网格 + 风险监测', '通过末端网格监测尾段风险。', 0.33, [
-          leaf('lc-2-c-1', '尾段监测精准', '末端隐患快速识别。', 0.66, { situation: '物流网络稳健恢复，风险可控。', riskLevel: '低', fulfillmentRate: '92%', score: 89 }),
-          leaf('lc-2-c-2', '部分末端盲区', '个别偏远区域监测覆盖不足。', 0.34, { situation: '存在零星滞留，整体可控。', riskLevel: '中低', fulfillmentRate: '79%', score: 73 })
+        strategy('lc-2-c', '全球核原料关键咽喉与运力实时感知', '建立阿拉山口、阿克套港、苏伊士运河及好望角全球遥感监测网。', 0.33, [
+          leaf('lc-2-c-1', '通道风险感知时效达24小时', '全球咽喉走廊异动实现全天候卫星与报关遥感感知。', 0.66, { situation: '数字化敏捷感知系统投入实战，先发制人化解潜在风险。', riskLevel: '低', fulfillmentRate: '96%', score: 92 }),
+          leaf('lc-2-c-2', '国际航运卫星数据源持续维护', '高精度卫星运力 AIS 数据源需常态化续约。', 0.34, { situation: '列入国家核安全中心信息化年度专项保障预算。', riskLevel: '低', fulfillmentRate: '85%', score: 78 })
         ])
       ]
     )
@@ -355,79 +355,79 @@ export const TREE_DATA = {
 export const BASELINE_BRANCH_DATA = {
   rawShortage: {
     0: {
-      action: '未干预：被动等待主供应商修复',
-      desc: '若不启动备选寻源或库存调拨，仅依赖主供应商主动修复，履约风险持续暴露。',
+      action: '未干预基线：阿拉山口口岸拥堵加剧，单点负荷超 94%',
+      desc: '在途车皮排队积压超过 15 天，北方包头基地断料倒计时，商业库存持续快速消耗。',
       children: [
-        leaf('rs-0-raw-1', '产线被迫降速运行', '关键 SKU 缺料持续，产能利用率下降。', 0.58, { situation: '产能利用率跌至 75%，订单延期上升。', riskLevel: '高', fulfillmentRate: '70%', score: 54 }),
-        leaf('rs-0-raw-2', '客户被动接受延期', '与客户沟通延后，整体满意度受损。', 0.42, { situation: '客户投诉上升，舆情风险增大。', riskLevel: '中高', fulfillmentRate: '75%', score: 60 })
+        leaf('rs-0-raw-1', '包头基地产线被迫降速运行', '原料断供持续，燃料棒元件产能利用率跌破 70%，交付延期。', 0.58, { situation: '产能严重下滑，导致在制组件生产节拍全面打乱。', riskLevel: '高', fulfillmentRate: '70%', score: 54 }),
+        leaf('rs-0-raw-2', '沿海在役机组换料窗口推迟', '换料大修组件无法按时出厂，机组面临推迟停机大修。', 0.42, { situation: '机组被迫带病运转或延期大修，面临国家核安全局督导。', riskLevel: '中高', fulfillmentRate: '75%', score: 60 })
       ]
     },
     1: {
-      action: '未干预：缺料状态持续放大',
-      desc: '在缺料峰值阶段若不做组合响应，产线大面积停摆风险显著上升。',
+      action: '未干预基线：北方包头基地库存跌破 14 周警戒红线',
+      desc: '首炉元件加工中断，华龙一号关键机组面临非计划停堆险情，全国核电供应链陷入瘫痪。',
       children: [
-        leaf('rs-1-raw-1', '产线大面积停摆', '多条产线被迫停产或转产。', 0.6, { situation: '产能严重下降，履约率跌至临界。', riskLevel: '高', fulfillmentRate: '62%', score: 48 }),
-        leaf('rs-1-raw-2', '订单大规模违约', 'KA 订单出现集中违约。', 0.4, { situation: '违约成本与客户流失风险加剧。', riskLevel: '高', fulfillmentRate: '66%', score: 53 })
+        leaf('rs-1-raw-1', '首炉元件产线大面积停工', '无在途原料补给，4 台华龙一号首炉装料推迟，直接导致机组无法并网。', 0.6, { situation: '触发重大电力保供责任事故，核电机组发生严重非计划停堆。', riskLevel: '极高', fulfillmentRate: '58%', score: 48 }),
+        leaf('rs-1-raw-2', '触发电网重大商业违约惩罚', '无法按期向南方电网及国家电网交割上网电量，产生巨额购售电合同违约罚金。', 0.4, { situation: '经济损失数亿元，企业信用评级遭下调，社会舆情高度负面。', riskLevel: '高', fulfillmentRate: '65%', score: 53 })
       ]
     },
     2: {
-      action: '未干预：替代渠道未常态化',
-      desc: '若不重置安全库存与双源机制，类似事件将反复发生。',
+      action: '未干预基线：供给中断演化为全网系统性短缺',
+      desc: '全行业采购现货发生恶性踩踏，到岸完全成本飙升超 40%，供应链抗毁度全面崩溃。',
       children: [
-        leaf('rs-2-raw-1', '尾段风险长期残留', '后续若再次断供，风险将再次暴露。', 0.56, { situation: '长期供应风险持续高位。', riskLevel: '中高', fulfillmentRate: '76%', score: 60 }),
-        leaf('rs-2-raw-2', '客户信任修复缓慢', '客户对供应稳定性持续担忧。', 0.44, { situation: '续约率下降 6%。', riskLevel: '中高', fulfillmentRate: '79%', score: 64 })
+        leaf('rs-2-raw-1', '高位到岸成本长期无法消化', '恐慌性高溢价抢购带来巨额财务亏损，核电燃料采购成本不可逆抬高。', 0.56, { situation: '核电度电成本大幅上升，严重侵蚀集团长周期盈利能力。', riskLevel: '高', fulfillmentRate: '74%', score: 58 }),
+        leaf('rs-2-raw-2', '全国多基地机组被迫降负荷', '多座核电站因缺料进入低功率调峰模式，全行业陷入信任危机。', 0.44, { situation: '国家能源局启动能源安全专项督查，多台新堆型审批被暂缓。', riskLevel: '中高', fulfillmentRate: '78%', score: 62 })
       ]
     }
   },
   regionalDemandSurge: {
     0: {
-      action: '未干预：被动接单',
-      desc: '若不启动跨区调配或限购，订单激增将快速压垮区域产销链路。',
+      action: '未干预基线：多台机组集中并网引发需求挤兑',
+      desc: '国内商业现货与在役长协被迅速抽空，供需缺口剧烈扩大，缺乏统筹排产调度。',
       children: [
-        leaf('rd-0-raw-1', '区域库存快速消耗', '区域库存数日内告急。', 0.57, { situation: '局部 SKU 缺货率上升，订单延期。', riskLevel: '中高', fulfillmentRate: '74%', score: 58 }),
-        leaf('rd-0-raw-2', '部分客户提前囤货', '出现恐慌性囤货行为。', 0.43, { situation: '订单分布失衡，加剧后续波动。', riskLevel: '中', fulfillmentRate: '78%', score: 63 })
+        leaf('rd-0-raw-1', '基地周转库存数日内告急', '北方与南方基地备料被集中透支，局部基地原料跌破 30 天红线。', 0.57, { situation: '生产节奏被打乱，后续在制批次出现严重备料断层。', riskLevel: '中高', fulfillmentRate: '74%', score: 58 }),
+        leaf('rd-0-raw-2', '核电基地恐慌性争抢配额', '各核电厂抢占大修燃料棒配额，加剧行业内部资源争夺与内耗。', 0.43, { situation: '调度秩序混乱，部分主力电站交付周期反被延后。', riskLevel: '中', fulfillmentRate: '78%', score: 62 })
       ]
     },
     1: {
-      action: '未干预：订单堆积无组合响应',
-      desc: '在订单峰值若不做产能爬坡或分级，长尾客户和库存将同时承压。',
+      action: '未干预基线：燃料加工基地超负荷排产引发瓶颈',
+      desc: '元件交付延期波及 6 台在役核电站常规换料大修，产线过度承压，设备故障率激增。',
       children: [
-        leaf('rd-1-raw-1', '订单堆积严重', '订单履约延期超 72 小时。', 0.61, { situation: '客户满意度大幅下滑。', riskLevel: '高', fulfillmentRate: '62%', score: 50 }),
-        leaf('rd-1-raw-2', '客服压力爆表', '投诉集中爆发，客服无法及时响应。', 0.39, { situation: '舆情风险显著上升。', riskLevel: '高', fulfillmentRate: '66%', score: 56 })
+        leaf('rd-1-raw-1', '元件装配出现批次性大面积延误', '大修组件交货延期超 30 天，多台商业核电机组停堆等待料棒。', 0.61, { situation: '机组停机待料，全国沿海电力供应产生显著硬缺口。', riskLevel: '高', fulfillmentRate: '60%', score: 50 }),
+        leaf('rd-1-raw-2', '加工基地生产调度失控与质量波动', '高负荷连轴转排产引发质检不合格率抬升，返工加剧延期。', 0.39, { situation: '核燃料产品质量风险上升，遭核安全监管局专项诫勉谈话。', riskLevel: '高', fulfillmentRate: '66%', score: 55 })
       ]
     },
     2: {
-      action: '未干预：库存策略不调整',
-      desc: '若不重置安全库存或调整销售节奏，订单回落后将产生过剩库存。',
+      action: '未干预基线：长期短缺导致核电机组被迫降负荷',
+      desc: '电网调峰损失扩大，造成重大商业电费考核扣罚与商誉损失，新批堆型投产受阻。',
       children: [
-        leaf('rd-2-raw-1', '高位库存难以消化', '库存周转天数显著拉长。', 0.55, { situation: '资金占用上升，毛利受压。', riskLevel: '中', fulfillmentRate: '78%', score: 64 }),
-        leaf('rd-2-raw-2', '低价清库带来连锁效应', '低价清库扰乱价格体系。', 0.45, { situation: '渠道价格信号紊乱。', riskLevel: '中高', fulfillmentRate: '74%', score: 60 })
+        leaf('rd-2-raw-1', '电网售电损失持续扩大', '长期调峰导致上网电量损失数十亿度，对地方工业供电产生冲击。', 0.55, { situation: '造成不可逆的巨额经济损失，企业抗风险信誉严重受挫。', riskLevel: '中高', fulfillmentRate: '76%', score: 63 }),
+        leaf('rd-2-raw-2', '核燃料长周期供求信任危机', '供需错配长期未决，产业链上下游合作信任受到严重削弱。', 0.45, { situation: '后续机组商业谈判阻力剧增，行业扩产投资意愿低迷。', riskLevel: '中', fulfillmentRate: '79%', score: 59 })
       ]
     }
   },
   logisticsCongestion: {
     0: {
-      action: '未干预：依赖主承运商自然恢复',
-      desc: '若不切换承运或调整时效承诺，主干拥堵将直接传导至客户 SLA。',
+      action: '未干预基线：中亚陆路铁路大动脉遭遇突发阻断',
+      desc: '阿拉山口与霍尔果斯双口岸停摆，陆运集装箱堆场严重饱和，班列停运积压。',
       children: [
-        leaf('lc-0-raw-1', '主干时效持续下滑', '主干通道时效跌至 65%。', 0.58, { situation: '订单延期上升，违约风险显现。', riskLevel: '中高', fulfillmentRate: '72%', score: 60 }),
-        leaf('lc-0-raw-2', '客户预期管理缺位', '客户对时效下降毫无准备。', 0.42, { situation: '客户预期落差大，投诉增加。', riskLevel: '中', fulfillmentRate: '76%', score: 63 })
+        leaf('lc-0-raw-1', '口岸在途时效腰斩跌破 60%', 'Class 7 危险品专运列车无限期积压在边境戈壁，在途环境风险增加。', 0.58, { situation: '放射性货物滞留时间严重超标，口岸作业几乎陷入停顿。', riskLevel: '中高', fulfillmentRate: '70%', score: 59 }),
+        leaf('lc-0-raw-2', '国内加工基地无料进厂接卸', '包头基地原材料到厂归零，连续 2 周无原料入库入库台账空白。', 0.42, { situation: '原料断供风险急剧向制造与发电端层层传导扩散。', riskLevel: '中', fulfillmentRate: '75%', score: 62 })
       ]
     },
     1: {
-      action: '未干预：运力缺口持续放大',
-      desc: '在峰值阶段若不引入应急承运或专线，SLA 违约将集中爆发。',
+      action: '未干预基线：物流阻塞传导至国内各大燃料加工厂',
+      desc: '包头与宜宾两大基地原料断供，在制组件产线被迫停摆，触发国家核应急保供通报。',
       children: [
-        leaf('lc-1-raw-1', 'SLA 集中违约', 'KA 订单集中违约。', 0.6, { situation: '违约成本与商誉双重损失。', riskLevel: '高', fulfillmentRate: '58%', score: 46 }),
-        leaf('lc-1-raw-2', '末端囤压排队加剧', '末端仓库爆仓排队。', 0.4, { situation: '末端作业效率严重下降。', riskLevel: '高', fulfillmentRate: '64%', score: 52 })
+        leaf('lc-1-raw-1', '核心工程供货合同全面违约', '华龙一号首炉原料无法运抵，产生极其严重的工程工期重大延误。', 0.6, { situation: '国家重点战略工程受阻，引发国家能源主管部门问责。', riskLevel: '极高', fulfillmentRate: '56%', score: 46 }),
+        leaf('lc-1-raw-2', '口岸堆场放射性安全隐患超标', '特种集装箱超期暴晒与积压引发地方与国际核安全组织安全警示。', 0.4, { situation: '面临边境环保与安保双重通报处罚，整顿整改周期漫长。', riskLevel: '高', fulfillmentRate: '63%', score: 51 })
       ]
     },
     2: {
-      action: '未干预：承运结构未调整',
-      desc: '若不沉淀应急承运商进入常态名单，类似事件将再次冲击网络。',
+      action: '未干预基线：全国核电燃料供应链抗毁度全面崩溃',
+      desc: '多基地联动失效，触发国家级核应急与能源保供二级响应，单通道依赖弊端彻底暴露。',
       children: [
-        leaf('lc-2-raw-1', '物流弹性长期不足', '后续若再次出现拥堵，恢复时间将再次拉长。', 0.55, { situation: '长期物流风险持续暴露。', riskLevel: '中高', fulfillmentRate: '77%', score: 62 }),
-        leaf('lc-2-raw-2', '客户信任难修复', '客户对时效承诺持续怀疑。', 0.45, { situation: 'KA 客户续约率受影响。', riskLevel: '中高', fulfillmentRate: '80%', score: 66 })
+        leaf('lc-2-raw-1', '物流通道抗毁韧性长期归零', '缺乏常态化海运与多式联运兜底，通道脆弱性长期处于最高极值。', 0.55, { situation: '系统性单点依赖成为行业长久痛点，抗风险能力完全丧失。', riskLevel: '高', fulfillmentRate: '75%', score: 61 }),
+        leaf('lc-2-raw-2', '核安全监管全面介入调查整顿', '监管机构责令暂停部分受影响机组大修许可证，行业停滞。', 0.45, { situation: '整顿成本高昂，导致核电发展规划进度显著受挫。', riskLevel: '中高', fulfillmentRate: '78%', score: 65 })
       ]
     }
   }
@@ -435,30 +435,30 @@ export const BASELINE_BRANCH_DATA = {
 
 /**
  * 履约率变化曲线生成
- * 取代 -ref 的人群密度趋势，改为「履约率（%）随时间的恢复曲线」
+ * 履约率（%）随时间的恢复曲线
  */
 export function generateFulfillmentTrend(node, baseline, currentTimeIndex, parentAction) {
   if (!node?.isLeaf || !baseline || node.track === 'baseline') return null
 
-  const timeline = ['0小时', '6小时', '12小时', '18小时', '24小时']
+  const timeline = ['0小时', '12小时', '24小时', '48小时', '72小时']
   const baselineRate = baseline.fulfillmentRate
 
   const score = node.outcome?.score || baseline.score
   const scoreNorm = Math.max(0, Math.min(1, (score - 55) / 35))
 
   function resolveMethodProfile(actionText) {
-    if (/应急|加价|现金|包车|专线/i.test(actionText)) return { label: '快速止血型', curve: [0, 0.42, 0.72, 0.9, 1] }
-    if (/限购|限量|分级|分级|优先级/i.test(actionText)) return { label: '稳态收敛型', curve: [0, 0.24, 0.56, 0.82, 1] }
-    if (/委外|协同|跨区|调拨|联动/i.test(actionText)) return { label: '协同补位型', curve: [0, 0.16, 0.42, 0.74, 1] }
-    return { label: '综合调控型', curve: [0, 0.22, 0.5, 0.78, 1] }
+    if (/保税|借调|平准|现货/i.test(actionText)) return { label: '紧急平准型', curve: [0, 0.45, 0.75, 0.92, 1] }
+    if (/海铁|联运|绕行|走廊|自营矿/i.test(actionText)) return { label: '通道切换型', curve: [0, 0.25, 0.55, 0.82, 1] }
+    if (/错峰|大修|排产|统筹/i.test(actionText)) return { label: '产销协同型', curve: [0, 0.32, 0.62, 0.86, 1] }
+    return { label: '稳态调控型', curve: [0, 0.35, 0.65, 0.88, 1] }
   }
 
   function resolveBaselineProfile() {
     const risk = node.outcome?.riskLevel || ''
-    if (currentTimeIndex === 1 || /峰值|缺料|断供|拥堵|堆积/.test(node.desc || '')) {
+    if (currentTimeIndex === 1 || /峰值|缺料|断供|拥堵|堆积|阻断/.test(node.desc || '')) {
       return { label: '未干预持续恶化', curve: [-0.02, -0.06, -0.10, -0.13, -0.15] }
     }
-    if (currentTimeIndex === 0 || /回流|前置|提前/.test(node.desc || '')) {
+    if (currentTimeIndex === 0 || /回流|前置|提前|初发/.test(node.desc || '')) {
       return { label: '未干预冲高震荡', curve: [-0.01, -0.04, -0.03, -0.06, -0.07] }
     }
     if (/高/.test(risk)) return { label: '未干预滞涨', curve: [-0.02, -0.05, -0.06, -0.07, -0.08] }
@@ -468,8 +468,8 @@ export function generateFulfillmentTrend(node, baseline, currentTimeIndex, paren
   const methodProfile = resolveMethodProfile(parentAction || '')
   const baselineProfile = resolveBaselineProfile()
 
-  const targetGain = 4 + scoreNorm * 14 // 控制后 24h 履约率额外提升 4-18 个点
-  const controlledTarget = Math.min(95, baselineRate + targetGain)
+  const targetGain = 6 + scoreNorm * 14 // 控制后 72h 履约率额外提升 6-20 个百分点
+  const controlledTarget = Math.min(99, baselineRate + targetGain)
 
   const baselineSeries = baselineProfile.curve.map((delta) => Math.max(40, Math.round((baselineRate * (1 + delta)) * 10) / 10))
   const controlledSeries = methodProfile.curve.map((progress, idx) => {

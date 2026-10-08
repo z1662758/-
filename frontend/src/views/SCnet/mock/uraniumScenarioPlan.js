@@ -4,7 +4,7 @@ export function buildUraniumRequirementAnswer(userGoal, draft = {}) {
   const plan = buildUraniumScenarioPlan(userGoal, draft)
   const safe = text => String(text).replace(/[<>&*_`[\]#]/g, '')
   return [
-    `### 一、应急需求研判与定标\n\n- **需求理解**：围绕“${safe(userGoal)}”，在 ${draft.start_year || 2024}–${draft.end_year || 2028} 年推演窗口内，系统对突发事件冲击与应急调度展开多维推演与策略寻优。\n\n已完成对事件冲击的物理定标：\n- **全国基线需求**：当前全国在役机组年基线天然铀需求为 **11,500 tU**。\n- **突发扰动冲击**：核电负荷激增导致需求突发上涨 **+20%**（年度缺口量 **+2,300 tU**），主要源于 4 台百万千瓦华龙一号机组提前装料与首炉换料周期重叠。\n- **空间缺口分布**：**北方元件基地（包头）**预计承接缺口 **60%**（~1,380 tU），**南方元件基地（宜宾/沿海）**预计承接缺口 **40%**（~920 tU）。\n- **刚性边界红线**：商业安全库存红线天数 **180 天**，中哈口岸月度铁路通运上限 **1,200 tU/月**。`,
+    `### 一、应急需求研判与定标\n\n- **需求理解**：围绕“${safe(userGoal)}”，在 ${draft.start_year || 2024}–${draft.end_year || 2030} 年推演窗口内，系统对突发事件冲击与应急调度展开多维推演与策略寻优。\n\n已完成对事件冲击的物理定标：\n- **全国基线需求**：当前全国在役机组年基线天然铀需求为 **11,500 tU**。\n- **突发扰动冲击**：核电负荷激增导致需求突发上涨 **+20%**（年度缺口量 **+2,300 tU**），主要源于 4 台百万千瓦华龙一号机组提前装料与首炉换料周期重叠。\n- **空间缺口分布**：**北方元件基地（包头）**预计承接缺口 **60%**（~1,380 tU），**南方元件基地（宜宾/沿海）**预计承接缺口 **40%**（~920 tU）。\n- **刚性边界红线**：商业安全库存红线天数 **180 天**，中哈口岸月度铁路通运上限 **1,200 tU/月**。`,
     `### 二、建模设定与决策导向\n\n系统已将海外矿山（哈原工/纳米比亚湖山/加拿大雪茄湖）、关键通道（中亚铁路阿拉山口口岸/远洋海运）、国内制造端（北方包头基地/南方沿海基地）与国家战略原料储备库纳入一体化动态调度模型。\n\n当前推演重点权衡以下两种决策策略：\n1. **【核安全刚性保供优先】（推荐）**：允许现货溢价最高 +35%，提前锁定纳米比亚海运批次并启动战略储备临时借调，确保关键堆型 0 停堆风险。\n2. **【综合平抑到岸成本优先】**：严控现货在 $80/lb U3O8 以下，限制高运费通道，优先依托南北基地间库存横向调剂。`,
     `### 三、应急推演与调度流程\n\n${plan.goal_decomposition.subtasks.map((task, index) => `${index + 1}. **${task.title}**：${task.description}`).join('\n')}\n\n请核实上述业务基线。确认后可点击下方「查看建模设定」，检查实体属性与分配算法引擎，随后生成多维对比想定。`,
   ].join('\n\n')
@@ -13,7 +13,7 @@ export function buildUraniumRequirementAnswer(userGoal, draft = {}) {
 export function buildUraniumScenarioPlan(userGoal, draft = {}) {
   const factors = ['事件强度倍率', '库存目标', '长协采购比例', '供应来源组合'].map(name => ({ name }))
   const responses = ['采购成本', '需求缺口', '库存覆盖年限', '风险暴露'].map(name => ({ name }))
-  const understanding = `围绕“${userGoal}”，在 ${draft.start_year || 2024}–${draft.end_year || 2028} 年窗口内，对比供应冲击下的采购、库存和来源分散策略。`
+  const understanding = `围绕“${userGoal}”，在 ${draft.start_year || 2024}–${draft.end_year || 2030} 年窗口内，对比供应冲击下的采购、库存和来源分散策略。`
   const subtasks = [
     { title: '配置供应链与事件环境', agent_type: 'ENVIRONMENT', description: '确认推演年份、供需主体与事件强度。' },
     { title: '生成采购与库存策略', agent_type: 'SOCIAL', description: '组织供给方与制造方协同，形成长协、现货与库存组合。' },
@@ -33,7 +33,7 @@ export function buildUraniumScenarioPlan(userGoal, draft = {}) {
     },
     formula: {}, formula_explain: {},
     exp_params: { exp_method: '多智能体年度推演与策略迭代', params: {
-      start_year: draft.start_year || 2024, end_year: draft.end_year || 2028,
+      start_year: draft.start_year || 2024, end_year: draft.end_year || 2030,
       optimization_iterations: draft.optimization_iterations || 1,
       event_severity_multiplier: draft.event_severity_multiplier ?? 1,
     } },

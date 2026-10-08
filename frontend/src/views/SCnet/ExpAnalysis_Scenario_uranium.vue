@@ -1,6 +1,6 @@
 <template>
-  <div class="scenario-page mid-stage-bg scenario-console analysis-workspace">
-    <AnalysisLinkTabs active="scenario" />
+  <div class="scenario-page mid-stage-bg scenario-console analysis-workspace" :class="{ 'is-embedded': embedded }">
+    <AnalysisLinkTabs v-if="!embedded" active="scenario" />
 
     <el-empty
       v-if="!scenarioVm"
@@ -11,7 +11,7 @@
 
     <template v-else>
       <AnalysisPageHero
-        eyebrow="情景分析"
+        eyebrow="策略分析 · 情景"
         :title="scenarioVm.hero.title"
         :headline="scenarioVm.hero.headline"
         :summary="scenarioVm.hero.summary"
@@ -638,6 +638,14 @@ import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
 import { formatUraniumMetricValue } from '@/utils/uraniumDuringAdapter'
 import { buildUraniumScenarioViewModel } from '@/views/SCnet/adapters/uraniumMockAnalysisAdapter'
+import { createUraniumDemoSeed } from '@/views/SCnet/mock/uraniumDemoLab'
+
+const props = defineProps({
+  embedded: {
+    type: Boolean,
+    default: false
+  }
+})
 
 useUraniumAnalysisExperiment()
 const store = useUraniumDemoStore()
@@ -664,8 +672,23 @@ function toTagType(tone = '') {
 }
 
 const activeSnapshot = computed(() => snapshotStore.getActiveSnapshot())
+
+// 稳健实验回退保障，防止空状态
+const effectiveExperiment = computed(() => {
+  if (selectedExperiment.value) return selectedExperiment.value
+  if (activeSnapshot.value?.experiment) return activeSnapshot.value.experiment
+  const list = Object.values(store.experiments || {})
+  if (list.length) return list[0]
+  try {
+    const seed = createUraniumDemoSeed()
+    return seed?.experiments?.['uranium-security-first-20260708-131000'] || (seed?.experiments ? Object.values(seed.experiments)[0] : null)
+  } catch (e) {
+    return null
+  }
+})
+
 const scenarioVm = computed(() => buildUraniumScenarioViewModel({
-  experiment: selectedExperiment.value,
+  experiment: effectiveExperiment.value,
   history: history.value,
   snapshot: activeSnapshot.value
 }))

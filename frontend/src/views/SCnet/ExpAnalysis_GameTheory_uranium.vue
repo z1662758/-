@@ -18,6 +18,34 @@
         :tags="topTags"
       />
 
+      <!-- 业务逻辑说明看板：回答“本分析想说明什么” -->
+      <section class="analysis-objective-strip glass-panel">
+        <div class="objective-head">
+          <span class="objective-badge">Step 01 · 诊断定点</span>
+          <div class="objective-title-wrap">
+            <h3>脆弱性分析在说明什么？</h3>
+            <p>通过复杂网络拓扑、度/介数中心度与依赖矩阵，回答核心问题：<b>“面对突发外部冲击，整个供应链哪里最易断裂、谁最难替代？”</b></p>
+          </div>
+        </div>
+
+        <div class="objective-findings-grid">
+          <div class="finding-card danger">
+            <span class="finding-label">核心脆弱断点 ①：口岸咽喉</span>
+            <strong>中哈阿拉山口铁路口岸</strong>
+            <p>介数中心度 0.84，宽窄轨换装负荷率达 94%。承担全国主要中亚陆运供给，一旦口岸通关受阻将无同口径陆路替代。</p>
+          </div>
+          <div class="finding-card danger">
+            <span class="finding-label">核心脆弱断点 ②：制造单点</span>
+            <strong>北方包头燃料元件基地</strong>
+            <p>承接全国 60% 燃料组件加工。当前原料库存降至 14 周破安全警戒线，断料传导至核电厂非计划停堆周期仅需 90 天。</p>
+          </div>
+          <div class="finding-card safe">
+            <span class="finding-label">关键弹性冗余：海运分流</span>
+            <strong>纳米比亚湖山矿 → 连云港</strong>
+            <p>海运接卸负荷率仅 62%，具备 400tU/季度的应急承接潜力，但海上运程需 45 天，需作为长周期调控的重要备份。</p>
+          </div>
+        </div>
+      </section>
 
       <main class="vulnerability-workspace">
         <section class="vulnerability-overview glass-panel">
@@ -35,12 +63,118 @@
           </div>
         </section>
 
+        <!-- 01 俄乌冲突高风险节点与通道【脆弱性排行榜】 (事前脆弱断点直通事中三大调度令) -->
+        <section class="vulnerability-ranking-panel glass-panel">
+          <div class="ranking-panel-head">
+            <div class="analysis-column-head">
+              <span class="analysis-column-index">01</span>
+              <div>
+                <h3>俄乌冲突高风险节点与通道【脆弱性排行榜】</h3>
+                <p>基于地缘制裁断航、中欧口岸换装挤兑与原料库存警戒线综合测算，事前脆弱点直接映射事中保供/绕行/补库调度令</p>
+              </div>
+            </div>
+            <div class="ranking-head-meta">
+              <el-tag size="small" type="danger" effect="dark">地缘冲击模式</el-tag>
+              <el-tag size="small" type="success" effect="plain">4 大关键瓶颈已锁定</el-tag>
+            </div>
+          </div>
+
+          <div class="ranking-table-wrapper">
+            <el-table :data="vulnerabilityRankingRows" stripe class="ranking-modern-table" style="width: 100%">
+              <el-table-column label="排名" width="70" align="center">
+                <template #default="{ row }">
+                  <span class="rank-num-badge" :class="`rank-${row.rank}`">
+                    0{{ row.rank }}
+                  </span>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="关键瓶颈对象" min-width="190">
+                <template #default="{ row }">
+                  <div class="choke-cell">
+                    <div class="choke-title-row">
+                      <strong class="choke-name">{{ row.name }}</strong>
+                      <el-tag size="small" :type="row.typeTag" effect="plain" class="choke-type-tag">
+                        {{ row.type }}
+                      </el-tag>
+                    </div>
+                    <span class="choke-impact">{{ row.impactDesc }}</span>
+                  </div>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="脆弱度指数" width="140" align="center">
+                <template #default="{ row }">
+                  <div class="score-cell">
+                    <div class="score-num-row">
+                      <strong class="score-number">{{ row.score }}</strong>
+                      <span class="score-unit">/100</span>
+                      <el-tag size="small" :type="row.riskTag" effect="light">{{ row.riskLevel }}</el-tag>
+                    </div>
+                    <el-progress
+                      :percentage="row.score"
+                      :show-text="false"
+                      :stroke-width="5"
+                      :status="row.score >= 85 ? 'exception' : 'warning'"
+                    />
+                  </div>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="俄乌地缘致因机制" min-width="230" show-overflow-tooltip>
+                <template #default="{ row }">
+                  <div class="reason-cell">
+                    <el-icon class="reason-icon"><WarningFilled /></el-icon>
+                    <span>{{ row.triggerReason }}</span>
+                  </div>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="事中定向破局调度令映射" min-width="260">
+                <template #default="{ row }">
+                  <div class="dispatch-mapping-cell">
+                    <div class="dispatch-chip-row">
+                      <el-tag size="small" :type="row.dispatchOrder.tagType" effect="dark">
+                        {{ row.dispatchOrder.type }}
+                      </el-tag>
+                      <strong class="dispatch-title">{{ row.dispatchOrder.name }}</strong>
+                    </div>
+                    <p class="dispatch-action-text">{{ row.dispatchOrder.action }}</p>
+                  </div>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="处置成效预期" width="170">
+                <template #default="{ row }">
+                  <div class="effect-cell">
+                    <el-icon class="effect-icon"><CircleCheckFilled /></el-icon>
+                    <span>{{ row.recoveryEffect }}</span>
+                  </div>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="调度联动" width="130" align="center" fixed="right">
+                <template #default="{ row }">
+                  <el-button
+                    size="small"
+                    type="primary"
+                    plain
+                    @click="goToDispatchOrder(row.dispatchOrder.id)"
+                  >
+                    查阅调度令 →
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </section>
+
         <section class="gm-column output-column glass-panel">
           <header class="analysis-column-head">
-            <span class="analysis-column-index">01</span>
+            <span class="analysis-column-index">02</span>
             <div>
-              <h3>关键节点依赖矩阵</h3>
-
+              <h3>关键节点多维依赖矩阵与恢复评估</h3>
+              <p>评估核心枢纽对地理、资源、通道的敏感性与鲁棒性恢复难度</p>
             </div>
           </header>
 
@@ -127,7 +261,7 @@
         </section>
         <section class="vulnerability-priority glass-panel">
           <div class="analysis-column-head">
-            <span class="analysis-column-index">02</span>
+            <span class="analysis-column-index">03</span>
             <div>
               <h3>处置优先级</h3>
               <p>按脆弱性评分生成保供、绕行、补库顺序。</p>
@@ -186,6 +320,27 @@
           </div>
         </section>
 
+        <!-- 流转到 Step 02 策略分析的贯通卡片 -->
+        <section class="handoff-next-step-panel glass-panel">
+          <div class="handoff-content">
+            <div class="handoff-badge-group">
+              <span class="handoff-badge">Step 01 诊断完成</span>
+              <el-tag size="small" type="success" effect="plain">高危断点参数已打包注入</el-tag>
+            </div>
+            <h4>已锁定首要系统性断裂点：黑海通道阻断、阿拉山口铁路口岸与包头制造基地</h4>
+            <p>
+              针对上述单一依赖与地缘冲击风险，下一步需进入【Step 02 · 策略分析】：在 2022–2028 年俄乌冲突长周期演化背景下，
+              调用扩展式博弈决策树展开多路径寻优，求出能以最低成本保障反应堆零非停的最优调控对策。
+            </p>
+          </div>
+          <div class="handoff-action">
+            <el-button type="primary" size="large" @click="goToStrategyAnalysis">
+              <span>下一步：前往策略分析展开寻优</span>
+              <el-icon><Right /></el-icon>
+            </el-button>
+          </div>
+        </section>
+
       </main>
     </template>
   </div>
@@ -195,8 +350,8 @@
 import { buildUraniumVulnerability, uraniumVulnerabilityLevel } from '@/utils/uraniumVulnerability'
 import { computed, nextTick, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useRoute } from 'vue-router'
-import { Right } from '@element-plus/icons-vue'
+import { useRoute, useRouter } from 'vue-router'
+import { Right, WarningFilled, CircleCheckFilled, Location, TrendCharts, Document, Promotion, Finished } from '@element-plus/icons-vue'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 import AnalysisLinkTabs from './components/shared/AnalysisLinkTabs.vue'
@@ -204,9 +359,26 @@ import AnalysisPageHero from './components/shared/AnalysisPageHero.vue'
 import './components/shared/midStage.css'
 import { useUraniumAnalysisExperiment } from './composables/useUraniumAnalysisExperiment'
 import { buildUraniumGameTheoryViewModel } from '@/views/SCnet/adapters/uraniumMockAnalysisAdapter'
+import { createUraniumDemoSeed } from '@/views/SCnet/mock/uraniumDemoLab'
 
 useUraniumAnalysisExperiment()
 const route = useRoute()
+const router = useRouter()
+
+function goToStrategyAnalysis() {
+  router.push({
+    path: '/home/SCnet/expAnalysisScenario',
+    query: { ...route.query, scenario: 'uranium' }
+  })
+}
+
+function goToDispatchOrder(orderId = '') {
+  router.push({
+    path: '/home/SCnet/decisionGeneration',
+    query: { ...route.query, scenario: 'uranium', orderId: orderId || undefined }
+  })
+}
+
 const matrixSectionRef = ref(null)
 const vulnerabilitySectionRef = ref(null)
 const structureSectionRef = ref(null)
@@ -216,25 +388,120 @@ const uraniumStore = useUraniumDemoStore()
 const { selectedExperiment } = storeToRefs(uraniumStore)
 
 const activeSnapshot = computed(() => snapshotStore.getActiveSnapshot())
-const hasGameContext = computed(() => !!selectedExperiment.value || !!activeSnapshot.value)
+
+// 稳健实验回退保障
+const effectiveExperiment = computed(() => {
+  if (selectedExperiment.value) return selectedExperiment.value
+  if (activeSnapshot.value?.experiment) return activeSnapshot.value.experiment
+  const experiments = uraniumStore.experiments || {}
+  const list = Object.values(experiments)
+  if (list.length) return list[0]
+  try {
+    const seed = createUraniumDemoSeed()
+    return seed?.experiments?.['uranium-security-first-20260708-131000'] || (seed?.experiments ? Object.values(seed.experiments)[0] : null)
+  } catch (e) {
+    return null
+  }
+})
+const hasGameContext = computed(() => !!effectiveExperiment.value)
+
+// 俄乌冲突高风险断点与通道排行榜（事前脆弱点直通事中保供/绕行/补库三大调度令）
+const vulnerabilityRankingRows = computed(() => [
+  {
+    rank: 1,
+    name: '黑海 / 圣彼得堡至欧洲海运走廊',
+    type: '咽喉海运通道',
+    typeTag: 'danger',
+    score: 95,
+    riskLevel: '极高危',
+    riskTag: 'danger',
+    triggerReason: '俄乌冲突爆发与西方禁俄铀法案，俄罗斯44%浓缩产能脱钩，欧洲港口拒运俄籍放射性货物',
+    impactDesc: '原既有中欧海运转运彻底断航，直接阻断国内北方基地约 38% 原料回运通路',
+    dispatchOrder: {
+      id: 'DISPATCH-2024-001',
+      type: '绕行令',
+      name: '跨里海与好望角远洋海运分流重构令',
+      action: '海运分流提至 55%，启动纳米比亚直航防城港/连云港航线，彻底避开黑海与欧洲中转',
+      tagType: 'primary'
+    },
+    recoveryEffect: '航道阻断消除率 100%，回运周期稳定在 45 天'
+  },
+  {
+    rank: 2,
+    name: '中哈阿拉山口铁路口岸',
+    type: '陆运铁路枢纽',
+    typeTag: 'warning',
+    score: 88,
+    riskLevel: '高危',
+    riskTag: 'danger',
+    triggerReason: '欧洲海运受阻后引发陆路过境运力严重挤兑，中哈铁路宽窄轨换装负荷率突破 94%',
+    impactDesc: '中亚陆运在途延误从 18 天飙升至 38 天，口岸通关周转率下降 40%，形成严重跨境拥堵',
+    dispatchOrder: {
+      id: 'DISPATCH-2024-001',
+      type: '绕行令',
+      name: '跨里海多式联运分流令',
+      action: '启动阿克套港至巴库跨里海铁水联运分流 25%，平抑阿拉山口口岸挤兑压力',
+      tagType: 'primary'
+    },
+    recoveryEffect: '口岸负荷率回落至 78%，通关准点率提至 92%'
+  },
+  {
+    rank: 3,
+    name: '北方包头核燃料元件制造基地',
+    type: '核心制造枢纽',
+    typeTag: 'danger',
+    score: 84,
+    riskLevel: '高危',
+    riskTag: 'danger',
+    triggerReason: '承担全国 60% 华龙一号核燃料组件加工，原料严重受制于进口且到厂交付延误',
+    impactDesc: '在途延误叠加原料到厂延迟，基地安全库存跌至 14 周破 180 天红线，下游面临断料停堆风险',
+    dispatchOrder: {
+      id: 'DISPATCH-2024-002',
+      type: '补库令',
+      name: '国家保税战略储备库削峰借调平准令',
+      action: '自防城港国家战略保税库应急借调 400 tU 平准，实行“借一还一”动态回填，补足制造缺口',
+      tagType: 'warning'
+    },
+    recoveryEffect: '库存覆盖由 14 周迅速恢复至 21 周安全阈值'
+  },
+  {
+    rank: 4,
+    name: '海阳 / 大亚湾等沿海核电在运机组',
+    type: '终端装料节点',
+    typeTag: 'info',
+    score: 79,
+    riskLevel: '承压',
+    riskTag: 'warning',
+    triggerReason: '首炉机组集中并网装料叠加在运机组集中大修换料，刚性燃料组件装料窗口不可延误',
+    impactDesc: '国际现货跳涨至 $106/lb，被动高价追单将引发供应链成本剧烈震荡及非计划超支',
+    dispatchOrder: {
+      id: 'DISPATCH-2024-003',
+      type: '保供令',
+      name: '战略重点机组刚性装料定向保供令',
+      action: '对战略首炉与首充装料机组建立点对点直供保障通道，实行配额专供与特快排产，确保 0 停堆',
+      tagType: 'success'
+    },
+    recoveryEffect: '核电机组非计划停堆率 0 次，燃料保供率 100%'
+  }
+])
 
 // 非快照模式下的手动场景切换
 const manualScenarioKey = ref('')
 const manualModelKey = ref('')
 const baseGameVm = computed(() => buildUraniumGameTheoryViewModel({
-  experiment: selectedExperiment.value,
+  experiment: effectiveExperiment.value,
   snapshot: activeSnapshot.value,
   manualScenarioKey: manualScenarioKey.value
 }))
 const gameVm = computed(() => buildUraniumGameTheoryViewModel({
-  experiment: selectedExperiment.value,
+  experiment: effectiveExperiment.value,
   snapshot: activeSnapshot.value,
   manualScenarioKey: manualScenarioKey.value,
   manualModelKey: manualModelKey.value
 }))
 const effectiveScenarioKey = computed(() => baseGameVm.value.scenarioKey)
 const topTags = computed(() => gameVm.value.hero.tags.filter((item) => ['场景', '时点'].includes(item.label)))
-const vulnerabilityMetrics = computed(() => buildUraniumVulnerability(selectedExperiment.value?.summary || selectedExperiment.value?.report || {}))
+const vulnerabilityMetrics = computed(() => buildUraniumVulnerability(effectiveExperiment.value?.summary || effectiveExperiment.value?.report || {}))
 const vulnerabilityLevel = computed(() => uraniumVulnerabilityLevel(vulnerabilityMetrics.value))
 
 const metricScore = (label, fallback = 50) => (
@@ -265,10 +532,10 @@ const dependencyMatrixRows = computed(() => {
   const inventory = metricScore('库存压力')
   const robustness = metricScore('鲁棒性')
   const rows = [
-    { node: '哈萨克供应链', role: '主要供应国', scores: [72, sensitivity + 8, 78, recovery] },
-    { node: '跨境陆运通道', role: '关键物流链路', scores: [82, 38, 88, recovery + 8] },
-    { node: '海运备份通道', role: '替代航线', scores: [58, 32, 64, 100 - robustness] },
-    { node: '国内储备节点', role: '库存缓冲', scores: [18, inventory, 24, Math.max(20, inventory - 12)] }
+    { node: '阿拉山口铁路口岸', role: '口岸枢纽 · 陆运咽喉', scores: [88, 76, 94, Math.max(75, recovery + 8)] },
+    { node: '北方包头燃料基地', role: '制造枢纽 · 60%华龙一号', scores: [82, Math.min(95, sensitivity + 10), 78, 86] },
+    { node: '连云港海运接卸港', role: '港口中转 · 非洲矿石分流', scores: [58, 42, 62, Math.max(30, 100 - robustness)] },
+    { node: '防城港战略储备库', role: '平准缓冲 · 国家战略储备', scores: [24, inventory, 32, Math.max(20, inventory - 12)] }
   ]
   return rows.map(row => ({
     ...row,
@@ -389,6 +656,128 @@ watch(() => snapshotStore.activeSnapshotId, (next, prev) => {
 </script>
 
 <style scoped>
+/* 业务逻辑说明看板与流转样式 */
+.analysis-objective-strip {
+  margin: 0 8px 12px;
+  padding: 14px 18px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+.objective-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.objective-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: #fef3c7;
+  color: #b45309;
+  white-space: nowrap;
+}
+.objective-title-wrap h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.objective-title-wrap p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #475569;
+}
+.objective-findings-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.finding-card {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.finding-card.danger {
+  border-left: 3px solid #ef4444;
+  background: #fffafa;
+}
+.finding-card.safe {
+  border-left: 3px solid #10b981;
+  background: #f0fdf4;
+}
+.finding-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #64748b;
+}
+.finding-card strong {
+  font-size: 13px;
+  color: #0f172a;
+}
+.finding-card p {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: #475569;
+  line-height: 1.4;
+}
+
+/* 底部流转面板 */
+.handoff-next-step-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 14px;
+  padding: 16px 20px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #f8fafc, #eff6ff);
+  border: 1px solid #bfdbfe;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.06);
+}
+.handoff-content {
+  flex: 1;
+  min-width: 0;
+}
+.handoff-badge-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.handoff-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: #2563eb;
+  color: #ffffff;
+}
+.handoff-content h4 {
+  margin: 0 0 4px;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.handoff-content p {
+  margin: 0;
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.5;
+}
+.handoff-action {
+  flex-shrink: 0;
+}
+
 .vulnerability-workspace {
   display: grid;
   gap: 10px;
@@ -411,7 +800,155 @@ watch(() => snapshotStore.activeSnapshotId, (next, prev) => {
 .vulnerability-overview-grid article { padding: 9px 10px; border: 1px solid #e2e8f0; border-radius: 9px; background: #f8fafc; }
 .vulnerability-overview-grid span,
 .vulnerability-overview-grid small { display: block; color: #64748b; font-size: var(--mid-fs-micro); }
-.vulnerability-overview-grid strong { display: block; margin: 4px 0; color: #0f172a; font-size: var(--mid-fs-strong); }
+/* 俄乌冲突高风险断点与通道排行榜 */
+.vulnerability-ranking-panel {
+  padding: 14px 18px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+.ranking-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.ranking-head-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ranking-table-wrapper {
+  overflow-x: auto;
+}
+.ranking-modern-table {
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 13px;
+}
+.rank-num-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  font-weight: 800;
+  font-size: 12px;
+  color: #ffffff;
+  background: #64748b;
+}
+.rank-num-badge.rank-1 {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.35);
+}
+.rank-num-badge.rank-2 {
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  box-shadow: 0 2px 6px rgba(249, 115, 22, 0.3);
+}
+.rank-num-badge.rank-3 {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+.rank-num-badge.rank-4 {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+}
+.choke-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.choke-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.choke-name {
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 13px;
+}
+.choke-type-tag {
+  font-size: 11px;
+}
+.choke-impact {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.4;
+}
+.score-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.score-num-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+}
+.score-number {
+  font-size: 16px;
+  font-weight: 800;
+  color: #dc2626;
+}
+.score-unit {
+  font-size: 11px;
+  color: #94a3b8;
+}
+.reason-cell {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  color: #334155;
+  line-height: 1.45;
+}
+.reason-icon {
+  color: #f59e0b;
+  font-size: 14px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.dispatch-mapping-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dispatch-chip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.dispatch-title {
+  font-size: 12px;
+  color: #1e293b;
+  font-weight: 700;
+}
+.dispatch-action-text {
+  margin: 0;
+  font-size: 11px;
+  color: #475569;
+  line-height: 1.4;
+}
+.effect-cell {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  color: #059669;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.effect-icon {
+  font-size: 14px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
 
 .vulnerability-priority {
   padding: 12px 14px;

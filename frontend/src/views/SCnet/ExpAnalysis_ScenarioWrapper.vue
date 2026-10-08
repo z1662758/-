@@ -7,7 +7,7 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useScenarioStore } from '@/stores/scenario'
-import UraniumView from './ExpAnalysis_Scenario_uranium.vue'
+import UraniumView from './ExpAnalysis_Strategy_uranium.vue'
 import AutoView from './ExpAnalysis_Scenario.vue'
 
 const route = useRoute()

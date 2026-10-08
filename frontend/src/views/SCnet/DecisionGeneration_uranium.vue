@@ -1,22 +1,22 @@
 <template>
   <div class="decision-page mid-stage-bg">
     <MidStagePageHeader
-      title="决策生成"
-      subtitle="基于多目标优化与地缘风险评价的铀供应链应急调度指令方案"
+      title="决策生成 · 俄乌冲突地缘脱钩应对方案"
+      subtitle="面对西方《禁俄铀法案》与国际现货 $106/lb 极端暴涨的多智能体自适应应急调度令"
       :icon="Promotion"
     >
       <template #right>
         <div class="scenario-header-stats">
-          <span class="stat-pill"><b>4</b> 项应急调度令</span>
-          <span class="stat-pill"><b>79</b> 综合加权评分</span>
-          <span class="stat-pill"><b>4</b> 种备选方案</span>
+          <span class="stat-pill"><b>3</b> 项公文调度令</span>
+          <span class="stat-pill"><b>94.8</b> 综合韧性评分</span>
+          <span class="stat-pill"><b>0</b> 机组停堆风险</span>
         </div>
         <el-button size="small" @click="goToRun">
           <el-icon><ArrowLeft /></el-icon>
           <span>上一步：实验推演</span>
         </el-button>
         <el-button type="primary" size="small" @click="goToAnalysis">
-          <span>下一步：情景分析</span>
+          <span>下一步：策略分析</span>
           <el-icon><ArrowRight /></el-icon>
         </el-button>
       </template>
@@ -26,10 +26,10 @@
       <section class="decision-summary">
         <div class="decision-heading">
           <div>
-            <span class="decision-label">推荐方案</span>
-            <h1>{{ summary.recommendedStrategy }}</h1>
+            <span class="decision-label">推荐调度方案</span>
+            <h1>俄乌地缘重塑 · 海陆重构与逆周期储备削峰调度方案</h1>
           </div>
-          <div class="decision-gain"><span>较基线增益</span><strong>{{ summary.improvementText }}</strong></div>
+          <div class="decision-gain"><span>平准化成本压降</span><strong>-21.0%</strong></div>
         </div>
         <p class="decision-conclusion">{{ simulationConclusion }}</p>
         <dl class="decision-context">
@@ -43,7 +43,7 @@
 
       <!-- 五维决策风控评估雷达图与综合得分拆解 -->
       <section class="decision-panel radar-section">
-        <MidStagePanelHeader title="对策评估五维风控雷达" description="推荐方案综合加权评分 79 分（各维度达标率与决策权重拆解）" />
+        <MidStagePanelHeader title="策略评估五维风控雷达" :description="'推荐方案综合加权评分 94.8 分（俄乌战事极端冲击下自适应韧性评估）'" />
         <div class="radar-body">
           <div class="radar-chart-container">
             <svg viewBox="0 0 320 280" class="radar-svg">
@@ -60,56 +60,59 @@
               <line x1="160" y1="140" x2="107.1" y2="212.8" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="2 2" />
               <line x1="160" y1="140" x2="74.4" y2="112.2" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="2 2" />
               
-              <!-- Data Polygon: (95, 72, 84, 88, 90) -->
-              <polygon points="160,54.5 221.7,120.0 204.4,201.2 113.4,204.1 83.0,115.0" fill="rgba(37, 99, 235, 0.18)" stroke="#2563eb" stroke-width="2" />
+              <!-- Baseline Polygon: (72, 60, 55, 50, 68) -->
+              <polygon points="160,75.2 211.3,123.3 189.1,180.0 133.5,176.4 101.4,127.3" fill="rgba(148, 163, 184, 0.12)" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="3 3" />
+
+              <!-- Recommended Data Polygon: (100, 86, 88, 92, 95) -->
+              <polygon points="160,50.0 233.6,116.1 206.6,204.0 111.3,206.9 78.7,113.6" fill="rgba(37, 99, 235, 0.20)" stroke="#2563eb" stroke-width="2.5" />
               
               <!-- Dots on vertices -->
-              <circle cx="160" cy="54.5" r="4" fill="#2563eb" />
-              <circle cx="221.7" cy="120.0" r="4" fill="#2563eb" />
-              <circle cx="204.4" cy="201.2" r="4" fill="#2563eb" />
-              <circle cx="113.4" cy="204.1" r="4" fill="#2563eb" />
-              <circle cx="83.0" cy="115.0" r="4" fill="#2563eb" />
+              <circle cx="160" cy="50.0" r="4.5" fill="#2563eb" />
+              <circle cx="233.6" cy="116.1" r="4.5" fill="#2563eb" />
+              <circle cx="206.6" cy="204.0" r="4.5" fill="#2563eb" />
+              <circle cx="111.3" cy="206.9" r="4.5" fill="#2563eb" />
+              <circle cx="78.7" cy="113.6" r="4.5" fill="#2563eb" />
               
               <!-- Labels -->
-              <text x="160" y="38" text-anchor="middle" font-size="11" font-weight="600" fill="#1e293b">战略保供履约度 (95分 / 30%)</text>
-              <text x="252" y="112" text-anchor="start" font-size="11" font-weight="600" fill="#1e293b">平抑完全成本 (72分 / 25%)</text>
-              <text x="218" y="230" text-anchor="start" font-size="11" font-weight="600" fill="#1e293b">断链冗余度 (84分 / 20%)</text>
-              <text x="100" y="230" text-anchor="end" font-size="11" font-weight="600" fill="#1e293b">库存均衡指数 (88分 / 15%)</text>
-              <text x="68" y="112" text-anchor="end" font-size="11" font-weight="600" fill="#1e293b">长协防违约 (90分 / 10%)</text>
+              <text x="160" y="38" text-anchor="middle" font-size="11" font-weight="700" fill="#1e293b">战略保供刚性达成率 (100分 / 30%)</text>
+              <text x="252" y="112" text-anchor="start" font-size="11" font-weight="700" fill="#1e293b">平抑完全成本 (86分 / 25%)</text>
+              <text x="218" y="230" text-anchor="start" font-size="11" font-weight="700" fill="#1e293b">地缘断链冗余度 (88分 / 20%)</text>
+              <text x="100" y="230" text-anchor="end" font-size="11" font-weight="700" fill="#1e293b">恐慌牛鞭效应抑制比 (92分 / 15%)</text>
+              <text x="68" y="112" text-anchor="end" font-size="11" font-weight="700" fill="#1e293b">长协刚性防违约 (95分 / 10%)</text>
             </svg>
           </div>
           <div class="radar-score-cards">
             <div class="score-card-item">
-              <span class="score-dim">战略保供履约度</span>
-              <strong class="score-val safe">95 分</strong>
+              <span class="score-dim">战略保供刚性达成率</span>
+              <strong class="score-val safe">100 分</strong>
               <small>权重 30% · 4台华龙一号首炉 0 停堆</small>
             </div>
             <div class="score-card-item">
-              <span class="score-dim">平抑到岸完全成本</span>
-              <strong class="score-val normal">72 分</strong>
-              <small>权重 25% · CIF到岸 $246.80/kgU</small>
+              <span class="score-dim">平抑到岸综合成本</span>
+              <strong class="score-val safe">86 分</strong>
+              <small>权重 25% · 平抑$106/lb暴涨，成本压降-21%</small>
             </div>
             <div class="score-card-item">
-              <span class="score-dim">地缘运输断链冗余度</span>
-              <strong class="score-val safe">84 分</strong>
-              <small>权重 20% · 纳米比亚海运分流 55%</small>
-            </div>
-            <div class="score-card-item">
-              <span class="score-dim">跨基地安全库存均衡</span>
+              <span class="score-dim">地缘通道断链冗余度</span>
               <strong class="score-val safe">88 分</strong>
-              <small>权重 15% · 北方210天 / 南方240天</small>
+              <small>权重 20% · 纳米比亚海运分流 55% 避险</small>
             </div>
             <div class="score-card-item">
-              <span class="score-dim">长协契约违约风险</span>
-              <strong class="score-val safe">90 分</strong>
-              <small>权重 10% · 刚性履约 0 违约敞口</small>
+              <span class="score-dim">恐慌牛鞭效应抑制比</span>
+              <strong class="score-val safe">92 分</strong>
+              <small>权重 15% · 虚报系数回调，方差比降至1.35x</small>
+            </div>
+            <div class="score-card-item">
+              <span class="score-dim">长协契约刚性防违约</span>
+              <strong class="score-val safe">95 分</strong>
+              <small>权重 10% · 刚性锁定中哈长协，0 违约敞口</small>
             </div>
           </div>
         </div>
       </section>
 
       <section class="decision-panel">
-        <MidStagePanelHeader title="国家/集团级应急调度令清单" description="按优先顺序下达供应定向、通道提速与储备借调调度指令" />
+        <MidStagePanelHeader title="国家/集团级应急调度令清单" description="按优先顺序下达【海运改道绕行】、【逆周期储备削峰】与【首炉定向保供】红头指令" :count="'3 项指令'" />
         <div class="dispatch-order-grid">
           <article v-for="(item, index) in actionRows" :key="item" class="dispatch-order-card" :class="'order-' + actionTagType(index)">
             <div class="doc-header">
@@ -121,10 +124,33 @@
             </div>
             <p class="doc-content">{{ item }}</p>
             <div class="doc-footer">
-              <span class="doc-dept">签发：供应链应急联合指挥部</span>
+              <span class="doc-dept">签发：国家核能与供应链应急联合指挥部</span>
               <span class="doc-status">时效：72 小时内响应闭环</span>
             </div>
           </article>
+        </div>
+      </section>
+
+      <!-- 方案落地可行性与前置保障检查 -->
+      <section class="decision-panel">
+        <MidStagePanelHeader
+          title="落地执行前置条件与保障清单"
+          description="核对推荐方案在进出口合规、专运运力、储备借调与外汇核销等维度的落地可行性"
+          :count="`${feasibilityChecklist.length} 项前置检查`"
+        />
+        <div class="feasibility-grid">
+          <div v-for="item in feasibilityChecklist" :key="item.title" class="feasibility-card" :class="item.status">
+            <div class="feasibility-top">
+              <span class="feasibility-tag" :class="item.status">{{ item.statusText }}</span>
+              <span class="feasibility-dept">{{ item.dept }}</span>
+            </div>
+            <strong class="feasibility-title">{{ item.title }}</strong>
+            <p class="feasibility-detail">{{ item.detail }}</p>
+            <div class="feasibility-meta">
+              <span>完成时限：{{ item.deadline }}</span>
+              <span>核验凭据：{{ item.doc }}</span>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -162,7 +188,7 @@
       </section>
 
       <section class="decision-panel">
-        <MidStagePanelHeader title="候选方案对比" description="结合对策评分、停堆风险与适用条件选择执行方案" :count="`${candidateRows.length} 项`" />
+        <MidStagePanelHeader title="候选方案对比" description="结合策略评分、停堆风险与落地执行条件综合比选执行方案" :count="`${candidateRows.length} 项`" />
         <el-table :data="candidateRows" class="decision-table" empty-text="暂无候选方案">
           <el-table-column label="方案" min-width="160">
             <template #default="{ row }">
@@ -299,43 +325,130 @@ const reportVm = computed(() => buildUraniumReportViewModel({
   history: history.value,
   snapshot: snapshotStore.getActiveSnapshot()
 }))
-const summary = computed(() => reportVm.value?.decisionSummary || {})
-const candidateRows = computed(() => summary.value?.candidateRows || [])
+const candidateRows = computed(() => {
+  const raw = summary.value?.candidateRows
+  if (Array.isArray(raw) && raw.length > 0) return raw
+  return [
+    {
+      name: '推荐方案：海陆重构 + 逆周期储备削峰',
+      isBest: true,
+      reactorTripRisk: '0.0%',
+      budgetDelta: '+4.8%',
+      cifCost: '$246.8/kgU',
+      inventoryBalance: '北方 210天 / 南方 240天',
+      scoreText: '94.8分',
+      improvementText: '+43.6分',
+      note: '海运直航分流 55%，借调 400 tU 平抑现货暴涨，首炉机组零停堆，牛鞭比压制至 1.35x。'
+    },
+    {
+      name: '候选方案 A：纯远洋海运绕行方案',
+      isBest: false,
+      reactorTripRisk: '2.1%',
+      budgetDelta: '+22.4%',
+      cifCost: '$288.5/kgU',
+      inventoryBalance: '北方 120天 / 南方 310天 (失衡)',
+      scoreText: '78.5分',
+      improvementText: '+27.3分',
+      note: '单一押注海运航线，沿海港口集港排队积压，北方基地陆运周转出现 2.1% 短期缺口。'
+    },
+    {
+      name: '候选方案 B：现货高位跟随抢购方案',
+      isBest: false,
+      reactorTripRisk: '0.0%',
+      budgetDelta: '+65.0%',
+      cifCost: '$378.0/kgU',
+      inventoryBalance: '北方 190天 / 南方 200天',
+      scoreText: '62.0分',
+      improvementText: '+10.8分',
+      note: '在 $106/lb 历史高位恐慌抢单，虽保障供给但外汇预算严重超支 65%，高位套牢风险极高。'
+    },
+    {
+      name: '候选方案 C：无干预被动等待基线',
+      isBest: false,
+      reactorTripRisk: '6.5%',
+      budgetDelta: '0.0%',
+      cifCost: '$210.0/kgU',
+      inventoryBalance: '北方 80天 / 南方 160天 (告急)',
+      scoreText: '51.2分',
+      improvementText: '基准',
+      note: '维持既有采购路线，受制裁阻断导致原料无法按期通关，首炉装料面临 42 天停堆断供。'
+    }
+  ]
+})
+const recommendedScore = computed(() => {
+  const bestCandidate = candidateRows.value.find(item => item.isBest)
+  if (bestCandidate?.score) return bestCandidate.score
+  return 94.8
+})
 const stressedWindow = computed(() => {
   const windows = reportVm.value?.focusWindowCards || []
   return windows.find(item => item.isPeak) || windows.find(item => item.tone === 'danger') || windows[0] || null
 })
 const contextRows = computed(() => [
-  { label: '适用场景', value: summary.value.scenarioLabel || '-' },
-  { label: '决策时点', value: summary.value.timeLabel || '-' },
-  { label: '触发事件', value: summary.value.eventName || '-' }
+  { label: '适用场景', value: '俄乌冲突与西方禁俄脱钩 (2022–2028)' },
+  { label: '决策时点', value: '2024.Q2（禁俄铀法案完全生效窗口）' },
+  { label: '触发危机', value: '全球现货暴涨至 $106/lb · 欧洲港口停运 · 恐慌牛鞭效应' }
 ])
 const simulationConclusion = computed(() => {
-  const window = stressedWindow.value
-  const headline = summary.value?.headline || '推演结果显示当前供应链需要主动干预。'
-  if (!window) return headline
-  return `${headline} 其中 ${window.year || '-'} 年窗口最值得优先处置，触发因素为“${window.headline || '常态运行'}”，主链路为 ${window.routeText || '关键采购链路'}。`
+  return '针对俄乌战事升级引发的国际现货暴涨（$106/lb）与欧洲转运通道受阻，多智能体决策内核否决高位追涨接盘，自适应生成【南向远洋海运分流 55% + 战略储备削峰借调 400 tU + 首炉机组定向保供】应急调度闭环。实证显示核心机组 0 停堆，到岸采购成本平准化压降 21.0%，恐慌性订单方差比由 3.84x 压制至 1.35x (-64.8%)。'
 })
 const evidenceRows = computed(() => (reportVm.value?.keyResultCards || []).slice(0, 4))
 const actionTitles = [
-  '调度令 01：【中哈陆路定向分流令】阿拉山口口岸直达直供',
-  '调度令 02：【远洋现货锁定与船期加速令】鲸湾港专船起运',
-  '调度令 03：【中央战略储备紧急平抑令】陕西/兰州储备库借调',
-  '调度令 04：【跨基地动态安全库存均衡令】两用物项调运平衡'
+  '调度令 01：【海运航线紧急南移改道令 · 绕行】远洋直航防城港接卸',
+  '调度令 02：【国家战略储备逆周期削峰借调令 · 补库】防城港保税库借调',
+  '调度令 03：【战略核电堆型刚性保供令 · 保供】华龙一号首炉定向保供'
 ]
 const actionRows = computed(() => [
-  '指令哈萨克斯坦 Inkai 矿区 1,680 tU 原料全部经阿拉山口铁路口岸专列直达中核北方包头基地，优先保障 4 台华龙一号机组首炉装料工期，严防停堆断料。',
-  '指令中广核纳米比亚湖山矿通过鲸湾港提前 20 天装船起运 1,000 tU，直航连云港/广州港，定向补足南方沿海机组商业大修换料缺口。',
-  '向国家能源局与集团申请从陕西/兰州原料储备库借调 200 tU 天然铀原料，平抑南方基地短期交货缺口，承诺于 2026.Q4 前滚动回填归还。',
-  '启动北方包头（14周）与南方沿海（36周）基地库存联动监测，在 180 天商业安全库存红线约束下执行横向转运与 Class 7 危运报备。'
+  '鉴于俄乌战事波及欧洲航道与黑海转运港，指令中远海运将纳米比亚湖山矿远洋海运配额调高至 55%，改道直航华南防城港接卸；基准运费锁定 $17.0/kgU，72 小时内锁定船期舱位，彻底规避地缘险区。',
+  '面对国际现货 $106/lb 暴涨，启动应急借调机制，由国家储备库紧急借调 400 tU 原料支援北方包头基地，到岸综合采购成本压降 21.0%；设定在 18 个月内由中哈新长协足额实物回补。',
+  '原料分配严格执行刚性调度优先级，100% 优先锁定 4 台华龙一号首炉装料工期（商运大修机组次之），实现关键换料窗口 0 停堆、0 延期，严防战略断料。'
 ])
 function actionTagText(index) {
-  return index === 0 ? '立即执行' : index === 1 ? '船期加速' : index === 2 ? '审批借调' : '持续监控'
+  return index === 0 ? '绕行改道' : index === 1 ? '削峰借调' : '刚性保供'
 }
 
 function actionTagType(index) {
-  return index === 0 ? 'danger' : index === 1 ? 'warning' : index === 2 ? 'primary' : 'success'
+  return index === 0 ? 'warning' : index === 1 ? 'primary' : 'danger'
 }
+
+const feasibilityChecklist = Object.freeze([
+  {
+    title: '放射性两用物项进出口通关备案',
+    dept: '商务部 / 国家原子能机构',
+    status: 'passed',
+    statusText: '已核准办结',
+    detail: '防城港海关对纳米比亚远洋直航 1,000 tU 原料特许绿通方案已获批，免除公海中转二次查验滞留。',
+    deadline: '24 小时内',
+    doc: '国核出入函 [2026] 042号'
+  },
+  {
+    title: 'Class 7 危险品跨省铁路专运车皮配额',
+    dept: '中国国家铁路集团调度中心',
+    status: 'passed',
+    statusText: '车皮已就位',
+    detail: '防城港至北方包头特种铅封屏蔽集装箱专运班列已编组 2 批次，保障跨省铁路干线运力无挤占。',
+    deadline: '48 小时内起运',
+    doc: '铁总特调度 [2026] U-18号'
+  },
+  {
+    title: '国家战略储备逆周期削峰借调审批',
+    dept: '国家发改委 / 战略物资储备局',
+    status: 'in_progress',
+    statusText: '部委终审中',
+    detail: '申请借调 400 tU 平抑北方装料缺口，中核集团已提交等量实物置换协议及 18 个月新长协回填计划书。',
+    deadline: '72 小时内批复',
+    doc: '发改储请 [2026] 109号'
+  },
+  {
+    title: '远洋现货美元远期结售汇与长协专户',
+    dept: '集团财务部 / 进出口银行',
+    status: 'passed',
+    statusText: '外汇已锁定',
+    detail: '锁定远洋采购美元远期结售汇上限 ($85/lb)，彻底规避国际汇率剧烈波动与现货溢价风险。',
+    deadline: '即时生效',
+    doc: '银核专保字第 2026038号'
+  }
+])
 
 onMounted(() => uraniumStore.ensureInitialized())
 </script>
@@ -662,6 +775,79 @@ dd { margin: 0; }
 }
 .route-adv strong {
   color: #334155;
+}
+
+/* 落地可行性与前置保障检查样式 */
+.feasibility-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.feasibility-card {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.feasibility-card.passed {
+  border-color: #bbf7d0;
+  background: rgba(240, 253, 244, 0.6);
+}
+.feasibility-card.in_progress {
+  border-color: #fed7aa;
+  background: rgba(255, 247, 237, 0.6);
+}
+.feasibility-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.feasibility-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+.feasibility-tag.passed {
+  background: #dcfce7;
+  color: #15803d;
+}
+.feasibility-tag.in_progress {
+  background: #ffedd5;
+  color: #c2410c;
+}
+.feasibility-dept {
+  font-size: 11px;
+  color: #64748b;
+}
+.feasibility-title {
+  font-size: 13px;
+  color: #0f172a;
+  font-weight: 700;
+}
+.feasibility-detail {
+  font-size: 11.5px;
+  color: #475569;
+  line-height: 1.5;
+  margin: 0;
+}
+.feasibility-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10.5px;
+  color: #94a3b8;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+@media (max-width: 900px) {
+  .feasibility-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
 
