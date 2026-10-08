@@ -21,27 +21,48 @@ const props = defineProps({
   events: { type: Array, default: () => [] }
 })
 
-const emit = defineEmits(['select-event'])
+const emit = defineEmits(['select-event', 'zoom'])
 
 const chartRef = ref(null)
 const loading = ref(true)
 let chart = null
 let resizeObserver = null
 
+/** 位置无效的事件不上图:宁可不画,也不能落到 (0,0) 这种假坐标上 */
+function plottable(event) {
+  const lng = Number(event?.lng)
+  const lat = Number(event?.lat)
+  return Number.isFinite(lng) && Number.isFinite(lat) && !(lng === 0 && lat === 0)
+}
+
 function buildOption() {
-  const eventData = (props.events || []).map((e, i) => ({
-    name: e.title,
-    value: [Number(e.lng) + (i % 3 - 1) * 0.8, Number(e.lat) + (i % 2) * 0.5, e.level === '高' ? 3 : e.level === '中' ? 2 : 1],
-    raw: e,
-    symbolSize: e.level === '高' ? 20 : e.level === '中' ? 15 : 11,
-    itemStyle: {
-      color: e.color || '#ef4444',
-      borderColor: '#ffffff',
-      borderWidth: 2.5,
-      shadowBlur: 12,
-      shadowColor: e.color ? e.color + '88' : 'rgba(239,68,68,0.5)'
+  const eventData = (props.events || []).filter(plottable).map((e, i) => {
+    const isCluster = Boolean(e.isCluster)
+    const size = isCluster
+      ? Math.min(46, 20 + Math.log2(Math.max(2, e.count || 2)) * 7)
+      : e.level === '高' ? 20 : e.level === '中' ? 15 : 11
+    return {
+      name: isCluster ? `${e.count} 个事件` : e.title,
+      // 聚合点直接用簇中心,单点保留轻微抖动避免完全重叠
+      value: [
+        Number(e.lng) + (isCluster ? 0 : (i % 3 - 1) * 0.6),
+        Number(e.lat) + (isCluster ? 0 : (i % 2) * 0.4),
+        e.level === '高' ? 3 : e.level === '中' ? 2 : 1,
+      ],
+      raw: e,
+      symbolSize: size,
+      label: isCluster
+        ? { show: true, formatter: String(e.count), color: '#fff', fontSize: 12, fontWeight: 700 }
+        : { show: false },
+      itemStyle: {
+        color: e.color || '#ef4444',
+        borderColor: '#ffffff',
+        borderWidth: 2.5,
+        shadowBlur: 12,
+        shadowColor: e.color ? e.color + '88' : 'rgba(239,68,68,0.5)'
+      }
     }
-  }))
+  })
 
   return {
     backgroundColor: 'transparent',
@@ -55,7 +76,14 @@ function buildOption() {
       formatter(params) {
         if (params.seriesName === '风险事件' && params.data?.raw) {
           const e = params.data.raw
-          return `<b>${e.title}</b><br/>${e.location}<br/><span style="color:${e.color || '#ef4444'}">${e.level || ''}风险</span>`
+          if (e.isCluster) {
+            const titles = (e.events || []).slice(0, 5).map((x) => `· ${x.title}`).join('<br/>')
+            const more = (e.events || []).length > 5 ? `<br/>… 另有 ${e.events.length - 5} 个事件` : ''
+            return `<b>该区域共 ${e.count} 个事件</b><br/>${titles}${more}<br/><span style="color:#94a3b8">点击查看该区域事件</span>`
+          }
+          const loc = e.locationText || e.location || ''
+          const time = e.timeText || ''
+          return `<b>${e.title}</b><br/>${loc}${time ? '<br/>' + time : ''}<br/><span style="color:${e.color || '#ef4444'}">${e.level || ''}风险</span>`
         }
         return params.name || '-'
       }
@@ -115,6 +143,12 @@ async function renderChart() {
         if (params.seriesName === '风险事件' && params.data?.raw) {
           emit('select-event', params.data.raw)
         }
+      })
+      // 缩放/平移后把比例报给上层,用于重新聚合(放大后聚合点会拆开)
+      chart.on('georoam', () => {
+        const option = chart?.getOption?.()
+        const scale = option?.geo?.[0]?.zoom
+        emit('zoom', Number(scale) || 1)
       })
     }
     chart.setOption(buildOption(), {

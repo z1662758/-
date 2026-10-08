@@ -1,9 +1,16 @@
 <template>
   <div class="post-report-page">
+    <ChatHandoffStrip>
+      <template #hint>可把本轮复盘结论并入报告后再导出。</template>
+    </ChatHandoffStrip>
+
     <section class="report-head">
       <div>
-        <h1>实验报告生成</h1>
-        <p class="subtitle">基于事中仿真与反事实分析结果，汇总关键指标对比与因素总结。</p>
+        <h1>复盘报告</h1>
+        <p class="subtitle">
+          <el-tag size="small" effect="plain" type="info" class="scene-tag">{{ sceneText.systemLabel }}</el-tag>
+          基于事中仿真与反事实分析结果，汇总关键指标对比与因素总结。
+        </p>
       </div>
       <div class="head-actions">
         <el-dropdown trigger="click" @command="exportReport">
@@ -31,7 +38,7 @@
     <el-empty
       v-else-if="!reportData"
       class="empty-report"
-      description="请先选择或完成一个铀供应链实验"
+      :description="`请先选择或完成一个${sceneText.systemLabel}实验`"
       :image-size="120"
     />
 
@@ -139,7 +146,7 @@
           <header class="section-head compact">
             <div>
               <h2>实验验证</h2>
-              <p>基于多轮迭代结果的一致性、离散度与收敛性，校验实验结论的可靠性。</p>
+              <p>基于多轮迭代结果的一致性、离散度与收敛性，并纳入跨世界配对证据，校验实验结论的可靠性。</p>
             </div>
             <el-tag v-if="verificationSummary" :type="verificationSummary.reliabilityType" size="small" effect="light" round>
               可靠性：{{ verificationSummary.reliability }}
@@ -155,6 +162,34 @@
             <p class="verification-conclusion">{{ verificationSummary.conclusion }}</p>
           </div>
           <div v-else class="verification-empty">数据不足，暂无法完成实验可靠性验证</div>
+        </section>
+
+        <!-- 反事实实验：事实 / 反事实成对世界的结论与分布（由反事实实验平台交接） -->
+        <section v-if="counterfactualSummary" class="report-section report-counterfactual">
+          <header class="section-head compact">
+            <div>
+              <h2>反事实实验结论</h2>
+              <p>事实世界与反事实世界共享同一随机种子，唯一变量为干预；差值分布即干预效应。</p>
+            </div>
+            <el-tag :type="counterfactualSummary.seedTone" size="small" effect="light" round>
+              {{ counterfactualSummary.seedLabel }}
+            </el-tag>
+          </header>
+          <div class="verification-body">
+            <div class="verification-grid">
+              <div v-for="item in counterfactualSummary.items" :key="item.label" class="verify-item">
+                <span class="verify-label">{{ item.label }}</span>
+                <strong class="verify-value" :class="item.tone">{{ item.value }}</strong>
+              </div>
+            </div>
+            <p class="verification-conclusion">{{ counterfactualSummary.conclusion }}</p>
+            <div v-if="counterfactualSummary.interventions.length" class="cf-interventions">
+              <span class="cf-interventions-label">干预变量：</span>
+              <span v-for="item in counterfactualSummary.interventions" :key="item.key" class="cf-intervention-tag">
+                {{ item.key }}：{{ formatCounterfactualValue(item.from) }} → {{ formatCounterfactualValue(item.to) }}
+              </span>
+            </div>
+          </div>
         </section>
 
         <section class="comparison-grid">
@@ -290,6 +325,7 @@
 import { ref, computed, nextTick, onMounted, watch } from 'vue';
 import { ElButton, ElCard, ElIcon, ElTag, ElEmpty, ElMessage } from 'element-plus';
 import html2canvas from 'html2canvas';
+import ChatHandoffStrip from '@/components/SCnet/ChatHandoffStrip.vue'
 import { jsPDF } from 'jspdf';
 import {
   ArrowDown,
@@ -305,13 +341,17 @@ import {
 } from '@element-plus/icons-vue';
 import { useSupplyChainStore } from '@/stores/supplyChain';
 import { storeToRefs } from 'pinia';
-import { getExperiments, getExperimentReport } from '@/api/supplyChain';
+import { getExperimentReport } from '@/api/supplyChain';
+import { useSupplyChainScenario } from '@/composables/useSupplyChainScenario';
 import { getQueueHistory } from '@/api/queue';
 import { getSessionByExperiment } from '@/api/scenarioSession';
 import { unwrapApiData } from '@/utils/apiEnvelope';
+import { loadCounterfactualReport } from '@/utils/counterfactualReport';
 
 const store = useSupplyChainStore();
 const { currentExperimentId } = storeToRefs(store);
+// 场景：报告页与其它事后页面共用同一份场景选择（?scenario= 进入时以 URL 为准）
+const { isUraniumScene, sceneText, loadScenarioExperiments } = useSupplyChainScenario();
 
 const loading = ref(false);
 const exporting = ref(false);
@@ -319,6 +359,7 @@ const reportData = ref(null);
 const linkedSession = ref(null);
 const comparisonData = ref(null);
 const reportContentRef = ref(null);
+const counterfactualReport = ref(null);
 
 const linkedRequirement = computed(() => linkedSession.value?.requirement?.raw_input || '');
 const linkedGoal = computed(() => linkedSession.value?.requirement?.goal || '');
@@ -401,17 +442,24 @@ const displayParameters = computed(() => {
 
   const result = [];
 
-  // 定义需要显示的关键参数
-  const keyParams = {
-    order_multiplier: '订单乘数',
-    capacity_range: '产能区间',
-    reproduction_threshold: '繁殖阈值',
-    initial_capital: '初始资金',
-    max_iterations: '最大迭代数',
-    simulation_duration: '仿真时长',
-    total_enterprises: '企业总数',
-    key_params: '研究参数'
-  };
+  // 定义需要显示的关键参数（铀侧保留原措辞；汽车侧交给参数目录口径）
+  const keyParams = isUraniumScene.value
+    ? {
+        order_multiplier: '订单乘数',
+        capacity_range: '产能区间',
+        reproduction_threshold: '繁殖阈值',
+        initial_capital: '初始资金',
+        max_iterations: '最大迭代数',
+        simulation_duration: '仿真时长',
+        total_enterprises: '企业总数',
+        key_params: '研究参数'
+      }
+    : {
+        max_iterations: '最大迭代数',
+        simulation_duration: '仿真时长',
+        total_enterprises: '企业总数',
+        key_params: '研究参数'
+      };
 
   try {
     // 遍历参数对象，只提取简单类型的值
@@ -478,7 +526,7 @@ const experimentRows = computed(() => {
   return [{
     id: 'Exp-01',
     shortLabel: 'Exp-01',
-    label: safeGetValue(reportData.value, 'goal', '') || '铀供应链仿真实验',
+    label: safeGetValue(reportData.value, 'goal', '') || `${sceneText.value.systemLabel}仿真实验`,
     source: getStatusText(safeGetValue(reportData.value, 'status', '')),
     paramsMap: {
       ...baseParams,
@@ -590,13 +638,41 @@ const verificationSummary = computed(() => {
   if (completionCv != null && completionCv > 12) consistencyLevel = '低';
   else if (completionCv != null && completionCv > 5) consistencyLevel = '中';
 
+  // 跨世界反事实证据（若反事实实验平台已交接同一实验 id 的配对结果）
+  // 口径：配对效应不显著时不能给「高」可靠性 —— 干预效应还无法与仿真噪声区分。
+  const cfP = Number(counterfactualReport.value?.effect?.pValue);
+  const cfN = Number(counterfactualReport.value?.effect?.n);
+  const cfDiff = Number(counterfactualReport.value?.effect?.meanDifference);
+  const crossWorld = Number.isFinite(cfP) && cfN > 0
+    ? {
+        pText: cfP.toFixed(4),
+        n: cfN,
+        level: cfP <= 0.05 ? '显著' : cfP <= 0.1 ? '边际' : '不显著',
+        significant: cfP <= 0.05,
+        marginal: cfP > 0.05 && cfP <= 0.1,
+        diffText: Number.isFinite(cfDiff) ? formatCounterfactualPercent(cfDiff) : '--',
+        magnitudeText: Number.isFinite(cfDiff) ? formatCounterfactualPercent(Math.abs(cfDiff)) : '--'
+      }
+    : null;
+
   // 综合可靠性评级
   let reliability = '高';
   let reliabilityType = 'success';
   if (!enoughData) { reliability = '低'; reliabilityType = 'danger'; }
   else if (consistencyLevel !== '高' || !converged) { reliability = '中'; reliabilityType = 'warning'; }
+  // 组内一致但跨世界效应不显著：下调为「中」，不把未证实的干预效应说成可靠结论
+  if (crossWorld && !crossWorld.significant && reliability === '高') {
+    reliability = '中';
+    reliabilityType = 'warning';
+  }
 
   const fmt = (v) => (v == null ? '--' : `${v.toFixed(1)}%`);
+
+  const crossWorldText = !crossWorld
+    ? ''
+    : `跨世界反事实证据：${crossWorld.n} 组配对样本，干预使完成率${cfDiff > 0 ? '提升' : cfDiff < 0 ? '下降' : '变化'} ${crossWorld.magnitudeText}，符号检验 p = ${crossWorld.pText}（${crossWorld.level}），${
+        crossWorld.significant ? '干预效应在 0.05 水平上显著。' : crossWorld.marginal ? '效应仅边际显著，建议增加重复次数。' : '效应当前无法与仿真噪声区分，暂不能据此下因果结论。'
+      }`;
 
   let conclusion;
   if (!enoughData) {
@@ -609,6 +685,7 @@ const verificationSummary = computed(() => {
       reliability === '高' ? '高度一致' : reliability === '中' ? '基本一致' : '波动较大'
     }，${reliability === '低' ? '建议补充实验后再下结论' : '对比结论可作为后续反事实实验与策略决策的参考基线。'}`;
   }
+  if (crossWorldText) conclusion = `${conclusion} ${crossWorldText}`;
 
   return {
     total,
@@ -619,6 +696,7 @@ const verificationSummary = computed(() => {
     scoreCvText: fmt(scoreCv),
     converged,
     lastIteration: last?.iteration ?? '--',
+    crossWorld,
     conclusion
   };
 });
@@ -637,6 +715,13 @@ const verificationItems = computed(() => {
     { label: '利润波动(CV)', value: s.profitCvText, tone: '' },
     { label: '得分波动(CV)', value: s.scoreCvText, tone: '' },
     { label: '收敛状态', value: s.converged ? '已收敛' : '未完全收敛', tone: s.converged ? 'good' : 'warn' },
+    ...(s.crossWorld
+      ? [{
+          label: '跨世界配对 p',
+          value: s.crossWorld.pText,
+          tone: s.crossWorld.significant ? 'good' : s.crossWorld.marginal ? 'warn' : 'danger'
+        }]
+      : []),
     {
       label: '可靠性评级',
       value: s.reliability,
@@ -644,6 +729,80 @@ const verificationItems = computed(() => {
     }
   ];
 });
+
+// ---- 反事实实验交接（由反事实实验平台写入，按实验 id 读取）----
+// 完成率是 0-1 的比率；若已经是百分数（>1.5）则 ÷100 归一。
+const toCounterfactualRate = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  return num > 1.5 ? num / 100 : num;
+};
+const formatCounterfactualPercent = (value) => {
+  const rate = toCounterfactualRate(value);
+  return rate === null ? '--' : `${(rate * 100).toFixed(1)}%`;
+};
+const formatCounterfactualP = (value) => {
+  const num = Number(value);
+  return Number.isFinite(num) ? num.toFixed(4) : '--';
+};
+const formatCounterfactualValue = (value) => {
+  if (Array.isArray(value)) return value.join(' ~ ');
+  const num = Number(value);
+  return Number.isFinite(num) ? String(num) : (value === null || value === undefined ? '--' : String(value));
+};
+
+const counterfactualSummary = computed(() => {
+  const cf = counterfactualReport.value;
+  if (!cf) return null;
+  const effect = cf.effect || {};
+  const pValue = Number(effect.pValue);
+  const diff = Number(effect.meanDifference);
+  const diffTone = !Number.isFinite(diff) ? '' : (diff > 0 ? 'good' : 'warn');
+  const pTone = !Number.isFinite(pValue) ? '' : (pValue <= 0.05 ? 'good' : pValue <= 0.1 ? 'warn' : 'danger');
+  const seedLabel = cf.seedControlled === true
+    ? '后端已回执，种子受控'
+    : cf.seedControlled === false
+      ? '后端未回执，种子未受控'
+      : '待后端回执确认';
+  return {
+    seedTone: cf.seedControlled === true ? 'success' : cf.seedControlled === false ? 'warning' : 'info',
+    seedLabel,
+    items: [
+      { label: '配对样本 n', value: String(effect.n ?? 0), tone: '' },
+      { label: '事实世界完成率', value: formatCounterfactualPercent(cf.factualDistribution?.mean), tone: '' },
+      { label: '反事实世界完成率', value: formatCounterfactualPercent(cf.distribution?.mean), tone: '' },
+      { label: '配对差值均值', value: formatCounterfactualPercent(effect.meanDifference), tone: diffTone },
+      { label: '差值 95% CI', value: `${formatCounterfactualPercent(effect.ci95?.[0])} ~ ${formatCounterfactualPercent(effect.ci95?.[1])}`, tone: '' },
+      { label: '符号检验 p', value: formatCounterfactualP(effect.pValue), tone: pTone }
+    ],
+    conclusion: cf.conclusion || '（本次未生成结论文本）',
+    interventions: Array.isArray(cf.interventionDiff) ? cf.interventionDiff : []
+  };
+});
+
+// 反事实结论（纯文本导出用）
+const buildCounterfactualText = () => {
+  const cf = counterfactualReport.value;
+  if (!cf) return '';
+  const seedState = cf.seedControlled === true
+    ? '后端已回执，种子受控'
+    : cf.seedControlled === false
+      ? '后端未回执，种子未受控'
+      : '待后端回执确认';
+  const rows = [
+    '五、反事实实验结论（事实 / 反事实成对世界）',
+    '------------------------------------------',
+    `随机种子：${cf.seed === null || cf.seed === undefined ? '--' : cf.seed}（${seedState}）`,
+    `配对样本数 n：${cf.effect?.n ?? 0}`,
+    `事实世界完成率：均值 ${formatCounterfactualPercent(cf.factualDistribution?.mean)}，95% CI ${formatCounterfactualPercent(cf.factualDistribution?.ci95?.[0])} ~ ${formatCounterfactualPercent(cf.factualDistribution?.ci95?.[1])}`,
+    `反事实世界完成率：均值 ${formatCounterfactualPercent(cf.distribution?.mean)}，95% CI ${formatCounterfactualPercent(cf.distribution?.ci95?.[0])} ~ ${formatCounterfactualPercent(cf.distribution?.ci95?.[1])}`,
+    `配对差值：均值 ${formatCounterfactualPercent(cf.effect?.meanDifference)}，95% CI ${formatCounterfactualPercent(cf.effect?.ci95?.[0])} ~ ${formatCounterfactualPercent(cf.effect?.ci95?.[1])}，符号检验 p = ${formatCounterfactualP(cf.effect?.pValue)}`,
+    '',
+    cf.conclusion || '（未生成结论）',
+    ''
+  ];
+  return rows.join('\n');
+};
 
 const parameterMatrixRows = computed(() => {
   return [
@@ -676,7 +835,7 @@ const metricCellClass = (key, row) => {
   return '';
 };
 
-const factorEffectMap = {
+const URANIUM_FACTOR_EFFECTS = {
   order_multiplier: '全球核电反应堆铀需求倍数，直接影响铀矿订单量和供应压力。',
   factory_capacity_range: '铀矿年产能上下限(tU/年)，决定全球铀供应能否满足核电需求。',
   capacity_range: '铀矿产能区间，约束供给侧承载能力，影响供应缺口大小。',
@@ -690,6 +849,32 @@ const factorEffectMap = {
   key_params: '聚合铀供应链实验关注变量，是解释实验结论的核心参数集合。'
 };
 
+// 汽车侧兜底释义（与参数目录同名同义，目录不可用时才使用）
+const AUTOMOTIVE_FACTOR_EFFECTS = {
+  order_multiplier: '控制市场需求强度的核心调参项，直接影响订单生成量与工厂承压程度。',
+  factory_capacity_range: '总厂下属工厂月产能范围，决定产能池能否覆盖订单需求。',
+  capacity_range: '工厂月生产能力范围，约束供给侧承载能力与订单积压水平。',
+  reproduction_threshold: '企业触发繁殖/扩张的资本门槛，影响新工厂进入与产能扩张节奏。',
+  collaboration_radius: '总厂调度可联动工厂的空间范围，影响协作效率与网络密度。',
+  adjustment_ratio: '工厂产能调整速率，反映产能扩张/收缩对需求变化的响应速度。',
+  network_density: '供应链网络连接密度，反映工厂—销售商协作关系的丰富程度。',
+  network_stability: '网络在需求波动与订单扰动下的稳定性，关键韧性指标。',
+  production_capacity_est: '产能估算，反映当前产能配置对订单缺口的覆盖能力。',
+  max_iterations: '决定仿真搜索深度，影响最优产能配置被发现的概率。',
+  total_enterprises: '供应链中工厂/销售商/供应商节点数，影响网络规模与协作复杂度。',
+  key_params: '聚合汽车供应链实验关注变量，是解释实验结论的核心参数集合。'
+};
+
+const factorEffectMap = computed(() =>
+  isUraniumScene.value ? URANIUM_FACTOR_EFFECTS : AUTOMOTIVE_FACTOR_EFFECTS
+);
+
+// 参数释义：优先用场景释义表，未覆盖的参数给通用说明
+const resolveFactorEffect = (param) => (
+  factorEffectMap.value[param?.key]
+  || `${param?.label} 通过改变${sceneText.value.systemLabel}实验配置影响订单完成率、利润和综合得分。`
+);
+
 const factorSummaries = computed(() => {
   const params = displayParameters.value.length
     ? displayParameters.value
@@ -700,13 +885,13 @@ const factorSummaries = computed(() => {
   return params.slice(0, 5).map((param, index) => ({
     ...param,
     score: Math.max(38, 92 - index * 11),
-    effect: factorEffectMap[param.key] || `${param.label} 通过改变供应链实验配置影响订单完成率、利润和综合得分。`
+    effect: resolveFactorEffect(param)
   }));
 });
 
 const topFactor = computed(() => factorSummaries.value[0] || null);
 
-const pathSummaries = computed(() => [
+const URANIUM_PATHS = [
   {
     title: '铀需求冲击传导路径',
     chain: '全球核电需求↑ → 铀矿订单量激增 → 现有矿山产能承压 → 供应完成率波动→供应缺口扩大',
@@ -720,9 +905,37 @@ const pathSummaries = computed(() => [
   {
     title: '地缘政治风险传导路径',
     chain: '产铀国政局突变 → 关键矿山停产 → 供应网络切换 → 替代产能启动 → 完成率恢复',
-    note: linkedSession.value ? '该路径可与原始建模过程中的任务拆解继续联动。' : '建议补充NEA Red Book数据以增强预测准确性。'
+    note: '建议补充NEA Red Book数据以增强预测准确性。'
   }
-]);
+];
+
+const AUTOMOTIVE_PATHS = [
+  {
+    title: '市场需求冲击传导路径',
+    chain: '市场需求强度↑ → 订单生成量激增 → 工厂产能与协作半径承压 → 订单完成率波动 → 订单积压扩大',
+    note: '解释市场需求扰动（宏观背景倍数 × 订单生成率）对汽车供应链的基础影响。'
+  },
+  {
+    title: '工厂产能调节路径',
+    chain: '工厂产能配置 → 订单处理能力 → 订单积压/库存变化 → 利润与供应保障能力回升',
+    note: '最优轮次的产能区间可作为后续干预实验与反事实实验的参考基线。'
+  },
+  {
+    title: '企业进入退出风险路径',
+    chain: '成本或政策冲击 → 企业退出加速 → 协作网络重构 → 替代产能与协作半径调整 → 完成率恢复',
+    note: '建议结合参数目录中的运营成本/破产阈值区间继续校验该路径。'
+  }
+];
+
+const pathSummaries = computed(() => {
+  const paths = isUraniumScene.value ? URANIUM_PATHS : AUTOMOTIVE_PATHS;
+  if (!linkedSession.value) return paths;
+  return paths.map((path, index) => (
+    index === paths.length - 1
+      ? { ...path, note: '该路径可与原始建模过程中的任务拆解继续联动。' }
+      : path
+  ));
+});
 
 const keyFactors = computed(() => {
   return factorSummaries.value.slice(0, 4).map((factor, index) => ({
@@ -736,12 +949,14 @@ const keyFactors = computed(() => {
 const loadReportData = async () => {
   try {
     loading.value = true;
-    const expResp = await getExperiments();
-    const experiments = unwrapApiData(expResp) || [];
+    // 接口把铀与汽车两类实验混在一起返回，必须按当前场景过滤，
+    // 否则会拿另一场景的实验（列表第一条是铀实验）生成汽车报告。
+    const experiments = await loadScenarioExperiments();
     if (!Array.isArray(experiments) || experiments.length === 0) {
       reportData.value = null;
       comparisonData.value = null;
       linkedSession.value = null;
+      counterfactualReport.value = null;
       return;
     }
 
@@ -750,8 +965,12 @@ const loadReportData = async () => {
       reportData.value = null;
       comparisonData.value = null;
       linkedSession.value = null;
+      counterfactualReport.value = null;
       return;
     }
+
+    // 反事实实验交接：按实验 id 读取结论与分布（无则保持 null，不影响原报告流程）
+    counterfactualReport.value = loadCounterfactualReport(experimentId);
 
     const reportResp = await getExperimentReport(experimentId);
     const report = unwrapApiData(reportResp);
@@ -812,7 +1031,7 @@ const generateReportHtml = (data) => {
 <html>
 <head>
   <meta charset="utf-8">
-  <title>实验报告_${safeGetValue(data, 'experiment_id', '-')}</title>
+  <title>${sceneText.value.systemLabel}复盘报告_${safeGetValue(data, 'experiment_id', '-')}</title>
   <style>
     body { font-family: "Microsoft YaHei", Arial, sans-serif; color: #0f172a; line-height: 1.6; padding: 24px; }
     section, article { break-inside: avoid; }
@@ -826,7 +1045,7 @@ const generateReportHtml = (data) => {
   </style>
 </head>
 <body>
-  <h1>实验报告</h1>
+  <h1>${sceneText.value.systemLabel}复盘报告</h1>
   <p>生成时间：${new Date().toLocaleString('zh-CN')}</p>
   ${content}
 </body>
@@ -854,7 +1073,7 @@ const exportReport = (format = 'html') => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `实验报告_${reportData.value.experiment_id}.${isHtml ? 'html' : 'txt'}`;
+    link.download = `${sceneText.value.systemLabel}_复盘报告_${reportData.value.experiment_id}.${isHtml ? 'html' : 'txt'}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -955,7 +1174,7 @@ const exportReportPdf = async () => {
     }
 
     const safeName = String(reportData.value?.experiment_id || 'report').replace(/[\\/:*?"<>|]/g, '_');
-    pdf.save(`实验报告_${safeName}.pdf`);
+    pdf.save(`${sceneText.value.systemLabel}_复盘报告_${safeName}.pdf`);
     ElMessage.success(`报告已导出为 PDF（共 ${pageIndex} 页）`);
   } catch (error) {
     if (import.meta.env.DEV) {
@@ -974,7 +1193,7 @@ const generateReportText = (data) => {
   const paramText = params.map(p => `${p.label}：${p.value}`).join('\n') || '无';
 
   return `
-实验报告
+${sceneText.value.systemLabel}复盘报告
 ==========================================
 
 一、实验概览
@@ -982,11 +1201,11 @@ const generateReportText = (data) => {
 实验ID：${safeGetValue(data, 'experiment_id', '-')}
 实验目标：${safeGetValue(data, 'goal', '-')}
 迭代次数：${safeGetValue(data, 'iterations', 0)}轮
-铀供应链节点：${safeGetValue(data, 'enterprise_count', 0)}个
+${sceneText.value.systemLabel}节点：${safeGetValue(data, 'enterprise_count', 0)}个
 创建时间：${formatDate(safeGetValue(data, 'created_at', ''))}
 实验状态：${getStatusText(safeGetValue(data, 'status', ''))}
 
-二、铀供应链关键参数
+二、${sceneText.value.systemLabel}关键参数
 ------------------------------------------
 ${paramText}
 
@@ -1005,9 +1224,11 @@ ${paramText}
 
 平均订单完成率为 ${formatPercent(data.avg_completion_rate)}，平均净利润为 ${formatProfit(data.avg_profit)}。
 
-建议：基于最优轮次的铀矿产能和新矿投产策略，参考NEA Red Book预测，在实际铀供应链规划中应用最优配置以保障供应安全。
+建议：${isUraniumScene.value
+    ? '基于最优轮次的铀矿产能和新矿投产策略，参考NEA Red Book预测，在实际铀供应链规划中应用最优配置以保障供应安全。'
+    : '基于最优轮次的工厂产能与订单匹配策略，结合参数目录中的产能/成本区间，在实际汽车供应链排产中应用最优配置以保障订单履约。'}
 
-==========================================
+${buildCounterfactualText()}==========================================
 报告生成时间：${new Date().toLocaleString('zh-CN')}
 `;
 };
@@ -1018,9 +1239,9 @@ const formatDate = (dateStr) => {
   return new Date(dateStr).toLocaleString('zh-CN');
 };
 
-// 格式化参数名称
-const formatParamName = (key) => {
-  const nameMap = {
+// 参数名称：铀侧沿用原有文案；汽车侧对齐后端参数目录（configs/agent_config.yaml 的 displayName）
+const PARAM_NAME_FALLBACK = {
+  uranium: {
     order_multiplier: '铀需求强度',
     factory_capacity_range: '铀矿产能区间',
     capacity_range: '铀矿产能区间',
@@ -1029,7 +1250,22 @@ const formatParamName = (key) => {
     network_density: '网络密度',
     network_stability: '网络稳定性',
     max_iterations: '最大迭代数'
-  };
+  },
+  supply_chain: {
+    order_multiplier: '市场需求强度',
+    factory_capacity_range: '工厂产能范围',
+    capacity_range: '产能范围',
+    reproduction_threshold: '企业繁殖阈值',
+    collaboration_radius: '协作半径',
+    adjustment_ratio: '产能调整速率',
+    network_density: '网络密度',
+    network_stability: '网络稳定性',
+    max_iterations: '最大迭代数'
+  }
+};
+
+const formatParamName = (key) => {
+  const nameMap = isUraniumScene.value ? PARAM_NAME_FALLBACK.uranium : PARAM_NAME_FALLBACK.supply_chain;
   return nameMap[key] || key;
 };
 
@@ -1115,6 +1351,14 @@ watch(currentExperimentId, (newId) => {
   }
 });
 
+// 场景变化（首页切换 / ?scenario= 进入）：清空旧报告并按新场景重新生成
+watch(isUraniumScene, () => {
+  reportData.value = null;
+  comparisonData.value = null;
+  linkedSession.value = null;
+  loadReportData();
+});
+
 // 初始化
 onMounted(() => {
   loadReportData();
@@ -1169,6 +1413,11 @@ onMounted(() => {
   color: #64748b;
   font-size: 13px;
   font-weight: 600;
+}
+
+.scene-tag {
+  margin-right: 8px;
+  vertical-align: middle;
 }
 
 .head-actions {
@@ -1398,6 +1647,43 @@ onMounted(() => {
   text-align: center;
   color: #94a3b8;
   font-size: 13px;
+}
+
+/* ---- 反事实实验 ---- */
+.report-counterfactual {
+  border-left: 4px solid #6366f1;
+  background: linear-gradient(135deg, #eef2ff, #ffffff);
+}
+
+.report-counterfactual .section-head {
+  padding: 10px 16px;
+  border-bottom: 1px solid #e0e7ff;
+}
+
+.report-counterfactual .section-head h2 {
+  color: #4338ca;
+}
+
+.cf-interventions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.cf-interventions-label {
+  font-weight: 700;
+}
+
+.cf-intervention-tag {
+  padding: 3px 8px;
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #3730a3;
+  font-weight: 600;
 }
 
 .session-list,

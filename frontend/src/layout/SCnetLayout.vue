@@ -1,5 +1,5 @@
 <template>
-  <div style="display: flex; width: 100%; height: 100vh; overflow: hidden;">
+  <div class="scnet-layout-root" style="display: flex; width: 100%; height: 100vh; overflow: hidden;">
     <!--	左侧菜单栏 -->
     <div class="menu-pos">
       <el-menu :default-active="activeIndex" class="el-menu-vertical-demo"
@@ -18,18 +18,43 @@
           </div>
         </div>
 
+        <!-- ===== 常驻顶部：三个阶段下都不随阶段切换 ===== -->
+        <!--	返回阶段选择（三个阶段的公用入口页，即 /SCnet/total）	-->
+        <el-menu-item index="/home/SCnet/total" class="back-select-item">
+          <el-icon size="18"><Grid/></el-icon>
+          <template #title>阶段选择</template>
+        </el-menu-item>
+
+        <!--	知识库：没有独立路由，打开的是 /SCnet/total 右上角「知识平台」同一个全屏浮层。
+              index 不是真路由，用 route 顶成"当前地址"让 el-menu 的 router 模式变成
+              重复导航（Vue Router 4 返回 NavigationFailure，不跳转也不报错），
+              真正的动作在 @click 里。activeIndex 同步跳过它，见 onMenuSelect。	-->
+        <el-menu-item
+          index="scnet-knowledge-platform"
+          class="back-select-item"
+          :route="currentLocation"
+          @click="openKnowledgePlatform"
+        >
+          <el-icon size="18"><Collection/></el-icon>
+          <template #title>知识平台</template>
+        </el-menu-item>
+
+        <!--	返回想定生成（回到对话/想定页）	-->
+        <el-menu-item index="/chatHome" class="back-select-item">
+          <el-icon size="18"><ChatDotSquare/></el-icon>
+          <template #title>想定生成</template>
+        </el-menu-item>
+
+        <!-- ===== 以下随阶段（事前 / 事中 / 事后）整组切换 ===== -->
+        <!-- li 而非 div：el-menu 渲染的就是 ul，插 div 是非法嵌套 -->
+        <li class="phase-menu-divider" aria-hidden="true"></li>
+
         <!--	阶段徽标（折叠时隐藏文字，保持边距）	-->
         <div v-show="!isCollapse && currentPhase" class="phase-indicator" :class="'phase-' + currentPhase">
           <span class="phase-dot"></span>
           <span class="phase-label">{{ phaseLabels[currentPhase] }}</span>
         <span class="scenario-menu-badge" :class="currentScenario === 'supply_chain' ? 'is-auto' : 'is-uranium'">{{ scenarioLabel }}</span>
         </div>
-
-        <!--	返回对话首页	-->
-        <el-menu-item index="/chatHome" class="back-select-item">
-          <el-icon size="18"><ChatDotSquare/></el-icon>
-          <template #title>对话首页</template>
-        </el-menu-item>
 
         <!-- ========== 事前：风险识别与预警 ========== -->
         <template v-if="currentPhase === 'pre'">
@@ -142,6 +167,12 @@
           </el-menu-item>
         </template>
 
+        <!-- 独立附加功能，不参与任何阶段工作流 -->
+        <el-menu-item index="/home/SCnet/expertSeminar">
+          <el-icon size="18"><Connection/></el-icon>
+          <template #title>专家研讨厅</template>
+        </el-menu-item>
+
         <!-- index 不可为 "0"：router 模式下会执行 router.push("0") 导致无法访问 -->
         <el-menu-item index="scnet-menu-exit" :route="'/home'">
           <el-icon size="18"><SwitchButton/></el-icon>
@@ -162,11 +193,23 @@
     </div>
     <div :class="isCollapse ? 'body-pos-shrink' : 'body-pos-expand'">
       <AppHeader style="flex-shrink: 0; z-index: 2000"/>
+      <!-- 阶段 / 知识平台快捷导航：零高度锚点 + 绝对定位浮层。
+           锚点必须放在滚动容器之外：放进 .scnet-router-host 里的话，
+           浮层向上越出容器顶部的那部分会被 overflow-y: auto 直接裁掉。
+           它 flex: 0 0 auto + height: 0，既不占高度也不推挤页面内容。 -->
+      <ScnetPhaseNav />
       <div class="scnet-router-host">
         <router-view />
       </div>
     </div>
 
+    <!-- 知识库全屏浮层：与 /SCnet/total 右上角「知识平台」是同一个组件，挂在 body 上铺满视口 -->
+    <Teleport to="body">
+      <component :is="KnowledgePlatform" v-if="showKnowledgePlatform" @close="closeKnowledgePlatform" />
+    </Teleport>
+
+    <!-- 专家模式:全局运行进度浮窗(只读真实任务状态,不随案例切换变化) -->
+    <ExpertWorkflowProgressFloat v-if="showExpertProgress" />
 
     <!-- 浮动切换按钮：转到对话模式 -->
     <el-tooltip content="切换到AI对话模式" placement="left" effect="dark">
@@ -180,7 +223,7 @@
 <script>
 import {
   Aim, Box, Coin, Collection, Connection, Cpu, DataAnalysis, DataLine, Document, DocumentDelete, Edit,
-  FolderOpened, Grid, House, MapLocation, Memo, Monitor, Notification, Operation, Orange,
+  FolderOpened, Grid, House, Memo, Monitor, Notification, Operation, Orange,
   PieChart, Place, Postcard, Promotion, ScaleToOriginal, Search as SearchIcon, Setting,
   SwitchButton, TrendCharts, User, WarningFilled, ChatDotSquare, CircleCheck
 } from "@element-plus/icons-vue";
@@ -188,14 +231,25 @@ import {ref, onMounted, onUnmounted, computed, watch} from "vue";
 import {useRoute, useRouter} from "vue-router";
 import {Files, Refresh} from "@element-plus/icons-vue";
 import AppHeader from "@/components/Header.vue";
+import ScnetPhaseNav from "@/components/ScnetPhaseNav.vue";
+import ExpertWorkflowProgressFloat from "@/views/SCnet/components/ExpertWorkflowProgressFloat.vue";
+import { useExpertWorkflowStore } from "@/stores/scnet/useExpertWorkflowStore";
 import { useScenarioStore } from "@/stores/scenario";
+import { useKnowledgePlatform } from "@/views/SCnet/composables/useKnowledgePlatform";
 import { PHASE_EVENT, PHASE_STORAGE_KEY, ROUTE_TO_PHASE } from "@/constants/scnetPhase";
 
+const KNOWLEDGE_PLATFORM_INDEX = 'scnet-knowledge-platform'
+
 const PRE_MAIN_MENU_ITEMS = Object.freeze([
-  // 需求分析已从主流程移除(K2-FLOW):对话首页承担研判入口,页面/路由保留供直接访问
-  // { index: '/home/SCnet/situationAnalysis', label: '需求分析', icon: DataLine },
-  { index: '/home/SCnet/knowledgeGraph', label: '知识库', icon: Collection },
-  { index: '/home/SCnet/openSourceIntelligence', label: '开源情报', icon: WarningFilled },
+  // 「场景设定」为事前新入口(需求分析页保留供直接访问,不再作为卡片默认跳转)
+  // 知识库 / 开源情报 不再作为事前菜单项：知识库入口已提到左侧栏顶部常驻
+  // （index 固定为 阶段选择 之后），开源情报由知识平台的「数据治理」页签承载。
+  // 页面和路由都还在，去掉下面两行注释即可恢复。
+  // { index: '/home/SCnet/knowledgeGraph', label: '知识库', icon: Collection },
+  { index: '/home/SCnet/scenarioSetting', label: '场景设定', icon: Setting },
+  // 方案确认位于场景设定与知识库之间:场景设定后先生成方案,确认后才进入正式分析
+  { index: '/home/SCnet/planConfirmation', label: '事前方案确认', icon: Memo },
+  // { index: '/home/SCnet/openSourceIntelligence', label: '开源情报', icon: WarningFilled },
 ])
 
 const PRE_ANALYSIS_MENU_ITEMS = Object.freeze([
@@ -204,8 +258,7 @@ const PRE_ANALYSIS_MENU_ITEMS = Object.freeze([
 ])
 
 const PRE_TAIL_MENU_ITEMS = Object.freeze([
-  // 报告生成已从主流程移除(K2-FLOW):对话结果内「导出PDF」替代;页面/路由保留供直接访问
-  // { index: '/home/SCnet/reportGeneration', label: '报告生成', icon: Document }
+  { index: '/home/SCnet/reportGeneration', label: '报告生成', icon: Document }
 ])
 
 const DURING_MAIN_MENU_ITEMS = Object.freeze([
@@ -230,19 +283,19 @@ const DURING_ANALYSIS_MENU_ITEMS = Object.freeze([
 
 // 实验分析子菜单之前展示的主菜单项
 const POST_MAIN_MENU_ITEMS = Object.freeze([
-  { index: '/home/SCnet/counterfactualExperiment', label: '反事实实验', icon: PieChart }
+  { index: '/home/SCnet/experimentPlan', label: '实验方案设计', icon: Edit },
+  { index: '/home/SCnet/counterfactualExperiment', label: '反事实实验平台', icon: PieChart }
 ])
 
 const POST_ANALYSIS_MENU_ITEMS = Object.freeze([
   { index: '/home/SCnet/expAnalysisObserve', label: '观察分析', icon: SearchIcon },
   { index: '/home/SCnet/expAnalysisIntervention', label: '干预分析', icon: Operation },
-  { index: '/home/SCnet/expAnalysisMechanism', label: '机制与因果', icon: ScaleToOriginal }
+  { index: '/home/SCnet/expAnalysisMechanism', label: '机制分析', icon: ScaleToOriginal }
 ])
 
 // 实验分析子菜单之后展示的主菜单项
 const POST_TAIL_MENU_ITEMS = Object.freeze([
-  { index: '/home/SCnet/expAnalysisMap', label: '供应链态势地图', icon: MapLocation },
-  { index: '/home/SCnet/EXreport', label: '供应链实验报告', icon: Postcard }
+  { index: '/home/SCnet/EXreport', label: '复盘报告', icon: Postcard }
 ])
 
 /**
@@ -266,7 +319,7 @@ function resolveActiveMenuIndex(route, items) {
     let score = 0
     let matched = true
     for (const [key, value] of params.entries()) {
-      if (key === 'scenario') continue
+      if (key === 'scenario' || key === 'session_id') continue
       if (String(routeQuery[key] ?? '') !== value) { matched = false; break }
       score += 1
     }
@@ -287,9 +340,11 @@ export default {
     Edit,
     Cpu,
     Connection,
+    ExpertWorkflowProgressFloat,
     Refresh, Files, DataAnalysis, DataLine, DocumentDelete, House, Aim, Box, Collection,
     Document, Notification, Operation, Postcard, Promotion, ScaleToOriginal, SearchIcon, Setting,
     Coin, PieChart, FolderOpened, Grid, SwitchButton, Orange, TrendCharts, User, AppHeader, WarningFilled, ChatDotSquare, CircleCheck,
+    ScnetPhaseNav
   },
   setup() {
     const route = useRoute()
@@ -299,6 +354,7 @@ export default {
     // currentPhase 优先按当前路由推断，避免旧的 localStorage 状态把菜单带偏；
     // 仅当路由无法识别时再回落到 localStorage。
     const currentPhase = computed(() => {
+      if (route.path === '/home/SCnet/expertSeminar') return ''
       return ROUTE_TO_PHASE[route.path] || storedPhase.value || ''
     })
 
@@ -316,7 +372,63 @@ export default {
     // 场景标签
     const scenarioLabel = computed(() => currentScenario.value === 'supply_chain' ? '🚗 汽车' : '☢️ 铀')
 
+    // ── 知识库（左侧栏常驻入口）──
+    // 与 /SCnet/total 右上角「知识平台」共用同一个全屏浮层
+    const {
+      KnowledgePlatform,
+      visible: showKnowledgePlatform,
+      open: openKnowledgePlatform,
+      close: closeKnowledgePlatform
+    } = useKnowledgePlatform()
+    /**
+     * 知识库菜单项不是真路由：el-menu 开了 router 模式，会把 index 当 path 推。
+     * 这里把 route 顶成"当前地址"，push 退化成重复导航（不跳转、不报错），
+     * 菜单项的选中态再由 onMenuSelect 跳过，避免它把高亮抢走。
+     */
+    const currentLocation = computed(() => ({
+      path: route.path,
+      query: route.query,
+      hash: route.hash
+    }))
+
     const isUraniumScenario = computed(() => currentScenario.value === 'uranium')
+
+    // ── 专家模式全局进度:浮窗 + 唯一的轮询归属方 ──
+    // 轮询由布局统一持有,专家模式内部换页不会中断;
+    // 离开专家模式(切到非专家页面)才清理,避免后台空转。
+    const expertWorkflowStore = useExpertWorkflowStore()
+    const EXPERT_ROUTE_PATHS = [
+      '/home/SCnet/planConfirmation',
+      '/home/SCnet/openSourceIntelligence',
+      '/home/SCnet/situationJudge',
+      '/home/SCnet/situationResearch-main',
+      '/home/SCnet/reportGeneration'
+    ]
+    const isExpertRoute = computed(() => EXPERT_ROUTE_PATHS.includes(route.path))
+    const expertSessionId = computed(
+      () => String(route.query.session_id || expertWorkflowStore.sessionId || '')
+    )
+    const showExpertProgress = computed(
+      () => isExpertRoute.value && Boolean(expertSessionId.value)
+    )
+    /**
+     * 左侧导航统一带任务上下文。
+     * 只带 scenario 不带 session_id 会让目标页以为"没有当前任务",
+     * 于是渲染默认页面 —— 这正是"报告完成后回看前置步骤结果消失"的原因。
+     */
+    const withTaskContext = (path) => {
+      const parts = [`scenario=${currentScenario.value}`]
+      if (expertSessionId.value) parts.push(`session_id=${expertSessionId.value}`)
+      return `${path}?${parts.join('&')}`
+    }
+    watch(
+      () => [isExpertRoute.value, expertSessionId.value],
+      ([onExpertRoute, sid]) => {
+        if (onExpertRoute && sid) expertWorkflowStore.ensurePolling(sid)
+        else if (!onExpertRoute) expertWorkflowStore.cleanup()
+      },
+      { immediate: true }
+    )
 
     const handleStorageChange = (event) => {
       if (event.key === PHASE_STORAGE_KEY) {
@@ -342,9 +454,18 @@ export default {
       ...item,
       index: `${item.index}?scenario=${currentScenario.value}${item.extraQuery ? `&${item.extraQuery}` : ''}`
     })
-    const preMainMenuItems = computed(() => PRE_MAIN_MENU_ITEMS.map(withScenario))
-    const preAnalysisMenuItems = computed(() => PRE_ANALYSIS_MENU_ITEMS.map(withScenario))
-    const preTailMenuItems = computed(() => PRE_TAIL_MENU_ITEMS.map(withScenario))
+    const preMainMenuItems = computed(() => PRE_MAIN_MENU_ITEMS.map(item => ({
+      ...item,
+      index: withTaskContext(item.index)
+    })))
+    const preAnalysisMenuItems = computed(() => PRE_ANALYSIS_MENU_ITEMS.map(item => ({
+      ...item,
+      index: withTaskContext(item.index)
+    })))
+    const preTailMenuItems = computed(() => PRE_TAIL_MENU_ITEMS.map(item => ({
+      ...item,
+      index: withTaskContext(item.index)
+    })))
     const duringMainMenuItems = computed(() => DURING_MAIN_MENU_ITEMS
       .filter((item) => !item.uraniumOnly || isUraniumScenario.value)
       .map((item) => {
@@ -385,6 +506,11 @@ export default {
       currentPhase,
       currentScenario,
       scenarioLabel,
+      KnowledgePlatform,
+      showKnowledgePlatform,
+      openKnowledgePlatform,
+      closeKnowledgePlatform,
+      currentLocation,
       preMainMenuItems,
       preAnalysisMenuItems,
       preTailMenuItems,
@@ -394,7 +520,8 @@ export default {
       duringTailMenuItems,
       postMainMenuItems: POST_MAIN_MENU_ITEMS,
       postAnalysisMenuItems: POST_ANALYSIS_MENU_ITEMS,
-      postTailMenuItems: POST_TAIL_MENU_ITEMS
+      postTailMenuItems: POST_TAIL_MENU_ITEMS,
+      showExpertProgress
     }
   },
   data() {
@@ -408,6 +535,12 @@ export default {
     }
   },
   methods: {
+    onMenuSelect(index) {
+      // 退出系统是跳转项、知识库是浮层项，两者都不改变当前页，别让它们抢走高亮
+      if (index && index !== 'scnet-menu-exit' && index !== KNOWLEDGE_PLATFORM_INDEX) {
+        // activeIndex 由当前路由及 resolveActiveMenuIndex 自动驱动计算
+      }
+    },
     exit() {
       this.$router.push('/home')
     },
@@ -471,6 +604,11 @@ export default {
   overflow-x: hidden;
   overscroll-behavior: contain;
   background: #f1f5f9;
+  /* 这里**不能**加 padding-bottom 给悬浮按钮让位:
+     ScenarioSetting / ExpertPlanConfirmation 的 action-bar 是 sticky bottom:0,
+     容器底部一有内边距,它就被整体顶上去,正好撞进悬浮按钮的位置(实测
+     padding-bottom:88px 时底栏按钮 y=810~850、按钮 y=818~862,反而重叠)。
+     页面底部本来就由这两个操作区占住,不需要再额外留白。 */
 }
 
 .scnet-router-host > * {
@@ -553,10 +691,26 @@ export default {
   margin-bottom: 6px;
 }
 
+/* 常驻入口（阶段选择 / 知识库）与随阶段切换的菜单之间的分隔线 */
+.phase-menu-divider {
+  height: 1px;
+  margin: 4px 10px 10px;
+  background: #e2e8f0;
+}
+
+/* 右下角浮层的避让带。
+   页面底部有两类操作区会占住这个角落:
+     - ExpertWorkflowNav 的"下一步"(fixed, bottom:24px, 高约 52px → 顶到 ~76px)
+     - ScenarioSetting / ExpertPlanConfirmation 的 sticky action-bar(高约 56px → 顶到 ~80px)
+   悬浮按钮必须抬到它们之上,页面内容也要在本区域内留白,否则会相互遮挡。 */
+.scnet-layout-root {
+  --scnet-float-safe-bottom: 88px;
+}
+
 /* 浮动切换按钮 */
 .chat-toggle-float-btn {
   position: fixed;
-  bottom: 24px;
+  bottom: var(--scnet-float-safe-bottom);
   right: 24px;
   z-index: 9999;
   width: 44px;
@@ -578,5 +732,13 @@ export default {
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.06);
   color: #6366f1;
   border-color: rgba(99, 102, 241, 0.2);
+}
+
+/* 窄屏(与 ExpertWorkflowProgressFloat 的 is-narrow 断点一致):
+   进度浮窗也收到右下角(bottom:96px),切换按钮要再抬一层,避免压住它 */
+@media (max-width: 1280px) {
+  .chat-toggle-float-btn {
+    bottom: 152px;
+  }
 }
 </style>

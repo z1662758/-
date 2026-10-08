@@ -56,7 +56,14 @@ app
   .use(pinia)
   .use(ElementPlus, {
     locale: zhCn,
-    size: "large"
+    size: "large",
+    /*
+     * Element Plus 的浮层（消息提示 / 下拉 / 日期面板…）z-index 默认从 2000 起递增，
+     * 低于本项目里几处全屏浮层（知识平台 kp-shell、知识图谱遮罩、对话侧栏 = 9999），
+     * 结果在这些浮层里 ElMessage 和下拉会被压在下面看不见。
+     * 起步值抬到 10000：应用自身 chrome 最高 9999，EP 浮层永远在其之上。
+     */
+    zIndex: 10000
   })
   .use(AMap, {
     // 高德的key（从环境变量读取）

@@ -19,7 +19,7 @@ export const SCNET_PHASE_SHORT_LABELS = Object.freeze({
 })
 
 export const SCNET_PHASE_ROUTE_MAP = Object.freeze({
-  pre: SCNET_ROUTES.situationAnalysis,
+  pre: SCNET_ROUTES.scenarioSetting,
   during: SCNET_ROUTES.duringEntry,
   post: SCNET_ROUTES.counterfactualExperiment
 })

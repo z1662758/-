@@ -9,17 +9,27 @@
           <h1 class="kc-home-title__text">知识库</h1>
           <span class="kc-home-title__sub">{{ domainLabel }}领域{{ scenarioStore.isSupplyChain ? ' · 统计信息' : ' · 实时统计' }}</span>
         </div>
-        <div class="kc-domain-switch" role="group" aria-label="知识库领域切换">
+        <div class="kc-home-actions">
           <button
-            v-for="d in domainOptions"
-            :key="d.id"
             type="button"
-            class="kc-domain-switch__btn"
-            :class="{ 'is-active': domainId === d.id }"
-            @click="setDomain(d.id)"
+            class="kc-import-btn"
+            title="导入数据（Excel / PDF / Word 等）"
+            @click="openImportDialog"
           >
-            <span class="kc-domain-switch__dot" :class="`is-${d.id}`"></span>{{ d.label }}
+            <el-icon :size="14"><Upload /></el-icon>导入
           </button>
+          <div class="kc-domain-switch" role="group" aria-label="知识库领域切换">
+            <button
+              v-for="d in domainOptions"
+              :key="d.id"
+              type="button"
+              class="kc-domain-switch__btn"
+              :class="{ 'is-active': domainId === d.id }"
+              @click="setDomain(d.id)"
+            >
+              <span class="kc-domain-switch__dot" :class="`is-${d.id}`"></span>{{ d.label }}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -836,6 +846,49 @@
       </template>
     </el-dialog>
 
+    <!-- Import Dialog（页头「导入」：Excel / PDF / Word 等原始数据入库） -->
+    <el-dialog
+      v-model="showImportDialog"
+      title="导入数据"
+      width="520px"
+      :append-to-body="true"
+      destroy-on-close
+      @closed="resetImportDialog"
+    >
+      <el-form ref="importFormRef" :model="importForm" :rules="importRules" label-width="90px">
+        <el-form-item label="数据集" prop="bookName">
+          <el-input v-model="importForm.bookName" placeholder="例如：铀矿月度报告 2026" size="default" />
+        </el-form-item>
+        <el-form-item label="数据文件">
+          <el-upload
+            ref="importUploadRef"
+            :auto-upload="false"
+            :on-change="handleImportFileChange"
+            :on-remove="handleImportFileRemove"
+            :file-list="importFileList"
+            :show-file-list="true"
+            multiple
+            accept=".xlsx,.xls,.csv,.pdf,.doc,.docx,.txt,.md,.json"
+            action=""
+          >
+            <el-button size="small" type="primary">选择文件</el-button>
+            <template #tip>
+              <div class="el-upload__tip">支持 Excel（.xlsx/.xls/.csv）、PDF、Word、文本等，可多选</div>
+            </template>
+          </el-upload>
+        </el-form-item>
+        <el-form-item label="归属领域">
+          <span class="kc-import-domain">{{ domainLabel }}</span>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button size="small" @click="showImportDialog = false">取消</el-button>
+        <el-button size="small" type="primary" :loading="importSubmitting" @click="submitImport">
+          {{ importSubmitting ? '导入中...' : '导入并解析' }}
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- Crawl Dialog -->
     <el-dialog v-model="showCrawlDialog" title="从 arXiv 爬取论文" width="420px">
       <el-form label-width="100px">
@@ -1346,6 +1399,7 @@ import KnowledgeGraph from './PreScene/KnowledgeGraph.vue'
 import { getScnetOsintEvents, getOsintNewsDetail } from '@/api/powerGame/osintKnowledgeGraph'
 import { getUraniumKnowledgeSummary, getChinaRouteEvidence, getSubjectsSummary, getSubjects, getSubjectDetail, getSubjectEvents, getSubjectRelations, getEnvironmentSummary, getEnvironmentDatasets, getEnvironmentDataset, getChinaCurrentSituation, getChinaTradeStructure, getRulesSummary, getRules, getRuleDetail, getUraniumModelSummary, getUraniumModels, getUraniumModel, runUraniumModel, getExpertViewsSummary, getUraniumPaperSummary } from '@/api/powerGame/uraniumKnowledge'
 import { getAutomotiveKnowledgeSummary } from '@/api/powerGame/automotiveKnowledge'
+import { importKnowledgeBook, analyzeKnowledgeBook } from '@/api/knowledgeBase'
 import './KnowledgeCenter.css'
 
 const CATEGORY_LABELS = {
@@ -1381,6 +1435,12 @@ export default {
   props: {
     // 事前页面启用「知识建构 → 本体网络」入口，嵌入原本体网络界面
     showOntologyNetwork: { type: Boolean, default: true },
+    /**
+     * 直接落到某个库的详情页(值同 activeLibrary，如 'ontology_network'
+     * / 'auto_ontology_net')，用于知识平台「本体与知识图谱」页签 ——
+     * 等价于点开九库里的本体网络，省掉一次首页中转。留空则停在九库首页。
+     */
+    initialLibrary: { type: String, default: '' },
   },
   setup() {
     const scenarioStore = useScenarioStore()
@@ -1473,7 +1533,8 @@ export default {
         { key: '军事基地', label: '军事基地' },
         { key: '经济影响', label: '经济影响' },
       ],
-      activeLibrary: null,
+      // 留空=停在九库首页；传值则直接进该库详情(知识平台「本体与知识图谱」页签)
+      activeLibrary: this.initialLibrary || null,
       papersData: [],
       paperPagination: { page: 1, pageSize: 10, total: 0 },
       viewMode: 'graph',
@@ -1482,6 +1543,19 @@ export default {
       showUploadDialog: false,
       selectedFile: null,
       uploadLoading: false,
+      // 页头「导入」：原始数据（Excel/PDF/Word…）入库并解析
+      showImportDialog: false,
+      importSubmitting: false,
+      importForm: { bookName: '' },
+      importRules: {
+        bookName: [
+          { required: true, message: '请输入数据集名称', trigger: 'blur' },
+          { max: 80, message: '名称不超过 80 个字符', trigger: 'blur' },
+        ],
+      },
+      importFileList: [],
+      importFormRef: null,
+      importUploadRef: null,
       showCrawlDialog: false,
       showKeywordDialog: false,
       showExpansionDialog: false,
@@ -3897,6 +3971,72 @@ export default {
       this.isQuerying = false
     },
 
+    // ===== 页头「导入」：Excel / PDF / Word 等原始数据入库后自动触发解析 =====
+    openImportDialog() {
+      this.resetImportDialog()
+      this.showImportDialog = true
+    },
+    resetImportDialog() {
+      this.importForm = { bookName: '' }
+      this.importFileList = []
+      this.importSubmitting = false
+      this.$refs.importFormRef?.resetFields()
+      this.$refs.importUploadRef?.clearFiles()
+    },
+    handleImportFileChange(file, files) {
+      this.importFileList = files
+    },
+    handleImportFileRemove(file, files) {
+      this.importFileList = files
+    },
+    async submitImport() {
+      const files = this.importFileList
+        .map(f => f.raw || f)
+        .filter(Boolean)
+      if (files.length === 0) {
+        this.$message.warning('请先选择要导入的文件')
+        return
+      }
+      try {
+        await this.$refs.importFormRef?.validate()
+      } catch {
+        return
+      }
+      const bookName = this.importForm.bookName.trim()
+      this.importSubmitting = true
+      try {
+        const formData = new FormData()
+        formData.append('book_name', bookName)
+        files.forEach(f => formData.append('file', f))
+        const res = await importKnowledgeBook(formData)
+        if (!res?.success) {
+          this.$message.error(res?.message || '导入失败，请重试')
+          return
+        }
+        this.$message.success(`已导入 ${files.length} 个文件，正在解析…`)
+        this.showImportDialog = false
+        try {
+          const analyzeRes = await analyzeKnowledgeBook({ book_name: bookName })
+          if (analyzeRes?.success) {
+            this.$message.success('解析任务已启动')
+          } else {
+            this.$message.warning('解析任务启动失败：' + (analyzeRes?.message || '未知原因'))
+          }
+        } catch (err) {
+          console.warn('[Import Analyze Error]', err)
+          this.$message.warning('解析任务启动失败，可在库详情中重试')
+        }
+        // 刷新当前领域统计，让新入库的数据集在首页立即体现
+        if (this.scenarioStore.isSupplyChain) this.loadAutomotiveSummary()
+        else this.fetchUraniumSummary()
+      } catch (e) {
+        console.error('[Import Error]', e)
+        this.$message.error('导入服务暂不可用：' + (e?.message || '网络错误'))
+      } finally {
+        this.importSubmitting = false
+      }
+    },
+
     // ===== Dataset (fallback mock) =====
     onUploadFileChange(file) {
       this.selectedFile = file?.raw || null
@@ -4139,6 +4279,20 @@ export default {
 .kc-home-title { display: flex; align-items: baseline; flex-wrap: wrap; row-gap: 2px; }
 .kc-home-title__text { margin: 0; font-size: 20px; font-weight: 800; color: #0f172a; letter-spacing: 0.3px; }
 .kc-home-title__sub { margin-left: 10px; font-size: 12px; color: #94a3b8; font-weight: 500; }
+
+.kc-home-actions { display: inline-flex; align-items: center; gap: 10px; }
+
+.kc-import-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 16px; border-radius: 999px;
+  border: 1px solid #c7d2fe; background: #eef2ff; color: #4f46e5;
+  font-size: 13px; font-weight: 600; font-family: inherit;
+  cursor: pointer; transition: all 0.15s ease; white-space: nowrap;
+}
+.kc-import-btn:hover { background: #e0e7ff; border-color: #a5b4fc; color: #4338ca; }
+.kc-import-btn:active { transform: translateY(1px); }
+
+.kc-import-domain { font-size: 13px; font-weight: 600; color: #475569; }
 
 .kc-domain-switch {
   display: inline-flex; align-items: center; gap: 4px; padding: 3px;

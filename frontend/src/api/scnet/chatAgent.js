@@ -3,7 +3,7 @@
 import request from '@/utils/request'
 
 /** 启动 Agent 任务。立即返回 202 {task_id, conversation_id, status}。 */
-export function startAgentChat({ message, conversationId = null, providerId = null, modelId = null, mode = 'agent', phase = 'pre' }) {
+export function startAgentChat({ message, conversationId = null, providerId = null, modelId = null, mode = 'agent', phase = 'pre', scenario = null }) {
   return request.post('/agent/chat', {
     message,
     conversation_id: conversationId,
@@ -11,6 +11,8 @@ export function startAgentChat({ message, conversationId = null, providerId = nu
     model_id: modelId,
     mode,
     phase,
+    // 场景一并送后端:事后证据工具据此取对应场景的实验数据,否则汽车场景会读到铀实验
+    scenario: scenario || undefined,
   })
 }
 

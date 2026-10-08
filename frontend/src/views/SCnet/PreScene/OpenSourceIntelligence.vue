@@ -1,22 +1,21 @@
 <template>
-  <el-scrollbar height="89vh">
-    <div class="supply-chain-intelligence">
-      <!-- Header Card Section -->
+  <el-scrollbar :height="scrollHeight">
+    <div class="supply-chain-intelligence osint-live">
+      <!-- ===== 顶部:实时动态(由本次真实事件驱动,不再是固定新闻) ===== -->
       <div class="header-card">
         <div class="news-ticker-wrap">
           <div class="news-ticker-label">
             <el-icon><BellFilled /></el-icon> 供应链实时动态
           </div>
           <div class="news-ticker-content">
-            <div class="news-ticker-track">
-              <span
-                v-for="(news, idx) in [...tickerNewsList, ...tickerNewsList]"
-                :key="idx"
-                class="news-ticker-item"
-              >
-                <span class="ticker-time">{{ news.time }}</span>
-                <span class="ticker-title">{{ news.title }}</span>
-                <span class="ticker-source">({{ news.source }})</span>
+            <div v-if="!tickerItems.length" class="osint-ticker-empty">
+              本次尚未筛选出与当前问题相关的事件
+            </div>
+            <div v-else class="news-ticker-track">
+              <span v-for="(item, idx) in [...tickerItems, ...tickerItems]" :key="idx" class="news-ticker-item">
+                <span class="ticker-time">{{ formatDate(item.occurredAt) }}</span>
+                <span class="ticker-title">{{ item.title }}</span>
+                <span class="ticker-source">({{ sourceTypeLabel(item) }})</span>
                 <span class="ticker-divider">◆</span>
               </span>
             </div>
@@ -24,1212 +23,638 @@
         </div>
 
         <div class="header-main-content">
-
-
           <div class="header-banner">
             <div class="banner-top">
-              <div class="live-tag"><span class="live-dot"></span>实时监控中</div>
-              <div class="run-time">
-                <el-icon><Timer /></el-icon>运行 {{ runDays }}天 {{ runHours }}时 {{ runMins }}分
+              <div class="source-tag" :class="`is-${sourceType}`">
+                <span class="source-tag__dot"></span>{{ sourceLabelText }}
               </div>
-              <div class="update-time">更新于 {{ currentDate }}</div>
-              <el-button text @click="$router.go(-1)">
-                <el-icon><Back /></el-icon>返回
-              </el-button>
+              <div class="live-tag">
+                <span class="live-dot"></span>
+                {{ dataSource === 'example' ? '案例数据' : '当前任务数据' }}
+              </div>
+              <div v-if="generatedAt" class="update-time">生成于 {{ formatDate(generatedAt) }}</div>
             </div>
-
             <div class="banner-main">
               <div class="banner-text">
-                <h1>开源情报 <span class="highlight">实时追踪</span></h1>
-                <p>实时监测全球供应链动态：港口拥堵、政策变化、芯片短缺、物流中断、市场需求波动</p>
+                <h1>开源情报 <span class="highlight">风险事件追踪</span></h1>
+                <p>按本次研判问题筛选供应链相关事件，标注发生地点、影响对象与信息来源</p>
               </div>
               <div class="banner-stats">
                 <div class="stat">
-                  <div class="num">{{ sourceOptions.length || 0 }}</div>
-                  <div class="label">监控网址</div>
+                  <div class="num">{{ activeEvents.length }}</div>
+                  <div class="label">未解除事件</div>
                 </div>
                 <div class="stat">
-                  <div class="num">{{ events.length }}</div>
-                  <div class="label">风险事件</div>
+                  <div class="num">{{ counts.relevant }}</div>
+                  <div class="label">命中本次问题</div>
                 </div>
                 <div class="stat">
-                  <div class="num">{{ highRiskCount }}</div>
-                  <div class="label">高风险事件</div>
+                  <div class="num">{{ counts.effective }}</div>
+                  <div class="label">当前有效</div>
                 </div>
                 <div class="stat">
-                  <div class="num">{{ supplyChainIndex }}</div>
-                  <div class="label">供应链指数</div>
+                  <div class="num">{{ plottedCount }}</div>
+                  <div class="label">已定位</div>
                 </div>
               </div>
             </div>
-
-
           </div>
         </div>
       </div>
 
-      <!-- 地图区域 -->
+      <!-- ===== 筛选 ===== -->
+      <OsintFilterBar
+        v-model:scope="scope"
+        v-model:state="stateFilter"
+        :counts="counts"
+      />
+
+      <!-- ===== 地图 ===== -->
       <div class="map-section">
         <div class="map-container">
-          <WorldBaseMap :events="mapEvents" @select-event="selectEvent" />
+          <WorldBaseMap :events="mapEvents" @select-event="onMapSelect" @zoom="onZoom" />
 
-          <div class="map-controls">
-            <el-dropdown trigger="click">
-              <el-button size="small">
-                <el-icon><Filter /></el-icon>风险筛选
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item
-                    v-for="item in riskTypes"
-                    :key="item.name"
-                    @click="filterByType(item.name)"
-                  >
-                    <span class="filter-dot" :style="{ background: item.color }"></span>
-                    {{ item.name }} ({{ getTypeCount(item.name) }})
-                  </el-dropdown-item>
-                  <el-dropdown-item divided @click="filterByType(null)">
-                    全部显示 ({{ events.length }})
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-
-            <el-button size="small" @click="resetMapView">
-              <el-icon><RefreshRight /></el-icon>重置视图
-            </el-button>
+          <div class="map-legend">
+            <span><i class="dot" style="background:#ef4444"></i>高风险</span>
+            <span><i class="dot" style="background:#f59e0b"></i>中风险</span>
+            <span><i class="dot" style="background:#10b981"></i>低风险</span>
+            <span class="map-legend__hint">
+              数字圆点代表该区域聚合了多个事件，放大地图可拆开
+            </span>
           </div>
 
-          <div class="map-footer">
-            <span>📍 风险点: {{ visibleMarkersCount }}</span>
-            <span>🔄 数据实时更新</span>
-          </div>
-        </div>
-
-        <!-- 搜索栏 -->
-        <div class="search-bar">
-          <el-input
-            v-model="searchKeyword"
-            placeholder="搜索港口、城市、事件..."
-            :prefix-icon="Search"
-            clearable
-            @focus="searchActive = true"
-            @blur="searchActive = false"
-          />
-          <div
-            v-if="searchActive && searchKeyword && searchResults.length"
-            class="search-dropdown"
-          >
-            <div
-              v-for="item in searchResults"
-              :key="item.id"
-              class="search-item"
-              @mousedown.prevent="selectSearchItem(item)"
-            >
-              <span class="search-dot" :style="{ background: item.color }"></span>
-              <span>{{ item.title }}</span>
-              <span class="search-loc">{{ item.location }}</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 详情卡片 -->
-        <transition name="slide-up">
-          <div v-if="selectedEvent" class="detail-card">
-            <div class="detail-header">
-              <div class="detail-title">
-                <span class="dot" :style="{ background: selectedEvent.color }"></span>
-                {{ selectedEvent.title }}
-              </div>
-              <el-icon class="close" @click="selectedEvent = null">
-                <Close />
-              </el-icon>
-            </div>
-
-            <div class="detail-body">
-              <div><el-icon><Location /></el-icon>{{ selectedEvent.location }}</div>
-              <div><el-icon><Timer /></el-icon>{{ selectedEvent.time }}</div>
-              <div>
-                <el-tag
-                  :type="selectedEvent.level === '高' ? 'danger' : (selectedEvent.level === '中' ? 'warning' : 'info')"
-                  size="small"
-                >
-                  {{ selectedEvent.level }}风险
-                </el-tag>
-              </div>
-              <p>{{ selectedEvent.description }}</p>
-
-              <div v-if="selectedEvent.source" class="detail-source">
-                来源：{{ selectedEvent.source }}
-              </div>
-
-              <div class="detail-actions">
-                <el-button
-                  size="small"
-                  type="primary"
-                  plain
-                  :disabled="!selectedEvent.url"
-                  @click="openEventUrl(selectedEvent)"
-                >
-                  查看来源
-                </el-button>
-                <el-button size="small" plain>关联分析</el-button>
-              </div>
-            </div>
-          </div>
-        </transition>
-
-        <!-- 事件列表 -->
-        <div class="events-list">
-          <div class="list-header">
-            <span><el-icon><List /></el-icon>供应链事件</span>
-            <span>{{ filteredEvents.length }}条记录</span>
-          </div>
-
-          <el-empty v-if="!filteredEvents.length" description="暂无风险事件数据" />
-
-          <el-row v-else :gutter="16">
-            <el-col
-              :span="8"
-              v-for="event in paginatedEvents"
-              :key="event.id"
-              style="margin-bottom: 16px"
-            >
-              <div
-                class="event-card"
-                :class="{ active: activeEventId === event.id }"
-                @click="selectEvent(event)"
-              >
-                <div
-                  class="event-icon"
-                  :style="{ background: event.color + '20', color: event.color }"
-                >
-                  <el-icon><WarningFilled /></el-icon>
-                </div>
-
-                <div class="event-info">
-                  <div class="event-title">{{ event.title }}</div>
-                  <div class="event-location">
-                    <el-icon><Location /></el-icon>{{ event.location }}
-                  </div>
-                  <div class="event-time">
-                    <el-icon><Timer /></el-icon>{{ event.time }}
-                  </div>
-                  <el-tag
-                    :type="event.level === '高' ? 'danger' : (event.level === '中' ? 'warning' : 'info')"
-                    size="small"
-                  >
-                    {{ event.level }}风险
-                  </el-tag>
-                </div>
-              </div>
-            </el-col>
-          </el-row>
-
-          <div v-if="filteredEvents.length" class="pagination">
-            <el-pagination
-              v-model:current-page="currentPage"
-              :page-size="pageSize"
-              :total="filteredEvents.length"
-              layout="prev, pager, next"
-              @current-change="currentPage = $event"
-            />
+          <div v-if="!mapEvents.length" class="map-empty">
+            <p>当前筛选下没有可定位的事件</p>
+            <p class="map-empty__sub">
+              共 {{ visibleEvents.length }} 条事件中 {{ unlocatedCount }} 条暂时无法精确定位，详见下方列表。
+            </p>
           </div>
         </div>
       </div>
+
+      <!-- ===== 事件列表 ===== -->
+      <div class="events-section">
+        <div class="events-header">
+          <h2>事件列表<span class="events-count">{{ visibleEvents.length }} 条</span></h2>
+          <div v-if="clusterIds" class="events-cluster">
+            已在图中选中 {{ clusterIds.length }} 个事件
+            <el-button link type="primary" size="small" @click="clearCluster">清除</el-button>
+          </div>
+          <span class="events-tip">点击卡片查看影响对象与来源原文</span>
+        </div>
+
+        <div v-if="!visibleEvents.length" class="events-empty">
+          <el-empty description="当前筛选条件下没有事件" />
+        </div>
+        <div v-else class="events-list">
+          <OsintEventCard
+            v-for="event in pagedEvents"
+            :key="event.eventId"
+            :event="event"
+            :selected="selected?.eventId === event.eventId"
+            @select="openDetail"
+          />
+        </div>
+
+        <el-pagination
+          v-if="visibleEvents.length > pageSize"
+          class="events-pager"
+          layout="prev, pager, next"
+          :total="visibleEvents.length"
+          :page-size="pageSize"
+          :current-page="page"
+          @current-change="(p) => (page = p)"
+        />
+      </div>
     </div>
+
+    <OsintEventDetail
+      v-model="detailVisible"
+      :event="selected"
+      :route-names="routeNames"
+    />
   </el-scrollbar>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onMounted, ref, watch } from 'vue'
+import { BellFilled } from '@element-plus/icons-vue'
+import request from '@/utils/request'
+import { unwrapApiData } from '@/utils/session'
 import WorldBaseMap from '@/components/SupplyChain/WorldBaseMap.vue'
+import OsintFilterBar from '@/views/SCnet/components/osint/OsintFilterBar.vue'
+import OsintEventCard from '@/views/SCnet/components/osint/OsintEventCard.vue'
+import OsintEventDetail from '@/views/SCnet/components/osint/OsintEventDetail.vue'
 import {
-  ArrowRight,
-  Back,
-  BellFilled,
-  Close,
-  Filter,
-  List,
-  Location,
-  RefreshRight,
-  Search,
-  Setting,
-  Timer,
-  WarningFilled
-} from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+  formatDate,
+  hasCoordinates,
+  locationText,
+  riskColor,
+  riskLevelChar,
+  sourceTypeLabel,
+} from '@/views/SCnet/components/osint/osintDisplay'
 
-const route = useRoute()
-// 支持 ?scenario=uranium 直接访问铀开源情报
-const isUranium = computed(() => route.query.scenario === 'uranium')
+const props = defineProps({
+  /** 开源情报阶段的 artifact 信封(真实任务与案例共用同一结构) */
+  artifact: { type: Object, default: null },
+  /** 'live' | 'example' */
+  dataSource: { type: String, default: 'live' },
+  /**
+   * 初始事件范围。默认 'relevant'(跟随本次研判问题);知识平台的
+   * 「数据治理」没有研判问题可用,全部事件的 relevance 都是 0,
+   * 那里传 'all' 才能看到已入库的情报。
+   */
+  initialScope: { type: String, default: 'relevant' },
+  /** 滚动区高度(内嵌到知识平台时由外层给,默认沿用整页时的 89vh) */
+  scrollHeight: { type: String, default: '89vh' },
+  /**
+   * 没有任务上下文时取哪一份情报。默认 'uranium' 沿用原有行为；
+   * 知识平台的「数据治理」按当前领域传，否则汽车领域导入的条目取不到。
+   */
+  scenario: { type: String, default: 'uranium' },
+})
 
-// ========== 后端接口 ==========
-const API_BASE = import.meta.env.VITE_OSINT_API_BASE || '/SCnet/osint'
+/**
+ * 没有任务上下文(直接访问本页)时,向后端取一份标准化事件,
+ * 结构与任务里的 osint artifact 完全一致 —— 页面代码只有一套。
+ */
+const fallback = ref(null)
+const fallbackLoading = ref(false)
+const fallbackError = ref('')
 
-// 兼容你项目里的 ResponseFormatter.success(data=xxx)
-const unwrapResponseData = (json) => {
-  if (!json) return {}
-  return json.data || json
-}
+const activeArtifact = computed(() => props.artifact || fallback.value)
 
-// ========== 运行时间 ==========
-const runDays = ref(23)
-const runHours = ref(14)
-const runMins = ref(32)
-const currentDate = ref('')
-let clockTimer = null
+/**
+ * 旧任务保存的是 registry 原始事件(event_id/risk_effective/country_id)，
+ * 新任务保存的是标准展示事件(eventId/riskAssessment/location)。历史任务不能
+ * 因为字段升级而显示成 0 条；这里仅做确定性的字段兼容，不改变风险结论。
+ */
+const LEGACY_COUNTRY_LOCATIONS = Object.freeze({
+  KAZ: { name: '哈萨克斯坦供应区', country: '哈萨克斯坦', latitude: 48, longitude: 67 },
+  CHN: { name: '中国供应链节点', country: '中国', latitude: 35, longitude: 104 },
+  CAN: { name: '加拿大供应区', country: '加拿大', latitude: 56.1, longitude: -106.3 },
+  NAM: { name: '纳米比亚供应区', country: '纳米比亚', latitude: -22.6, longitude: 17.1 },
+  RUS: { name: '俄罗斯供应区', country: '俄罗斯', latitude: 61.5, longitude: 105.3 },
+  UZB: { name: '乌兹别克斯坦供应区', country: '乌兹别克斯坦', latitude: 41.4, longitude: 64.6 },
+  AUS: { name: '澳大利亚供应区', country: '澳大利亚', latitude: -25.3, longitude: 133.8 },
+  NER: { name: '尼日尔供应区', country: '尼日尔', latitude: 17.6, longitude: 8.1 },
+})
 
-const updateTime = () => {
-  currentDate.value = new Date().toLocaleString('zh-CN')
-}
+const LEGACY_ROUTE_NAMES = Object.freeze({
+  kazakhstan: '哈萨克斯坦—中国中亚铁路运输路线',
+  canada: '加拿大供应路线',
+  namibia: '纳米比亚供应路线',
+  russia: '俄罗斯供应路线',
+  uzbekistan: '乌兹别克斯坦供应路线',
+  australia: '澳大利亚供应路线',
+  niger: '尼日尔供应路线',
+})
 
-// ========== Tab ==========
-const activeHeaderTab = ref('供应链地图')
-const headerTabs = [
-  {
-    key: '供应链地图',
-    title: '供应链地图',
-    subtitle: '全球风险实时监控',
-    icon: Location,
-    iconClass: 'tab-icon-map'
+function sourceNameFromUrl(value) {
+  if (!value) return ''
+  try {
+    return new URL(value).hostname.replace(/^www\./, '')
+  } catch {
+    return ''
   }
-]
-
-const switchTab = (key) => {
-  activeHeaderTab.value = key
 }
 
-// ========== 滚动新闻 ==========
-const tickerNewsList = ref(
-  isUranium.value
-    ? [
-      { time: '10:30', title: 'Kazatomprom 硫酸供应谈判陷入僵局，Q4产量或再降 10%', source: 'Reuters' },
-      { time: '09:15', title: '尼日尔军政府拟提高 Somair 合资矿权益金至 20%', source: 'AFP' },
-      { time: '08:00', title: '美国能源部启动第二轮铀战略储备招标 200 万磅', source: 'DOE' },
-      { time: '07:45', title: 'Cameco Cigar Lake 维持满产，Q2 产量超预期 5%', source: 'Cameco' },
-      { time: '07:20', title: '中核内蒙古 ISL 项目产能突破 500 tU/年', source: 'CNNC' },
-      { time: '06:50', title: '法国 Orano 与蒙古签署 Zuuvch-Ovoo 铀矿框架协议', source: 'Orano' },
-      { time: '06:20', title: 'Sprott 实物铀基金周度净流入 4,200 万美元', source: 'Sprott' },
-      { time: '05:50', title: 'IAEA 上调 2050 年全球核电装机预测至 890 GWe', source: 'IAEA' },
-    ]
-    : [
-      { time: '10:30', title: '比亚迪深汕基地月产能突破 5 万辆，创历史新高', source: 'BYD' },
-      { time: '09:15', title: '碳酸锂现货价反弹至 9.8 万元/吨，锂盐厂惜售情绪浓厚', source: 'SMM' },
-      { time: '08:00', title: '欧盟正式通过对华电动车反补贴税，比亚迪/吉利/上汽受影响', source: 'EU' },
-      { time: '07:45', title: '特斯拉上海工厂 Q3 出口量环比下降 15%，受欧洲关税影响', source: 'Reuters' },
-      { time: '07:20', title: '广州港南沙港区滚装船待泊时间延长至 5 天', source: '广州港' },
-      { time: '06:50', title: '长安汽车因英飞凌 MCU 缺货，重庆工厂减产 30%', source: '财联社' },
-      { time: '06:20', title: '宁德时代宜宾基地碳酸锂库存仅够 2 周，紧急补库中', source: 'SMM' },
-      { time: '05:50', title: '中国汽车出口 2025H1 同比增长 28%，新能源占比超 35%', source: 'CAAM' },
-    ]
+function normalizeLegacyEvent(event) {
+  if (!event || event.eventId) return event
+
+  const routes = Array.isArray(event.affected_route_ids) ? event.affected_route_ids : []
+  const nodes = Array.isArray(event.affected_node_ids) ? event.affected_node_ids : []
+  const country = LEGACY_COUNTRY_LOCATIONS[String(event.country_id || '').toUpperCase()]
+  const sourceUrl = event.primary_source || (/^https?:\/\//i.test(event.source || '') ? event.source : '')
+  const isEffective = Boolean(event.risk_effective)
+  const isRelevant = routes.length > 0 || nodes.length > 0 || event.event_scope === 'ROUTE_SPECIFIC'
+  const routeText = routes.map((id) => LEGACY_ROUTE_NAMES[id] || id).join('、')
+  const impact = event.risk_effective_reason || event.runtime_status_reason || ''
+
+  return {
+    eventId: event.event_id || event.id || `legacy-${event.title || 'event'}`,
+    title: event.title || '未命名风险事件',
+    summary: event.summary || event.description || (routeText
+      ? `该事件涉及${country?.country || '相关供应区域'}，可能影响${routeText}。`
+      : `该事件涉及${country?.country || '相关供应区域'}的供应链运行。`),
+    contentExcerpt: event.content || event.summary || event.description || '',
+    riskType: event.event_type || '',
+    severity: String(event.severity_class || 'LOW').toLowerCase(),
+    severityLabel: `${event.severity_class === 'HIGH' ? '高' : event.severity_class === 'MEDIUM' ? '中' : '低'}风险`,
+    severityScore: Number(event.severity) || 0,
+    status: event.event_state || '',
+    occurredAt: event.event_date || event.published_at || '',
+    publishedAt: event.published_at || event.event_date || '',
+    retrievedAt: '',
+    location: country
+      ? { ...country, region: country.country, city: '', precision: 'country' }
+      : { name: '', country: '', region: '', city: '', latitude: null, longitude: null, precision: 'unresolved' },
+    affectedEntities: [],
+    affectedNodeIds: nodes,
+    affectedNodeNames: [],
+    affectedRouteIds: routes,
+    relevance: {
+      score: isRelevant ? 1 : 0,
+      reason: isRelevant ? `与本次关注路线相关：${routeText || '已关联供应链节点'}` : '',
+      matchedTerms: [],
+    },
+    riskAssessment: {
+      isEffective,
+      residualWeight: isEffective ? 1 : 0,
+      impactSummary: impact,
+      eligibilityCode: event.runtime_status || '',
+      eligibilityReason: event.runtime_status_reason || event.risk_effective_reason || '',
+    },
+    sources: sourceUrl ? [{
+      sourceName: sourceNameFromUrl(sourceUrl),
+      sourceTitle: event.title || '',
+      sourceUrl,
+      author: '',
+      publishedAt: event.published_at || '',
+      language: '',
+      evidenceExcerpt: event.description || '',
+    }] : [],
+    sourceType: event.freshness_class === 'HISTORICAL_CONTEXT' ? 'historical' : 'knowledge_base',
+    isRelevant,
+    impactMode: routes.includes('kazakhstan') ? 'direct' : 'indirect',
+    impactModeLabel: routes.includes('kazakhstan') ? '直接影响' : '间接影响',
+    impactModeReason: routes.includes('kazakhstan')
+      ? '事件直接关联用户关注的供应路线或路线节点。'
+      : '事件通过全球供需、价格、替代采购或合规成本传导，不直接代表用户关注路线发生中断。',
+  }
+}
+
+const events = computed(() => {
+  const value = activeArtifact.value?.result?.events
+  return Array.isArray(value) ? value.map(normalizeLegacyEvent) : []
+})
+
+const CLOSED_EVENT_STATES = new Set(['RESOLVED', 'RECOVERED', 'SUPERSEDED'])
+const activeEvents = computed(() => events.value.filter(
+  (event) => !CLOSED_EVENT_STATES.has(String(event.status || '').toUpperCase()),
+))
+/**
+ * 数据来源与正式性标签(要求十四):
+ * 只给用户看来源类型,不展示 osint_mode / eligibility code 这类内部字段。
+ */
+const SOURCE_LABELS = {
+  current_task: '数据来源：当前任务',
+  example: '数据来源：案例结果',
+  fallback: '背景数据，仅供参考',
+  simulation: '模拟结果，不作为当前任务结论',
+  imported: '导入结果',
+}
+const sourceType = computed(() => {
+  const declared = activeArtifact.value?.provenance?.sourceType
+  if (declared) return declared
+  return props.dataSource === 'example' ? 'example' : 'current_task'
+})
+const sourceLabelText = computed(() => SOURCE_LABELS[sourceType.value] || SOURCE_LABELS.fallback)
+const generatedAt = computed(
+  () => activeArtifact.value?.result?.generated_at || activeArtifact.value?.completedAt || '',
 )
 
-// 场景切换时更新 ticker
-watch(isUranium, (isU) => {
-  tickerNewsList.value = isU
-    ? [
-      { time: '10:30', title: 'Kazatomprom 硫酸供应谈判陷入僵局，Q4产量或再降 10%', source: 'Reuters' },
-      { time: '09:15', title: '尼日尔军政府拟提高 Somair 合资矿权益金至 20%', source: 'AFP' },
-      { time: '08:00', title: '美国能源部启动第二轮铀战略储备招标 200 万磅', source: 'DOE' },
-      { time: '07:45', title: 'Cameco Cigar Lake 维持满产，Q2 产量超预期 5%', source: 'Cameco' },
-      { time: '07:20', title: '中核内蒙古 ISL 项目产能突破 500 tU/年', source: 'CNNC' },
-      { time: '06:50', title: '法国 Orano 与蒙古签署 Zuuvch-Ovoo 铀矿框架协议', source: 'Orano' },
-      { time: '06:20', title: 'Sprott 实物铀基金周度净流入 4,200 万美元', source: 'Sprott' },
-      { time: '05:50', title: 'IAEA 上调 2050 年全球核电装机预测至 890 GWe', source: 'IAEA' },
-    ]
-    : [
-      { time: '10:30', title: '比亚迪深汕基地月产能突破 5 万辆，创历史新高', source: 'BYD' },
-      { time: '09:15', title: '碳酸锂现货价反弹至 9.8 万元/吨，锂盐厂惜售情绪浓厚', source: 'SMM' },
-      { time: '08:00', title: '欧盟正式通过对华电动车反补贴税，比亚迪/吉利/上汽受影响', source: 'EU' },
-      { time: '07:45', title: '特斯拉上海工厂 Q3 出口量环比下降 15%，受欧洲关税影响', source: 'Reuters' },
-      { time: '07:20', title: '广州港南沙港区滚装船待泊时间延长至 5 天', source: '广州港' },
-      { time: '06:50', title: '长安汽车因英飞凌 MCU 缺货，重庆工厂减产 30%', source: '财联社' },
-      { time: '06:20', title: '宁德时代宜宾基地碳酸锂库存仅够 2 周，紧急补库中', source: 'SMM' },
-      { time: '05:50', title: '中国汽车出口 2025H1 同比增长 28%，新能源占比超 35%', source: 'CAAM' },
-    ]
+async function loadFallback() {
+  if (props.artifact || fallback.value || fallbackLoading.value) return
+  fallbackLoading.value = true
+  fallbackError.value = ''
+  try {
+    const response = await request({
+      url: '/scenario/expert/osint/events',
+      method: 'get',
+      params: { scenario: props.scenario },
+    })
+    const data = unwrapApiData(response) || response?.data || response
+    if (data?.events) fallback.value = { result: data, status: 'completed' }
+  } catch (e) {
+    fallbackError.value = e?.message || '开源情报数据加载失败'
+  } finally {
+    fallbackLoading.value = false
+  }
+}
+
+// fallback 缓存后本实例不再重取；换领域/导入后要刷新由外层改 key 重挂载
+onMounted(loadFallback)
+watch(() => props.artifact, (next) => { if (!next) loadFallback() })
+
+/** 路线 id → 中文名,详情里把 kazakhstan 显示成哈萨克斯坦 */
+const routeNames = computed(() => {
+  const routes = activeArtifact.value?.result?.routes || []
+  const map = { ...LEGACY_ROUTE_NAMES }
+  for (const route of routes) {
+    if (route?.id) map[route.id] = route.country || route.id
+  }
+  return map
 })
 
-// ========== 风险类型 ==========
-const riskTypes = ref([
-  { name: '港口拥堵', color: '#E6A23C' },
-  { name: '物流中断', color: '#F56C6C' },
-  { name: '船期延误', color: '#409EFF' },
-  { name: '罢工抗议', color: '#909399' },
-  { name: '红海绕航', color: '#8E44AD' },
-  { name: '运价上涨', color: '#FF6B6B' },
-  { name: '政策变化', color: '#67C23A' },
-  { name: '供应链风险', color: '#606266' },
-  { name: '供应链事件', color: '#409EFF' }
-])
+/* ---------- 筛选 ---------- */
+const scope = ref(props.initialScope || 'relevant')
+// 默认仅展示尚未解除的相关事件；已解除、已恢复事件不进入列表和地图。
+const stateFilter = ref('active')
+const page = ref(1)
+const pageSize = 10
+const selected = ref(null)
+const detailVisible = ref(false)
+/** 点聚合点时把列表收敛到该簇的事件。必须在 watch 使用前声明。 */
+const clusterIds = ref(null)
 
-// ========== 后端数据 ==========
-const events = ref([])
-const sourceOptions = ref([])
-const selectedSourceIds = ref([])
-const crawlerKeywords = ref(isUranium.value
-  ? ['铀矿停产', '地缘政治', '核电站', '硫酸短缺', '运输物流', '库存变化']
-  : ['芯片短缺', '碳酸锂价格', '欧盟关税', '电池原材料', '新能源补贴', '车规芯片'])
-const keywordOptions = ref([])
-const crawlLoading = ref(false)
-const eventsLoading = ref(false)
-const crawlStatusList = ref([])
-
-// ========== 统计 ==========
-const highRiskCount = computed(() => {
-  return events.value.filter(item => item.level === '高').length
+const counts = computed(() => {
+  const list = activeEvents.value
+  return {
+    all: list.length,
+    relevant: list.filter((e) => e.isRelevant).length,
+    fresh: list.filter((e) => e.sourceType === 'current_retrieval').length,
+    knowledge: list.filter((e) => e.sourceType === 'knowledge_base').length,
+    historical: list.filter((e) => e.sourceType === 'historical').length,
+    effective: list.filter((e) => e.riskAssessment?.isEffective).length,
+    active: list.length,
+    high: list.filter((e) => e.severity === 'high').length,
+    imported: list.filter((e) => e.sourceType === 'imported').length,
+  }
 })
 
-const supplyChainIndex = computed(() => {
-  const total = events.value.length
-  if (!total) return '100.0'
+const visibleEvents = computed(() => {
+  let list = activeEvents.value
+  if (clusterIds.value) {
+    const set = new Set(clusterIds.value)
+    list = list.filter((e) => set.has(e.eventId))
+  }
+  if (scope.value === 'relevant') list = list.filter((e) => e.isRelevant)
+  else if (scope.value === 'fresh') list = list.filter((e) => e.sourceType === 'current_retrieval')
+  else if (scope.value === 'knowledge') list = list.filter((e) => e.sourceType === 'knowledge_base')
+  else if (scope.value === 'historical') list = list.filter((e) => e.sourceType === 'historical')
+  else if (scope.value === 'imported') list = list.filter((e) => e.sourceType === 'imported')
 
-  const high = events.value.filter(item => item.level === '高').length
-  const mid = events.value.filter(item => item.level === '中').length
-  const score = 100 - high * 2.5 - mid * 1.2
-
-  return Math.max(0, score).toFixed(1)
+  if (stateFilter.value === 'effective') list = list.filter((e) => e.riskAssessment?.isEffective)
+  else if (stateFilter.value === 'high') list = list.filter((e) => e.severity === 'high')
+  return list
 })
 
-// ========== 地图相关 ==========
-const currentFilter = ref(null)
-const visibleMarkersCount = ref(0)
-const selectedEvent = ref(null)
-const activeEventId = ref(null)
-const searchKeyword = ref('')
-const searchActive = ref(false)
-const currentPage = ref(1)
-const pageSize = 9
+watch([scope, stateFilter, clusterIds], () => {
+  page.value = 1
+  if (
+    selected.value &&
+    !visibleEvents.value.some((event) => event.eventId === selected.value?.eventId)
+  ) {
+    selected.value = null
+    detailVisible.value = false
+  }
+})
+const pagedEvents = computed(() =>
+  visibleEvents.value.slice((page.value - 1) * pageSize, page.value * pageSize),
+)
 
+/* ---------- 地图 ---------- */
+const zoom = ref(1)
+function onZoom(scale) {
+  const next = Math.max(1, Math.min(20, Number(scale) || 1))
+  if (Math.abs(next - zoom.value) > 0.15) zoom.value = next
+}
 
-// 过滤有效坐标的点
+const located = computed(() => visibleEvents.value.filter(hasCoordinates))
+const unlocatedCount = computed(() => visibleEvents.value.length - located.value.length)
+const plottedCount = computed(() => activeEvents.value.filter(hasCoordinates).length)
+
+/**
+ * 网格聚合:格子随缩放变小,放大后自动拆开。
+ * 聚合只是"同一小块里的多个点合成一个标记",不改变事件本身。
+ */
 const mapEvents = computed(() => {
-  return events.value.filter(e => Number(e.lat) !== 0 && Number(e.lng) !== 0)
-})
-
-const filteredEvents = computed(() => {
-  let result = events.value
-
-  if (currentFilter.value) {
-    result = events.value.filter(e => e.type === currentFilter.value)
+  const cell = 24 / Math.max(1, zoom.value)
+  const buckets = new Map()
+  for (const event of located.value) {
+    const lng = event.location.longitude
+    const lat = event.location.latitude
+    const key = `${Math.floor(lng / cell)}:${Math.floor(lat / cell)}`
+    if (!buckets.has(key)) buckets.set(key, [])
+    buckets.get(key).push(event)
   }
-
-  return result
-})
-
-const paginatedEvents = computed(() => {
-  const start = (currentPage.value - 1) * pageSize
-  return filteredEvents.value.slice(start, start + pageSize)
-})
-
-const searchResults = computed(() => {
-  if (!searchKeyword.value) return []
-
-  const kw = searchKeyword.value.toLowerCase()
-
-  return events.value
-    .filter(e => {
-      const title = String(e.title || '').toLowerCase()
-      const location = String(e.location || '').toLowerCase()
-      const description = String(e.description || '').toLowerCase()
-
-      return title.includes(kw) || location.includes(kw) || description.includes(kw)
-    })
-    .slice(0, 8)
-})
-
-const getTypeCount = (type) => {
-  return events.value.filter(e => e.type === type).length
-}
-
-
-const filterByType = (type) => {
-  currentFilter.value = type
-  currentPage.value = 1
-
-  ElMessage.info(
-    type
-      ? `已筛选: ${type} (${getTypeCount(type)}个事件)`
-      : `显示全部 (${events.value.length}个事件)`
-  )
-}
-
-
-
-const selectEvent = (event) => {
-  selectedEvent.value = event
-  activeEventId.value = event.id
-}
-
-const selectSearchItem = (item) => {
-  searchKeyword.value = ''
-  searchActive.value = false
-  selectEvent(item)
-}
-
-const openEventUrl = (event) => {
-  if (!event?.url) {
-    ElMessage.warning('该事件暂无来源链接')
-    return
-  }
-
-  window.open(event.url, '_blank')
-}
-
-
-
-// 初始化地图
-
-
-// ========== 后端 API ==========
-const loadSources = async () => {
-  try {
-    // 使用 V2 多源接口，获取 15 个数据源 + 健康状态
-    const res = await fetch(`${API_BASE}/sources-v2`)
-    const json = await res.json()
-    const payload = unwrapResponseData(json)
-
-    const rawSources = Array.isArray(payload.sources) ? payload.sources : []
-    // 注入健康状态标签
-    sourceOptions.value = rawSources.map(s => ({
-      ...s,
-      healthTag: s.health_status === 'healthy' ? '✓' : (s.health_status === 'degraded' ? '⚠' : ''),
-    }))
-
-    if (!selectedSourceIds.value.length) {
-      // 默认选中 web_scraper（国内可访问）+ jctrans
-      selectedSourceIds.value = sourceOptions.value
-        .filter(item => item.enabled !== false && ['web_scraper', 'jctrans'].includes(item.connector))
-        .map(item => item.id)
-    }
-  } catch (err) {
-    console.error(err)
-    ElMessage.error('V2 数据源加载失败，请检查后端 /SCnet/osint/sources-v2')
-  }
-}
-
-const loadKeywords = async () => {
-  try {
-    const res = await fetch(`${API_BASE}/keywords`)
-    const json = await res.json()
-    const payload = unwrapResponseData(json)
-    const groups = Array.isArray(payload.groups) ? payload.groups : []
-    // 从关键词组中提取所有关键词作为下拉选项
-    const allKeywords = new Set()
-    groups.forEach(g => {
-      (g.keywords || []).forEach(kw => allKeywords.add(kw))
-      ;(g.tags || []).forEach(t => allKeywords.add(t))
-    })
-    keywordOptions.value = [...allKeywords].sort()
-  } catch (err) {
-    console.warn('关键词选项加载失败，将使用默认关键词', err)
-    // 后端不可用时用硬编码的默认值
-    keywordOptions.value = [
-      '港口拥堵', '船期延误', '物流中断', '运价上涨',
-      '芯片短缺', '供应链中断', '关税', '贸易战',
-      '新能源汽车', '动力电池', '固态电池', '充电桩',
-      '车规级芯片', 'MCU', 'IGBT', '碳化硅',
-      '钢铁', '铝', '铜', '锂', '稀土', '石油',
-    ]
-  }
-}
-
-const loadEvents = async () => {
-  eventsLoading.value = true
-
-  try {
-    const res = await fetch(`${API_BASE}/events?scenario=${isUranium.value ? 'uranium' : 'supply_chain'}`)
-    const json = await res.json()
-    const payload = unwrapResponseData(json)
-
-    if (Array.isArray(payload.events)) {
-      // 直接展示后端返回的 osint_events.json 事件，不再按场景关键词过滤
-      // （此前铀场景下会滤掉全部航运/汽车事件导致页面为空）
-      events.value = payload.events
-    }
-
-    // 补充场景事件
-    events.value = [...events.value, ...getScenarioEvents()]
-
-
-    currentPage.value = 1
-    selectedEvent.value = null
-    activeEventId.value = null
-
-  } catch (err) {
-    console.error(err)
-    events.value = getScenarioEvents()
-    ElMessage.warning('后端事件加载失败，使用本地数据')
-  } finally {
-    eventsLoading.value = false
-  }
-}
-
-// 场景特定补充事件
-function getScenarioEvents() {
-  if (isUranium.value) {
-    return [
-      { id: 'u1', title: '中核内蒙古乌拉特中旗 ISL 扩产', location: '巴彦淖尔，中国', lat: 41.57, lng: 108.52, type: '铀矿开采', color: '#67C23A', level: '低', time: '2025-09', description: '中核内蒙古矿业乌拉特中旗 ISL 地浸项目年产能提升至 500 tU，国内自给率提高。', source: 'CNNC' },
-      { id: 'u2', title: '中广核纳米比亚湖山矿扩产获批', location: '斯瓦科普蒙德，纳米比亚', lat: -22.68, lng: 14.53, type: '铀矿开采', color: '#67C23A', level: '低', time: '2025-08', description: '中广核 Husab 矿扩产至 6,000 tU/年获纳米比亚政府批准。', source: 'CGN' },
-      { id: 'u3', title: '中核集团新疆伊犁铀矿地浸产能爬坡', location: '伊犁，中国', lat: 43.92, lng: 81.32, type: '铀矿开采', color: '#409EFF', level: '低', time: '2025-07', description: '新疆伊犁盆地砂岩型铀矿 ISL 产能爬坡至满产，年产量超 500 tU。', source: 'CNNC' },
-      { id: 'u4', title: '秦山核电站延寿改造获批', location: '海盐，中国', lat: 30.44, lng: 120.86, type: '核电政策', color: '#67C23A', level: '低', time: '2025-08', description: '秦山一期 320MWe 机组获 20 年延寿许可，长期铀需求锁定。', source: 'NNSA' },
-      { id: 'u5', title: '宁德核电站 5 号机组首次装料', location: '宁德，中国', lat: 27.05, lng: 120.28, type: '核电政策', color: '#409EFF', level: '低', time: '2025-09', description: '宁德核电 5 号机组（华龙一号）首次装料，年铀需求预计增加约 200 tU。', source: 'CGN' },
-      { id: 'u6', title: '法国 Orano 蒙古铀矿项目推进', location: '乌兰巴托，蒙古', lat: 47.92, lng: 106.92, type: '铀矿开采', color: '#E6A23C', level: '中', time: '2025-07', description: 'Orano 与蒙古政府签署 Zuuvch-Ovoo 铀矿开发框架协议，预计 2028 年投产。', source: 'Orano' },
-      { id: 'u7', title: '哈萨克斯坦硫酸供应谈判破裂', location: '努尔苏丹，哈萨克斯坦', lat: 51.17, lng: 71.45, type: '化学供应', color: '#F56C6C', level: '高', time: '2025-08', description: 'Kazatomprom 与主要硫酸供应商谈判破裂，Q4 产量指引可能再下调 8-12%。', source: 'Kazatomprom' },
-      { id: 'u8', title: '俄罗斯浮动核电站北极投运', location: '佩韦克，俄罗斯', lat: 69.70, lng: 170.31, type: '核电政策', color: '#409EFF', level: '低', time: '2025-08', description: 'Rosatom 第二座浮动核电站 RITM-200M 在北极佩韦克投运，开辟极地铀供应链。', source: 'Rosatom' },
-      { id: 'u9', title: '美国 White Mesa 铀加工厂重启', location: '犹他州，美国', lat: 37.75, lng: -109.55, type: '铀矿开采', color: '#E6A23C', level: '中', time: '2025-07', description: 'Energy Fuels 重启 White Mesa 铀加工厂，处理稀土副产品铀，年产能约 500 tU。', source: 'Energy Fuels' },
-      { id: 'u10', title: '南非 Koeberg 核电站延寿铀招标', location: '开普敦，南非', lat: -33.68, lng: 18.43, type: '核电政策', color: '#409EFF', level: '低', time: '2025-09', description: 'Eskom 为 Koeberg 延寿 20 年发布 5,000 tU 长期采购招标，多家供应商竞标。', source: 'Eskom' },
-    ]
-  }
-  return [
-      { id: 'a1', title: '比亚迪深汕基地产能突破', location: '深圳，中国', lat: 22.54, lng: 114.06, type: '供应链事件', color: '#67C23A', level: '低', time: '2025-09', description: '比亚迪深汕汽车工业园年产能突破 60 万辆，新能源整车出口大幅增长。', source: 'BYD 官方' },
-      { id: 'a2', title: '特斯拉上海超级工厂产能调整', location: '上海，中国', lat: 30.87, lng: 121.90, type: '供应链事件', color: '#E6A23C', level: '中', time: '2025-09', description: '特斯拉上海工厂受欧洲关税影响，对欧盟出口量有所下调，部分产能转向亚太市场。', source: 'Reuters' },
-      { id: 'a3', title: '吉利长春新能源基地投产', location: '长春，中国', lat: 43.88, lng: 125.32, type: '供应链事件', color: '#67C23A', level: '低', time: '2025-08', description: '吉利汽车长春新能源基地正式投产，规划年产能 20 万辆纯电动车。', source: '吉利官方' },
-      { id: 'a4', title: '广州港汽车出口量创新高', location: '广州，中国', lat: 23.13, lng: 113.26, type: '港口拥堵', color: '#409EFF', level: '低', time: '2025-09', description: '广州港南沙港区月度汽车出口突破 10 万辆，滚装船泊位持续紧张。', source: '广州港集团' },
-      { id: 'a5', title: '重庆长安汽车芯片供应趋紧', location: '重庆，中国', lat: 29.56, lng: 106.55, type: '芯片短缺', color: '#F56C6C', level: '高', time: '2025-09', description: '长安汽车因英飞凌 MCU 交付延迟，部分车型产线面临减产风险，影响约 2 万辆/月。', source: '财联社' },
-      { id: 'a6', title: '宁德时代宜宾基地碳酸锂库存告急', location: '宜宾，中国', lat: 28.77, lng: 104.62, type: '原材料事件', color: '#F56C6C', level: '高', time: '2025-08', description: '碳酸锂现货价反弹至 9.5 万/吨，宁德时代宜宾基地库存仅够 2 周生产。', source: 'SMM' },
-      { id: 'a7', title: '武汉东风本田零部件断供', location: '武汉，中国', lat: 30.59, lng: 114.31, type: '供应链事件', color: '#F56C6C', level: '高', time: '2025-08', description: '东风本田因日本电装燃油喷射系统供应中断，三款车型停产检修。', source: '东风集团' },
-      { id: 'a8', title: '柳州五菱新能源汽车出口飙升', location: '柳州，中国', lat: 24.31, lng: 109.41, type: '供应链事件', color: '#67C23A', level: '低', time: '2025-09', description: '上汽通用五菱微型电动车出口东南亚月均超 2 万辆，产能持续扩张。', source: 'SGMW' },
-      { id: 'a9', title: '天津港滚装码头拥堵加剧', location: '天津，中国', lat: 38.98, lng: 117.72, type: '港口拥堵', color: '#E6A23C', level: '中', time: '2025-09', description: '天津港滚装船待泊时间延长至 5-7 天，影响长城、北汽等企业出口节奏。', source: 'Lloyd\'s List' },
-      { id: 'a10', title: '蔚来合肥工厂电池包产线升级', location: '合肥，中国', lat: 31.82, lng: 117.23, type: '供应链事件', color: '#409EFF', level: '低', time: '2025-08', description: '蔚来合肥 NeoPark 电池包产线升级至 150kWh 半固态电池，良率爬坡中。', source: 'NIO' },
-      { id: 'a11', title: '欧盟对中国电动车反补贴税生效', location: '布鲁塞尔，比利时', lat: 50.85, lng: 4.35, type: '政策变化', color: '#F56C6C', level: '高', time: '2025-07', description: '欧盟确认对中国产电动车征收最高 35.3% 反补贴税，比亚迪/吉利/上汽受影响最大。', source: 'EU Commission' },
-      { id: 'a12', title: '印度对华汽车零部件加征关税', location: '新德里，印度', lat: 28.61, lng: 77.23, type: '政策变化', color: '#E6A23C', level: '中', time: '2025-08', description: '印度对从中国进口的汽车电子零部件加征 10-15% 关税，影响 Tier1 供应商出口。', source: '印度商工部' },
-  ]
-}
-
-const startCrawl = async () => {
-  if (!selectedSourceIds.value.length) {
-    ElMessage.warning('请至少选择一个网址')
-    return
-  }
-
-  if (!crawlerKeywords.value.length) {
-    ElMessage.warning('请至少输入一个主题词')
-    return
-  }
-
-  crawlLoading.value = true
-  crawlStatusList.value = []
-
-  // 对每个关键词依次调用 V2 多源采集接口
-  const allSourceStatus = []
-  let totalCount = 0
-
-  try {
-    for (const kw of crawlerKeywords.value) {
-      const res = await fetch(`${API_BASE}/crawl-v2`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          keyword: kw,
-          max_records: 15,
-          time_range_hours: 720,
-          include_history: false,
-          source_selector: {
-            source_ids: selectedSourceIds.value,
-          },
-        })
+  const out = []
+  for (const group of buckets.values()) {
+    if (group.length === 1) {
+      const event = group[0]
+      out.push({
+        title: event.title,
+        lng: event.location.longitude,
+        lat: event.location.latitude,
+        level: riskLevelChar(event),
+        color: riskColor(event),
+        locationText: locationText(event),
+        timeText: formatDate(event.occurredAt),
+        event,
       })
-
-      const json = await res.json()
-      const payload = unwrapResponseData(json)
-
-      totalCount += payload.count || 0
-
-      // 合并事件（crawl-v2 已自动将 new_events 写入 osint_events.json）
-      if (Array.isArray(payload.source_status)) {
-        allSourceStatus.push(...payload.source_status)
-      }
+    } else {
+      const lng = group.reduce((sum, e) => sum + e.location.longitude, 0) / group.length
+      const lat = group.reduce((sum, e) => sum + e.location.latitude, 0) / group.length
+      const worst = group.some((e) => e.severity === 'high' && e.riskAssessment?.isEffective)
+        ? '高'
+        : group.some((e) => e.severity === 'medium' && e.riskAssessment?.isEffective) ? '中' : '低'
+      out.push({
+        isCluster: true,
+        count: group.length,
+        events: group,
+        lng,
+        lat,
+        level: worst,
+        color: group.every((e) => !e.riskAssessment?.isEffective) ? '#94a3b8' : riskColor({ severity: worst === '高' ? 'high' : worst === '中' ? 'medium' : 'low', riskAssessment: { isEffective: true } }),
+      })
     }
-
-    // 更新状态列表
-    crawlStatusList.value = allSourceStatus
-
-    // 重新加载事件（从 osint_events.json 读取合并后的结果）
-    await loadEvents()
-
-    // 汇总逐源状态
-    const okSources = allSourceStatus.filter(s => s.status === 'ok').length
-    const errSources = allSourceStatus.filter(s => s.status === 'error').length
-    ElMessage.success(
-      `V2 多源采集完成：${totalCount} 条，成功 ${okSources} 源，失败 ${errSources} 源`
-    )
-  } catch (err) {
-    console.error(err)
-    ElMessage.error('V2 多源采集失败，请检查后端日志')
-  } finally {
-    crawlLoading.value = false
   }
+  return out
+})
+
+/* ---------- 实时动态 = ---------- */
+const tickerItems = computed(() => {
+  const priority = visibleEvents.value.filter((e) => e.riskAssessment?.isEffective)
+  const list = priority.length ? priority : visibleEvents.value
+  return list.slice(0, 8)
+})
+
+/* ---------- 选中联动 ---------- */
+function openDetail(event) {
+  selected.value = event
+  detailVisible.value = true
 }
 
-onMounted(() => {
-  updateTime()
-  clockTimer = setInterval(updateTime, 1000)
-
-  nextTick(async () => {
-    await loadSources()
-    await loadKeywords()
-    await loadEvents()
-  })
-})
-
-onUnmounted(() => {
-  if (clockTimer) {
-    clearInterval(clockTimer)
-    clockTimer = null
+function onMapSelect(marker) {
+  if (!marker) return
+  if (marker.isCluster) {
+    clusterIds.value = marker.events.map((e) => e.eventId)
+    return
   }
-})
+  openDetail(marker.event || marker)
+}
+
+function clearCluster() {
+  clusterIds.value = null
+}
 </script>
 
 <style scoped>
-.supply-chain-intelligence {
-  background: #f0f2f5;
-  min-height: 100vh;
+.osint-live {
+  --brand: #2563eb;
+  --line: #e2e8f0;
+  --ink: #0f172a;
+  --text: #334155;
+  --muted: #64748b;
+  padding: 18px 20px 40px;
+  background: #f1f5f9;
+  min-height: 100%;
 }
 
+/* ===== 顶部 ===== */
 .header-card {
   background: #fff;
-  border-radius: 0 0 12px 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 12px;
 }
-
 .news-ticker-wrap {
-  background: #fafbfc;
-  border-bottom: 1px solid #e8eef3;
-  padding: 8px 20px;
   display: flex;
   align-items: center;
-  gap: 16px;
-  overflow: hidden;
+  gap: 12px;
+  padding: 9px 16px;
+  background: #f8fafc;
+  border-bottom: 1px solid #eef2f7;
 }
-
 .news-ticker-label {
   display: flex;
   align-items: center;
-  gap: 6px;
-  color: #f56c6c;
-  font-weight: 500;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand);
   white-space: nowrap;
 }
-
-.news-ticker-content {
-  flex: 1;
-  overflow: hidden;
-}
-
+.news-ticker-content { flex: 1; overflow: hidden; }
 .news-ticker-track {
   display: flex;
+  gap: 26px;
   white-space: nowrap;
-  animation: scroll 35s linear infinite;
+  animation: osint-ticker 46s linear infinite;
 }
-
-@keyframes scroll {
-  0% {
-    transform: translateX(0);
-  }
-
-  100% {
-    transform: translateX(-50%);
-  }
-}
-
-.news-ticker-item {
-  display: inline-flex;
-  gap: 8px;
-  margin-right: 32px;
-  font-size: 13px;
-}
-
-.ticker-time {
-  color: #909399;
-}
-
-.ticker-title {
-  color: #303133;
-  font-weight: 500;
-}
-
-.ticker-source {
-  color: #67c23a;
-  font-size: 12px;
-}
-
-.header-main-content {
-  display: flex;
-}
-
-.header-tab-selector {
-  width: 220px;
-  background: #f8f9fb;
-  border-radius: 8px 0 0 8px;
-  padding: 20px 0;
-}
-
-.header-tab-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
-  cursor: pointer;
-  border-left: 3px solid transparent;
-  transition: all 0.2s;
-}
-
-.header-tab-item.active {
-  background: rgba(64, 158, 255, 0.08);
-  border-left-color: #409eff;
-}
-
-.tab-icon-wrap {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #e8f0fe;
-  color: #409eff;
-}
-
-.tab-text {
-  flex: 1;
-}
-
-.tab-title {
-  display: block;
-  font-weight: 600;
-  color: #303133;
-}
-
-.tab-subtitle {
-  font-size: 11px;
-  color: #909399;
+.news-ticker-item { font-size: 12px; color: var(--muted); display: inline-flex; gap: 7px; }
+.ticker-time { color: #94a3b8; font-variant-numeric: tabular-nums; }
+.ticker-title { color: var(--text); }
+.ticker-source { color: #94a3b8; }
+.ticker-divider { color: #cbd5e1; margin-left: 6px; }
+.osint-ticker-empty { font-size: 12px; color: #94a3b8; }
+@keyframes osint-ticker {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }
 
 .header-banner {
-  flex: 1;
-  background: linear-gradient(135deg, #1a2a3a 0%, #0f1a24 100%);
-  border-radius: 0 8px 8px 0;
-  padding: 20px 30px;
+  padding: 20px 24px 22px;
   color: #fff;
+  background:
+    radial-gradient(circle at 86% 12%, rgba(59, 130, 246, .42), transparent 28%),
+    linear-gradient(135deg, #14213d 0%, #172554 48%, #1d4ed8 100%);
 }
-
-.banner-top {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  margin-bottom: 20px;
-}
-
-.live-tag {
-  display: flex;
+.banner-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.source-tag {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(16, 185, 129, 0.2);
-  padding: 4px 12px;
-  border-radius: 20px;
   font-size: 12px;
-  color: #10b981;
-}
-
-.live-dot {
-  width: 8px;
-  height: 8px;
-  background: #10b981;
-  border-radius: 50%;
-  animation: pulse 1.5s infinite;
-}
-
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.4;
-  }
-}
-
-.run-time,
-.update-time {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: #8b9dc3;
-}
-
-.banner-main {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.banner-text h1 {
-  font-size: 28px;
-  margin: 0 0 8px;
-}
-
-.banner-text .highlight {
-  color: #ffd93d;
-}
-
-.banner-text p {
-  color: #8b9dc3;
-  font-size: 13px;
-  margin: 0;
-}
-
-.banner-stats {
-  display: flex;
-  gap: 24px;
-}
-
-.stat {
-  text-align: center;
-}
-
-.stat .num {
-  font-size: 28px;
-  font-weight: 700;
-}
-
-.stat .label {
-  font-size: 11px;
-  color: #8b9dc3;
-}
-
-.banner-btn {
-  text-align: right;
-}
-
-.map-section {
-  padding: 20px;
-}
-
-.crawler-panel {
-  margin-bottom: 16px;
-}
-
-.crawler-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.crawler-tip {
-  margin-top: 10px;
-  font-size: 12px;
-  color: #909399;
-}
-
-.crawl-status-summary {
-  margin-top: 12px;
-  padding: 12px 16px;
-  background: #fafbfc;
-  border-radius: 8px;
-  border: 1px solid #e8eef3;
-}
-
-.crawl-status-summary .status-title {
-  font-size: 13px;
+  border-radius: 999px;
+  padding: 2px 11px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  background: #fff;
   font-weight: 600;
-  color: #303133;
-  margin-bottom: 8px;
 }
-
-.crawl-status-summary .status-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 0;
-  font-size: 12px;
+.source-tag__dot { width: 7px; height: 7px; border-radius: 50%; background: #94a3b8; }
+.source-tag.is-current_task { color: #047857; background: #ecfdf5; border-color: #a7f3d0; }
+.source-tag.is-current_task .source-tag__dot { background: #10b981; }
+.source-tag.is-example { color: #b45309; background: #fffbeb; border-color: #fde68a; }
+.source-tag.is-example .source-tag__dot { background: #f59e0b; }
+.source-tag.is-fallback, .source-tag.is-simulation { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
+.source-tag.is-fallback .source-tag__dot, .source-tag.is-simulation .source-tag__dot { background: #ef4444; }
+.live-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #dbeafe; }
+.live-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #10b981;
+  animation: osint-pulse 1.8s ease-in-out infinite;
 }
+@keyframes osint-pulse { 50% { opacity: .35; } }
+.update-time { font-size: 12px; color: #bfdbfe; margin-left: auto; }
 
-.crawl-status-summary .status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
+.banner-main { display: flex; justify-content: space-between; gap: 24px; margin-top: 12px; flex-wrap: wrap; }
+.banner-text h1 { margin: 0 0 6px; font-size: 22px; color: #fff; }
+.banner-text .highlight { color: #93c5fd; }
+.banner-text p { margin: 0; font-size: 13px; color: #cbd5e1; }
+.banner-stats { display: flex; gap: 26px; }
+.banner-stats .stat { text-align: center; }
+.banner-stats .num { font-size: 23px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; }
+.banner-stats .label { font-size: 12px; color: #bfdbfe; margin-top: 2px; }
 
-.crawl-status-summary .status-name {
-  color: #606266;
-  min-width: 140px;
-}
-
-.crawl-status-summary .status-count {
-  color: #409eff;
-  font-weight: 500;
-}
-
-.crawl-status-summary .status-error {
-  color: #f56c6c;
-  font-size: 11px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
+/* ===== 地图 ===== */
+.map-section { margin-bottom: 12px; }
 .map-container {
   position: relative;
-  height: 55vh;
-  background: #e8eef3;
-  border-radius: 16px;
-  overflow: hidden;
-  border: 1px solid #ddd;
-}
-
-#supplyChainMap {
-  width: 100%;
-  height: 100%;
-  z-index: 1;
-  background: #e8eef3;
-}
-
-.map-controls {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  display: flex;
-  gap: 8px;
-  z-index: 1000;
-}
-
-.map-footer {
-  position: absolute;
-  bottom: 12px;
-  left: 12px;
-  right: 12px;
-  display: flex;
-  justify-content: space-between;
-  background: rgba(0, 0, 0, 0.65);
-  padding: 8px 16px;
-  border-radius: 24px;
-  color: #fff;
-  font-size: 13px;
-  z-index: 1000;
-  backdrop-filter: blur(4px);
-}
-
-.filter-dot {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  margin-right: 8px;
-}
-
-.search-bar {
-  position: relative;
-  margin-top: 16px;
-}
-
-.search-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
+  height: 520px;
   background: #fff;
+  border: 1px solid var(--line);
   border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-  z-index: 100;
-  max-height: 300px;
-  overflow-y: auto;
-  margin-top: 4px;
-}
-
-.search-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  cursor: pointer;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.search-item:hover {
-  background: #f5f7fa;
-}
-
-.search-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-}
-
-.search-loc {
-  color: #909399;
-  font-size: 12px;
-  margin-left: auto;
-}
-
-.detail-card {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  width: 380px;
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.2);
-  z-index: 1000;
   overflow: hidden;
 }
-
-.detail-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px;
-  background: #f8f9fb;
-  border-bottom: 1px solid #e8eef3;
-}
-
-.detail-title {
+.map-legend {
+  position: absolute;
+  left: 14px;
+  bottom: 12px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-weight: 600;
+  gap: 14px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, .94);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--muted);
 }
-
-.detail-title .dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-}
-
-.close {
-  cursor: pointer;
-  color: #909399;
-  font-size: 18px;
-}
-
-.close:hover {
-  color: #f56c6c;
-}
-
-.detail-body {
-  padding: 16px;
+.map-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+.map-legend__hint { color: #94a3b8; }
+.map-empty {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-
-.detail-body p {
-  margin: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(248, 250, 252, .86);
+  color: var(--muted);
   font-size: 13px;
-  color: #606266;
-  line-height: 1.5;
 }
+.map-empty p { margin: 0; }
+.map-empty__sub { color: #94a3b8; font-size: 12px; }
 
-.detail-source {
-  color: #909399;
-  font-size: 12px;
-}
-
-.detail-actions {
-  display: flex;
-  gap: 12px;
-  margin-top: 8px;
-}
-
-.slide-up-enter-active,
-.slide-up-leave-active {
-  transition: all 0.3s ease;
-}
-
-.slide-up-enter-from,
-.slide-up-leave-to {
-  transform: translateY(100%);
-  opacity: 0;
-}
-
-.events-list {
+/* ===== 列表 ===== */
+.events-section {
   background: #fff;
-  border-radius: 16px;
-  margin-top: 20px;
-  padding: 16px;
-}
-
-.list-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #e8eef3;
-  font-weight: 600;
-}
-
-.event-card {
-  display: flex;
-  gap: 14px;
-  padding: 14px;
-  background: #fafbfc;
+  border: 1px solid var(--line);
   border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: 1px solid transparent;
+  padding: 14px 16px 18px;
 }
-
-.event-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  background: #fff;
-}
-
-.event-card.active {
-  border-color: #409eff;
-  background: #f0f7ff;
-}
-
-.event-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-}
-
-.event-info {
-  flex: 1;
-}
-
-.event-title {
-  font-weight: 600;
-  margin-bottom: 6px;
-  font-size: 14px;
-}
-
-.event-location,
-.event-time {
+.events-header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+.events-header h2 { margin: 0; font-size: 15px; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+.events-count {
   font-size: 12px;
-  color: #909399;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 4px;
+  font-weight: 400;
+  color: #64748b;
+  background: #f1f5f9;
+  border-radius: 999px;
+  padding: 1px 9px;
 }
+.events-cluster { font-size: 12px; color: #1d4ed8; }
+.events-tip { margin-left: auto; font-size: 12px; color: #94a3b8; }
+.events-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
+.events-empty { padding: 20px 0; }
+.events-pager { margin-top: 14px; justify-content: center; }
 
-.pagination {
-  display: flex;
-  justify-content: center;
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid #e8eef3;
+@media (max-width: 1280px) {
+  .map-legend__hint { display: none; }
 }
-
-:deep(.custom-tooltip) {
-  font-size: 12px;
-  padding: 6px 10px;
-  background: rgba(0, 0, 0, 0.8);
-  color: #fff;
-  border-radius: 6px;
-}
-
 </style>

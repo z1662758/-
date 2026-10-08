@@ -5,7 +5,7 @@
         <div class="toolbar-title">供应链运输地图</div>
         <div class="toolbar-subtitle">
           {{ activeYearLabel }}
-          <span v-if="yearRows.length"> · {{ yearIndex + 1 }}/{{ yearRows.length }}</span>
+          <span v-if="yearRows.length > 1"> · {{ yearIndex + 1 }}/{{ yearRows.length }}</span>
         </div>
         <div v-if="selectedRouteSummary" class="toolbar-focus">
           <span class="focus-pill">本年调运</span>
@@ -49,7 +49,7 @@
     </div>
 
     <div class="map-bottom-dock">
-      <div v-if="yearRows.length" class="year-slider">
+      <div v-if="yearRows.length > 1" class="year-slider">
         <div class="timeline-heading">
           <span>年度推演</span>
           <!-- 参考 MACE 事中页的推演控制：上一年 / 播放 / 下一年，支持 ← → 空格 -->
@@ -73,6 +73,11 @@
       <div class="legend-panel">
         <div class="panel-title">图例</div>
         <div class="legend-list">
+          <template v-if="hasRiskLevels">
+            <span class="legend-item"><span class="legend-dot risk-high"></span>高风险链路</span>
+            <span class="legend-item"><span class="legend-dot risk-medium"></span>中风险链路</span>
+            <span class="legend-item"><span class="legend-dot risk-low"></span>低风险链路</span>
+          </template>
           <span class="legend-item"><span class="legend-dot supplier"></span>供给方</span>
           <span class="legend-item"><span class="legend-dot manufacturer"></span>采购主体</span>
           <span class="legend-item"><span class="legend-dot hub"></span>枢纽 / 口岸</span>
@@ -281,6 +286,8 @@ const visibleEnterprisePortRows = computed(() => (
 const yearMarks = computed(() => getYearMarks(yearRows.value))
 const activeYearLabel = computed(() => activeYear.value?.year ? `${activeYear.value.year} 年` : '未选择年份')
 const activeRouteKey = computed(() => String(props.selectedRouteKey || '').trim())
+// 链路是否带风险分档（铀态势快照链路带 risk_level，演示库实验链路不带）
+const hasRiskLevels = computed(() => (mapPayload.value.lines || []).some((item) => item.risk_level))
 const renderKey = computed(() => {
   const payload = mapPayload.value
   const lineQuantity = (payload.lines || []).reduce((sum, item) => sum + Number(item.quantity_tU || 0), 0)
@@ -519,6 +526,8 @@ function buildOption() {
             `<b>${params.data?.supplier_name || '-'} → ${params.data?.manufacturer_name || '-'}</b>`,
             `数量：${formatUraniumMetricValue('total_procured_tU', params.data?.quantity_tU)}`,
             `通道：${params.data?.route_label || '-'}`,
+            params.data?.risk_label ? `风险：${params.data.risk_label}（${params.data.risk_score}）` : '',
+            params.data?.supply_share ? `供应份额：${params.data.supply_share}%` : '',
             `港口：${formatPortLabel(params.data?.preferred_china_port_tag)}`,
             params.data?.supplier_asset ? `来源：${params.data.supplier_asset}` : '',
             `链路：${params.data?.route_trace || '-'}`
@@ -636,6 +645,9 @@ function buildOption() {
           route_label: item.route_label,
           preferred_china_port_tag: item.preferred_china_port_tag,
           route_trace: item.route_trace,
+          risk_label: item.risk_label || '',
+          risk_score: item.risk_score ?? '',
+          supply_share: item.supply_share ?? '',
           routeKey: item.route_key || buildUraniumRouteKey(item)
         }))
       },
@@ -1137,6 +1149,11 @@ onBeforeUnmount(() => {
   background: #0ea5e9;
   box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.18);
 }
+
+/* 链路风险分档（铀态势快照） */
+.legend-dot.risk-high { background: #dc2626; }
+.legend-dot.risk-medium { background: #f59e0b; }
+.legend-dot.risk-low { background: #16a34a; }
 
 .legend-line {
   width: 18px;

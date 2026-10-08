@@ -23,6 +23,8 @@ export function writeScnetPhase(phase) {
 
 // 路由 -> 阶段映射：用于在 localStorage 失效或过期时，按当前页面推断阶段
 export const ROUTE_TO_PHASE = Object.freeze({
+  '/home/SCnet/scenarioSetting': 'pre',
+  '/home/SCnet/planConfirmation': 'pre',
   '/home/SCnet/situationAnalysis': 'pre',
   '/home/SCnet/knowledgeBase': 'pre',
   '/home/SCnet/knowledgeGraph': 'pre',
@@ -46,7 +48,7 @@ export const ROUTE_TO_PHASE = Object.freeze({
   '/home/SCnet/expAnalysisObserve': 'post',
   '/home/SCnet/expAnalysisIntervention': 'post',
   '/home/SCnet/expAnalysisMechanism': 'post',
+  '/home/SCnet/experimentPlan': 'post',
   '/home/SCnet/counterfactualExperiment': 'post',
-  '/home/SCnet/expAnalysisMap': 'post',
   '/home/SCnet/EXreport': 'post'
 })
