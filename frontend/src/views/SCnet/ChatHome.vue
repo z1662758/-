@@ -271,7 +271,6 @@
             <p class="chat-handoff-note">跳转会带上本次问题与阶段，落地页顶部可一键回到本对话</p>
           </div>
         </div>
-        </div>
         <div class="chat-input-area">
           <div class="chat-input-wrapper">
             <div class="chat-input-box">
@@ -1499,7 +1498,6 @@ export default {
             analysisSuccess.value = true
             lastAnalysisMsgId.value = lastMsg.id
           }
-        }
         }
         // Agent 完成:后台同步真实列表(title/updated_at/新会话);失败不影响当前列表
         if (activeRun.value?.phase === 'during') {
