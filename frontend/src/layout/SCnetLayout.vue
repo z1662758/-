@@ -204,8 +204,11 @@
     <!-- 专家模式:全局运行进度浮窗(只读真实任务状态,不随案例切换变化) -->
     <ExpertWorkflowProgressFloat v-if="showExpertProgress" />
 
+    <!-- 事中阶段：在当前页面继续刚才的研判对话，不离开沙盘与分析页面 -->
+    <DuringChatFloat v-if="currentPhase === 'during'" />
+
     <!-- 浮动切换按钮：转到对话模式 -->
-    <el-tooltip content="切换到AI对话模式" placement="left" effect="dark">
+    <el-tooltip v-if="currentPhase !== 'during'" content="切换到AI对话模式" placement="left" effect="dark">
       <button class="chat-toggle-float-btn" @click="$router.push('/chatHome')">
         <el-icon :size="20"><ChatDotSquare /></el-icon>
       </button>
@@ -226,6 +229,7 @@ import {Files, Refresh} from "@element-plus/icons-vue";
 import AppHeader from "@/components/Header.vue";
 import ScnetPhaseNav from "@/components/ScnetPhaseNav.vue";
 import ExpertWorkflowProgressFloat from "@/views/SCnet/components/ExpertWorkflowProgressFloat.vue";
+import DuringChatFloat from "@/views/SCnet/components/DuringChatFloat.vue";
 import { useExpertWorkflowStore } from "@/stores/scnet/useExpertWorkflowStore";
 import { useScenarioStore } from "@/stores/scenario";
 import { useKnowledgePlatform } from "@/views/SCnet/composables/useKnowledgePlatform";
@@ -335,6 +339,7 @@ export default {
     Cpu,
     Connection,
     ExpertWorkflowProgressFloat,
+    DuringChatFloat,
     Refresh, Files, DataAnalysis, DataLine, DocumentDelete, House, Aim, Box, Collection,
     Document, Notification, Operation, Postcard, Promotion, ScaleToOriginal, SearchIcon, Setting,
     Coin, PieChart, FolderOpened, Grid, SwitchButton, Orange, TrendCharts, User, AppHeader, WarningFilled, ChatDotSquare, CircleCheck,

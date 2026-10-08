@@ -12,7 +12,7 @@
             <strong>{{ item.value }}</strong>
           </article>
         </div>
-        <el-button size="small" type="primary" plain @click="calibrationDrawerVisible = true">
+        <el-button size="small" class="ms-calibration-header-btn" @click="calibrationDrawerVisible = true">
           <el-icon><ChatDotRound /></el-icon>
           <span>人机对话与人工校准</span>
         </el-button>
@@ -21,10 +21,6 @@
           <span>推演环境参数</span>
           <span class="ms-header-pill-badge">{{ draftForm.start_year }}–{{ draftForm.end_year }}</span>
           <span v-if="draftDirty" class="ms-header-dirty-dot"></span>
-        </el-button>
-        <el-button size="small" @click="goDuringEntry">
-          <el-icon><ChatDotRound /></el-icon>
-          <span>回到对话</span>
         </el-button>
         <el-button type="primary" size="small" @click="goNext">
           <span>下一步：想定生成</span>
@@ -768,6 +764,16 @@
       </template>
 
       <div class="ms-drawer-content">
+        <section class="ms-param-summary">
+          <div>
+            <span class="ms-param-summary-kicker">当前推演配置</span>
+            <strong>{{ draftForm.start_year }}–{{ draftForm.end_year }} · {{ draftForm.optimization_iterations }} 轮迭代</strong>
+          </div>
+          <el-tag size="small" :type="draftDirty ? 'warning' : 'success'" effect="plain">
+            {{ draftDirty ? '待保存' : '已同步' }}
+          </el-tag>
+        </section>
+
         <section class="ms-drawer-section glass-panel">
           <div class="ms-drawer-section-title">
             <el-icon><Calendar /></el-icon>
@@ -903,11 +909,27 @@
       </template>
 
       <div class="ms-calibration-body">
-        <!-- 上部：人机对话窗口 -->
-        <section class="calib-chat-section glass-panel">
+        <div class="calib-mode-tabs" role="tablist" aria-label="建模助手模式">
+          <button type="button" :class="{ active: calibrationTab === 'chat' }" @click="calibrationTab = 'chat'">
+            <el-icon><ChatDotRound /></el-icon>
+            <span>对话助手</span>
+            <small>解释建模逻辑</small>
+          </button>
+          <button type="button" :class="{ active: calibrationTab === 'calibration' }" @click="calibrationTab = 'calibration'">
+            <el-icon><Setting /></el-icon>
+            <span>参数校准</span>
+            <small>调整认知约束</small>
+          </button>
+        </div>
+
+        <!-- 对话助手 -->
+        <section v-if="calibrationTab === 'chat'" class="calib-chat-section glass-panel">
           <div class="calib-section-title">
             <el-icon><ChatDotRound /></el-icon>
-            <strong>人机交互对话窗口 (智能体建模 Copilot)</strong>
+            <div>
+              <strong>建模助手</strong>
+              <small>解释当前智能体如何感知、判断与行动</small>
+            </div>
           </div>
           <div class="calib-chat-messages" ref="calibChatScroll">
             <div v-for="(msg, mIdx) in calibChatHistory" :key="mIdx" class="calib-msg-row" :class="msg.sender">
@@ -944,11 +966,14 @@
           </div>
         </section>
 
-        <!-- 下部：人工校准设定面板 -->
-        <section class="calib-sliders-section glass-panel">
+        <!-- 参数校准 -->
+        <section v-else class="calib-sliders-section glass-panel">
           <div class="calib-section-title">
             <el-icon><Setting /></el-icon>
-            <strong>专家人工校准设定 (Human Calibration)</strong>
+            <div>
+              <strong>人工校准参数</strong>
+              <small>修改后点击底部“保存并应用”写入本次沙盘配置</small>
+            </div>
             <el-tag size="small" type="success" effect="plain">专家在环</el-tag>
           </div>
 
@@ -1010,16 +1035,13 @@ import { ElMessage } from 'element-plus'
 import {
   Aim, ArrowRight, Bell, Box, Calendar, ChatDotRound, Cpu, Guide, OfficeBuilding,
   Search, Sell, User, Tickets, Operation, Histogram, MapLocation, SetUp,
-  Connection, Reading, Warning, Right, TrendCharts, DataAnalysis, Share, InfoFilled,
+  Connection, Reading, Right, DataAnalysis, Share, InfoFilled,
   Grid, Check, Setting
 } from '@element-plus/icons-vue'
-import MidStagePanelHeader from './components/shared/MidStagePanelHeader.vue'
 import MidStagePageHeader from './components/shared/MidStagePageHeader.vue'
 import UraniumModelingTopology from './components/simulation/UraniumModelingTopology.vue'
 import './components/shared/midStage.css'
-import { useScnetScenarioStore } from '@/stores/scnet/useScenarioStore'
 import { useUraniumDuringStore } from '@/stores/scnet/useUraniumDuringStore'
-import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
 import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 import { validateUraniumModelingDraft } from '@/utils/uraniumModeling'
 import { URANIUM_REFERENCE_GRAPH } from '@/views/SCnet/mock/agentGraphMock'
@@ -1052,9 +1074,7 @@ defineOptions({ name: 'ModelingSetupUranium' })
 
 const route = useRoute()
 const router = useRouter()
-const scenarioStore = useScnetScenarioStore()
 const uraniumStore = useUraniumDuringStore()
-const snapshotStore = useAnalysisSnapshotStore()
 
 // 真实后端连通状态与实体
 const backendConnected = ref(false)
@@ -1099,6 +1119,7 @@ const observerWeights = URANIUM_OBSERVER_WEIGHTS
 const modelingView = ref('agent')
 const drawerVisible = ref(false)
 const roleFilterTier = ref('all')
+const calibrationTab = ref('chat')
 
 // 人机对话与人工校准设定 (对齐师姐诉求)
 const calibrationDrawerVisible = ref(false)
@@ -1207,12 +1228,6 @@ function switchAgentTier(tier) {
   }
 }
 
-// ---------- 会话上下文 ----------
-const hasSessionState = computed(() => (
-  !!scenarioStore.currentSessionId
-  || !!scenarioStore.scenarioApiResult
-  || !!snapshotStore.activeSnapshotId
-))
 const isFresh = computed(() => route.query.fresh === '1')
 
 // ---------- Agent 列表（按层级分组，支持真实后端数据与回落基准同源） ----------
@@ -1454,17 +1469,10 @@ function goNext() {
   router.push({ path: SCNET_ROUTES.scenarioAnalysis, query })
 }
 
-function goDuringEntry() {
-  router.push(SCNET_ROUTES.duringEntry)
-}
-
-function openRoleWorkshop() {
-  router.push({ path: '/home/SCnet/knowledgeGraph', query: { tab: 'role' } })
-}
-
 onMounted(() => {
   syncFormFromDraft()
   selectedKey.value = agentGroups.value[0]?.members[0]?.key || ''
+  fetchBackendData()
 })
 </script>
 
@@ -1902,7 +1910,7 @@ onMounted(() => {
 .ms-env-title .el-icon { color: var(--mid-info); }
 .ms-env-title small { margin-left: auto; font-size: var(--mid-fs-micro); color: var(--mid-text-muted); font-weight: 400; }
 .ms-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 10px; }
-.ms-form-grid label { display: flex; flex-direction: column; gap: 4px; }
+.ms-form-grid label { display: flex; flex-direction: column; gap: 6px; padding: 9px 10px; border: 1px solid #eef2f7; border-radius: 8px; background: #f8fafc; }
 .ms-form-grid label > span { font-size: var(--mid-fs-micro); font-weight: 700; color: var(--mid-text-muted); }
 .ms-form-grid :deep(.el-input-number) { width: 100%; }
 .ms-form-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; }
@@ -2082,6 +2090,29 @@ onMounted(() => {
   gap: 6px;
   font-weight: 600;
   position: relative;
+  min-width: 142px;
+  justify-content: center;
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.ms-param-header-btn:hover {
+  border-color: #60a5fa;
+  background: #dbeafe;
+  color: #1e40af;
+}
+.ms-calibration-header-btn {
+  min-width: 156px;
+  justify-content: center;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #4338ca;
+  font-weight: 700;
+}
+.ms-calibration-header-btn:hover {
+  border-color: #818cf8;
+  background: #e0e7ff;
+  color: #3730a3;
 }
 .ms-header-pill-badge {
   padding: 1px 6px;
@@ -3364,6 +3395,12 @@ onMounted(() => {
   padding: 14px;
   background: #f8fafc;
 }
+.ms-calibration-drawer :deep(.el-drawer__header) {
+  margin-bottom: 0;
+  padding: 14px 18px;
+  border-bottom: 1px solid #c7d2fe;
+  background: linear-gradient(135deg, #eef2ff, #f8fafc);
+}
 .ms-drawer-head {
   display: flex;
   flex-direction: column;
@@ -3383,13 +3420,40 @@ onMounted(() => {
 .ms-calibration-body {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
+.calib-mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.calib-mode-tabs button {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 7px;
+  padding: 9px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  background: #fff;
+  color: #64748b;
+  text-align: left;
+  cursor: pointer;
+}
+.calib-mode-tabs button.active {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, .08);
+}
+.calib-mode-tabs button > span { font-size: 11px; font-weight: 700; }
+.calib-mode-tabs button small { grid-column: 2; color: #94a3b8; font-size: 9px; }
+.calib-mode-tabs button.active small { color: #60a5fa; }
 .calib-chat-section, .calib-sliders-section {
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  padding: 12px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -3405,8 +3469,11 @@ onMounted(() => {
   padding-bottom: 6px;
   border-bottom: 1px solid #f1f5f9;
 }
+.calib-section-title > div { display: flex; flex: 1; flex-direction: column; gap: 2px; }
+.calib-section-title small { color: #94a3b8; font-size: 9px; font-weight: 400; }
 .calib-chat-messages {
-  max-height: 200px;
+  min-height: 230px;
+  max-height: 320px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -3475,12 +3542,16 @@ onMounted(() => {
 .calib-input-row {
   display: flex;
   gap: 6px;
+  padding-top: 2px;
 }
 .calib-form-item {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f1f5f9;
 }
+.calib-form-item:last-of-type { border-bottom: 0; }
 .calib-label-row {
   display: flex;
   justify-content: space-between;
@@ -3505,7 +3576,9 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding-top: 4px;
+  padding: 10px;
+  border-radius: 8px;
+  background: #f8fafc;
 }
 .ms-drawer-footer {
   display: flex;
@@ -3521,5 +3594,23 @@ onMounted(() => {
   display: flex;
   gap: 8px;
 }
+.ms-param-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #eff6ff, #f8fafc);
+}
+.ms-param-summary-kicker {
+  display: block;
+  margin-bottom: 3px;
+  color: #3b82f6;
+  font-size: 9px;
+  letter-spacing: .08em;
+}
+.ms-param-summary strong { color: #1e3a8a; font-size: 12px; }
 
 </style>
