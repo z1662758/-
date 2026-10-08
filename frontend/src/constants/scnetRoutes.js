@@ -34,8 +34,6 @@ export const SCNET_ROUTES = Object.freeze({
   situationJudge: `${SCNET_BASE}/situationJudge`,
   reportGeneration: `${SCNET_BASE}/reportGeneration`,
   situationResearch: `${SCNET_BASE}/situationResearch-main`,
-  // 事前落点:态势研判(NetworkMap 包装页)
-  situationJudge: `${SCNET_BASE}/situationJudge`,
   disruptRisk: `${SCNET_BASE}/DisruptRisk`,
 
   expAnalysisGameTheory: `${SCNET_BASE}/expAnalysisGameTheory`,
