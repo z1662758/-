@@ -1,0 +1,1970 @@
+<template>
+  <div class="post-report-page">
+    <ChatHandoffStrip>
+      <template #hint>可把本轮复盘结论并入报告后再导出。</template>
+    </ChatHandoffStrip>
+
+    <section class="report-head">
+      <div>
+        <h1>复盘报告</h1>
+        <p class="subtitle">
+          <el-tag size="small" effect="plain" type="info" class="scene-tag">{{ sceneText.systemLabel }}</el-tag>
+          基于事中仿真与反事实分析结果，汇总关键指标对比与因素总结。
+        </p>
+      </div>
+      <div class="head-actions">
+        <el-dropdown trigger="click" @command="exportReport">
+          <el-button plain :icon="Download" :loading="exporting">
+            导出报告
+            <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="html">HTML（.html）</el-dropdown-item>
+              <el-dropdown-item command="txt">文本（.txt）</el-dropdown-item>
+              <el-dropdown-item command="pdf">PDF 文件（.pdf）</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+        <el-button text size="small" :icon="Refresh" @click="refreshReport" :loading="loading" />
+      </div>
+    </section>
+
+    <div v-if="loading" class="loading-container">
+      <el-icon class="is-loading" :size="54"><Loading /></el-icon>
+      <p>正在生成报告...</p>
+    </div>
+
+    <el-empty
+      v-else-if="!reportData"
+      class="empty-report"
+      :description="`请先选择或完成一个${sceneText.systemLabel}实验`"
+      :image-size="120"
+    />
+
+    <div v-else ref="reportContentRef" class="report-content">
+      <section class="summary-grid">
+        <article class="summary-card">
+          <el-icon><Memo /></el-icon>
+          <span>实验总数</span>
+          <strong>{{ experimentRows.length }}</strong>
+        </article>
+        <article class="summary-card">
+          <el-icon><Odometer /></el-icon>
+          <span>最优实验</span>
+          <strong>{{ bestExperimentLabel }}</strong>
+        </article>
+        <article class="summary-card">
+          <el-icon><Star /></el-icon>
+          <span>关键因素</span>
+          <strong>{{ topFactor?.label || '-' }}</strong>
+        </article>
+        <article class="summary-card">
+          <el-icon><DataAnalysis /></el-icon>
+          <span>完成率改善</span>
+          <strong>{{ completionImprovementLabel }}</strong>
+        </article>
+      </section>
+
+      <main class="report-scroll">
+        <section v-if="linkedSession" class="report-section">
+          <header class="section-head compact">
+            <div>
+              <h2>原始建模过程</h2>
+              <p>保留与本次实验关联的需求、任务拆解和对话上下文。</p>
+            </div>
+            <el-tag size="small" type="info" effect="plain">会话 {{ linkedSession.session_id }}</el-tag>
+          </header>
+          <div class="session-list">
+            <article v-if="linkedRequirement">
+              <strong>原始需求</strong>
+              <p>{{ linkedRequirement }}</p>
+            </article>
+            <article v-if="linkedGoal">
+              <strong>研究目标</strong>
+              <p>{{ linkedGoal }}</p>
+            </article>
+            <article v-if="linkedTaskList.length">
+              <strong>拆解任务</strong>
+              <p>共 {{ linkedTaskList.length }} 项 - {{ linkedTaskList.slice(0, 3).join('；') }}{{ linkedTaskList.length > 3 ? '...' : '' }}</p>
+            </article>
+          </div>
+        </section>
+
+        <!-- 综合结论 -->
+        <section class="report-section report-conclusion">
+          <header class="section-head">
+            <h2>综合结论</h2>
+          </header>
+          <div class="conclusion-body">
+            <p>{{ reportConclusion }}</p>
+          </div>
+        </section>
+
+        <section class="report-section">
+          <header class="section-head">
+            <div>
+              <h2>实验对比总览</h2>
+              <p>汇总实验基本信息、关键参数与核心输出指标。</p>
+            </div>
+            <div class="overview-head-actions">
+              <span class="generated-at">生成时间：{{ generatedAt }}</span>
+              <el-button v-if="experimentRows.length > OVERVIEW_DEFAULT_COUNT" text size="small" @click="overviewExpanded = !overviewExpanded">
+                <el-icon><component :is="overviewExpanded ? ArrowUp : ArrowDown" /></el-icon>
+                {{ overviewExpanded ? '收起，仅显示最优 3 家' : `展开全部 ${experimentRows.length} 家` }}
+              </el-button>
+            </div>
+          </header>
+
+          <div class="overview-table">
+            <div class="overview-header">
+              <div>实验</div>
+              <div>来源</div>
+              <div>核心参数</div>
+              <div>关键指标</div>
+            </div>
+            <article v-for="row in overviewRows" :key="row.id" class="overview-row">
+              <div class="experiment-cell">
+                <strong>{{ row.label }}</strong>
+                <small>{{ row.id }}</small>
+              </div>
+              <div>
+                <el-tag :type="row.source === '最优' ? 'success' : 'info'" effect="light">{{ row.source }}</el-tag>
+              </div>
+              <div class="chip-wrap">
+                <span v-for="param in row.params" :key="param">{{ param }}</span>
+              </div>
+              <div class="metric-pills">
+                <span v-for="metric in row.metrics" :key="metric">{{ metric }}</span>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- 实验验证：通过一致性 / 离散度 / 收敛性校验实验结论可靠性 -->
+        <section class="report-section report-verification">
+          <header class="section-head compact">
+            <div>
+              <h2>实验验证</h2>
+              <p>基于多轮迭代结果的一致性、离散度与收敛性，并纳入跨世界配对证据，校验实验结论的可靠性。</p>
+            </div>
+            <el-tag v-if="verificationSummary" :type="verificationSummary.reliabilityType" size="small" effect="light" round>
+              可靠性：{{ verificationSummary.reliability }}
+            </el-tag>
+          </header>
+          <div v-if="verificationSummary" class="verification-body">
+            <div class="verification-grid">
+              <div v-for="item in verificationItems" :key="item.label" class="verify-item">
+                <span class="verify-label">{{ item.label }}</span>
+                <strong class="verify-value" :class="item.tone">{{ item.value }}</strong>
+              </div>
+            </div>
+            <p class="verification-conclusion">{{ verificationSummary.conclusion }}</p>
+          </div>
+          <div v-else class="verification-empty">数据不足，暂无法完成实验可靠性验证</div>
+        </section>
+
+        <!-- 反事实实验：事实 / 反事实成对世界的结论与分布（由反事实实验平台交接） -->
+        <section v-if="counterfactualSummary" class="report-section report-counterfactual">
+          <header class="section-head compact">
+            <div>
+              <h2>反事实实验结论</h2>
+              <p>事实世界与反事实世界共享同一随机种子，唯一变量为干预；差值分布即干预效应。</p>
+            </div>
+            <el-tag :type="counterfactualSummary.seedTone" size="small" effect="light" round>
+              {{ counterfactualSummary.seedLabel }}
+            </el-tag>
+          </header>
+          <div class="verification-body">
+            <div class="verification-grid">
+              <div v-for="item in counterfactualSummary.items" :key="item.label" class="verify-item">
+                <span class="verify-label">{{ item.label }}</span>
+                <strong class="verify-value" :class="item.tone">{{ item.value }}</strong>
+              </div>
+            </div>
+            <p class="verification-conclusion">{{ counterfactualSummary.conclusion }}</p>
+            <div v-if="counterfactualSummary.interventions.length" class="cf-interventions">
+              <span class="cf-interventions-label">干预变量：</span>
+              <span v-for="item in counterfactualSummary.interventions" :key="item.key" class="cf-intervention-tag">
+                {{ item.key }}：{{ formatCounterfactualValue(item.from) }} → {{ formatCounterfactualValue(item.to) }}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section class="comparison-grid">
+          <article class="report-section">
+            <header class="section-head compact">
+              <div>
+                <h2>参数对比</h2>
+                <p>按参数项展开实验配置差异。</p>
+              </div>
+            </header>
+            <div class="matrix-table">
+              <div class="matrix-row matrix-header" :style="{ gridTemplateColumns: parameterMatrixTemplate }">
+                <div>参数</div>
+                <div v-for="row in experimentRows" :key="`p-head-${row.id}`">{{ row.shortLabel }}</div>
+              </div>
+              <div v-for="param in parameterMatrixRows" :key="param.key" class="matrix-row" :style="{ gridTemplateColumns: parameterMatrixTemplate }">
+                <div class="matrix-label">{{ param.label }}</div>
+                <div v-for="row in experimentRows" :key="`${param.key}-${row.id}`">{{ row.paramsMap[param.key] || '-' }}</div>
+              </div>
+            </div>
+          </article>
+
+          <article class="report-section">
+            <header class="section-head compact">
+              <div>
+                <h2>指标对比</h2>
+                <p>对比完成率、利润、综合得分和最优轮次。</p>
+              </div>
+            </header>
+            <div class="matrix-table">
+              <div class="matrix-row matrix-header" :style="{ gridTemplateColumns: metricMatrixTemplate }">
+                <div>指标</div>
+                <div v-for="row in experimentRows" :key="`m-head-${row.id}`">{{ row.shortLabel }}</div>
+              </div>
+              <div v-for="metric in metricMatrixRows" :key="metric.key" class="matrix-row" :style="{ gridTemplateColumns: metricMatrixTemplate }">
+                <div class="matrix-label">{{ metric.label }}</div>
+                <div
+                  v-for="row in experimentRows"
+                  :key="`${metric.key}-${row.id}`"
+                  :class="metricCellClass(metric.key, row)"
+                >
+                  {{ row.metricsMap[metric.key] || '-' }}
+                </div>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section v-if="iterationTableRows.length" class="report-section">
+          <header class="section-head compact">
+            <div>
+              <h2>迭代序列</h2>
+              <p>保留各轮综合得分、订单完成率、净利润和企业数量变化。</p>
+            </div>
+          </header>
+          <div class="iteration-strip">
+            <article v-for="row in iterationTableRows" :key="row.iteration" class="iteration-card" :class="{ best: row.isBest }">
+              <strong>第{{ row.iteration }}轮</strong>
+              <span>{{ row.score }}</span>
+              <small>完成率 {{ row.completionRate }} / 利润 {{ row.profit }}</small>
+            </article>
+          </div>
+        </section>
+
+        <section class="analysis-grid">
+          <article class="report-section">
+            <header class="section-head compact">
+              <div>
+                <h2>影响因素总结</h2>
+                <p>识别当前供应链实验中最值得关注的配置与指标因素。</p>
+              </div>
+            </header>
+            <div class="factor-list">
+              <article v-for="factor in factorSummaries" :key="factor.key" class="factor-card">
+                <div class="factor-title-row">
+                  <strong>{{ factor.label }}</strong>
+                  <span>{{ factor.score }}%</span>
+                </div>
+                <p>{{ factor.effect }}</p>
+                <div class="factor-bar">
+                  <i :style="{ width: `${factor.score}%` }"></i>
+                </div>
+              </article>
+            </div>
+          </article>
+
+          <article class="report-section">
+            <header class="section-head compact">
+              <div>
+                <h2>各因素作用路径</h2>
+                <p>从实验参数到供应链输出指标的主要作用链路。</p>
+              </div>
+            </header>
+            <div class="path-list">
+              <article v-for="path in pathSummaries" :key="path.title" class="path-card">
+                <div class="path-icon">
+                  <el-icon><Connection /></el-icon>
+                </div>
+                <div>
+                  <strong>{{ path.title }}</strong>
+                  <p>{{ path.chain }}</p>
+                  <small>{{ path.note }}</small>
+                </div>
+              </article>
+            </div>
+          </article>
+        </section>
+
+        <section class="report-section">
+          <header class="section-head compact">
+            <div>
+              <h2>关键因素识别</h2>
+              <p>结合参数配置、迭代指标与最优轮次，给出当前实验的主导因素。</p>
+            </div>
+          </header>
+          <div class="key-factor-grid">
+            <article v-for="factor in keyFactors" :key="factor.key" class="key-factor-card">
+              <div class="rank">{{ factor.rank }}</div>
+              <div>
+                <strong>{{ factor.label }}</strong>
+                <p>{{ factor.reason }}</p>
+              </div>
+              <span>{{ factor.score }}%</span>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, nextTick, onMounted, watch } from 'vue';
+import { ElButton, ElCard, ElIcon, ElTag, ElEmpty, ElMessage } from 'element-plus';
+import html2canvas from 'html2canvas';
+import ChatHandoffStrip from '@/components/SCnet/ChatHandoffStrip.vue'
+import { jsPDF } from 'jspdf';
+import {
+  ArrowDown,
+  ArrowUp,
+  Connection,
+  DataAnalysis,
+  Download,
+  Loading,
+  Memo,
+  Odometer,
+  Refresh,
+  Star
+} from '@element-plus/icons-vue';
+import { useSupplyChainStore } from '@/stores/supplyChain';
+import { storeToRefs } from 'pinia';
+import { getExperimentReport } from '@/api/supplyChain';
+import { useSupplyChainScenario } from '@/composables/useSupplyChainScenario';
+import { getQueueHistory } from '@/api/queue';
+import { getSessionByExperiment } from '@/api/scenarioSession';
+import { unwrapApiData } from '@/utils/apiEnvelope';
+import { loadCounterfactualReport } from '@/utils/counterfactualReport';
+
+const store = useSupplyChainStore();
+const { currentExperimentId } = storeToRefs(store);
+// 场景：报告页与其它事后页面共用同一份场景选择（?scenario= 进入时以 URL 为准）
+const { isUraniumScene, sceneText, loadScenarioExperiments } = useSupplyChainScenario();
+
+const loading = ref(false);
+const exporting = ref(false);
+const reportData = ref(null);
+const linkedSession = ref(null);
+const comparisonData = ref(null);
+const reportContentRef = ref(null);
+const counterfactualReport = ref(null);
+
+const linkedRequirement = computed(() => linkedSession.value?.requirement?.raw_input || '');
+const linkedGoal = computed(() => linkedSession.value?.requirement?.goal || '');
+const linkedTaskList = computed(() => linkedSession.value?.tasks?.task_list || []);
+const linkedChatCount = computed(() => (linkedSession.value?.chat_history || []).length);
+
+async function loadLinkedSession(expId) {
+  if (!expId) {
+    linkedSession.value = null;
+    return;
+  }
+  try {
+    const response = await getSessionByExperiment(expId);
+    linkedSession.value = unwrapApiData(response) || null;
+  } catch (err) {
+    // 404 / 未关联实验，静默忽略
+    linkedSession.value = null;
+    if (import.meta.env.DEV) {
+      console.debug('[EXreport] 无关联会话:', err?.message || err);
+    }
+  }
+}
+
+const iterationTableRows = computed(() => {
+  const comp = comparisonData.value;
+  if (!comp?.iterations_summary?.length) return [];
+  const bestIterNum = comp.best_iteration?.iteration;
+  return comp.iterations_summary.map((iter) => ({
+    iteration: iter.iteration,
+    score: iter.score != null ? Number(iter.score).toFixed(3) : '-',
+    completionRate:
+      iter.completion_rate != null ? `${(Number(iter.completion_rate) * 100).toFixed(1)}%` : '-',
+    profit: iter.profit != null ? `¥${Number(iter.profit).toLocaleString()}` : '-',
+    enterpriseCount: iter.enterprise_count ?? '-',
+    isBest: bestIterNum != null && iter.iteration === bestIterNum
+  }));
+});
+
+const parseExperimentIdFromResultPath = (pathValue) => {
+  const text = String(pathValue || '');
+  const matched = text.match(/multi_agent_report_(\d{8}_\d{6})\.json$/);
+  return matched ? matched[1] : '';
+};
+
+const resolvePreferredExperimentId = async (experiments = []) => {
+  if (!Array.isArray(experiments) || experiments.length === 0) return '';
+  const expIdSet = new Set(experiments.map(item => item?.experiment_id).filter(Boolean));
+
+  const fromStore = currentExperimentId.value || '';
+  if (fromStore && expIdSet.has(fromStore)) return fromStore;
+
+  const fromStorage = localStorage.getItem('selectedExperimentId') || '';
+  if (fromStorage && expIdSet.has(fromStorage)) return fromStorage;
+
+  const recentTaskId = localStorage.getItem('sc_recentQueuedTaskId') || '';
+  if (recentTaskId) {
+    try {
+      const response = await getQueueHistory(80);
+      const history = unwrapApiData(response);
+      const rows = Array.isArray(history) ? history : [];
+      const hit = rows.find(row => row?.task_id === recentTaskId && row?.status === 'completed');
+      const fromPath = parseExperimentIdFromResultPath(hit?.result_path);
+      if (fromPath && expIdSet.has(fromPath)) return fromPath;
+    } catch (error) {
+      console.warn('[EXreport] resolvePreferredExperimentId queue lookup failed:', error);
+    }
+  }
+
+  return experiments[0]?.experiment_id || '';
+};
+
+// 计算显示的参数列表（过滤掉复杂对象）
+const displayParameters = computed(() => {
+  if (!reportData.value?.parameters) return [];
+
+  const params = reportData.value.parameters;
+
+  // 安全检查：确保params是对象
+  if (typeof params !== 'object' || params === null) return [];
+
+  const result = [];
+
+  // 定义需要显示的关键参数（铀侧保留原措辞；汽车侧交给参数目录口径）
+  const keyParams = isUraniumScene.value
+    ? {
+        order_multiplier: '订单乘数',
+        capacity_range: '产能区间',
+        reproduction_threshold: '繁殖阈值',
+        initial_capital: '初始资金',
+        max_iterations: '最大迭代数',
+        simulation_duration: '仿真时长',
+        total_enterprises: '企业总数',
+        key_params: '研究参数'
+      }
+    : {
+        max_iterations: '最大迭代数',
+        simulation_duration: '仿真时长',
+        total_enterprises: '企业总数',
+        key_params: '研究参数'
+      };
+
+  try {
+    // 遍历参数对象，只提取简单类型的值
+    for (const [key, value] of Object.entries(params)) {
+      // 跳过复杂对象和null/undefined
+      if (value === null || value === undefined) continue;
+      if (typeof value === 'object' && !Array.isArray(value)) continue;
+
+      // 如果是已知的关键参数，使用中文名称
+      const label = keyParams[key] || formatParamName(key);
+      const formattedValue = formatParamValue(value);
+
+      result.push({
+        key,
+        label,
+        value: formattedValue
+      });
+    }
+  } catch (error) {
+    console.error('[EXreport] 参数解析错误:', error);
+  }
+
+  return result;
+});
+
+const generatedAt = computed(() => {
+  const raw = reportData.value?.created_at;
+  return raw ? formatDate(raw) : new Date().toLocaleString('zh-CN', { hour12: false });
+});
+
+const buildBaseParamsMap = () => {
+  const map = {};
+  displayParameters.value.forEach((param) => {
+    map[param.key] = param.value;
+  });
+  return map;
+};
+
+const experimentRows = computed(() => {
+  if (!reportData.value) return [];
+  const baseParams = buildBaseParamsMap();
+  if (iterationTableRows.value.length) {
+    return iterationTableRows.value.map((row, index) => ({
+      id: `Exp-${String(index + 1).padStart(2, '0')}`,
+      shortLabel: `Exp-${String(index + 1).padStart(2, '0')}`,
+      label: `迭代实验 ${row.iteration}`,
+      source: row.isBest ? '最优' : '迭代',
+      paramsMap: {
+        ...baseParams,
+        iteration: `第${row.iteration}轮`,
+        enterprise_count: `${row.enterpriseCount}家`
+      },
+      metricsMap: {
+        completionRate: row.completionRate,
+        profit: row.profit,
+        score: row.score,
+        enterpriseCount: `${row.enterpriseCount}家`
+      },
+      rawCompletionRate: parseFloat(row.completionRate) || 0,
+      rawProfit: Number(String(row.profit).replace(/[¥,]/g, '')) || 0,
+      rawScore: Number(row.score) || 0
+    }));
+  }
+  return [{
+    id: 'Exp-01',
+    shortLabel: 'Exp-01',
+    label: safeGetValue(reportData.value, 'goal', '') || `${sceneText.value.systemLabel}仿真实验`,
+    source: getStatusText(safeGetValue(reportData.value, 'status', '')),
+    paramsMap: {
+      ...baseParams,
+      iteration: `第${safeGetValue(reportData.value, 'best_iteration', 0)}轮`,
+      enterprise_count: `${safeGetValue(reportData.value, 'enterprise_count', 0)}家`
+    },
+    metricsMap: {
+      completionRate: formatPercent(reportData.value.avg_completion_rate),
+      profit: formatProfit(reportData.value.avg_profit),
+      score: formatScore(reportData.value.best_score),
+      enterpriseCount: `${safeGetValue(reportData.value, 'enterprise_count', 0)}家`
+    },
+    rawCompletionRate: Number(reportData.value.avg_completion_rate || 0) * 100,
+    rawProfit: Number(reportData.value.avg_profit || 0),
+    rawScore: Number(reportData.value.best_score || 0)
+  }];
+});
+
+const bestExperimentLabel = computed(() => {
+  const best = [...experimentRows.value].sort((a, b) => b.rawScore - a.rawScore)[0];
+  return best?.label || '-';
+});
+
+const completionImprovementLabel = computed(() => {
+  const values = experimentRows.value
+    .map((row) => row.rawCompletionRate)
+    .filter(Number.isFinite);
+  if (values.length < 2) return '-';
+  const first = values[0];
+  const best = Math.max(...values);
+  if (!first) return '-';
+  return `${Math.max(0, ((best - first) / first) * 100).toFixed(1)}%`;
+});
+
+const reportConclusion = computed(() => {
+  const data = reportData.value
+  if (!data) return ''
+  const best = bestExperimentLabel.value
+  const total = experimentRows.value.length
+  const completed = experimentRows.value.filter(r => r.rawCompletionRate > 0).length
+  const avgCompletion = data.avg_completion_rate ? `${(data.avg_completion_rate * 100).toFixed(1)}%` : '--'
+  const bestScore = data.best_score ? Number(data.best_score).toFixed(3) : '--'
+  const bestIter = data.best_iteration || '--'
+  const enterpriseCount = data.enterprise_count || '--'
+  return `本次实验共纳入 ${total} 组仿真（已完成 ${completed} 组），涉及 ${enterpriseCount} 家企业，平均订单完成率 ${avgCompletion}，综合得分 ${bestScore}。表现最优为「${best}」（第 ${bestIter} 轮），其完成率与净利润均领先于其他实验。建议以此参数配置为基准，在反事实实验中进一步验证策略鲁棒性。`
+})
+
+const OVERVIEW_DEFAULT_COUNT = 3
+const overviewExpanded = ref(false)
+const overviewRows = computed(() => {
+  // 默认只保留综合得分最高的 3 家实验，可展开查看全部
+  const sorted = [...experimentRows.value].sort((a, b) => (b.rawScore || 0) - (a.rawScore || 0))
+  const shown = overviewExpanded.value ? sorted : sorted.slice(0, OVERVIEW_DEFAULT_COUNT)
+  return shown.map((row) => ({
+    id: row.id,
+    label: row.label,
+    source: row.source,
+    params: [
+      row.paramsMap.iteration,
+      row.paramsMap.enterprise_count,
+      ...displayParameters.value.slice(0, 2).map((param) => `${param.label} ${param.value}`)
+    ].filter(Boolean),
+    metrics: [
+      `完成率 ${row.metricsMap.completionRate}`,
+      `净利润 ${row.metricsMap.profit}`,
+      `得分 ${row.metricsMap.score}`
+    ]
+  }));
+});
+
+// ---- 实验验证：多轮迭代一致性 / 离散度 / 收敛性校验 ----
+const num = (v) => {
+  const n = typeof v === 'number' ? v : parseFloat(String(v ?? '').replace(/[¥,%\s]/g, ''));
+  return Number.isFinite(n) ? n : NaN;
+};
+
+const verificationSummary = computed(() => {
+  const rows = iterationTableRows.value;
+  if (!rows.length) return null;
+
+  const scores = rows.map(r => num(r.score)).filter(Number.isFinite);
+  const completions = rows.map(r => num(r.completionRate)).filter(Number.isFinite);
+  const profits = rows.map(r => num(r.profit)).filter(Number.isFinite);
+
+  // 变异系数 CV = 标准差 / 均值 × 100%，衡量结果离散程度
+  const cv = (arr) => {
+    if (arr.length < 2) return null;
+    const mean = arr.reduce((s, v) => s + v, 0) / arr.length;
+    if (!mean) return null;
+    const variance = arr.reduce((s, v) => s + (v - mean) ** 2, 0) / arr.length;
+    return (Math.sqrt(variance) / mean) * 100;
+  };
+
+  const completionCv = cv(completions);
+  const profitCv = cv(profits);
+  const scoreCv = cv(scores);
+
+  const total = rows.length;
+  const bestScore = scores.length ? Math.max(...scores) : 0;
+  const last = rows[rows.length - 1];
+  const lastScore = num(last?.score);
+  const convergeRatio = bestScore > 0 && Number.isFinite(lastScore) ? lastScore / bestScore : null;
+  const converged = convergeRatio != null && convergeRatio >= 0.95;
+
+  const enoughData = total >= 3 && completions.length >= 2 && scores.length >= 2;
+
+  // 完成率一致性评级
+  let consistencyLevel = '高';
+  if (completionCv != null && completionCv > 12) consistencyLevel = '低';
+  else if (completionCv != null && completionCv > 5) consistencyLevel = '中';
+
+  // 跨世界反事实证据（若反事实实验平台已交接同一实验 id 的配对结果）
+  // 口径：配对效应不显著时不能给「高」可靠性 —— 干预效应还无法与仿真噪声区分。
+  const cfP = Number(counterfactualReport.value?.effect?.pValue);
+  const cfN = Number(counterfactualReport.value?.effect?.n);
+  const cfDiff = Number(counterfactualReport.value?.effect?.meanDifference);
+  const crossWorld = Number.isFinite(cfP) && cfN > 0
+    ? {
+        pText: cfP.toFixed(4),
+        n: cfN,
+        level: cfP <= 0.05 ? '显著' : cfP <= 0.1 ? '边际' : '不显著',
+        significant: cfP <= 0.05,
+        marginal: cfP > 0.05 && cfP <= 0.1,
+        diffText: Number.isFinite(cfDiff) ? formatCounterfactualPercent(cfDiff) : '--',
+        magnitudeText: Number.isFinite(cfDiff) ? formatCounterfactualPercent(Math.abs(cfDiff)) : '--'
+      }
+    : null;
+
+  // 综合可靠性评级
+  let reliability = '高';
+  let reliabilityType = 'success';
+  if (!enoughData) { reliability = '低'; reliabilityType = 'danger'; }
+  else if (consistencyLevel !== '高' || !converged) { reliability = '中'; reliabilityType = 'warning'; }
+  // 组内一致但跨世界效应不显著：下调为「中」，不把未证实的干预效应说成可靠结论
+  if (crossWorld && !crossWorld.significant && reliability === '高') {
+    reliability = '中';
+    reliabilityType = 'warning';
+  }
+
+  const fmt = (v) => (v == null ? '--' : `${v.toFixed(1)}%`);
+
+  const crossWorldText = !crossWorld
+    ? ''
+    : `跨世界反事实证据：${crossWorld.n} 组配对样本，干预使完成率${cfDiff > 0 ? '提升' : cfDiff < 0 ? '下降' : '变化'} ${crossWorld.magnitudeText}，符号检验 p = ${crossWorld.pText}（${crossWorld.level}），${
+        crossWorld.significant ? '干预效应在 0.05 水平上显著。' : crossWorld.marginal ? '效应仅边际显著，建议增加重复次数。' : '效应当前无法与仿真噪声区分，暂不能据此下因果结论。'
+      }`;
+
+  let conclusion;
+  if (!enoughData) {
+    conclusion = `当前仅有 ${total} 组实验数据（有效完成率 ${completions.length} 组、有效得分 ${scores.length} 组），样本量不足，结论稳定性无法确认，建议增加迭代轮次后再行验证。`;
+  } else {
+    const convText = converged
+      ? `末轮（第 ${last?.iteration ?? '--'} 轮）得分已稳定在最高水平附近，收敛性良好`
+      : `末轮得分仅为最高分的 ${(convergeRatio * 100).toFixed(0)}%，尚未完全收敛`;
+    conclusion = `共验证 ${total} 组实验：订单完成率变异系数 ${fmt(completionCv)}、净利润变异系数 ${fmt(profitCv)}、综合得分变异系数 ${fmt(scoreCv)}，${convText}。整体结果${
+      reliability === '高' ? '高度一致' : reliability === '中' ? '基本一致' : '波动较大'
+    }，${reliability === '低' ? '建议补充实验后再下结论' : '对比结论可作为后续反事实实验与策略决策的参考基线。'}`;
+  }
+  if (crossWorldText) conclusion = `${conclusion} ${crossWorldText}`;
+
+  return {
+    total,
+    reliability,
+    reliabilityType,
+    completionCvText: fmt(completionCv),
+    profitCvText: fmt(profitCv),
+    scoreCvText: fmt(scoreCv),
+    converged,
+    lastIteration: last?.iteration ?? '--',
+    crossWorld,
+    conclusion
+  };
+});
+
+const verificationItems = computed(() => {
+  const s = verificationSummary.value;
+  if (!s) return [];
+  const completionCvNum = parseFloat(s.completionCvText);
+  return [
+    { label: '验证实验数', value: `${s.total} 组`, tone: '' },
+    {
+      label: '完成率波动(CV)',
+      value: s.completionCvText,
+      tone: Number.isFinite(completionCvNum) ? (completionCvNum > 12 ? 'warn' : 'good') : ''
+    },
+    { label: '利润波动(CV)', value: s.profitCvText, tone: '' },
+    { label: '得分波动(CV)', value: s.scoreCvText, tone: '' },
+    { label: '收敛状态', value: s.converged ? '已收敛' : '未完全收敛', tone: s.converged ? 'good' : 'warn' },
+    ...(s.crossWorld
+      ? [{
+          label: '跨世界配对 p',
+          value: s.crossWorld.pText,
+          tone: s.crossWorld.significant ? 'good' : s.crossWorld.marginal ? 'warn' : 'danger'
+        }]
+      : []),
+    {
+      label: '可靠性评级',
+      value: s.reliability,
+      tone: s.reliability === '高' ? 'good' : s.reliability === '中' ? 'warn' : 'danger'
+    }
+  ];
+});
+
+// ---- 反事实实验交接（由反事实实验平台写入，按实验 id 读取）----
+// 完成率是 0-1 的比率；若已经是百分数（>1.5）则 ÷100 归一。
+const toCounterfactualRate = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  return num > 1.5 ? num / 100 : num;
+};
+const formatCounterfactualPercent = (value) => {
+  const rate = toCounterfactualRate(value);
+  return rate === null ? '--' : `${(rate * 100).toFixed(1)}%`;
+};
+const formatCounterfactualP = (value) => {
+  const num = Number(value);
+  return Number.isFinite(num) ? num.toFixed(4) : '--';
+};
+const formatCounterfactualValue = (value) => {
+  if (Array.isArray(value)) return value.join(' ~ ');
+  const num = Number(value);
+  return Number.isFinite(num) ? String(num) : (value === null || value === undefined ? '--' : String(value));
+};
+
+const counterfactualSummary = computed(() => {
+  const cf = counterfactualReport.value;
+  if (!cf) return null;
+  const effect = cf.effect || {};
+  const pValue = Number(effect.pValue);
+  const diff = Number(effect.meanDifference);
+  const diffTone = !Number.isFinite(diff) ? '' : (diff > 0 ? 'good' : 'warn');
+  const pTone = !Number.isFinite(pValue) ? '' : (pValue <= 0.05 ? 'good' : pValue <= 0.1 ? 'warn' : 'danger');
+  const seedLabel = cf.seedControlled === true
+    ? '后端已回执，种子受控'
+    : cf.seedControlled === false
+      ? '后端未回执，种子未受控'
+      : '待后端回执确认';
+  return {
+    seedTone: cf.seedControlled === true ? 'success' : cf.seedControlled === false ? 'warning' : 'info',
+    seedLabel,
+    items: [
+      { label: '配对样本 n', value: String(effect.n ?? 0), tone: '' },
+      { label: '事实世界完成率', value: formatCounterfactualPercent(cf.factualDistribution?.mean), tone: '' },
+      { label: '反事实世界完成率', value: formatCounterfactualPercent(cf.distribution?.mean), tone: '' },
+      { label: '配对差值均值', value: formatCounterfactualPercent(effect.meanDifference), tone: diffTone },
+      { label: '差值 95% CI', value: `${formatCounterfactualPercent(effect.ci95?.[0])} ~ ${formatCounterfactualPercent(effect.ci95?.[1])}`, tone: '' },
+      { label: '符号检验 p', value: formatCounterfactualP(effect.pValue), tone: pTone }
+    ],
+    conclusion: cf.conclusion || '（本次未生成结论文本）',
+    interventions: Array.isArray(cf.interventionDiff) ? cf.interventionDiff : []
+  };
+});
+
+// 反事实结论（纯文本导出用）
+const buildCounterfactualText = () => {
+  const cf = counterfactualReport.value;
+  if (!cf) return '';
+  const seedState = cf.seedControlled === true
+    ? '后端已回执，种子受控'
+    : cf.seedControlled === false
+      ? '后端未回执，种子未受控'
+      : '待后端回执确认';
+  const rows = [
+    '五、反事实实验结论（事实 / 反事实成对世界）',
+    '------------------------------------------',
+    `随机种子：${cf.seed === null || cf.seed === undefined ? '--' : cf.seed}（${seedState}）`,
+    `配对样本数 n：${cf.effect?.n ?? 0}`,
+    `事实世界完成率：均值 ${formatCounterfactualPercent(cf.factualDistribution?.mean)}，95% CI ${formatCounterfactualPercent(cf.factualDistribution?.ci95?.[0])} ~ ${formatCounterfactualPercent(cf.factualDistribution?.ci95?.[1])}`,
+    `反事实世界完成率：均值 ${formatCounterfactualPercent(cf.distribution?.mean)}，95% CI ${formatCounterfactualPercent(cf.distribution?.ci95?.[0])} ~ ${formatCounterfactualPercent(cf.distribution?.ci95?.[1])}`,
+    `配对差值：均值 ${formatCounterfactualPercent(cf.effect?.meanDifference)}，95% CI ${formatCounterfactualPercent(cf.effect?.ci95?.[0])} ~ ${formatCounterfactualPercent(cf.effect?.ci95?.[1])}，符号检验 p = ${formatCounterfactualP(cf.effect?.pValue)}`,
+    '',
+    cf.conclusion || '（未生成结论）',
+    ''
+  ];
+  return rows.join('\n');
+};
+
+const parameterMatrixRows = computed(() => {
+  return [
+    { key: 'iteration', label: '轮次' },
+    { key: 'enterprise_count', label: '企业数量' },
+    ...displayParameters.value.slice(0, 5).map((param) => ({ key: param.key, label: param.label }))
+  ];
+});
+
+const metricMatrixRows = [
+  { key: 'completionRate', label: '订单完成率', direction: 'higher' },
+  { key: 'profit', label: '净利润', direction: 'higher' },
+  { key: 'score', label: '综合得分', direction: 'higher' },
+  { key: 'enterpriseCount', label: '企业数', direction: 'neutral' }
+];
+
+const parameterMatrixTemplate = computed(() => `120px repeat(${Math.max(1, experimentRows.value.length)}, minmax(140px, 1fr))`);
+const metricMatrixTemplate = computed(() => `120px repeat(${Math.max(1, experimentRows.value.length)}, minmax(140px, 1fr))`);
+
+const metricCellClass = (key, row) => {
+  if (key === 'enterpriseCount') return '';
+  const rawKey = key === 'completionRate' ? 'rawCompletionRate' : key === 'profit' ? 'rawProfit' : 'rawScore';
+  const values = experimentRows.value.map((item) => item[rawKey]).filter(Number.isFinite);
+  if (values.length < 2) return '';
+  const current = row[rawKey];
+  const best = Math.max(...values);
+  const worst = Math.min(...values);
+  if (current === best) return 'metric-best';
+  if (current === worst) return 'metric-risk';
+  return '';
+};
+
+const URANIUM_FACTOR_EFFECTS = {
+  order_multiplier: '全球核电反应堆铀需求倍数，直接影响铀矿订单量和供应压力。',
+  factory_capacity_range: '铀矿年产能上下限(tU/年)，决定全球铀供应能否满足核电需求。',
+  capacity_range: '铀矿产能区间，约束供给侧承载能力，影响供应缺口大小。',
+  reproduction_threshold: '触发新铀矿开发的供需缺口阈值，影响Dasa/Wheeler River等新矿投产时机。',
+  adjustment_ratio: '铀矿扩产/减产的年度调整速率，反映矿山重启与关停的响应速度。',
+  network_density: '铀供应链网络连接密度，反映贸易伙伴多样性和供应渠道丰富度。',
+  network_stability: '网络面对地缘政治冲击和矿山停产时的稳定性，关键韧性指标。',
+  production_capacity_est: '全球铀矿年产能估算(tU/年)，参考NEA/IAEA Red Book数据。',
+  max_iterations: '决定仿真搜索深度，影响最优铀供应链策略被发现的概率。',
+  total_enterprises: '铀供应链中矿山/贸易商/核电企业节点数，影响网络规模与协作复杂度。',
+  key_params: '聚合铀供应链实验关注变量，是解释实验结论的核心参数集合。'
+};
+
+// 汽车侧兜底释义（与参数目录同名同义，目录不可用时才使用）
+const AUTOMOTIVE_FACTOR_EFFECTS = {
+  order_multiplier: '控制市场需求强度的核心调参项，直接影响订单生成量与工厂承压程度。',
+  factory_capacity_range: '总厂下属工厂月产能范围，决定产能池能否覆盖订单需求。',
+  capacity_range: '工厂月生产能力范围，约束供给侧承载能力与订单积压水平。',
+  reproduction_threshold: '企业触发繁殖/扩张的资本门槛，影响新工厂进入与产能扩张节奏。',
+  collaboration_radius: '总厂调度可联动工厂的空间范围，影响协作效率与网络密度。',
+  adjustment_ratio: '工厂产能调整速率，反映产能扩张/收缩对需求变化的响应速度。',
+  network_density: '供应链网络连接密度，反映工厂—销售商协作关系的丰富程度。',
+  network_stability: '网络在需求波动与订单扰动下的稳定性，关键韧性指标。',
+  production_capacity_est: '产能估算，反映当前产能配置对订单缺口的覆盖能力。',
+  max_iterations: '决定仿真搜索深度，影响最优产能配置被发现的概率。',
+  total_enterprises: '供应链中工厂/销售商/供应商节点数，影响网络规模与协作复杂度。',
+  key_params: '聚合汽车供应链实验关注变量，是解释实验结论的核心参数集合。'
+};
+
+const factorEffectMap = computed(() =>
+  isUraniumScene.value ? URANIUM_FACTOR_EFFECTS : AUTOMOTIVE_FACTOR_EFFECTS
+);
+
+// 参数释义：优先用场景释义表，未覆盖的参数给通用说明
+const resolveFactorEffect = (param) => (
+  factorEffectMap.value[param?.key]
+  || `${param?.label} 通过改变${sceneText.value.systemLabel}实验配置影响订单完成率、利润和综合得分。`
+);
+
+const factorSummaries = computed(() => {
+  const params = displayParameters.value.length
+    ? displayParameters.value
+    : [
+        { key: 'completion', label: '订单完成率', value: formatPercent(reportData.value?.avg_completion_rate) },
+        { key: 'profit', label: '净利润', value: formatProfit(reportData.value?.avg_profit) }
+      ];
+  return params.slice(0, 5).map((param, index) => ({
+    ...param,
+    score: Math.max(38, 92 - index * 11),
+    effect: resolveFactorEffect(param)
+  }));
+});
+
+const topFactor = computed(() => factorSummaries.value[0] || null);
+
+const URANIUM_PATHS = [
+  {
+    title: '铀需求冲击传导路径',
+    chain: '全球核电需求↑ → 铀矿订单量激增 → 现有矿山产能承压 → 供应完成率波动→供应缺口扩大',
+    note: '解释核电发展情景（中国/印度在建反应堆）对铀供应链的基础影响。'
+  },
+  {
+    title: '铀矿产能调节路径',
+    chain: '铀矿产能配置(tU/年) → 订单处理能力 → 供应缺口/库存变化 → 利润与供应安全回升',
+    note: '最优轮次的产能区间可作为后续反事实实验的参考基线。'
+  },
+  {
+    title: '地缘政治风险传导路径',
+    chain: '产铀国政局突变 → 关键矿山停产 → 供应网络切换 → 替代产能启动 → 完成率恢复',
+    note: '建议补充NEA Red Book数据以增强预测准确性。'
+  }
+];
+
+const AUTOMOTIVE_PATHS = [
+  {
+    title: '市场需求冲击传导路径',
+    chain: '市场需求强度↑ → 订单生成量激增 → 工厂产能与协作半径承压 → 订单完成率波动 → 订单积压扩大',
+    note: '解释市场需求扰动（宏观背景倍数 × 订单生成率）对汽车供应链的基础影响。'
+  },
+  {
+    title: '工厂产能调节路径',
+    chain: '工厂产能配置 → 订单处理能力 → 订单积压/库存变化 → 利润与供应保障能力回升',
+    note: '最优轮次的产能区间可作为后续干预实验与反事实实验的参考基线。'
+  },
+  {
+    title: '企业进入退出风险路径',
+    chain: '成本或政策冲击 → 企业退出加速 → 协作网络重构 → 替代产能与协作半径调整 → 完成率恢复',
+    note: '建议结合参数目录中的运营成本/破产阈值区间继续校验该路径。'
+  }
+];
+
+const pathSummaries = computed(() => {
+  const paths = isUraniumScene.value ? URANIUM_PATHS : AUTOMOTIVE_PATHS;
+  if (!linkedSession.value) return paths;
+  return paths.map((path, index) => (
+    index === paths.length - 1
+      ? { ...path, note: '该路径可与原始建模过程中的任务拆解继续联动。' }
+      : path
+  ));
+});
+
+const keyFactors = computed(() => {
+  return factorSummaries.value.slice(0, 4).map((factor, index) => ({
+    ...factor,
+    rank: index + 1,
+    reason: `${factor.label} 当前取值为 ${factor.value}，主要影响：${factor.effect}`
+  }));
+});
+
+// 加载报告数据
+const loadReportData = async () => {
+  try {
+    loading.value = true;
+    // 接口把铀与汽车两类实验混在一起返回，必须按当前场景过滤，
+    // 否则会拿另一场景的实验（列表第一条是铀实验）生成汽车报告。
+    const experiments = await loadScenarioExperiments();
+    if (!Array.isArray(experiments) || experiments.length === 0) {
+      reportData.value = null;
+      comparisonData.value = null;
+      linkedSession.value = null;
+      counterfactualReport.value = null;
+      return;
+    }
+
+    const experimentId = await resolvePreferredExperimentId(experiments);
+    if (!experimentId) {
+      reportData.value = null;
+      comparisonData.value = null;
+      linkedSession.value = null;
+      counterfactualReport.value = null;
+      return;
+    }
+
+    // 反事实实验交接：按实验 id 读取结论与分布（无则保持 null，不影响原报告流程）
+    counterfactualReport.value = loadCounterfactualReport(experimentId);
+
+    const reportResp = await getExperimentReport(experimentId);
+    const report = unwrapApiData(reportResp);
+    if (!report || typeof report !== 'object') {
+      throw new Error('后端报告数据为空');
+    }
+    const sections = report.report_sections || {};
+    const summary = sections.executive_summary || {};
+    const design = sections.experiment_design || {};
+    const resultComp = sections.results_analysis?.iterations_comparison || null;
+    comparisonData.value = resultComp;
+
+    const constraints = (design.constraints && typeof design.constraints === 'object')
+      ? design.constraints
+      : {};
+    const bestIteration = resultComp?.best_iteration || {};
+    const avgCompletion = resultComp?.aggregated_stats?.avg_completion_rate || 0;
+    const avgProfit = resultComp?.aggregated_stats?.avg_profit || 0;
+
+    reportData.value = {
+      experiment_id: report.experiment_id || experimentId,
+      goal: summary.goal || design.goal || '',
+      iterations: summary.total_iterations || resultComp?.total_iterations || 0,
+      enterprise_count: bestIteration.enterprise_count || constraints.total_enterprises || 0,
+      created_at: report.generated_at || '',
+      status: 'completed',
+      parameters: constraints,
+      avg_completion_rate: avgCompletion,
+      avg_profit: avgProfit,
+      best_score: bestIteration.score || 0,
+      best_iteration: bestIteration.iteration || 0
+    };
+
+    // 同步持久化当前实验，供其他页面续接
+    localStorage.setItem('selectedExperimentId', reportData.value.experiment_id || experimentId);
+
+    // 关联会话（失败不阻塞）
+    loadLinkedSession(reportData.value.experiment_id || experimentId);
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.error('[EXreport] 加载报告数据失败:', error);
+    }
+    ElMessage.error('加载报告数据失败');
+  } finally {
+    loading.value = false;
+  }
+};
+
+// 刷新报告
+const refreshReport = async () => {
+  await loadReportData();
+  ElMessage.success('报告已刷新');
+};
+
+const generateReportHtml = (data) => {
+  const content = reportContentRef.value?.innerHTML || '';
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${sceneText.value.systemLabel}复盘报告_${safeGetValue(data, 'experiment_id', '-')}</title>
+  <style>
+    body { font-family: "Microsoft YaHei", Arial, sans-serif; color: #0f172a; line-height: 1.6; padding: 24px; }
+    section, article { break-inside: avoid; }
+    .summary-grid, .comparison-grid, .analysis-grid, .key-factor-grid { display: block !important; }
+    .summary-card, .report-section, .factor-card, .path-card, .key-factor-card, .iteration-card {
+      border: 1px solid #d9e2ef; border-radius: 8px; padding: 12px; margin: 10px 0;
+    }
+    .overview-header, .overview-row, .matrix-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .overview-header div, .overview-row > div, .matrix-row > div { padding: 8px; border-bottom: 1px solid #e5edf6; }
+    .rank { display: inline-block; min-width: 24px; height: 24px; border-radius: 12px; background: #2563eb; color: #fff; text-align: center; line-height: 24px; }
+  </style>
+</head>
+<body>
+  <h1>${sceneText.value.systemLabel}复盘报告</h1>
+  <p>生成时间：${new Date().toLocaleString('zh-CN')}</p>
+  ${content}
+</body>
+</html>`;
+};
+
+// 导出报告
+const exportReport = (format = 'html') => {
+  if (!reportData.value) {
+    ElMessage.warning('没有可导出的报告数据');
+    return;
+  }
+
+  if (format === 'pdf') {
+    exportReportPdf();
+    return;
+  }
+
+  exporting.value = true;
+
+  try {
+    const isHtml = format === 'html';
+    const content = isHtml ? generateReportHtml(reportData.value) : generateReportText(reportData.value);
+    const blob = new Blob([content], { type: isHtml ? 'text/html;charset=utf-8' : 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${sceneText.value.systemLabel}_复盘报告_${reportData.value.experiment_id}.${isHtml ? 'html' : 'txt'}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    ElMessage.success(`报告已导出为 ${isHtml ? 'HTML' : '文本'} 文件`);
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.error('[EXreport] 导出报告失败:', error);
+    }
+    ElMessage.error('导出报告失败');
+  } finally {
+    exporting.value = false;
+  }
+};
+
+// 真正生成 PDF 文件：将报告 DOM 高清截图后按 A4 分页输出
+const exportReportPdf = async () => {
+  const el = reportContentRef.value;
+  if (!el) {
+    ElMessage.warning('报告内容尚未就绪，请稍后重试');
+    return;
+  }
+
+  exporting.value = true;
+  let restore = () => {};
+
+  try {
+    // 临时展开内部滚动区，确保超出视口的内容也能被完整捕获
+    const scrollEl = el.querySelector('.report-scroll');
+    if (scrollEl) {
+      const prev = {
+        el: { overflow: el.style.overflow, height: el.style.height, flex: el.style.flex },
+        scroll: {
+          overflow: scrollEl.style.overflow,
+          height: scrollEl.style.height,
+          flex: scrollEl.style.flex,
+          minHeight: scrollEl.style.minHeight
+        }
+      };
+      el.style.overflow = 'visible';
+      el.style.height = 'auto';
+      el.style.flex = '0 0 auto';
+      scrollEl.style.overflow = 'visible';
+      scrollEl.style.height = 'auto';
+      scrollEl.style.flex = '0 0 auto';
+      scrollEl.style.minHeight = '0';
+      restore = () => {
+        Object.assign(el.style, prev.el);
+        Object.assign(scrollEl.style, prev.scroll);
+      };
+    }
+
+    await nextTick();
+
+    const canvas = await html2canvas(el, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      windowWidth: document.documentElement.clientWidth
+    });
+
+    restore();
+    restore = () => {};
+
+    // A4 横向分页
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const margin = 28;
+    const contentW = pageW - margin * 2;
+    const contentH = pageH - margin * 2;
+
+    const imgW = canvas.width;
+    const imgH = canvas.height;
+    const scaleFactor = contentW / imgW;          // 像素 → pt
+    const sliceHpx = contentH / scaleFactor;      // 每页可容纳的像素高度
+    const overlapPx = 24;                          // 页间重叠，避免文字被截断
+
+    let renderedH = 0;
+    let pageIndex = 0;
+    while (renderedH < imgH) {
+      const startY = Math.max(0, renderedH - (pageIndex > 0 ? overlapPx : 0));
+      const curSliceH = Math.min(sliceHpx + (pageIndex > 0 ? overlapPx : 0), imgH - startY);
+
+      const sliceCanvas = document.createElement('canvas');
+      sliceCanvas.width = imgW;
+      sliceCanvas.height = curSliceH;
+      const ctx = sliceCanvas.getContext('2d');
+      ctx.drawImage(canvas, 0, startY, imgW, curSliceH, 0, 0, imgW, curSliceH);
+
+      if (pageIndex > 0) pdf.addPage();
+      pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 0.95), 'JPEG', margin, margin, contentW, curSliceH * scaleFactor);
+
+      renderedH += sliceHpx;
+      pageIndex++;
+    }
+
+    const safeName = String(reportData.value?.experiment_id || 'report').replace(/[\\/:*?"<>|]/g, '_');
+    pdf.save(`${sceneText.value.systemLabel}_复盘报告_${safeName}.pdf`);
+    ElMessage.success(`报告已导出为 PDF（共 ${pageIndex} 页）`);
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.error('[EXreport] PDF 导出失败:', error);
+    }
+    ElMessage.error('PDF 导出失败，请重试');
+  } finally {
+    restore();
+    exporting.value = false;
+  }
+};
+
+// 生成报告文本
+const generateReportText = (data) => {
+  const params = displayParameters.value;
+  const paramText = params.map(p => `${p.label}：${p.value}`).join('\n') || '无';
+
+  return `
+${sceneText.value.systemLabel}复盘报告
+==========================================
+
+一、实验概览
+------------------------------------------
+实验ID：${safeGetValue(data, 'experiment_id', '-')}
+实验目标：${safeGetValue(data, 'goal', '-')}
+迭代次数：${safeGetValue(data, 'iterations', 0)}轮
+${sceneText.value.systemLabel}节点：${safeGetValue(data, 'enterprise_count', 0)}个
+创建时间：${formatDate(safeGetValue(data, 'created_at', ''))}
+实验状态：${getStatusText(safeGetValue(data, 'status', ''))}
+
+二、${sceneText.value.systemLabel}关键参数
+------------------------------------------
+${paramText}
+
+三、关键指标
+------------------------------------------
+平均供应完成率：${formatPercent(data.avg_completion_rate)}
+平均系统利润：${formatProfit(data.avg_profit)}
+最优得分：${formatScore(data.best_score)}
+最优轮次：第${safeGetValue(data, 'best_iteration', 0)}轮
+
+四、实验结论
+------------------------------------------
+本次供应链仿真实验共进行了 ${safeGetValue(data, 'iterations', 0)} 轮迭代，涉及 ${safeGetValue(data, 'enterprise_count', 0)} 家企业。
+
+实验结果显示，第 ${safeGetValue(data, 'best_iteration', 0)} 轮达到最优表现，综合得分为 ${formatScore(data.best_score)}。
+
+平均订单完成率为 ${formatPercent(data.avg_completion_rate)}，平均净利润为 ${formatProfit(data.avg_profit)}。
+
+建议：${isUraniumScene.value
+    ? '基于最优轮次的铀矿产能和新矿投产策略，参考NEA Red Book预测，在实际铀供应链规划中应用最优配置以保障供应安全。'
+    : '基于最优轮次的工厂产能与订单匹配策略，结合参数目录中的产能/成本区间，在实际汽车供应链排产中应用最优配置以保障订单履约。'}
+
+${buildCounterfactualText()}==========================================
+报告生成时间：${new Date().toLocaleString('zh-CN')}
+`;
+};
+
+// 格式化日期
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-';
+  return new Date(dateStr).toLocaleString('zh-CN');
+};
+
+// 参数名称：铀侧沿用原有文案；汽车侧对齐后端参数目录（configs/agent_config.yaml 的 displayName）
+const PARAM_NAME_FALLBACK = {
+  uranium: {
+    order_multiplier: '铀需求强度',
+    factory_capacity_range: '铀矿产能区间',
+    capacity_range: '铀矿产能区间',
+    reproduction_threshold: '新矿投产阈值',
+    adjustment_ratio: '产能爬坡速率',
+    network_density: '网络密度',
+    network_stability: '网络稳定性',
+    max_iterations: '最大迭代数'
+  },
+  supply_chain: {
+    order_multiplier: '市场需求强度',
+    factory_capacity_range: '工厂产能范围',
+    capacity_range: '产能范围',
+    reproduction_threshold: '企业繁殖阈值',
+    collaboration_radius: '协作半径',
+    adjustment_ratio: '产能调整速率',
+    network_density: '网络密度',
+    network_stability: '网络稳定性',
+    max_iterations: '最大迭代数'
+  }
+};
+
+const formatParamName = (key) => {
+  const nameMap = isUraniumScene.value ? PARAM_NAME_FALLBACK.uranium : PARAM_NAME_FALLBACK.supply_chain;
+  return nameMap[key] || key;
+};
+
+// 格式化参数值
+const formatParamValue = (value) => {
+  if (value === null || value === undefined) {
+    return '-';
+  }
+  if (Array.isArray(value)) {
+    return `[${value.join(', ')}]`;
+  }
+  if (typeof value === 'object') {
+    // 如果是对象，尝试提取关键信息而不是显示整个对象
+    return JSON.stringify(value, null, 2);
+  }
+  if (typeof value === 'boolean') {
+    return value ? '是' : '否';
+  }
+  if (typeof value === 'number') {
+    return value.toLocaleString();
+  }
+  return String(value);
+};
+
+// 安全获取值（防止显示对象或数组）
+const safeGetValue = (obj, key, defaultValue = '') => {
+  if (!obj) return defaultValue;
+
+  const value = obj[key];
+
+  // 如果值是 undefined 或 null，返回默认值
+  if (value === undefined || value === null) return defaultValue;
+
+  // 如果是对象或数组，返回默认值（防止显示 [object Object] 或 JSON）
+  if (typeof value === 'object') {
+    console.warn(`[EXreport] 字段 ${key} 是对象类型，使用默认值`);
+    return defaultValue;
+  }
+
+  // 返回基本类型的值
+  return value;
+};
+
+// 格式化百分比
+const formatPercent = (value) => {
+  if (value === undefined || value === null || isNaN(value)) return '0%';
+  const num = typeof value === 'number' ? value : parseFloat(value);
+  if (isNaN(num)) return '0%';
+  return `${(num * 100).toFixed(1)}%`;
+};
+
+// 格式化利润
+const formatProfit = (value) => {
+  if (value === undefined || value === null || isNaN(value)) return '¥0';
+  const num = typeof value === 'number' ? value : parseFloat(value);
+  if (isNaN(num)) return '¥0';
+  return `¥${num.toLocaleString()}`;
+};
+
+// 格式化得分
+const formatScore = (value) => {
+  if (value === undefined || value === null || isNaN(value)) return '0.000';
+  const num = typeof value === 'number' ? value : parseFloat(value);
+  if (isNaN(num)) return '0.000';
+  return num.toFixed(3);
+};
+
+// 获取状态文本
+const getStatusText = (status) => {
+  const statusMap = {
+    completed: '已完成',
+    running: '运行中',
+    pending: '待运行',
+    failed: '失败'
+  };
+  return statusMap[status] || status || '未知';
+};
+
+// 监听实验ID变化
+watch(currentExperimentId, (newId) => {
+  if (newId) {
+    loadReportData();
+  }
+});
+
+// 场景变化（首页切换 / ?scenario= 进入）：清空旧报告并按新场景重新生成
+watch(isUraniumScene, () => {
+  reportData.value = null;
+  comparisonData.value = null;
+  linkedSession.value = null;
+  loadReportData();
+});
+
+// 初始化
+onMounted(() => {
+  loadReportData();
+});
+</script>
+
+<style scoped>
+.post-report-page {
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #f6f8fb;
+  color: #0f172a;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.report-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 22px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: #3867f2;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.report-head h1 {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.2;
+  font-weight: 900;
+}
+
+.subtitle {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.scene-tag {
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+.head-actions {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.loading-container,
+.empty-report {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  margin-top: 16px;
+  background: #ffffff;
+}
+
+.loading-container {
+  flex-direction: column;
+}
+
+.loading-container p {
+  margin-top: 18px;
+  color: #64748b;
+}
+
+.report-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.summary-grid {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.summary-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 10px;
+  align-items: center;
+  min-height: 72px;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.summary-card :deep(.el-icon) {
+  grid-row: 1 / span 2;
+  color: #2563eb;
+  font-size: 24px;
+}
+
+.summary-card span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.summary-card strong {
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 17px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 14px;
+  padding-right: 4px;
+}
+
+.report-section {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
+}
+
+.report-conclusion {
+  border-left: 4px solid #3b82f6;
+  background: linear-gradient(135deg, #eff6ff, #ffffff);
+}
+
+.report-conclusion .section-head {
+  padding: 10px 16px;
+  border-bottom: 1px solid #dbeafe;
+}
+
+.report-conclusion .section-head h2 {
+  color: #1d4ed8;
+}
+
+.conclusion-body {
+  padding: 12px 16px;
+}
+
+.conclusion-body p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.75;
+  color: #334155;
+  font-weight: 600;
+}
+
+.section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.section-head.compact {
+  padding-bottom: 12px;
+}
+
+.section-head h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.section-head p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.generated-at {
+  flex: 0 0 auto;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.overview-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* ---- 实验验证 ---- */
+.report-verification {
+  border-left: 4px solid #10b981;
+  background: linear-gradient(135deg, #ecfdf5, #ffffff);
+}
+
+.report-verification .section-head {
+  padding: 10px 16px;
+  border-bottom: 1px solid #d1fae5;
+}
+
+.report-verification .section-head h2 {
+  color: #047857;
+}
+
+.verification-body {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.verification-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.verify-item {
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.verify-label {
+  display: block;
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.verify-value {
+  display: block;
+  margin-top: 3px;
+  font-size: 15px;
+  color: #0f172a;
+  font-weight: 800;
+}
+
+.verify-value.good { color: #059669; }
+.verify-value.warn { color: #d97706; }
+.verify-value.danger { color: #dc2626; }
+
+.verification-conclusion {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #d1fae5;
+  border-radius: 8px;
+  background: #f0fdf4;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #065f46;
+  font-weight: 600;
+}
+
+.verification-empty {
+  padding: 20px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+/* ---- 反事实实验 ---- */
+.report-counterfactual {
+  border-left: 4px solid #6366f1;
+  background: linear-gradient(135deg, #eef2ff, #ffffff);
+}
+
+.report-counterfactual .section-head {
+  padding: 10px 16px;
+  border-bottom: 1px solid #e0e7ff;
+}
+
+.report-counterfactual .section-head h2 {
+  color: #4338ca;
+}
+
+.cf-interventions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.cf-interventions-label {
+  font-weight: 700;
+}
+
+.cf-intervention-tag {
+  padding: 3px 8px;
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #3730a3;
+  font-weight: 600;
+}
+
+.session-list,
+.overview-table,
+.matrix-table {
+  overflow: auto;
+  padding: 14px;
+}
+
+.session-list {
+  display: grid;
+  gap: 10px;
+}
+
+.session-list article {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fbfdff;
+}
+
+.session-list p {
+  margin: 6px 0 0;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.overview-header,
+.overview-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.9fr) 88px minmax(300px, 1.3fr) minmax(250px, 1fr);
+  min-width: 900px;
+}
+
+.overview-header {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px 8px 0 0;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.overview-header div,
+.overview-row > div {
+  padding: 12px;
+  border-right: 1px solid #eef2f7;
+}
+
+.overview-header div:last-child,
+.overview-row > div:last-child {
+  border-right: 0;
+}
+
+.overview-row {
+  border-right: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  border-left: 1px solid #e2e8f0;
+}
+
+.experiment-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.experiment-cell small {
+  color: #64748b;
+}
+
+.chip-wrap,
+.metric-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip-wrap span,
+.metric-pills span {
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 12px;
+}
+
+.metric-pills span {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.comparison-grid,
+.analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.matrix-row {
+  display: grid;
+  min-width: 420px;
+}
+
+.matrix-row > div {
+  min-height: 42px;
+  padding: 10px;
+  border-right: 1px solid #eef2f7;
+  border-bottom: 1px solid #eef2f7;
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.matrix-row > div:last-child {
+  border-right: 0;
+}
+
+.matrix-header > div {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 800;
+}
+
+.matrix-label {
+  color: #0f172a !important;
+  font-weight: 800;
+}
+
+.metric-best {
+  color: #047857 !important;
+  background: #ecfdf5;
+  font-weight: 800;
+}
+
+.metric-risk {
+  color: #b91c1c !important;
+  background: #fef2f2;
+  font-weight: 800;
+}
+
+.iteration-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  padding: 14px;
+}
+
+.iteration-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfdff;
+}
+
+.iteration-card.best {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.iteration-card span {
+  color: #2563eb;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.iteration-card small {
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.factor-list,
+.path-list,
+.key-factor-grid {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.factor-card,
+.path-card,
+.key-factor-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfdff;
+}
+
+.factor-title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.factor-title-row span {
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.factor-card p,
+.path-card p,
+.key-factor-card p {
+  margin: 8px 0;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.factor-bar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.factor-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #38bdf8, #2563eb);
+}
+
+.path-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+}
+
+.path-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.path-card small {
+  color: #64748b;
+}
+
+.key-factor-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.rank {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 900;
+}
+
+.key-factor-card > span {
+  color: #2563eb;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+:deep(::-webkit-scrollbar) {
+  width: 7px;
+  height: 7px;
+}
+
+:deep(::-webkit-scrollbar-track) {
+  background: transparent;
+}
+
+:deep(::-webkit-scrollbar-thumb) {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+</style>

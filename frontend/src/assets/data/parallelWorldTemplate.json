@@ -1,0 +1,72 @@
+{
+  "nodes": [
+    {
+      "id": "0-0",
+      "name": "对话1",
+      "x": 0,
+      "y": 0,
+      "itemStyle": {
+        "color": "rgb(237.5, 189.9, 118.5)"
+      },
+      "value": null
+    },
+    {
+      "id": "0-1",
+      "name": "对话2",
+      "x": 20,
+      "y": 0,
+      "itemStyle": {
+        "color": "rgb(248, 152.1, 152.1)"
+      },
+      "value": null
+    },
+    {
+      "id": "0-2",
+      "name": "对话3",
+      "x": 40,
+      "y": 0,
+      "itemStyle": {
+        "color": "rgb(237.5, 189.9, 118.5)"
+      },
+      "value": null
+    },
+    {
+      "id": "0-3",
+      "name": "对话4",
+      "x": 60,
+      "y": 0,
+      "itemStyle": {
+        "color": "rgb(248, 152.1, 152.1)"
+      },
+      "value": null
+    },
+    {
+      "id": "0-4",
+      "name": "对话5",
+      "x": 80,
+      "y": 0,
+      "itemStyle": {
+        "color": "rgb(237.5, 189.9, 118.5)"
+      },
+      "value": null
+    }
+  ],
+  "links": [
+    {
+      "source": "0-0",
+      "target": "0-1"
+    },
+    {
+      "source": "0-1",
+      "target": "0-2"
+    },
+    {
+      "source": "0-2",
+      "target": "0-3"
+    },
+    {
+      "source": "0-3",
+      "target": "0-4"
+    }
+  ]
+}

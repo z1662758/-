@@ -1,0 +1,124 @@
+{
+  "statistic": {
+    "columnNum": 6,
+    "lineNum": [1, 3, 3, 2, 2, 1]
+  },
+  "nodeData": [
+    {
+      "name": "干预措施",
+      "column": 0,
+      "row": 0
+    },
+    {
+      "name": "平台a1",
+      "column": 1,
+      "row": 0
+    },
+    {
+      "name": "平台a2",
+      "column": 1,
+      "row": 1
+    },
+    {
+      "name": "平台a3",
+      "column": 1,
+      "row": 2
+    },
+    {
+      "name": "Belief1",
+      "column": 2,
+      "row": 0
+    },
+    {
+      "name": "Belief2",
+      "column": 2,
+      "row": 1
+    },
+    {
+      "name": "Belief3",
+      "column": 2,
+      "row": 2
+    },
+    {
+      "name": "Desire1",
+      "column": 3,
+      "row": 0
+    },
+    {
+      "name": "Desire2",
+      "column": 3,
+      "row": 1
+    },
+    {
+      "name": "Intention1",
+      "column": 4,
+      "row": 0,
+      "x": 40,
+      "y": 0
+    },
+    {
+      "name": "Intention2",
+      "column": 4,
+      "row": 1
+    },
+    {
+      "name": "内卷",
+      "column": 5,
+      "row": 0
+    }
+  ],
+  "linkData": [
+    {
+      "source": "干预措施",
+      "target": "平台a1"
+    },
+    {
+      "source": "干预措施",
+      "target": "平台a2"
+    },
+    {
+      "source": "干预措施",
+      "target": "平台a3"
+    },
+    {
+      "source": "平台a1",
+      "target": "Belief1"
+    },
+    {
+      "source": "平台a2",
+      "target": "Belief2"
+    },
+    {
+      "source": "平台a2",
+      "target": "Belief3"
+    },
+    {
+      "source": "Belief1",
+      "target": "Desire1"
+    },
+    {
+      "source": "Belief2",
+      "target": "Desire2"
+    },
+    {
+      "source": "Belief3",
+      "target": "Desire1"
+    },
+    {
+      "source": "Desire1",
+      "target": "Intention1"
+    },
+    {
+      "source": "Desire2",
+      "target": "Intention2"
+    },
+    {
+      "source": "Intention1",
+      "target": "内卷"
+    },
+    {
+      "source": "Intention2",
+      "target": "内卷"
+    }
+  ]
+}

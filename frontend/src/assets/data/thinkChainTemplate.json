@@ -1,0 +1,209 @@
+{
+  "nodes": [
+    {
+      "id": "5",
+      "name": "讨论协商",
+      "symbolSize": [180, 100],
+      "x": 44,
+      "y": 0,
+      "itemStyle": {
+        "color": "#F5C0BF"
+      },
+      "label": {
+        "fontSize": "18px"
+      },
+      "value": null,
+      "category": 2
+    },
+    {
+      "id": "6",
+      "name": "最终结果",
+      "symbolSize": [180, 100],
+      "x": 54,
+      "y": 0,
+      "itemStyle": {
+        "color": "rgb(248, 152.1, 152.1)"
+      },
+      "label": {
+        "fontSize": "18px"
+      },
+      "value": null,
+      "category": 2
+    },
+    {
+      "id": "0-0",
+      "name": "AgentName",
+      "x": 0,
+      "y": 0,
+      "itemStyle": {
+        "color": "#A2D188"
+      },
+      "value": null,
+      "category": 0
+    },
+    {
+      "id": "0-1",
+      "name": "态势判断",
+      "x": 12,
+      "y": -1.2,
+      "itemStyle": {
+        "color": "#A2D188"
+      },
+      "value": null,
+      "category": 0
+    },
+    {
+      "id": "0-2",
+      "name": "紧张程度分析",
+      "x": 12,
+      "y": 1.2,
+      "itemStyle": {
+        "color": "#A2D188"
+      },
+      "value": null,
+      "category": 0
+    },
+    {
+      "id": "0-3",
+      "name": "决策思维",
+      "x": 24,
+      "y": 0,
+      "itemStyle": {
+        "color": "#A2D188"
+      },
+      "value": null,
+      "category": 0
+    },
+    {
+      "id": "0-4",
+      "name": "决策结果",
+      "x": 34,
+      "y": 0,
+      "itemStyle": {
+        "color": "#A2D188"
+      },
+      "value": null,
+      "category": 0
+    },
+    {
+      "id": "0-1-0",
+      "name": null,
+      "symbolSize": 0,
+      "x": 7,
+      "y": 0,
+      "itemStyle": {
+        "color": "#A2D188"
+      },
+      "value": null,
+      "category": 1
+    },
+    {
+      "id": "0-1-1",
+      "name": null,
+      "symbolSize": 0,
+      "x": 7,
+      "y": -3,
+      "itemStyle": {
+        "color": "#A2D188"
+      },
+      "value": null,
+      "category": 1
+    },
+    {
+      "id": "0-1-2",
+      "name": null,
+      "symbolSize": 0,
+      "x": 7,
+      "y": 3,
+      "itemStyle": {
+        "color": "#A2D188"
+      },
+      "value": null,
+      "category": 1
+    },
+    {
+      "id": "0-2-0",
+      "name": null,
+      "symbolSize": 0,
+      "x": 17,
+      "y": 0,
+      "itemStyle": {
+        "color": "#A2D188"
+      },
+      "value": null,
+      "category": 1
+    },
+    {
+      "id": "0-2-1",
+      "name": null,
+      "symbolSize": 0,
+      "x": 17,
+      "y": -3,
+      "itemStyle": {
+        "color": "#A2D188"
+      },
+      "value": null,
+      "category": 1
+    },
+    {
+      "id": "0-2-2",
+      "name": null,
+      "symbolSize": 0,
+      "x": 17,
+      "y": 3,
+      "itemStyle": {
+        "color": "#A2D188"
+      }
+    }
+  ],
+  "links": [
+    {
+      "source": "0-0",
+      "target": "0-1-0"
+    },
+    {
+      "source": "0-2-0",
+      "target": "0-3"
+    },
+    {
+      "source": "0-3",
+      "target": "0-4"
+    },
+    {
+      "source": "0-4",
+      "target": "5"
+    },
+    {
+      "source": "5",
+      "target": "6"
+    },
+    {
+      "source": "0-1-1",
+      "target": "0-1-2",
+      "lineStyle": {
+        "type": "dashed"
+      }
+    },
+    {
+      "source": "0-2-1",
+      "target": "0-2-2",
+      "lineStyle": {
+        "type": "dashed"
+      }
+    },
+    {
+      "source": "0-1-1",
+      "target": "0-2-1",
+      "lineStyle": {
+        "type": "dashed"
+      }
+    },
+    {
+      "source": "0-1-2",
+      "target": "0-2-2",
+      "lineStyle": {
+        "type": "dashed"
+      }
+    }
+  ]
+}

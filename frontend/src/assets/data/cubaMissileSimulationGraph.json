@@ -1,0 +1,208 @@
+{
+  "agents": [
+    {
+      "id": "agent_leader_supply",
+      "name": "供应链调度中心",
+      "category": "leader",
+      "modelingMethod": "OODA",
+      "subAgents": [],
+      "llmConfig": {
+        "model": "gpt-4o",
+        "systemPrompt": "You are the supply chain scheduling center, responsible for overall coordination of raw material supply, production, distribution and demand response."
+      },
+      "cognitiveModel": {
+        "type": "OODA",
+        "observe": "终端需求方反馈订单量激增30%，原材料供应商库存不足，制造商生产线效率下降15%。",
+        "orient": "评估供需失衡风险，需要协调供应商加急补货，调整制造商生产计划，优化销售商配送路线。",
+        "decide": "启动应急供应链方案，要求供应商48小时内补货，制造商加班生产，销售商优先配送核心客户。",
+        "act": "向各环节下发调度指令，实时监控供应链执行状态。"
+      }
+    },
+    {
+      "id": "agent_manufacturer_center",
+      "name": "核心制造商",
+      "category": "org",
+      "modelingMethod": "CooperativeGame",
+      "subAgents": ["生产车间", "质检部门", "仓储物流"],
+      "llmConfig": {
+        "model": "gpt-4",
+        "systemPrompt": "You are the core manufacturer, responsible for production planning and quality control."
+      },
+      "cognitiveModel": {
+        "type": "CooperativeGame",
+        "interests": "平衡生产效率、产品质量和交付周期，在原材料短缺情况下优先保障核心产品生产。",
+        "bargainingRules": "可以牺牲10%的非核心产品产能，来确保核心产品按时交付，同时接受供应商5%的价格上浮。"
+      }
+    },
+    {
+      "id": "agent_supplier_raw",
+      "name": "原材料供应商",
+      "category": "unit",
+      "modelingMethod": "OODA",
+      "subAgents": [],
+      "llmConfig": {
+        "model": "gpt-3.5-turbo",
+        "systemPrompt": "You are the raw material supplier, responsible for timely supply of materials to manufacturers."
+      },
+      "cognitiveModel": {
+        "type": "OODA",
+        "observe": "制造商加急补货订单，自有库存仅能满足50%需求，替代供应商交货周期7天。",
+        "orient": "评估补货能力，需要协调替代供应商，同时调整价格和交货周期。",
+        "decide": "启动替代供应商合作，加急生产20%库存，剩余30%从替代供应商采购。",
+        "act": "向制造商反馈补货计划，签订加急供货协议。"
+      }
+    },
+    {
+      "id": "agent_distributor_region",
+      "name": "区域销售商",
+      "category": "unit",
+      "modelingMethod": "OODA",
+      "subAgents": [],
+      "llmConfig": {
+        "model": "gpt-3.5-turbo",
+        "systemPrompt": "You are the regional distributor, responsible for product distribution and sales."
+      },
+      "cognitiveModel": {
+        "type": "OODA",
+        "observe": "终端需求方订单量激增，制造商供货延迟2天，自有库存仅能满足40%订单。",
+        "orient": "评估配送能力，需要调整配送优先级，向调度中心反馈库存预警。",
+        "decide": "优先配送核心客户订单，向调度中心申请紧急补货，延迟非核心客户配送1天。",
+        "act": "执行配送计划，实时反馈配送状态给调度中心。"
+      }
+    },
+    {
+      "id": "agent_demander_end",
+      "name": "终端需求方",
+      "category": "unit",
+      "modelingMethod": "OODA",
+      "subAgents": [],
+      "llmConfig": {
+        "model": "gpt-3.5-turbo",
+        "systemPrompt": "You are the end demander, responsible for submitting demand and feedback on product quality."
+      },
+      "cognitiveModel": {
+        "type": "OODA",
+        "observe": "市场需求旺季来临，现有库存仅能满足15天销售，竞品供货周期缩短5天。",
+        "orient": "评估缺货风险，需要提前加大订单量，同时要求供应商缩短交货周期。",
+        "decide": "向销售商提交30%增量订单，要求交货周期缩短至3天，否则考虑切换供应商。",
+        "act": "发送订单需求，跟踪订单交付进度，反馈产品质量问题。"
+      }
+    },
+    {
+      "id": "agent_manufacturer_workshop",
+      "name": "生产车间",
+      "category": "unit",
+      "modelingMethod": "OODA",
+      "subAgents": [],
+      "llmConfig": {
+        "model": "gpt-3.5-turbo",
+        "systemPrompt": "You are the production workshop, responsible for executing production plans."
+      },
+      "cognitiveModel": {
+        "type": "OODA",
+        "observe": "调度中心要求加班生产，原材料供应延迟，设备故障率上升5%。",
+        "orient": "评估产能提升空间，需要协调设备维护，调整生产排班。",
+        "decide": "启动两班倒生产模式，紧急维护关键设备，向制造商反馈原材料短缺问题。",
+        "act": "执行加班生产计划，每2小时上报生产进度。"
+      }
+    },
+    {
+      "id": "agent_manufacturer_quality",
+      "name": "质检部门",
+      "category": "unit",
+      "modelingMethod": "OODA",
+      "subAgents": [],
+      "llmConfig": {
+        "model": "gpt-3.5-turbo",
+        "systemPrompt": "You are the quality inspection department, responsible for product quality control."
+      },
+      "cognitiveModel": {
+        "type": "OODA",
+        "observe": "加急生产导致产品不合格率上升3%，原材料批次质量波动较大。",
+        "orient": "评估质量风险，需要加强来料检验，调整成品抽检比例。",
+        "decide": "将成品抽检比例从5%提升至10%，对每批次原材料进行全检。",
+        "act": "向制造商提交质量预警报告，执行强化质检方案。"
+      }
+    },
+    {
+      "id": "agent_manufacturer_logistics",
+      "name": "仓储物流",
+      "category": "unit",
+      "modelingMethod": "OODA",
+      "subAgents": [],
+      "llmConfig": {
+        "model": "gpt-3.5-turbo",
+        "systemPrompt": "You are the warehousing and logistics department, responsible for inventory management and delivery."
+      },
+      "cognitiveModel": {
+        "type": "OODA",
+        "observe": "成品库存积压15%，销售商补货需求紧急，仓储空间不足。",
+        "orient": "评估仓储和配送能力，需要优化库存布局，加急配送积压成品。",
+        "decide": "启动临时仓储租赁，优先配送核心销售商订单，调整库存盘点频率。",
+        "act": "执行配送计划，向制造商反馈仓储压力。"
+      }
+    }
+  ],
+  "relationship_net": [
+    {
+      "id": "rel_leader_to_manufacturer",
+      "source": "agent_leader_supply",
+      "target": "agent_manufacturer_center",
+      "relationship": "生产调度"
+    },
+    {
+      "id": "rel_leader_to_supplier",
+      "source": "agent_leader_supply",
+      "target": "agent_supplier_raw",
+      "relationship": "补货协调"
+    },
+    {
+      "id": "rel_leader_to_distributor",
+      "source": "agent_leader_supply",
+      "target": "agent_distributor_region",
+      "relationship": "配送调度"
+    },
+    {
+      "id": "rel_leader_to_demander",
+      "source": "agent_leader_supply",
+      "target": "agent_demander_end",
+      "relationship": "需求响应"
+    },
+    {
+      "id": "rel_manufacturer_to_workshop",
+      "source": "agent_manufacturer_center",
+      "target": "agent_manufacturer_workshop",
+      "relationship": "生产指令"
+    },
+    {
+      "id": "rel_manufacturer_to_quality",
+      "source": "agent_manufacturer_center",
+      "target": "agent_manufacturer_quality",
+      "relationship": "质检要求"
+    },
+    {
+      "id": "rel_manufacturer_to_logistics",
+      "source": "agent_manufacturer_center",
+      "target": "agent_manufacturer_logistics",
+      "relationship": "仓储调度"
+    },
+    {
+      "id": "rel_supplier_to_manufacturer",
+      "source": "agent_supplier_raw",
+      "target": "agent_manufacturer_center",
+      "relationship": "原材料供应"
+    },
+    {
+      "id": "rel_manufacturer_to_distributor",
+      "source": "agent_manufacturer_center",
+      "target": "agent_distributor_region",
+      "relationship": "成品交付"
+    },
+    {
+      "id": "rel_distributor_to_demander",
+      "source": "agent_distributor_region",
+      "target": "agent_demander_end",
+      "relationship": "产品配送"
+    }
+  ]
+}
