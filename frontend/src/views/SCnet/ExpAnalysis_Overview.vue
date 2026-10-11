@@ -1,5 +1,6 @@
 <template>
   <div class="overview-page mid-stage-bg analysis-workspace">
+    <AnalysisLinkTabs v-if="!isAuto" active="overview" />
     <header class="report-toolbar glass-panel">
       <div class="report-heading">
 
@@ -235,6 +236,7 @@ import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStor
 import { buildUraniumReportViewModel } from '@/views/SCnet/adapters/uraniumMockAnalysisAdapter'
 import { useUraniumAnalysisExperiment } from './composables/useUraniumAnalysisExperiment'
 import AnalysisPageHero from './components/shared/AnalysisPageHero.vue'
+import AnalysisLinkTabs from './components/shared/AnalysisLinkTabs.vue'
 import DuringWorkflowNav from './components/DuringWorkflowNav.vue'
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'

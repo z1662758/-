@@ -15,12 +15,13 @@
           <el-icon><DocumentCopy /></el-icon>
           <span>复制决策摘要</span>
         </el-button>
-        <el-button type="primary" size="small" @click="goToStrategy">
-          <span>查看决策分析</span>
-          <el-icon><ArrowRight /></el-icon>
+        <el-button size="small" plain @click="goToStrategy">
+          <el-icon><ArrowLeft /></el-icon>
+          <span>上一步：决策分析</span>
         </el-button>
-        <el-button size="small" plain @click="goToOverviewReport">
-          <span>查看实验总结</span>
+        <el-button type="primary" size="small" @click="goToOverviewReport">
+          <span>下一步：报告生成</span>
+          <el-icon><ArrowRight /></el-icon>
         </el-button>
       </template>
     </MidStagePageHeader>
@@ -114,10 +115,10 @@
           <div class="step-meta">
             <div class="step-title-row">
               <span class="step-num">07</span>
-              <strong>实验总结</strong>
-              <el-tag size="small" type="info" effect="plain">闭环专报</el-tag>
+              <strong>报告生成</strong>
+              <el-tag size="small" type="primary" effect="plain">下一步专报</el-tag>
             </div>
-            <span class="step-desc">结果、证据与风险复盘</span>
+            <span class="step-desc">实验结果与风险闭环专报</span>
           </div>
         </div>
       </nav>
@@ -295,6 +296,7 @@ import MidStagePageHeader from './components/shared/MidStagePageHeader.vue'
 import MidStagePanelHeader from './components/shared/MidStagePanelHeader.vue'
 import DuringWorkflowNav from './components/DuringWorkflowNav.vue'
 import {
+  ArrowLeft,
   ArrowRight,
   Promotion,
   Check,
