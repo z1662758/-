@@ -37,6 +37,13 @@
       <div class="core-question-text">
         <strong>面向海外供给断供与极端扰动想定，如何将自然语言推演意图解析为可量化的实验变量矩阵与子任务？</strong>
         <p>通过大模型研判输入意图，自动化抽取影响因素（地缘脱钩、运力受阻、价格暴涨）与响应变量（供需缺口、长协履约率、完全采购成本），编排生成多组实验参数方案，并支持专家在环人工校准实验边界。</p>
+        <!-- 方案继承感知胶囊 (衔接沙盘模型) -->
+        <div v-if="activePresetPlanInfo" class="inherited-protocol-chip">
+          <span class="chip-label">沙盘底座方案已继承：</span>
+          <el-tag size="small" :type="activePresetPlanInfo.tagType" effect="dark">{{ activePresetPlanInfo.tag }}</el-tag>
+          <span class="chip-name">{{ activePresetPlanInfo.name }}</span>
+          <span class="chip-kpi">预期保供履约率 <b>{{ activePresetPlanInfo.kpi }}</b></span>
+        </div>
       </div>
       <el-button
         size="small"
@@ -700,6 +707,15 @@ export default {
   },
   computed: {
     ...(ScenarioModelingLogic.computed || {}),
+    activePresetPlanInfo() {
+      const planKey = this.$route?.query?.plan || 'planB'
+      const presets = {
+        planA: { tag: '常态稳健型', tagType: 'success', name: '方案 A · 中哈陆运主导与常态长协配比', kpi: '99.4%' },
+        planB: { tag: '远洋分流型', tagType: 'warning', name: '方案 B · 涉俄脱钩管制与远洋分流应急', kpi: '94.8%' },
+        planC: { tag: '极限抗扰型', tagType: 'danger', name: '方案 C · 极端双重断供与全网平准方案', kpi: '91.6%' }
+      }
+      return presets[planKey] || presets.planB
+    },
     conversationInputPlaceholder() {
       if (this.tasks?.length > 0 && this.currentTaskIndex >= this.tasks.length) {
         return '补充调度约束，例如：优先保障换料机组、提高海运备用比例'
@@ -3010,4 +3026,23 @@ export default {
   font-size: 10.5px;
   color: #64748b;
 }
+
+/* 方案继承感知胶囊 */
+.inherited-protocol-chip {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 4px 12px;
+  background: rgba(239, 246, 255, 0.9);
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #1e3a8a;
+}
+.inherited-protocol-chip .chip-label { font-weight: 600; color: #475569; }
+.inherited-protocol-chip .chip-name { font-weight: 700; color: #1e40af; }
+.inherited-protocol-chip .chip-kpi { margin-left: 6px; color: #047857; font-size: 11.5px; }
+.inherited-protocol-chip .chip-kpi b { color: #065f46; font-size: 12.5px; }
 </style>

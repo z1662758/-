@@ -1023,21 +1023,29 @@ function initBranchCharts(force = false) {
     if (controlledTreeChart) { controlledTreeChart.dispose(); controlledTreeChart = null }
   }
 
-  if (baselineTreeChartRef.value && baselineBranchTree.value) {
-    if (!baselineTreeChart) {
-      baselineTreeChart = echarts.init(baselineTreeChartRef.value)
-      bindTreeClick(baselineTreeChart)
+  nextTick(() => {
+    if (baselineTreeChartRef.value && baselineBranchTree.value) {
+      const el = baselineTreeChartRef.value
+      if (el.clientWidth > 0 && el.clientHeight > 0) {
+        if (!baselineTreeChart) {
+          baselineTreeChart = echarts.init(el)
+          bindTreeClick(baselineTreeChart)
+        }
+        renderTree(baselineTreeChart, baselineBranchTree.value)
+      }
     }
-    renderTree(baselineTreeChart, baselineBranchTree.value)
-  }
 
-  if (controlledTreeChartRef.value && controlledBranchTree.value) {
-    if (!controlledTreeChart) {
-      controlledTreeChart = echarts.init(controlledTreeChartRef.value)
-      bindTreeClick(controlledTreeChart)
+    if (controlledTreeChartRef.value && controlledBranchTree.value) {
+      const el = controlledTreeChartRef.value
+      if (el.clientWidth > 0 && el.clientHeight > 0) {
+        if (!controlledTreeChart) {
+          controlledTreeChart = echarts.init(el)
+          bindTreeClick(controlledTreeChart)
+        }
+        renderTree(controlledTreeChart, controlledBranchTree.value)
+      }
     }
-    renderTree(controlledTreeChart, controlledBranchTree.value)
-  }
+  })
 }
 
 function handleResize() {

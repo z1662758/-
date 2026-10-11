@@ -17,7 +17,7 @@
           <span class="theater-year-chip">锚定年度：{{ uraniumActiveYearLabel || '2024 年' }}</span>
         </div>
         <el-button type="primary" size="small" @click="goToAnalysis">
-          <span>下一步：决策分析评估</span>
+          <span>下一步：脆弱性分析</span>
           <el-icon><ArrowRight /></el-icon>
         </el-button>
       </template>
@@ -415,7 +415,7 @@ function goToDecision() {
 
 function goToAnalysis() {
   router.push({
-    path: '/home/SCnet/expAnalysisScenario',
+    path: '/home/SCnet/expAnalysisGameTheory',
     query: { ...route.query, scenario: 'uranium' }
   })
 }

@@ -2185,6 +2185,9 @@ function goNext() {
   if (isFresh.value) {
     query.fresh = '1'
   }
+  if (activePreviewPlanKey.value) {
+    query.plan = activePreviewPlanKey.value
+  }
   router.push({ path: SCNET_ROUTES.scenarioAnalysis, query })
 }
 
