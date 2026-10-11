@@ -1,46 +1,55 @@
-# Logs
-logs
+# Logs & Debug
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+nohup.out
 
-node_modules
-.DS_Store
-dist
-dist-ssr
-coverage
+# Dependencies & Build
+node_modules/
+dist/
+dist-ssr/
+coverage/
 *.local
+*.tsbuildinfo
+.eslintcache
 
-# Editor directories and files
-.vscode/*
-.vscode/extensions.json
-.github
-.idea
+# System & IDE files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+.github/
+.agent/
+.codex/
+.claude/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-.claude
 
-*.tsbuildinfo
-
-.eslintcache
-
-# Cypress
+# Testing
 /cypress/videos/
 /cypress/screenshots/
-
-# Vitest
 __screenshots__/
 
-.agent/
-.codex
-
-# Runtime files
+# Runtime & Process lock files
 *.pid
 *.pid.lock
-nohup.out
+*.lock
+
+# Python cache & temp
+__pycache__/
+*.py[cod]
+*$py.class
+*.tmp
+*.bak
+
+# Local launch scripts
+start.bat
+*.bat
