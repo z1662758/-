@@ -1,39 +1,65 @@
 <template>
   <div class="simulation-interface mid-stage-bg">
-    <MidStagePageHeader
-      title="沙盘推演 · 推演剧场"
-      subtitle="复杂网络拓扑与空间地理走廊联动推演 · 时序态势回放与瓶颈监控"
-      :icon="VideoPlay"
-    >
-      <template #right>
-        <div class="theater-mode-badge-wrap">
-          <el-tag
-            :type="isLiveSimulationMode ? 'danger' : 'success'"
-            size="small"
-            effect="dark"
-          >
-            {{ isLiveSimulationMode ? '● 过程推演 · 仿真运行态' : '● 时序回放 · 历史基线' }}
-          </el-tag>
-          <span class="theater-year-chip">锚定年度：{{ uraniumActiveYearLabel || '2024 年' }}</span>
-        </div>
-        <el-button type="primary" size="small" @click="goToAnalysis">
-          <span>下一步：脆弱性分析</span>
-          <el-icon><ArrowRight /></el-icon>
-        </el-button>
-      </template>
-    </MidStagePageHeader>
-
-    <!-- 业务核心问题导引条（阐明“沙盘推演想解决什么问题”） -->
-    <section class="simulation-core-question-strip glass-panel">
-      <div class="core-question-badge">推演剧场核心聚焦</div>
-      <div class="core-question-text">
-        <strong>将宏观地缘外部冲击与微观复杂网络级联失效相融合，在真实空间地理走廊上动态呈现供给断链全过程</strong>
-        <p>通过下方时间轴滑动（2022–2028），推演俄乌冲突爆发与西方制裁升级时，中哈阿拉山口口岸拥堵（负荷率94%）与北方基地库存破警戒线（破14周）的连锁反应，验证多通道分流潜力。</p>
+    <!-- 业务核心问题导引条（精炼单行胶囊模式，高度仅 34px） -->
+    <section class="simulation-core-question-strip compact glass-panel">
+      <div class="core-question-badge">推演剧场</div>
+      <el-tag
+        :type="isLiveSimulationMode ? 'danger' : 'success'"
+        size="small"
+        effect="dark"
+        class="theater-mode-tag"
+      >
+        {{ isLiveSimulationMode ? '仿真运行态' : '时序回放' }}
+      </el-tag>
+      <div class="core-question-summary">
+        <span>将宏观外部冲击与微观复杂网络级联失效相融合 · 动态复现供给断链全过程</span>
+        <el-popover
+          placement="bottom-start"
+          :width="480"
+          trigger="hover"
+          popper-class="core-question-popover"
+        >
+          <template #reference>
+            <el-icon class="core-question-info-icon" title="查看推演详细背景与问题说明"><InfoFilled /></el-icon>
+          </template>
+          <div class="popover-detail-content">
+            <h4 style="margin: 0 0 6px; font-size: 13px; font-weight: 800; color: #1e1b4b;">推演剧场核心聚焦目标</h4>
+            <p style="margin: 0 0 8px; font-size: 12px; color: #334155; line-height: 1.6;">
+              <strong>将宏观地缘外部冲击与微观复杂网络级联失效相融合，在真实空间地理走廊上动态呈现供给断链全过程。</strong>
+            </p>
+            <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.6;">
+              通过时间轴滑动（2022–2028），推演俄乌冲突爆发与西方制裁升级时，中哈阿拉山口口岸拥堵（负荷率94%）与北方基地库存破警戒线（破14周）的连锁反应，验证多通道分流潜力。
+            </p>
+          </div>
+        </el-popover>
       </div>
-      <div class="theater-actions-quick">
-        <el-button size="small" plain @click="selectYearIndex(0)">2022 冲突爆发</el-button>
-        <el-button size="small" type="primary" plain @click="selectYearIndex(2)">2024 关键决策点</el-button>
-        <el-button size="small" type="success" plain @click="selectYearIndex(4)">2026 方案稳态</el-button>
+
+      <div class="theater-actions-quick compact">
+        <span class="quick-chip-label">关键断点：</span>
+        <button
+          type="button"
+          class="quick-year-chip"
+          :class="{ active: uraniumSelectedYearIndex === 0 }"
+          @click="selectYearIndex(0)"
+        >
+          2022 冲突
+        </button>
+        <button
+          type="button"
+          class="quick-year-chip warn"
+          :class="{ active: uraniumSelectedYearIndex === 2 }"
+          @click="selectYearIndex(2)"
+        >
+          2024 关键决策
+        </button>
+        <button
+          type="button"
+          class="quick-year-chip safe"
+          :class="{ active: uraniumSelectedYearIndex === 4 }"
+          @click="selectYearIndex(4)"
+        >
+          2026 方案稳态
+        </button>
       </div>
     </section>
 
@@ -66,63 +92,82 @@
             <el-button size="small" text :loading="isScenarioBusy" @click="reloadUraniumExperiment" aria-label="刷新实验"><el-icon><RefreshLeft /></el-icon>刷新</el-button>
           </section>
 
-          <div v-if="isUraniumMode" class="top-section">
-            <div class="left-panel">
-              <div class="uranium-route-panel uranium-panel-scroll">
-                <MidStagePanelHeader title="运输通道" description="选择通道查看线路与供应范围" />
+          <div
+            v-if="isUraniumMode"
+            class="top-section"
+            :class="{
+              'left-collapsed': isLeftCollapsed,
+              'right-collapsed': isRightCollapsed
+            }"
+          >
+            <!-- 左侧面板列（支持折叠） -->
+            <div class="panel-column left-column" :class="{ collapsed: isLeftCollapsed }">
+              <button
+                type="button"
+                class="panel-collapse-trigger left-trigger"
+                :title="isLeftCollapsed ? '展开运输通道面板' : '折叠收起面板'"
+                @click="toggleLeftPanel"
+              >
+                <el-icon><ArrowLeft v-if="!isLeftCollapsed" /><ArrowRight v-else /></el-icon>
+                <span v-if="isLeftCollapsed" class="collapsed-vertical-text">运输通道</span>
+              </button>
+              <div v-show="!isLeftCollapsed" class="left-panel">
+                <div class="uranium-route-panel uranium-panel-scroll">
+                  <MidStagePanelHeader title="运输通道" description="选择通道查看线路与供应范围" />
 
-                <div class="entity-stat-grid">
-                  <article v-for="item in uraniumTransportStatCards" :key="item.label" class="entity-stat-card">
-                    <span>{{ item.label }}</span>
-                    <strong>{{ item.value }}</strong>
-                  </article>
+                  <div class="entity-stat-grid">
+                    <article v-for="item in uraniumTransportStatCards" :key="item.label" class="entity-stat-card">
+                      <span>{{ item.label }}</span>
+                      <strong>{{ item.value }}</strong>
+                    </article>
+                  </div>
+
+                  <div v-if="uraniumSelectedStaticCorridor" class="uranium-focus-card corridor">
+                    <div class="uranium-focus-top">
+                      <strong>{{ uraniumSelectedStaticCorridor.shortName }}</strong>
+                      <span>{{ uraniumSelectedStaticCorridor.typeLabel }}</span>
+                    </div>
+                    <div class="uranium-focus-name">{{ uraniumSelectedStaticCorridor.name }}</div>
+                    <div class="uranium-focus-meta">
+                      <span>{{ uraniumSelectedStaticCorridor.operator }}</span>
+                      <span>{{ uraniumSelectedStaticCorridor.capacityLabel }}</span>
+                    </div>
+                    <div class="uranium-focus-trace">{{ uraniumSelectedStaticCorridor.summary }}</div>
+                    <el-button size="small" text class="uranium-inline-btn" @click="selectStaticCorridor('')">
+                      查看全部
+                    </el-button>
+                  </div>
+
+                  <div class="uranium-info-block">
+                    <div class="uranium-block-row">
+                      <div class="uranium-block-title">通道目录</div>
+                    </div>
+                    <div class="uranium-route-list">
+                      <button
+                        type="button"
+                        :aria-pressed="item.id === uraniumStaticCorridorId"
+                        v-for="item in uraniumCorridorRows"
+                        :key="item.id"
+                        class="uranium-route-card"
+                        :class="{ active: item.id === uraniumStaticCorridorId }"
+                        @click="selectStaticCorridor(item.id)"
+                      >
+                        <div class="uranium-route-top">
+                          <strong>{{ item.shortName }}</strong>
+                          <span>{{ item.typeLabel }}</span>
+                        </div>
+                        <div class="uranium-route-name" :title="item.name">{{ item.name }}</div>
+                        <div class="uranium-route-meta">
+                          <span>{{ item.riskLabel }}</span>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
                 </div>
-
-                <div v-if="uraniumSelectedStaticCorridor" class="uranium-focus-card corridor">
-                  <div class="uranium-focus-top">
-                    <strong>{{ uraniumSelectedStaticCorridor.shortName }}</strong>
-                    <span>{{ uraniumSelectedStaticCorridor.typeLabel }}</span>
-                  </div>
-                  <div class="uranium-focus-name">{{ uraniumSelectedStaticCorridor.name }}</div>
-                  <div class="uranium-focus-meta">
-                    <span>{{ uraniumSelectedStaticCorridor.operator }}</span>
-                    <span>{{ uraniumSelectedStaticCorridor.capacityLabel }}</span>
-                  </div>
-                  <div class="uranium-focus-trace">{{ uraniumSelectedStaticCorridor.summary }}</div>
-                  <el-button size="small" text class="uranium-inline-btn" @click="selectStaticCorridor('')">
-                    查看全部
-                  </el-button>
-                </div>
-
-                <div class="uranium-info-block">
-                  <div class="uranium-block-row">
-                    <div class="uranium-block-title">通道目录</div>
-                  </div>
-                  <div class="uranium-route-list">
-                    <button
-                      type="button"
-                      :aria-pressed="item.id === uraniumStaticCorridorId"
-                      v-for="item in uraniumCorridorRows"
-                      :key="item.id"
-                      class="uranium-route-card"
-                      :class="{ active: item.id === uraniumStaticCorridorId }"
-                      @click="selectStaticCorridor(item.id)"
-                    >
-                      <div class="uranium-route-top">
-                        <strong>{{ item.shortName }}</strong>
-                        <span>{{ item.typeLabel }}</span>
-                      </div>
-                      <div class="uranium-route-name" :title="item.name">{{ item.name }}</div>
-                      <div class="uranium-route-meta">
-                        <span>{{ item.riskLabel }}</span>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-
-                                              </div>
+              </div>
             </div>
 
+            <!-- 中间地图区域 -->
             <div class="center-panel">
               <div class="map-stage-row">
                 <UraniumFlowMap
@@ -146,9 +191,20 @@
               </div>
             </div>
 
-            <div class="right-panel">
-              <div class="right-stack-item">
-                <div class="uranium-side-card uranium-panel-scroll simulation-status-panel">
+            <!-- 右侧面板列（支持折叠） -->
+            <div class="panel-column right-column" :class="{ collapsed: isRightCollapsed }">
+              <button
+                type="button"
+                class="panel-collapse-trigger right-trigger"
+                :title="isRightCollapsed ? '展开年度态势面板' : '折叠收起面板'"
+                @click="toggleRightPanel"
+              >
+                <el-icon><ArrowRight v-if="!isRightCollapsed" /><ArrowLeft v-else /></el-icon>
+                <span v-if="isRightCollapsed" class="collapsed-vertical-text">年度态势</span>
+              </button>
+              <div v-show="!isRightCollapsed" class="right-panel">
+                <div class="right-stack-item">
+                  <div class="uranium-side-card uranium-panel-scroll simulation-status-panel">
                   <MidStagePanelHeader title="年度态势" :description="uraniumActiveYearLabel + ' · 供应、事件与调运关系'" />
 
                   <div class="uranium-summary-grid compact">
@@ -327,6 +383,7 @@
               </div>
             </div>
           </div>
+        </div>
 
           <div v-else class="interface-empty">
             <el-empty
@@ -362,8 +419,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 import { formatUraniumEvent } from '@/utils/uraniumScene'
 import { storeToRefs } from 'pinia'
-import { Loading, RefreshLeft, Monitor, ArrowLeft, ArrowRight, VideoPlay } from '@element-plus/icons-vue'
-import MidStagePageHeader from './components/shared/MidStagePageHeader.vue'
+import { Loading, RefreshLeft, Monitor, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, VideoPlay, InfoFilled } from '@element-plus/icons-vue'
 import MidStagePanelHeader from './components/shared/MidStagePanelHeader.vue'
 import AsyncPanelPlaceholder from './components/shared/AsyncPanelPlaceholder.vue'
 import UraniumFlowMap from './components/UraniumFlowMap.vue'
@@ -394,6 +450,25 @@ const loadError = ref('')
 const uraniumSelectedYearIndex = ref(0)
 const uraniumFocusedRouteKey = ref('')
 const isLiveSimulationMode = computed(() => route.query.theaterMode === 'live')
+
+// 面板与导引条折叠状态
+const isLeftCollapsed = ref(false)
+const isRightCollapsed = ref(false)
+const isStripCollapsed = ref(false)
+
+function toggleLeftPanel() {
+  isLeftCollapsed.value = !isLeftCollapsed.value
+  nextTick(() => {
+    window.dispatchEvent(new Event('resize'))
+  })
+}
+
+function toggleRightPanel() {
+  isRightCollapsed.value = !isRightCollapsed.value
+  nextTick(() => {
+    window.dispatchEvent(new Event('resize'))
+  })
+}
 
 function selectYearIndex(idx) {
   uraniumSelectedYearIndex.value = idx
@@ -847,6 +922,97 @@ watch(uraniumStaticCorridorId, (next) => {
   gap: 8px;
   min-height: 0;
   overflow: hidden;
+  transition: grid-template-columns 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.top-section.left-collapsed {
+  grid-template-columns: 28px minmax(0, 1fr) 280px;
+}
+
+.top-section.right-collapsed {
+  grid-template-columns: 240px minmax(0, 1fr) 28px;
+}
+
+.top-section.left-collapsed.right-collapsed {
+  grid-template-columns: 28px minmax(0, 1fr) 28px;
+}
+
+.panel-column {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.panel-column.left-column {
+  flex-direction: row;
+}
+
+.panel-column.right-column {
+  flex-direction: row-reverse;
+}
+
+.panel-column.collapsed {
+  width: 28px;
+  min-width: 28px;
+}
+
+.panel-collapse-trigger {
+  position: absolute;
+  top: 14px;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(4px);
+  color: #475569;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  transition: all 0.2s ease;
+}
+
+.left-trigger {
+  right: -10px;
+  width: 20px;
+  height: 28px;
+}
+
+.right-trigger {
+  left: -10px;
+  width: 20px;
+  height: 28px;
+}
+
+.panel-column.collapsed .left-trigger,
+.panel-column.collapsed .right-trigger {
+  position: static;
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  flex-direction: column;
+  padding: 14px 2px;
+  background: linear-gradient(180deg, #f8fafc, #edf2f7);
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+}
+
+.collapsed-vertical-text {
+  writing-mode: vertical-lr;
+  letter-spacing: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  margin-top: 10px;
+}
+
+.panel-collapse-trigger:hover {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #93c5fd;
 }
 
 .left-panel,
@@ -858,6 +1024,8 @@ watch(uraniumStaticCorridorId, (next) => {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  height: 100%;
+  width: 100%;
 }
 
 .right-panel {
@@ -1543,43 +1711,108 @@ watch(uraniumStaticCorridorId, (next) => {
 .simulation-core-question-strip {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 10px 18px;
-  margin: 6px 16px 8px;
+  gap: 12px;
+  padding: 5px 14px;
+  margin: 4px 16px 6px;
   background: linear-gradient(135deg, rgba(238, 242, 255, 0.95) 0%, rgba(240, 253, 250, 0.9) 100%);
   border: 1px solid #c7d2fe;
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.05);
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.04);
+  height: 34px;
+  box-sizing: border-box;
 }
+
 .core-question-badge {
   font-size: 11px;
   font-weight: 800;
   color: #4f46e5;
   background: #e0e7ff;
   border: 1px solid #c7d2fe;
-  padding: 4px 10px;
-  border-radius: 6px;
+  padding: 2px 8px;
+  border-radius: 5px;
   white-space: nowrap;
 }
-.core-question-text {
-  flex: 1;
-}
-.core-question-text strong {
-  display: block;
-  font-size: 13px;
-  color: #1e1b4b;
-  margin-bottom: 2px;
-}
-.core-question-text p {
-  margin: 0;
-  font-size: 12px;
-  color: #475569;
-  line-height: 1.45;
-}
-.theater-actions-quick {
+
+.core-question-summary {
   display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: #334155;
+  font-weight: 600;
+}
+
+.core-question-summary span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.core-question-info-icon {
+  font-size: 14px;
+  color: #6366f1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.core-question-info-icon:hover {
+  transform: scale(1.15);
+  color: #4338ca;
+}
+
+.theater-actions-quick.compact {
+  display: flex;
+  align-items: center;
   gap: 6px;
   flex-shrink: 0;
+}
+
+.quick-chip-label {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.quick-year-chip {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.quick-year-chip:hover {
+  border-color: #93c5fd;
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.quick-year-chip.active {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 1px 4px rgba(37, 99, 235, 0.25);
+}
+
+.quick-year-chip.warn.active {
+  background: #ea580c;
+  color: #ffffff;
+  border-color: #ea580c;
+  box-shadow: 0 1px 4px rgba(234, 88, 12, 0.25);
+}
+
+.quick-year-chip.safe.active {
+  background: #16a34a;
+  color: #ffffff;
+  border-color: #16a34a;
+  box-shadow: 0 1px 4px rgba(22, 163, 74, 0.25);
 }
 
 </style>

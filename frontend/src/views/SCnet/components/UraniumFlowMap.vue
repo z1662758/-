@@ -20,73 +20,231 @@
       </div>
 
       <div class="toolbar-right">
-        <div class="layer-group">
-          <span class="layer-group-label">业务图层</span>
-          <el-button-group size="small">
-            <el-button plain :aria-pressed="showRoutes" :type="showRoutes ? 'primary' : ''" @click="showRoutes = !showRoutes">本年调运</el-button>
-            <el-button plain :aria-pressed="showSuppliers" :type="showSuppliers ? 'primary' : ''" @click="showSuppliers = !showSuppliers">供给方</el-button>
-            <el-button plain :aria-pressed="showManufacturers" :type="showManufacturers ? 'primary' : ''" @click="showManufacturers = !showManufacturers">采购主体</el-button>
-            <el-button plain :aria-pressed="showHubs" :type="showHubs ? 'primary' : ''" @click="showHubs = !showHubs">途经枢纽</el-button>
-          </el-button-group>
+        <!-- 业务图层微型胶囊组 -->
+        <div class="layer-pill-group">
+          <span class="layer-pill-label">业务图层</span>
+          <div class="pill-items">
+            <button
+              type="button"
+              class="layer-pill-btn"
+              :class="{ active: showRoutes }"
+              @click="showRoutes = !showRoutes"
+              title="切换本年调运链路"
+            >
+              本年调运
+            </button>
+            <button
+              type="button"
+              class="layer-pill-btn"
+              :class="{ active: showSuppliers }"
+              @click="showSuppliers = !showSuppliers"
+              title="切换海外与本土矿山供给方"
+            >
+              供给方
+            </button>
+            <button
+              type="button"
+              class="layer-pill-btn"
+              :class="{ active: showManufacturers }"
+              @click="showManufacturers = !showManufacturers"
+              title="切换南北深加工基地采购主体"
+            >
+              采购主体
+            </button>
+            <button
+              type="button"
+              class="layer-pill-btn"
+              :class="{ active: showHubs }"
+              @click="showHubs = !showHubs"
+              title="切换途经物流口岸与海运港口"
+            >
+              途经枢纽
+            </button>
+          </div>
         </div>
-        <div class="layer-group reference-layer-group">
-          <span class="layer-group-label">运输通道</span>
-          <el-button-group size="small">
-            <el-button plain :aria-pressed="showReferenceLand" :type="showReferenceLand ? 'primary' : ''" @click="showReferenceLand = !showReferenceLand">陆运</el-button>
-            <el-button plain :aria-pressed="showReferenceSea" :type="showReferenceSea ? 'primary' : ''" @click="showReferenceSea = !showReferenceSea">海运</el-button>
-            <el-button plain :aria-pressed="showReferenceMultimodal" :type="showReferenceMultimodal ? 'primary' : ''" @click="showReferenceMultimodal = !showReferenceMultimodal">联运</el-button>
-          </el-button-group>
+
+        <!-- 运输通道微型胶囊组 -->
+        <div class="layer-pill-group">
+          <span class="layer-pill-label">运输通道</span>
+          <div class="pill-items">
+            <button
+              type="button"
+              class="layer-pill-btn land"
+              :class="{ active: showReferenceLand }"
+              @click="showReferenceLand = !showReferenceLand"
+              title="中欧/中亚铁路陆运通道"
+            >
+              <span class="pill-dot land"></span>陆运
+            </button>
+            <button
+              type="button"
+              class="layer-pill-btn sea"
+              :class="{ active: showReferenceSea }"
+              @click="showReferenceSea = !showReferenceSea"
+              title="远洋航运主通道"
+            >
+              <span class="pill-dot sea"></span>海运
+            </button>
+            <button
+              type="button"
+              class="layer-pill-btn multimodal"
+              :class="{ active: showReferenceMultimodal }"
+              @click="showReferenceMultimodal = !showReferenceMultimodal"
+              title="跨里海铁海多式联运"
+            >
+              <span class="pill-dot multimodal"></span>联运
+            </button>
+          </div>
         </div>
       </div>
     </div>
 
     <div class="map-stage">
       <div ref="chartRef" class="map-canvas"></div>
+
+      <!-- 悬浮地图交互工具盘 -->
+      <div class="map-controls-floating">
+        <el-tooltip content="放大地图视口" placement="left">
+          <button type="button" class="map-float-btn" @click="zoomIn" aria-label="放大">
+            <el-icon><Plus /></el-icon>
+          </button>
+        </el-tooltip>
+        <el-tooltip content="缩小地图视口" placement="left">
+          <button type="button" class="map-float-btn" @click="zoomOut" aria-label="缩小">
+            <el-icon><Minus /></el-icon>
+          </button>
+        </el-tooltip>
+        <el-tooltip content="复位初始视角" placement="left">
+          <button type="button" class="map-float-btn" @click="resetView" aria-label="复位">
+            <el-icon><Aim /></el-icon>
+          </button>
+        </el-tooltip>
+        <el-tooltip :content="roamEnabled ? '锁定地图视角（禁止拖拽漫游）' : '开启地图自由漫游与缩放'" placement="left">
+          <button
+            type="button"
+            class="map-float-btn"
+            :class="{ active: roamEnabled }"
+            @click="toggleRoam"
+            aria-label="漫游锁定切换"
+          >
+            <el-icon><Compass /></el-icon>
+          </button>
+        </el-tooltip>
+        <el-tooltip :content="enableParticleEffect ? '关闭航线动态流光粒子' : '开启航线动态流光粒子'" placement="left">
+          <button
+            type="button"
+            class="map-float-btn"
+            :class="{ active: enableParticleEffect }"
+            @click="toggleParticleEffect"
+            aria-label="流光光效切换"
+          >
+            <el-icon><Lightning /></el-icon>
+          </button>
+        </el-tooltip>
+      </div>
+
+      <!-- 悬浮在地图左下角的半透明图例卡片（内置于图里，支持折叠收起） -->
+      <div class="map-legend-floating" :class="{ collapsed: isLegendCollapsed }">
+        <div class="legend-header" @click="isLegendCollapsed = !isLegendCollapsed" title="点击展开/收起图例">
+          <span class="legend-title-badge">图例</span>
+          <span v-if="isLegendCollapsed" class="legend-collapsed-text">展开图例</span>
+          <el-icon class="legend-toggle-icon">
+            <ArrowDown v-if="!isLegendCollapsed" />
+            <ArrowUp v-else />
+          </el-icon>
+        </div>
+
+        <div v-show="!isLegendCollapsed" class="legend-content">
+          <div class="legend-row">
+            <span class="legend-dot bottleneck-pulse"></span>
+            <span>高危/拥堵瓶颈</span>
+          </div>
+          <template v-if="hasRiskLevels">
+            <div class="legend-row"><span class="legend-dot risk-high"></span><span>高风险链路</span></div>
+            <div class="legend-row"><span class="legend-dot risk-medium"></span><span>中风险链路</span></div>
+            <div class="legend-row"><span class="legend-dot risk-low"></span><span>低风险链路</span></div>
+          </template>
+          <div class="legend-row"><span class="legend-dot supplier"></span><span>供给方</span></div>
+          <div class="legend-row"><span class="legend-dot manufacturer"></span><span>采购主体</span></div>
+          <div class="legend-row"><span class="legend-dot hub"></span><span>枢纽 / 口岸</span></div>
+          <div class="legend-row"><span class="legend-line land"></span><span>陆运通道</span></div>
+          <div class="legend-row"><span class="legend-line sea"></span><span>海运通道</span></div>
+          <div class="legend-row"><span class="legend-line multimodal"></span><span>多式联运</span></div>
+        </div>
+      </div>
+
       <div v-if="loading" class="map-loading">
         <el-icon class="is-loading" :size="34"><Loading /></el-icon>
         <span>地图加载中...</span>
       </div>
     </div>
 
-    <div class="map-bottom-dock">
-      <div v-if="yearRows.length > 1" class="year-slider">
-        <div class="timeline-heading">
-          <span>年度推演</span>
-          <!-- 参考 MACE 事中页的推演控制：上一年 / 播放 / 下一年，支持 ← → 空格 -->
-          <div class="timeline-controls" title="快捷键：← → 切换年份，空格 播放/暂停">
-            <button type="button" class="timeline-btn" :disabled="yearIndex <= 0" @click="stepYear(-1)" aria-label="上一年">
-              <el-icon><DArrowLeft /></el-icon>
-            </button>
-            <button type="button" class="timeline-btn play" :class="{ playing }" :disabled="yearRows.length < 2" @click="togglePlay" :aria-label="playing ? '暂停' : '播放'">
-              <el-icon><VideoPause v-if="playing" /><VideoPlay v-else /></el-icon>
-              <span>{{ playing ? '暂停' : '播放' }}</span>
-            </button>
-            <button type="button" class="timeline-btn" :disabled="yearIndex >= yearRows.length - 1" @click="stepYear(1)" aria-label="下一年">
-              <el-icon><DArrowRight /></el-icon>
-            </button>
-          </div>
-          <strong>{{ activeYearLabel }}</strong>
+    <!-- 紧凑单行时间轴推演控制条（集成播放、步进、滑块、倍速与当前年份，高度仅 36px） -->
+    <div v-if="yearRows.length > 1" class="compact-timeline-strip">
+      <div class="timeline-control-cluster">
+        <button
+          type="button"
+          class="timeline-btn"
+          :disabled="yearIndex <= 0"
+          @click="stepYear(-1)"
+          aria-label="上一年"
+          title="上一年"
+        >
+          <el-icon><DArrowLeft /></el-icon>
+        </button>
+        <button
+          type="button"
+          class="timeline-btn play"
+          :class="{ playing }"
+          :disabled="yearRows.length < 2"
+          @click="togglePlay"
+          :aria-label="playing ? '暂停' : '播放'"
+          :title="playing ? '暂停推演' : '开始时序推演'"
+        >
+          <el-icon><VideoPause v-if="playing" /><VideoPlay v-else /></el-icon>
+          <span>{{ playing ? '暂停' : '推演' }}</span>
+        </button>
+        <button
+          type="button"
+          class="timeline-btn"
+          :disabled="yearIndex >= yearRows.length - 1"
+          @click="stepYear(1)"
+          aria-label="下一年"
+          title="下一年"
+        >
+          <el-icon><DArrowRight /></el-icon>
+        </button>
+
+        <div class="timeline-speed-selector">
+          <button
+            v-for="s in [0.5, 1, 2]"
+            :key="s"
+            type="button"
+            class="speed-btn"
+            :class="{ active: playSpeed === s }"
+            @click="setPlaySpeed(s)"
+            :title="`推演倍速 ${s}x`"
+          >
+            {{ s }}x
+          </button>
         </div>
-        <el-slider v-model="yearIndex" :min="0" :max="yearRows.length - 1" :marks="yearMarks" @input="stopPlay" />
       </div>
 
-      <div class="legend-panel">
-        <div class="panel-title">图例</div>
-        <div class="legend-list">
-          <template v-if="hasRiskLevels">
-            <span class="legend-item"><span class="legend-dot risk-high"></span>高风险链路</span>
-            <span class="legend-item"><span class="legend-dot risk-medium"></span>中风险链路</span>
-            <span class="legend-item"><span class="legend-dot risk-low"></span>低风险链路</span>
-          </template>
-          <span class="legend-item"><span class="legend-dot supplier"></span>供给方</span>
-          <span class="legend-item"><span class="legend-dot manufacturer"></span>采购主体</span>
-          <span class="legend-item"><span class="legend-dot hub"></span>枢纽 / 口岸</span>
-          <span class="legend-item"><span class="legend-line land"></span>陆运</span>
-          <span class="legend-item"><span class="legend-line sea"></span>海运</span>
-          <span class="legend-item"><span class="legend-line multimodal"></span>多式联运</span>
-        </div>
+      <div class="timeline-slider-track">
+        <el-slider
+          v-model="yearIndex"
+          :min="0"
+          :max="yearRows.length - 1"
+          :marks="yearMarks"
+          :show-tooltip="false"
+          @input="stopPlay"
+        />
       </div>
 
+      <div class="timeline-year-chip">
+        <span class="year-label">{{ activeYearLabel }}</span>
+        <span class="year-step">{{ yearIndex + 1 }}/{{ yearRows.length }}</span>
+      </div>
     </div>
   </div>
 </template>
@@ -94,10 +252,23 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as echarts from 'echarts/core'
-import { LinesChart, ScatterChart } from 'echarts/charts'
+import { LinesChart, ScatterChart, EffectScatterChart } from 'echarts/charts'
 import { GeoComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
-import { Loading, DArrowLeft, DArrowRight, VideoPause, VideoPlay } from '@element-plus/icons-vue'
+import {
+  Loading,
+  DArrowLeft,
+  DArrowRight,
+  VideoPause,
+  VideoPlay,
+  Plus,
+  Minus,
+  Aim,
+  Compass,
+  Lightning,
+  ArrowDown,
+  ArrowUp
+} from '@element-plus/icons-vue'
 import { ensureEchartsWorldMap } from '@/utils/ensureEchartsWorldMap'
 import {
   URANIUM_TRANSPORT_CORRIDORS,
@@ -173,6 +344,7 @@ const SERIES_RUNTIME_HUB = '途经枢纽'
 echarts.use([
   LinesChart,
   ScatterChart,
+  EffectScatterChart,
   GeoComponent,
   TooltipComponent,
   CanvasRenderer
@@ -191,6 +363,54 @@ const showReferenceMultimodal = ref(true)
 const showReferenceHubs = ref(true)
 const showEnterprisePorts = ref(true)
 const localStaticCorridorId = ref('')
+
+// 地图高级交互与视觉状态
+const roamEnabled = ref(true)
+const enableParticleEffect = ref(true)
+const playSpeed = ref(1)
+const isLegendCollapsed = ref(false)
+
+function zoomIn() {
+  if (!chart) return
+  chart.dispatchAction({
+    type: 'geoRoam',
+    componentType: 'geo',
+    zoom: 1.25
+  })
+}
+
+function zoomOut() {
+  if (!chart) return
+  chart.dispatchAction({
+    type: 'geoRoam',
+    componentType: 'geo',
+    zoom: 0.8
+  })
+}
+
+function resetView() {
+  if (!chart) return
+  chart.setOption({
+    geo: {
+      zoom: 1,
+      center: undefined
+    }
+  })
+}
+
+function toggleRoam() {
+  roamEnabled.value = !roamEnabled.value
+  chart?.setOption({
+    geo: {
+      roam: roamEnabled.value
+    }
+  })
+}
+
+function toggleParticleEffect() {
+  enableParticleEffect.value = !enableParticleEffect.value
+  scheduleRender()
+}
 
 const corridorLayerVisible = (type) => {
   if (type === 'land') return showReferenceLand.value
@@ -222,10 +442,45 @@ const yearRows = computed(() => (
 ))
 const activeYear = computed(() => yearRows.value[yearIndex.value] || null)
 
-// ── 年度播放控制（参考 MACE 事中推演的 play/step 交互） ──
-const PLAY_INTERVAL_MS = 1600
+// 态势瓶颈与高危预警节点（中哈铁路口岸负荷与北方包头基地安全库存红线）
+const bottleneckAlertNodes = computed(() => {
+  const currentYear = Number(activeYear.value?.year || 2024)
+  const isSevere = currentYear >= 2023 && currentYear <= 2025
+  return [
+    {
+      name: '中哈阿拉山口铁路口岸',
+      value: [82.57, 45.18, 94],
+      level: isSevere ? '高危拥堵预警' : '通关繁忙',
+      detail: '中哈铁路换装负荷率达 94%，排队超 3 周，触发严重拥堵预警',
+      itemStyle: { color: isSevere ? '#ef4444' : '#f59e0b' },
+      symbolSize: isSevere ? 16 : 12
+    },
+    {
+      name: '北方包头燃料元件基地',
+      value: [109.84, 40.65, 14],
+      level: isSevere ? '断料告警 (14周)' : '安全库存偏紧',
+      detail: '安全库存可用仅 14 周（安全红线 26 周），华龙一号首炉急需补料',
+      itemStyle: { color: isSevere ? '#dc2626' : '#ea580c' },
+      symbolSize: isSevere ? 16 : 12
+    }
+  ]
+})
+
+// ── 年度播放控制（参考 MACE 事中推演的 play/step 交互，支持倍速切换） ──
+const PLAY_BASE_MS = 1600
 const playing = ref(false)
 let playTimer = null
+
+function setPlaySpeed(speed) {
+  playSpeed.value = speed
+  if (playing.value) {
+    if (playTimer) clearInterval(playTimer)
+    playTimer = setInterval(() => {
+      if (yearIndex.value >= yearRows.value.length - 1) { stopPlay(); return }
+      yearIndex.value += 1
+    }, Math.round(PLAY_BASE_MS / playSpeed.value))
+  }
+}
 
 function stepYear(delta) {
   const max = yearRows.value.length - 1
@@ -244,7 +499,7 @@ function startPlay() {
   playTimer = setInterval(() => {
     if (yearIndex.value >= yearRows.value.length - 1) { stopPlay(); return }
     yearIndex.value += 1
-  }, PLAY_INTERVAL_MS)
+  }, Math.round(PLAY_BASE_MS / playSpeed.value))
 }
 function togglePlay() {
   if (playing.value) stopPlay()
@@ -589,24 +844,33 @@ function buildOption() {
             `库存覆盖：${formatUraniumMetricValue('inventory_coverage_years', item.inventory_years)}`
           ].join('<br/>')
         }
+        if (params.seriesName === '态势瓶颈与库存告警') {
+          const item = params.data || {}
+          return [
+            `<b>⚠️ ${item.name}</b>`,
+            `风险研判：<span style="color:#ef4444;font-weight:bold;">${item.level}</span>`,
+            item.detail || ''
+          ].join('<br/>')
+        }
         return params.name || '-'
       }
     },
     geo: {
       map: 'world',
-      roam: false,
+      roam: roamEnabled.value,
+      scaleLimit: { min: 0.8, max: 7 },
       left: 16,
       right: 16,
       top: 14,
       bottom: 14,
       itemStyle: {
-        areaColor: '#dbeaf8',
-        borderColor: 'rgba(100, 116, 139, 0.32)',
+        areaColor: '#d6e6f7',
+        borderColor: 'rgba(100, 116, 139, 0.35)',
         borderWidth: 0.8
       },
       emphasis: {
         itemStyle: {
-          areaColor: '#bfdbfe'
+          areaColor: '#bad7f5'
         },
         label: { show: false }
       }
@@ -620,6 +884,14 @@ function buildOption() {
         polyline: true,
         silent: false,
         symbol: ['none', 'none'],
+        effect: {
+          show: enableParticleEffect.value,
+          period: layer.type === 'sea' ? 6 : 4,
+          trailLength: 0.15,
+          symbol: 'circle',
+          symbolSize: 3,
+          color: layer.type === 'land' ? '#f59e0b' : (layer.type === 'sea' ? '#2563eb' : '#7c3aed')
+        },
         data: layer.data
       })),
       {
@@ -633,6 +905,14 @@ function buildOption() {
         lineStyle: {
           width: 1.8,
           opacity: 0.68
+        },
+        effect: {
+          show: enableParticleEffect.value,
+          period: 4,
+          trailLength: 0.22,
+          symbol: 'arrow',
+          symbolSize: 6,
+          color: '#38bdf8'
         },
         data: lineData.map((item) => ({
           coords: item.coords,
@@ -768,6 +1048,33 @@ function buildOption() {
           shadowColor: 'rgba(249, 115, 22, 0.26)'
         },
         data: manufacturerData.map((item) => buildManufacturerNode(item))
+      },
+      {
+        name: '态势瓶颈与库存告警',
+        type: 'effectScatter',
+        coordinateSystem: 'geo',
+        z: 6,
+        showEffectOn: 'render',
+        rippleEffect: {
+          brushType: 'stroke',
+          scale: 3.8,
+          period: 2.8
+        },
+        symbolSize: (_value, params) => params?.data?.symbolSize || 15,
+        label: {
+          show: true,
+          position: 'top',
+          formatter: '{b}',
+          color: '#991b1b',
+          fontWeight: 700,
+          fontSize: 10,
+          backgroundColor: 'rgba(254, 242, 242, 0.94)',
+          borderColor: '#fca5a5',
+          borderWidth: 1,
+          borderRadius: 4,
+          padding: [2, 6]
+        },
+        data: bottleneckAlertNodes.value
       }
     ]
   }
@@ -965,18 +1272,71 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.layer-group {
-  display: flex;
+/* 微型图层胶囊切换条 */
+.layer-pill-group {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 2px 6px;
+  border-radius: 8px;
 }
 
-.layer-group-label {
-  color: #94a3b8;
+.layer-pill-label {
+  color: #64748b;
   font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
 }
+
+.pill-items {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.layer-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 11px;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.layer-pill-btn:hover {
+  background: #ffffff;
+  color: #1e293b;
+}
+
+.layer-pill-btn.active {
+  background: #ffffff;
+  color: #2563eb;
+  font-weight: 700;
+  border-color: #bfdbfe;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.12);
+}
+
+.layer-pill-btn.land.active { color: #d97706; border-color: #fde68a; }
+.layer-pill-btn.sea.active { color: #2563eb; border-color: #bfdbfe; }
+.layer-pill-btn.multimodal.active { color: #7c3aed; border-color: #ddd6fe; }
+
+.pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  display: inline-block;
+}
+.pill-dot.land { background: #f59e0b; }
+.pill-dot.sea { background: #2563eb; }
+.pill-dot.multimodal { background: #7c3aed; }
 
 .focus-pill {
   display: inline-flex;
@@ -998,6 +1358,9 @@ onBeforeUnmount(() => {
   position: relative;
   min-height: 0;
   overflow: hidden;
+  flex: 1;
+  width: 100%;
+  height: 100%;
 }
 
 .map-canvas {
@@ -1018,34 +1381,133 @@ onBeforeUnmount(() => {
   background: rgba(255, 255, 255, 0.66);
 }
 
-.map-bottom-dock {
-  min-height: 0;
-  border-top: 1px solid rgba(219, 228, 240, 0.9);
-  background: rgba(248, 250, 252, 0.94);
+/* 悬浮在地图左下角的半透明图例卡片 */
+.map-legend-floating {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(8px);
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+  transition: all 0.2s ease;
+  overflow: hidden;
 }
 
-.year-slider {
-  padding: 8px 16px 2px;
+.map-legend-floating.collapsed {
+  background: rgba(255, 255, 255, 0.82);
 }
 
-.timeline-heading {
+.legend-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: -2px;
+  gap: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  user-select: none;
+  background: rgba(248, 250, 252, 0.7);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+}
+
+.map-legend-floating.collapsed .legend-header {
+  border-bottom: none;
+}
+
+.legend-title-badge {
+  font-size: 11px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.legend-collapsed-text {
+  font-size: 10px;
   color: #64748b;
-  font-size: 11px;
 }
 
-.timeline-heading strong {
-  color: #1e293b;
+.legend-toggle-icon {
   font-size: 11px;
+  color: #64748b;
+  margin-left: auto;
 }
 
-.timeline-controls {
-  display: inline-flex;
+.legend-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 10px;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  color: #475569;
+}
+
+.legend-dot,
+.legend-line {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.legend-dot.supplier { background: #22c55e; }
+.legend-dot.manufacturer { background: #f97316; }
+.legend-dot.hub {
+  background: #0ea5e9;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.18);
+}
+.legend-dot.bottleneck-pulse {
+  background: #ef4444;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.35);
+  animation: pulse-ring 1.8s infinite;
+}
+
+.legend-dot.risk-high { background: #dc2626; }
+.legend-dot.risk-medium { background: #f59e0b; }
+.legend-dot.risk-low { background: #16a34a; }
+
+.legend-line {
+  width: 14px;
+  height: 0;
+  border-top-width: 2px;
+  border-top-style: solid;
+}
+.legend-line.land { border-top-color: #f59e0b; }
+.legend-line.sea { border-top-color: #2563eb; border-top-style: dashed; }
+.legend-line.multimodal { border-top-color: #7c3aed; border-top-style: dotted; }
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
+  70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+/* 紧凑单行时间轴推演控制条（集成于地图底部，高度约 36px） */
+.compact-timeline-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 12px;
+  background: rgba(255, 255, 255, 0.95);
+  border-top: 1px solid #dbe4f0;
+  height: 38px;
+  box-sizing: border-box;
+}
+
+.timeline-control-cluster {
+  display: flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .timeline-btn {
@@ -1053,8 +1515,8 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  height: 22px;
-  min-width: 22px;
+  height: 24px;
+  min-width: 24px;
   padding: 0 6px;
   border: 1px solid #dbe4f0;
   border-radius: 999px;
@@ -1066,7 +1528,7 @@ onBeforeUnmount(() => {
 }
 .timeline-btn:hover:not(:disabled) { color: #2563eb; border-color: #93c5fd; background: #eff6ff; }
 .timeline-btn:disabled { opacity: .45; cursor: not-allowed; }
-.timeline-btn.play { padding: 0 9px; font-weight: 700; }
+.timeline-btn.play { padding: 0 8px; font-weight: 700; }
 .timeline-btn.play.playing {
   color: #fff;
   border-color: transparent;
@@ -1074,86 +1536,159 @@ onBeforeUnmount(() => {
   box-shadow: 0 2px 8px rgba(37, 99, 235, .3);
 }
 
-.year-slider :deep(.el-slider) {
-  --el-slider-main-bg-color: #2563eb;
-  --el-slider-runway-bg-color: #dbe4f0;
-  --el-slider-stop-bg-color: #94a3b8;
-  margin-top: 4px;
-  margin-bottom: 9px;
+.timeline-speed-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: #f1f5f9;
+  padding: 1px;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+  margin-left: 2px;
 }
 
-.year-slider :deep(.el-slider__marks-text) {
-  margin-top: 8px;
-  color: #64748b;
+.speed-btn {
+  border: none;
+  background: transparent;
+  padding: 1px 5px;
   font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.speed-btn:hover { color: #2563eb; }
+.speed-btn.active {
+  background: #ffffff;
+  color: #2563eb;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+
+.timeline-slider-track {
+  flex: 1;
+  min-width: 140px;
+  margin: 0 4px;
+}
+
+.timeline-slider-track :deep(.el-slider) {
+  --el-slider-main-bg-color: #2563eb;
+  --el-slider-runway-bg-color: #e2e8f0;
+  --el-slider-stop-bg-color: #94a3b8;
+  height: 20px;
+}
+
+.timeline-slider-track :deep(.el-slider__marks-text) {
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 9px;
   white-space: nowrap;
 }
 
-.legend-panel {
-  margin: 8px 12px 12px;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+.timeline-year-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.timeline-year-chip .year-label {
+  font-size: 12px;
+  font-weight: 800;
+  color: #1d4ed8;
+}
+
+.timeline-year-chip .year-step {
+  font-size: 10px;
+  color: #64748b;
+}
+
+/* 地图右上角悬浮操作工具盘 */
+.map-controls-floating {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(8px);
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid #dbe4f0;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+}
+
+.map-float-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  font-size: 14px;
+}
+
+.map-float-btn:hover {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #bfdbfe;
+}
+
+.map-float-btn.active {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+}
+
+/* 推演标题与倍速控制器 */
+.timeline-title-group {
+  display: inline-flex;
   align-items: center;
   gap: 10px;
-  min-height: 0;
-  padding: 8px 10px;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.9);
 }
 
-.panel-title {
-  margin: 0;
-  padding-right: 10px;
-  border-right: 1px solid #e2e8f0;
-  font-size: 12px;
-  font-weight: 700;
-  color: #0f172a;
-  white-space: nowrap;
-}
-
-.legend-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 12px;
+.timeline-speed-selector {
+  display: inline-flex;
   align-items: center;
+  gap: 2px;
+  background: #f1f5f9;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
 }
 
-.legend-item {
+.speed-btn {
+  border: none;
+  background: transparent;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 700;
   color: #64748b;
-  font-size: 11px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-.legend-dot,
-.legend-line {
-  display: inline-block;
-  vertical-align: middle;
-  margin-right: 6px;
+.speed-btn:hover {
+  color: #2563eb;
 }
 
-.legend-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
+.speed-btn.active {
+  background: #ffffff;
+  color: #2563eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
-
-.legend-dot.supplier {
-  background: #22c55e;
-}
-
-.legend-dot.manufacturer {
-  background: #f97316;
-}
-
-.legend-dot.hub {
-  background: #0ea5e9;
-  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.18);
-}
-
-/* 链路风险分档（铀态势快照） */
-.legend-dot.risk-high { background: #dc2626; }
-.legend-dot.risk-medium { background: #f59e0b; }
-.legend-dot.risk-low { background: #16a34a; }
 
 .legend-line {
   width: 18px;

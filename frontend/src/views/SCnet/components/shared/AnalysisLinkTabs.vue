@@ -1,6 +1,6 @@
 <template>
   <nav class="analysis-pipeline-container glass-panel" aria-label="事中决策分析业务流水线">
-    <!-- 顶部：三阶段业务流水线流转条 (对齐人群聚集与大国博弈的贯通式工作流) -->
+    <!-- 极简单行流水线流转条 -->
     <div class="pipeline-flow-row">
       <div class="pipeline-steps">
         <div
@@ -13,6 +13,7 @@
           }"
           role="button"
           tabindex="0"
+          :title="step.question"
           @click="navigateStep(step.key)"
           @keydown.enter.prevent="navigateStep(step.key)"
         >
@@ -20,29 +21,49 @@
             <el-icon v-if="currentStepIndex > idx"><Check /></el-icon>
             <span v-else>0{{ idx + 1 }}</span>
           </div>
-          <div class="step-content">
-            <div class="step-title-row">
-              <span class="step-title">{{ step.title }}</span>
-              <el-tag
-                size="small"
-                :type="activeStepKey === step.key ? 'primary' : currentStepIndex > idx ? 'success' : 'info'"
-                effect="plain"
-                class="step-status-tag"
-              >
-                {{ activeStepKey === step.key ? '正在分析' : currentStepIndex > idx ? '已完成' : '待流转' }}
-              </el-tag>
-            </div>
-            <span class="step-subtitle">{{ step.subtitle }}</span>
-            <small class="step-question">{{ step.question }}</small>
-          </div>
+          <span class="step-title">{{ step.title }}</span>
+          <el-tag
+            size="small"
+            :type="activeStepKey === step.key ? 'primary' : currentStepIndex > idx ? 'success' : 'info'"
+            effect="plain"
+            class="step-status-tag"
+          >
+            {{ activeStepKey === step.key ? '当前' : currentStepIndex > idx ? '完成' : '待办' }}
+          </el-tag>
           <!-- 步骤连接箭头 -->
           <div v-if="idx < pipelineSteps.length - 1" class="step-arrow">
             <el-icon><Right /></el-icon>
           </div>
         </div>
+
+        <!-- 悬浮说明问号 Popover：收录原先霸占大横幅的说明文字 -->
+        <el-popover
+          placement="bottom-start"
+          :width="360"
+          trigger="hover"
+          popper-class="pipeline-info-popover"
+        >
+          <template #reference>
+            <button type="button" class="pipeline-info-btn" aria-label="业务流转说明">
+              <el-icon :size="13"><InfoFilled /></el-icon>
+              <span>阶段导引</span>
+            </button>
+          </template>
+          <div class="popover-narrative-box" :class="currentStepInfo.tone">
+            <div class="pnb-head">
+              <span class="pnb-badge">{{ currentStepInfo.badge }}</span>
+              <strong>{{ currentStepInfo.headline }}</strong>
+            </div>
+            <p class="pnb-desc">{{ currentStepInfo.desc }}</p>
+            <div class="pnb-footer">
+              <span class="pnb-target-lbl">{{ currentStepInfo.handoffLabel }}</span>
+              <strong class="pnb-target-val">{{ currentStepInfo.handoffTarget }}</strong>
+            </div>
+          </div>
+        </el-popover>
       </div>
 
-      <!-- 右侧：当前实验快速切换与行动入口 -->
+      <!-- 右侧：当前实验快速切换与下一步快捷流转 -->
       <div class="pipeline-actions">
         <el-select
           v-if="isUranium"
@@ -60,29 +81,12 @@
             :value="item.experiment_id"
           />
         </el-select>
-        <slot name="right" />
-      </div>
-    </div>
 
-    <!-- 底部：当前步骤业务逻辑导引横幅 (彻底回答“本分析想说明什么”) -->
-    <div class="pipeline-narrative-banner" :class="currentStepInfo.tone">
-      <div class="narrative-left">
-        <span class="narrative-badge">{{ currentStepInfo.badge }}</span>
-        <div class="narrative-text-wrap">
-          <strong class="narrative-headline">{{ currentStepInfo.headline }}</strong>
-          <p class="narrative-desc">{{ currentStepInfo.desc }}</p>
-        </div>
-      </div>
-
-      <div class="narrative-right">
-        <div class="narrative-handoff-hint">
-          <small>{{ currentStepInfo.handoffLabel }}</small>
-          <strong>{{ currentStepInfo.handoffTarget }}</strong>
-        </div>
         <el-button
           v-if="currentStepInfo.nextStepKey"
           type="primary"
           size="small"
+          class="pipeline-next-btn"
           @click="navigateStep(currentStepInfo.nextStepKey)"
         >
           <span>{{ currentStepInfo.nextStepBtnText }}</span>
@@ -92,11 +96,14 @@
           v-else
           type="success"
           size="small"
+          class="pipeline-next-btn"
           @click="goToSimulation"
         >
-          <span>返回仿真推演大盘</span>
+          <span>返回仿真推演</span>
           <el-icon><Right /></el-icon>
         </el-button>
+
+        <slot name="right" />
       </div>
     </div>
   </nav>
@@ -109,6 +116,7 @@ import {
   Check,
   Document,
   Grid,
+  InfoFilled,
   Promotion,
   Right,
   TrendCharts
@@ -186,12 +194,12 @@ const currentStepInfo = computed(() => {
     return {
       tone: 'tone-vulnerability',
       badge: 'Step 01 · 诊断定点',
-      headline: '本分析想说明：面对突发外部冲击，系统哪里最脆弱？',
-      desc: '承接 2024–2030 年长周期推演运行异常，通过网络拓扑介数与依赖矩阵排查单点失效。已诊断出：中哈阿拉山口口岸（介数 0.84，负荷率 94%）与包头制造基地（库存破 14 周警戒线）构成全网首要脆弱咽喉。',
+      headline: '面对突发外部冲击，系统哪里最脆弱？',
+      desc: '承接长周期推演异常，通过网络拓扑介数与依赖矩阵排查单点失效。已诊断出：中哈阿拉山口口岸（介数 0.84，负荷率 94%）与包头制造基地（库存破 14 周警戒线）构成全网首要脆弱咽喉。',
       handoffLabel: '下一步流转：',
       handoffTarget: '将上述脆弱点作为约束输入，送入决策分析寻优',
       nextStepKey: 'strategy',
-      nextStepBtnText: '下一步：前往决策分析评估'
+      nextStepBtnText: '下一步：决策分析'
     }
   }
 
@@ -199,12 +207,12 @@ const currentStepInfo = computed(() => {
     return {
       tone: 'tone-strategy',
       badge: 'Step 02 · 对策寻优',
-      headline: '本分析想说明：面对已确定的脆弱断点，如何科学评估各种调控对策？',
-      desc: '承接上一步【脆弱性诊断】结果：上层锚定 2024–2030 宏观扰动情景画像，下层展开扩展式博弈决策树多路径寻优。已求解出最优方案：“跨里海多式联运绕行 + 防城港保税库应急借调平准”（综合评分 91.5 分，较基线提升 +23.5 分）。',
+      headline: '面对脆弱断点，如何科学评估各种调控对策？',
+      desc: '上层锚定 2024–2030 宏观扰动情景，下层展开扩展式博弈决策树多路径寻优。已求解出最优方案：“跨里海多式联运绕行 + 防城港保税库应急借调平准”（综合评分 91.5 分）。',
       handoffLabel: '下一步流转：',
       handoffTarget: '将评估优选结论输入，生成创新决策方案与自适应规则',
       nextStepKey: 'decision',
-      nextStepBtnText: '下一步：前往决策方案生成'
+      nextStepBtnText: '下一步：决策方案'
     }
   }
 
@@ -212,19 +220,19 @@ const currentStepInfo = computed(() => {
     return {
       tone: 'tone-strategy',
       badge: 'Step 03 · 决策方案',
-      headline: '本方案想说明：面对突发外部冲击，生成哪些具体应对调控指令与触发规则？',
-      desc: '汇总脆弱性诊断与决策树多目标博弈评估成果，创新生成包含“跨里海绕行 + 战略平准库借调 + 长协现货配比动态优化”的落地执行方案与自适应熔断触发规则。',
+      headline: '面对突发冲击，生成哪些具体调控指令与规则？',
+      desc: '汇总脆弱性诊断与决策树多目标评估成果，生成包含“跨里海绕行 + 战略平准库借调 + 长协现货动态配比”的落地执行方案与自适应熔断规则。',
       handoffLabel: '下一步流转：',
       handoffTarget: '将应对措施与推演证据链汇总生成综合决策专报',
       nextStepKey: 'report',
-      nextStepBtnText: '下一步：前往报告生成'
+      nextStepBtnText: '下一步：报告生成'
     }
   }
 
   return {
     tone: 'tone-report',
     badge: 'Step 04 · 闭环专报',
-    headline: '本报告想说明：汇总推演全链路分析结论，输出高管级综合决策专报',
+    headline: '汇总推演全链路分析结论，输出高管级综合决策专报',
     desc: '汇总脆弱性诊断（定点）、决策树博弈求解（寻优）与落地决策调控措施的完整因果证据链，形成高管级闭环决策报告并支持导出 PDF。',
     handoffLabel: '推演闭环：',
     handoffTarget: '全链路决策推演已完成闭环',
@@ -257,68 +265,67 @@ function goToSimulation() {
 <style scoped>
 .analysis-pipeline-container {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 14px 12px;
-  margin: 6px 8px 10px;
+  align-items: center;
+  padding: 6px 12px;
+  margin: 6px 8px 8px;
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
 }
 
-/* 流水线步骤行 */
+/* 流水线单行布局 */
 .pipeline-flow-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
+  gap: 12px;
+  width: 100%;
 }
 
 .pipeline-steps {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex: 1;
   min-width: 0;
 }
 
 .pipeline-step-item {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 14px;
-  border-radius: 8px;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   cursor: pointer;
-  transition: all 0.2s ease;
-  flex: 1;
-  min-width: 220px;
+  transition: all 0.15s ease;
+  user-select: none;
 }
 .pipeline-step-item:hover {
-  background: #f0f7ff;
-  border-color: #3b82f6;
-  transform: translateY(-1px);
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
 }
 .pipeline-step-item.active {
   background: #eff6ff;
   border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+  box-shadow: 0 0 0 1.5px rgba(37, 99, 235, 0.2);
 }
 .pipeline-step-item.passed {
-  border-color: #cbd5e1;
+  background: #f0fdf4;
+  border-color: #bbf7d0;
 }
 
 .step-num-badge {
-  width: 28px;
-  height: 28px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   background: #e2e8f0;
   color: #475569;
@@ -333,158 +340,111 @@ function goToSimulation() {
   color: #ffffff;
 }
 
-.step-content {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  flex: 1;
-}
-.step-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-}
 .step-title {
-  font-size: 13.5px;
-  font-weight: 700;
-  color: #0f172a;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #1e293b;
 }
+.pipeline-step-item.active .step-title {
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
 .step-status-tag {
   font-size: 10px;
   height: 18px;
-  padding: 0 6px;
-}
-.step-subtitle {
-  font-size: 11px;
-  font-weight: 600;
-  color: #2563eb;
-}
-.pipeline-step-item.passed .step-subtitle {
-  color: #10b981;
-}
-.step-question {
-  font-size: 10px;
-  color: #64748b;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 16px;
+  padding: 0 4px;
 }
 
 .step-arrow {
   display: flex;
   align-items: center;
-  justify-content: center;
-  color: #94a3b8;
-  font-size: 14px;
+  color: #cbd5e1;
+  font-size: 11px;
+  margin-left: 2px;
+}
+
+/* 阶段说明问号按钮 */
+.pipeline-info-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px dashed #cbd5e1;
+  background: transparent;
+  color: #64748b;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
   margin-left: 4px;
-  flex-shrink: 0;
+}
+.pipeline-info-btn:hover {
+  border-color: #3b82f6;
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+/* 悬浮 Popover 样式 */
+.popover-narrative-box {
+  padding: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.pnb-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.pnb-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #e2e8f0;
+  color: #0f172a;
+}
+.pnb-desc {
+  color: #475569;
+  margin: 0 0 8px 0;
+  font-size: 12px;
+}
+.pnb-footer {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #f1f5f9;
+  font-size: 11.5px;
+}
+.pnb-target-lbl {
+  color: #64748b;
+}
+.pnb-target-val {
+  color: #0f172a;
 }
 
 .pipeline-actions {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-.analysis-experiment-select {
-  width: 240px;
-}
-
-/* 底部业务导引横幅 */
-.pipeline-narrative-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 8px 14px;
-  border-radius: 6px;
-  background: #f8fafc;
-  border-left: 4px solid #3b82f6;
-  font-size: 11.5px;
-}
-.pipeline-narrative-banner.tone-vulnerability {
-  border-left-color: #f59e0b;
-  background: #fffbeb;
-}
-.pipeline-narrative-banner.tone-strategy {
-  border-left-color: #10b981;
-  background: #f0fdf4;
-}
-.pipeline-narrative-banner.tone-report {
-  border-left-color: #8b5cf6;
-  background: #f5f3ff;
-}
-
-.narrative-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 1;
-  min-width: 0;
-}
-.narrative-badge {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 3px 8px;
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.06);
-  color: #0f172a;
-  white-space: nowrap;
-}
-.narrative-text-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.narrative-headline {
-  font-size: 12.5px;
-  color: #0f172a;
-}
-.narrative-desc {
-  margin: 0;
-  font-size: 11.5px;
-  color: #475569;
-  line-height: 1.4;
-}
-
-.narrative-right {
-  display: flex;
-  align-items: center;
-  gap: 14px;
   flex-shrink: 0;
 }
-.narrative-handoff-hint {
-  display: flex;
-  flex-direction: column;
-  text-align: right;
-  gap: 1px;
+.analysis-experiment-select {
+  width: 220px;
 }
-.narrative-handoff-hint small {
-  font-size: 10px;
-  color: #64748b;
-}
-.narrative-handoff-hint strong {
-  font-size: 11.5px;
-  color: #0f172a;
+.pipeline-next-btn {
+  font-weight: 500;
 }
 
 @media (max-width: 1280px) {
-  .pipeline-steps {
-    flex-wrap: wrap;
+  .analysis-experiment-select {
+    width: 170px;
   }
   .pipeline-step-item {
-    min-width: 180px;
-  }
-  .pipeline-narrative-banner {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-  .narrative-right {
-    width: 100%;
-    justify-content: space-between;
+    padding: 3px 6px;
   }
 }
 </style>

@@ -1,7 +1,5 @@
 <template>
   <div class="scenario-page mid-stage-bg scenario-console analysis-workspace" :class="{ 'is-embedded': embedded }">
-    <AnalysisLinkTabs v-if="!embedded" active="scenario" />
-
     <el-empty
       v-if="!scenarioVm"
       class="scenario-empty"
@@ -10,14 +8,14 @@
     />
 
     <template v-else>
-      <AnalysisPageHero
-        eyebrow="决策分析 · 情景"
-        :title="scenarioVm.hero.title"
-        :headline="scenarioVm.hero.headline"
-        :summary="scenarioVm.hero.summary"
-        :tags="scenarioVm.hero.tags"
-      >
-      </AnalysisPageHero>
+      <!-- 统一事中页面目标说明紫色横幅 (独立访问时展示) -->
+      <StageGoalStrip
+        v-if="!embedded"
+        badge="情景演化分析目标"
+        title="评估外部地缘冲击对供应链的动态波及，测算长周期供需缺口与完全采购成本"
+        desc="通过多阶段扰动推演窗口，对比常态、断航、禁令与运力挤兑下的供应链稳健度与风险敞口，为下游决策树寻优提供精准的约束靶向输入。"
+        popover-title="宏观情景演化分析核心目标"
+      />
 
       <section class="scenario-conclusion-strip glass-panel">
         <article v-for="item in scenarioConclusionCards" :key="item.label" :class="item.tone">
@@ -630,8 +628,7 @@ import {
   Clock, DataAnalysis, MapLocation, TrendCharts, Promotion,
   Connection, Notification, Search, ArrowRight, Check
 } from '@element-plus/icons-vue'
-import AnalysisLinkTabs from './components/shared/AnalysisLinkTabs.vue'
-import AnalysisPageHero from './components/shared/AnalysisPageHero.vue'
+import StageGoalStrip from './components/shared/StageGoalStrip.vue'
 import './components/shared/midStage.css'
 import { useUraniumAnalysisExperiment } from './composables/useUraniumAnalysisExperiment'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'

@@ -1,14 +1,5 @@
 <template>
   <div class="mid-stage-bg dt-page dt-cockpit analysis-workspace" :class="{ 'is-embedded': embedded }">
-    <AnalysisLinkTabs v-if="!embedded" active="decisionTree">
-      <template #right>
-        <el-button type="primary" size="small" @click="resetTreeView" :disabled="!isTreeReady">
-          <el-icon><Refresh /></el-icon>
-          <span>重置视图</span>
-        </el-button>
-      </template>
-    </AnalysisLinkTabs>
-
     <el-empty
       v-if="!hasDecisionContext"
       class="decision-empty"
@@ -17,50 +8,92 @@
     />
 
     <template v-else>
-      <AnalysisPageHero
-        eyebrow="策略分析 · 决策树"
-        :title="decisionVm.decisionHero.title"
-        :headline="decisionVm.decisionHero.headline"
-        :summary="decisionVm.decisionHero.summary"
-        :tags="heroTags"
+      <!-- 嵌入决策分析时的极简单行控制条 (避免双层 Header 占用首屏视口) -->
+      <div v-if="embedded" class="embedded-dt-hud-bar glass-panel">
+        <div class="embedded-hud-left">
+          <span class="hud-mini-label">约束时空：</span>
+          <el-tag size="small" type="primary" effect="dark">{{ decisionVm.scenarioKey }}</el-tag>
+          <el-tag size="small" type="success" effect="plain">{{ timeNodeOptions[decisionVm.timeIndex]?.label || '当前时点' }}</el-tag>
+        </div>
+        <div class="embedded-hud-right">
+          <div class="hud-chip-group">
+            <span class="hud-control-label">情景：</span>
+            <button
+              v-for="item in scenarioOptionList"
+              :key="item.key"
+              type="button"
+              class="hud-chip"
+              :class="{ active: item.key === decisionVm.scenarioKey }"
+              :disabled="snapshotMode"
+              @click="manualScenarioKey = item.key"
+            >
+              {{ item.label }}
+            </button>
+          </div>
+          <div class="hud-chip-group">
+            <span class="hud-control-label">时点：</span>
+            <button
+              v-for="(item, index) in timeNodeOptions"
+              :key="item.label"
+              type="button"
+              class="hud-chip"
+              :class="{ active: index === decisionVm.timeIndex }"
+              :disabled="snapshotMode"
+              @click="manualTimeIndex = index"
+            >
+              {{ item.label }}
+            </button>
+          </div>
+          <el-button type="primary" size="small" @click="resetTreeView" :disabled="!isTreeReady">
+            <el-icon><Refresh /></el-icon>
+            <span>重置视图</span>
+          </el-button>
+        </div>
+      </div>
+
+      <!-- 独立访问模式下展示统一紫色目标横幅 -->
+      <StageGoalStrip
+        v-else
+        badge="决策树寻优目标"
+        title="对比不干预基线与多调控路径，扩展式博弈求解最优对策并核验审批前置"
+        desc="基于情景演化输入的供需缺口与断点约束，多分支展开干预行动，综合评估履约率、完全采购成本与停堆风险，输出可执行的应对调度措施。"
+        popover-title="博弈决策树寻优核心目标"
       >
         <template #side>
-          <article class="hud-control-card">
-            <span class="hud-control-label">情景</span>
-            <div class="hud-chip-row">
-              <button
-                v-for="item in scenarioOptionList"
-                :key="item.key"
-                type="button"
-                class="hud-chip"
-                :class="{ active: item.key === decisionVm.scenarioKey }"
-                :aria-pressed="item.key === decisionVm.scenarioKey"
-                :disabled="snapshotMode"
-                @click="manualScenarioKey = item.key"
-              >
-                {{ item.label }}
-              </button>
-            </div>
-          </article>
-
-          <article class="hud-control-card">
-            <span class="hud-control-label">时点</span>
-            <div class="hud-chip-row">
-              <button
-                v-for="(item, index) in timeNodeOptions"
-                :key="item.label"
-                type="button"
-                class="hud-chip"
-                :class="{ active: index === decisionVm.timeIndex }"
-                :disabled="snapshotMode"
-                @click="manualTimeIndex = index"
-              >
-                {{ item.label }}
-              </button>
-            </div>
-          </article>
+          <div class="hud-chip-group">
+            <span class="hud-control-label">情景：</span>
+            <button
+              v-for="item in scenarioOptionList"
+              :key="item.key"
+              type="button"
+              class="hud-chip"
+              :class="{ active: item.key === decisionVm.scenarioKey }"
+              :disabled="snapshotMode"
+              @click="manualScenarioKey = item.key"
+            >
+              {{ item.label }}
+            </button>
+          </div>
+          <div class="hud-chip-group">
+            <span class="hud-control-label">时点：</span>
+            <button
+              v-for="(item, index) in timeNodeOptions"
+              :key="item.label"
+              type="button"
+              class="hud-chip"
+              :class="{ active: index === decisionVm.timeIndex }"
+              :disabled="snapshotMode"
+              @click="manualTimeIndex = index"
+            >
+              {{ item.label }}
+            </button>
+          </div>
+          <el-button type="primary" size="small" @click="resetTreeView" :disabled="!isTreeReady">
+            <el-icon><Refresh /></el-icon>
+            <span>重置视图</span>
+          </el-button>
         </template>
-      </AnalysisPageHero>
+      </StageGoalStrip>
 
       <section class="key-conclusion-strip glass-panel">
         <div class="key-conclusion-label">主要结论</div>
@@ -455,8 +488,7 @@ import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
-import AnalysisLinkTabs from './components/shared/AnalysisLinkTabs.vue'
-import AnalysisPageHero from './components/shared/AnalysisPageHero.vue'
+import StageGoalStrip from './components/shared/StageGoalStrip.vue'
 import './components/shared/midStage.css'
 import { useUraniumAnalysisExperiment } from './composables/useUraniumAnalysisExperiment'
 import {
@@ -1097,6 +1129,46 @@ onBeforeUnmount(() => {
 .dependency-card p { margin: 4px 0 0; color: #64748b; font-size: var(--mid-fs-label); line-height: 1.5; }
 .dependency-card :deep(.el-tag) { align-self: start; }
 .dependency-conclusion { margin: 10px 0 0; padding: 8px 10px; border-radius: 7px; background: #eff6ff; color: #1e3a8a; font-size: var(--mid-fs-label); line-height: 1.55; }
+
+.embedded-dt-hud-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 14px;
+  margin-bottom: 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+.embedded-hud-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hud-mini-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+.embedded-hud-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.hud-chip-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.hud-chip-group .hud-control-label {
+  display: inline;
+  font-size: 11.5px;
+  color: #64748b;
+  font-weight: 600;
+}
 
 .hud-control-card {
   flex: 1;

@@ -8,53 +8,30 @@
       accept=".pdf"
       @change="handleFileChange"
     />
-    <MidStagePageHeader
-      title="想定生成"
-      subtitle="需求研判 · 变量识别与子任务拆解 · 实验方案矩阵编排"
-      :icon="DocumentChecked"
+    <!-- 统一事中页面目标说明紫色横幅 -->
+    <StageGoalStrip
+      badge="想定生成目标"
+      title="面向海外供给断供与极端扰动想定，将自然语言推演意图解析为可量化的实验变量矩阵与子任务"
+      desc="通过大模型研判输入意图，自动化抽取影响因素（地缘脱钩、运力受阻、价格暴涨）与响应变量（供需缺口、长协履约率、完全采购成本），编排生成多组实验参数方案，并支持专家在环人工校准实验边界。"
+      popover-title="想定生成核心聚焦目标"
     >
-
-      <template #right>
-        <div class="scenario-header-stats">
+      <template #side>
+        <!-- 方案继承感知胶囊 (衔接沙盘模型) -->
+        <div v-if="activePresetPlanInfo" class="inherited-protocol-chip-mini">
+          <span class="chip-label">继承底座：</span>
+          <el-tag size="small" :type="activePresetPlanInfo.tagType" effect="dark">{{ activePresetPlanInfo.tag }}</el-tag>
+          <span class="chip-name">{{ activePresetPlanInfo.name }}</span>
+          <span class="chip-kpi">保供履约率 <b>{{ activePresetPlanInfo.kpi }}</b></span>
+        </div>
+        <div class="scenario-mini-stats">
           <span class="stat-pill"><b>{{ generatedPlanRows.length }}</b> 方案矩阵</span>
-          <span class="stat-pill"><b>{{ experimentDesign.factors.length || 2 }}</b> 影响因素</span>
-          <span class="stat-pill"><b>{{ experimentDesign.responses.length || 2 }}</b> 响应变量</span>
         </div>
         <el-button size="small" type="primary" plain @click="calibrationVisible = true">
           <el-icon><Setting /></el-icon>
-          <span>人工校准设定</span>
-        </el-button>
-        <el-button type="primary" size="small" :disabled="!tasks.length" @click="goToExperimentManager">
-          <span>下一步：实验管理</span>
-          <el-icon><ArrowRight /></el-icon>
+          <span>人工校准</span>
         </el-button>
       </template>
-    </MidStagePageHeader>
-
-    <!-- 业务核心问题导引条（阐明“想定生成想解决什么问题”） -->
-    <section class="scenario-core-question-strip glass-panel">
-      <div class="core-question-badge">想定生成目标</div>
-      <div class="core-question-text">
-        <strong>面向海外供给断供与极端扰动想定，如何将自然语言推演意图解析为可量化的实验变量矩阵与子任务？</strong>
-        <p>通过大模型研判输入意图，自动化抽取影响因素（地缘脱钩、运力受阻、价格暴涨）与响应变量（供需缺口、长协履约率、完全采购成本），编排生成多组实验参数方案，并支持专家在环人工校准实验边界。</p>
-        <!-- 方案继承感知胶囊 (衔接沙盘模型) -->
-        <div v-if="activePresetPlanInfo" class="inherited-protocol-chip">
-          <span class="chip-label">沙盘底座方案已继承：</span>
-          <el-tag size="small" :type="activePresetPlanInfo.tagType" effect="dark">{{ activePresetPlanInfo.tag }}</el-tag>
-          <span class="chip-name">{{ activePresetPlanInfo.name }}</span>
-          <span class="chip-kpi">预期保供履约率 <b>{{ activePresetPlanInfo.kpi }}</b></span>
-        </div>
-      </div>
-      <el-button
-        size="small"
-        type="primary"
-        plain
-        @click="calibrationVisible = true"
-      >
-        <el-icon><Setting /></el-icon>
-        <span>专家人工校准设定 ⚙️</span>
-      </el-button>
-    </section>
+    </StageGoalStrip>
 
     <!-- 想定生成 4 步时序推进流向条 (对齐学长工作流引导) -->
     <nav class="scenario-step-rail glass-panel" aria-label="想定生成四步流转">
@@ -659,7 +636,7 @@
 
 <script>
 import ScenarioModelingLogic from './Js/ScenarioModelingLogic_uranium.js'
-import MidStagePageHeader from './components/shared/MidStagePageHeader.vue'
+import StageGoalStrip from './components/shared/StageGoalStrip.vue'
 import DuringWorkflowNav from './components/DuringWorkflowNav.vue'
 import { ArrowLeft, ArrowRight, DocumentChecked, Lightning, TrendCharts, DataAnalysis, Setting, InfoFilled } from '@element-plus/icons-vue'
 import { useScnetSupplyChainStore as useSupplyChainStore } from '@/stores/scnet'
@@ -677,7 +654,7 @@ import { useUraniumDuringStore } from '@/stores/scnet/useUraniumDuringStore'
 export default {
   ...ScenarioModelingLogic,
   components: {
-    MidStagePageHeader,
+    StageGoalStrip,
     DuringWorkflowNav,
     ArrowLeft,
     ArrowRight,
@@ -3045,4 +3022,31 @@ export default {
 .inherited-protocol-chip .chip-name { font-weight: 700; color: #1e40af; }
 .inherited-protocol-chip .chip-kpi { margin-left: 6px; color: #047857; font-size: 11.5px; }
 .inherited-protocol-chip .chip-kpi b { color: #065f46; font-size: 12.5px; }
+.inherited-protocol-chip-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  font-size: 11.5px;
+}
+.inherited-protocol-chip-mini .chip-label { color: #64748b; font-size: 11px; }
+.inherited-protocol-chip-mini .chip-name { color: #1e40af; font-weight: 700; font-size: 11.5px; }
+.inherited-protocol-chip-mini .chip-kpi { color: #047857; font-size: 11px; }
+.inherited-protocol-chip-mini .chip-kpi b { color: #065f46; font-size: 12px; }
+.scenario-mini-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.scenario-mini-stats .stat-pill {
+  font-size: 11.5px;
+  color: #475569;
+  background: rgba(255, 255, 255, 0.7);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+}
 </style>

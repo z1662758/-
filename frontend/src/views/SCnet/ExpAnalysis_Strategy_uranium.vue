@@ -1,66 +1,48 @@
 <template>
   <div class="strategy-page mid-stage-bg analysis-workspace">
-    <AnalysisLinkTabs active="strategy" />
-
-    <!-- 顶层统一 Hero 区域与视图模式切换器 -->
-    <header class="strategy-hero glass-panel">
-      <div class="strategy-hero-left">
-        <div class="strategy-hero-badge-row">
-          <span class="strategy-hero-badge">02 · 决策分析与方案优化</span>
-          <el-tag size="small" type="primary" effect="plain">情景演化与决策树双方法融合</el-tag>
-          <el-tag size="small" type="success" effect="light">2022–2028 俄乌冲突推演时空</el-tag>
+    <!-- 统一事中页面目标说明紫色横幅 (集成视图模式切换与时空情景) -->
+    <StageGoalStrip
+      badge="决策分析目标"
+      title="面对突发外部冲击，融汇宏观情景演化与微观决策树博弈寻优，客观评估求解最优调控对策"
+      popover-title="决策分析核心聚焦目标"
+      :popover-width="440"
+    >
+      <template #popover>
+        <p class="sgp-desc">承接【沙盘推演与脆弱性诊断】暴露的断链风险，通过宏观情景演化与决策树博弈寻优，<b>对现有方案进行客观评估</b>，回答：“面对突发外部冲击，如何调控才能以最小代价保障核电机组零非停？”，评估完成后将输出最优解支撑下一步【决策方案生成】。</p>
+        <div class="spc-split-grid" style="margin-top: 8px;">
+          <div class="spc-half upper">
+            <strong>上半部 · 宏观情景演化：</strong>
+            <p>测算美国禁俄铀法案与现货飙升时，口岸与基地供需缺口（18.2%）与 CIF 到岸成本（>$290/kgU），为决策提供精准靶向输入。</p>
+          </div>
+          <div class="spc-half lower">
+            <strong>下半部 · 决策树寻优：</strong>
+            <p>扩展式决策树多路径寻优，求解出 91.5 分最优方案（远洋海运分流 55% + 防城港保税库借调 400 tU），核验 4 项严苛规章审批。</p>
+          </div>
         </div>
-        <h1 class="strategy-hero-title">供应链抗扰动决策分析与方案优化</h1>
-        <p class="strategy-hero-sub">
-          融汇宏观情景演化与微观决策树寻优：上游锚定俄乌地缘制裁冲击与脆弱节点，下游动态求解最优调控对策，核验规章前置依赖并输出具体应对措施清单。
-        </p>
-      </div>
+      </template>
 
-      <div class="strategy-hero-right">
+      <template #side>
         <div class="view-mode-toggle-wrap">
-          <span class="view-mode-label">界面视图布局：</span>
+          <span class="view-mode-label">视图模式：</span>
           <el-segmented
             v-model="viewMode"
             :options="viewModeOptions"
-            size="default"
+            size="small"
             class="view-mode-segmented"
           >
             <template #default="{ item }">
               <span class="seg-item">
-                <el-icon :size="14"><component :is="item.icon" /></el-icon>
+                <el-icon :size="13"><component :is="item.icon" /></el-icon>
                 {{ item.label }}
               </span>
             </template>
           </el-segmented>
         </div>
-      </div>
-    </header>
+      </template>
+    </StageGoalStrip>
 
-    <!-- 模式一：联合分析全景（上下级联融合单页，答辩与推演汇报最佳实践） -->
+    <!-- 模式一：联合分析全景（上下级联融合单页） -->
     <div v-if="viewMode === 'cascade'" class="cascade-workspace">
-      <!-- 决策分析核心逻辑看板：说明分析如何支撑方案选择 -->
-      <section class="strategy-narrative-strip glass-panel">
-        <div class="narrative-strip-head">
-          <span class="narrative-step-pill">Step 02 · 决策评估</span>
-          <div class="narrative-title-box">
-            <h3>【决策分析在说明什么？】</h3>
-            <p>承接【沙盘推演与脆弱性诊断】暴露的断链风险，通过宏观情景演化与决策树博弈寻优，<b>对现有方案进行客观评估</b>，回答：“面对突发外部冲击，如何调控才能以最小代价保障核电机组零非停？”，评估完成后将输出最优解支撑下一步【决策方案生成】。</p>
-          </div>
-        </div>
-
-        <div class="narrative-two-halves-grid">
-          <div class="half-role-card upper">
-            <div class="half-role-badge">上半部 · 宏观情景演化想说明：</div>
-            <strong>冲击发生时，供应链脆弱断点受损有多严重？</strong>
-            <p>基于 2022–2028 年俄乌冲突长周期推演，测算在美国禁俄铀法案落地与现货飙至 $106/lb（2024年）极端情景下，口岸与基地可能暴露出的供需缺口率（达 18.2%）与 CIF 到岸成本激增（超 $290/kgU），为决策提供精确靶向输入。</p>
-          </div>
-          <div class="half-role-card lower">
-            <div class="half-role-badge">下半部 · 决策树博弈寻优想说明：</div>
-            <strong>面对上述冲击，多路径应对中哪套方案最优且真能落地？</strong>
-            <p>扩展式决策树对比“未干预基线”与“主动调控路径”，综合求解出 91.5 分的最优方案（远洋海运分流 55% + 防城港保税库借调 400 tU），并核验 4 项严苛规章审批，生成切实可行的调控应对措施，避免方案流于口号。</p>
-          </div>
-        </div>
-      </section>
 
       <!-- ==================== 上半区：01 · 宏观情景推演与扰动锚定 ==================== -->
       <section class="scenario-section glass-panel">
@@ -507,7 +489,7 @@ import {
   WarningFilled
 } from '@element-plus/icons-vue'
 
-import AnalysisLinkTabs from './components/shared/AnalysisLinkTabs.vue'
+import StageGoalStrip from './components/shared/StageGoalStrip.vue'
 import ScenarioView from './ExpAnalysis_Scenario_uranium.vue'
 import DecisionTreeView from './ExpAnalysis_DecisionTree_uranium.vue'
 import './components/shared/midStage.css'
@@ -1089,65 +1071,110 @@ onBeforeUnmount(() => {
   min-height: 100vh;
 }
 
-/* ================== 顶层统一 Hero ================== */
-.strategy-hero {
+/* ================== 顶层统一紧凑 Hero ================== */
+.strategy-hero-compact {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 20px;
-  padding: 18px 24px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.92));
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
-  color: #f8fafc;
+  gap: 16px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
 }
-.strategy-hero-badge-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-.strategy-hero-badge {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #38bdf8;
-}
-.strategy-hero-title {
-  margin: 0 0 6px;
-  font-size: 20px;
-  font-weight: 700;
-  color: #ffffff;
-  letter-spacing: 0.02em;
-}
-.strategy-hero-sub {
-  margin: 0;
-  font-size: 12.5px;
-  color: #94a3b8;
-  line-height: 1.5;
-  max-width: 820px;
-}
-.view-mode-toggle-wrap {
+.strategy-hero-left {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: rgba(15, 23, 42, 0.6);
-  padding: 6px 12px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  flex-wrap: wrap;
+}
+.strategy-hero-badge {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: 0.02em;
+}
+.strategy-info-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px dashed #cbd5e1;
+  background: transparent;
+  color: #64748b;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.strategy-info-trigger:hover {
+  border-color: #3b82f6;
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+/* 逻辑导引 Popover 内容 */
+.strategy-popover-content {
+  padding: 2px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.spc-title {
+  margin: 0 0 6px 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.spc-desc {
+  color: #475569;
+  margin: 0 0 10px 0;
+  font-size: 12px;
+}
+.spc-split-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+}
+.spc-half {
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: #f8fafc;
+  font-size: 11.5px;
+}
+.spc-half.upper {
+  border-left: 3px solid #f59e0b;
+}
+.spc-half.lower {
+  border-left: 3px solid #10b981;
+}
+.spc-half strong {
+  display: block;
+  color: #1e293b;
+  margin-bottom: 2px;
+}
+.spc-half p {
+  margin: 0;
+  color: #64748b;
+}
+
+.view-mode-toggle-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .view-mode-label {
   font-size: 12px;
-  color: #cbd5e1;
+  color: #64748b;
   white-space: nowrap;
 }
 .seg-item {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12.5px;
+  gap: 5px;
+  font-size: 12px;
   font-weight: 500;
 }
 

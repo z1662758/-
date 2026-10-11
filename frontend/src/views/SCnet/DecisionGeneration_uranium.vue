@@ -1,127 +1,26 @@
 <template>
   <div class="decision-page mid-stage-bg">
-    <MidStagePageHeader
-      title="事中决策建议"
-      subtitle="根据当前实验结果整理候选建议、适用条件与风险触发点；建议需经业务确认后执行"
-      :icon="Promotion"
+    <!-- 统一事中页面目标说明紫色横幅 -->
+    <StageGoalStrip
+      badge="决策方案目标"
+      title="基于实验推演与博弈寻优成果，生成自适应熔断规则与具体应对调控指令"
+      desc="本页展示基于多智能体仿真与决策树优选生成的候选应对方案，明确调配运量、指定走廊与平准库借调，并设定库存/运价敏感阈值熔断规则，支撑落地调度与业务复核。"
+      popover-title="决策方案生成核心目标"
     >
-      <template #right>
+      <template #side>
         <div class="scenario-header-stats">
           <span class="stat-pill"><b>{{ actionRows.length }}</b> 项建议动作</span>
           <span class="stat-pill"><b>{{ recommendedScore }}</b> 推荐评分</span>
-          <span class="stat-pill"><b>{{ bestCandidate?.reactorTripRisk || '—' }}</b> 非计划停堆风险</span>
+          <span class="stat-pill"><b>{{ bestCandidate?.reactorTripRisk || '—' }}</b> 停堆风险</span>
         </div>
         <el-button size="small" plain @click="exportDecisionBrief">
           <el-icon><DocumentCopy /></el-icon>
           <span>复制决策摘要</span>
         </el-button>
-        <el-button size="small" plain @click="goToStrategy">
-          <el-icon><ArrowLeft /></el-icon>
-          <span>上一步：决策分析</span>
-        </el-button>
-        <el-button type="primary" size="small" @click="goToOverviewReport">
-          <span>下一步：报告生成</span>
-          <el-icon><ArrowRight /></el-icon>
-        </el-button>
       </template>
-    </MidStagePageHeader>
+    </StageGoalStrip>
 
     <div v-if="reportVm" class="decision-scroll">
-      <!-- 业务核心问题导引条（阐明“决策方案想解决什么问题”） -->
-      <section class="decision-core-question-strip glass-panel">
-        <div class="core-question-badge">决策方案目标</div>
-        <div class="core-question-text">
-          <strong>基于本次实验结果，哪些候选动作值得优先评估？</strong>
-          <p>本页展示的是模型建议，不代表已经下达或执行的调度指令。请结合实时态势、审批条件和业务约束进行复核。</p>
-        </div>
-      </section>
-
-      <!-- 事中全链路推演流程导引横幅 -->
-      <nav class="decision-hero-flow glass-panel" aria-label="事中全链路推演时序流">
-        <div class="flow-step done">
-          <div class="step-badge"><el-icon><Check /></el-icon></div>
-          <div class="step-meta">
-            <div class="step-title-row">
-              <span class="step-num">01</span>
-              <strong>沙盘模型</strong>
-              <el-tag size="small" type="success" effect="plain">底座就绪</el-tag>
-            </div>
-            <span class="step-desc">Agent合约 / 环境 / 规则模型</span>
-          </div>
-        </div>
-        <div class="flow-arrow"><el-icon><Right /></el-icon></div>
-        <div class="flow-step done">
-          <div class="step-badge"><el-icon><Check /></el-icon></div>
-          <div class="step-meta">
-            <div class="step-title-row">
-              <span class="step-num">02</span>
-              <strong>想定生成</strong>
-              <el-tag size="small" type="success" effect="plain">需求解析</el-tag>
-            </div>
-            <span class="step-desc">变量拆解与多方案矩阵</span>
-          </div>
-        </div>
-        <div class="flow-arrow"><el-icon><Right /></el-icon></div>
-        <div class="flow-step done">
-          <div class="step-badge"><el-icon><Check /></el-icon></div>
-          <div class="step-meta">
-            <div class="step-title-row">
-              <span class="step-num">03</span>
-              <strong>实验管理</strong>
-              <el-tag size="small" type="success" effect="plain">仿真收敛</el-tag>
-            </div>
-            <span class="step-desc">100轮蒙特卡洛多智能体仿真</span>
-          </div>
-        </div>
-        <div class="flow-arrow"><el-icon><Right /></el-icon></div>
-        <div class="flow-step done">
-          <div class="step-badge"><el-icon><Check /></el-icon></div>
-          <div class="step-meta">
-            <div class="step-title-row">
-              <span class="step-num">04</span>
-              <strong>沙盘推演</strong>
-              <el-tag size="small" type="success" effect="plain">剧场回放</el-tag>
-            </div>
-            <span class="step-desc">复杂网络与地理走廊联动</span>
-          </div>
-        </div>
-        <div class="flow-arrow"><el-icon><Right /></el-icon></div>
-        <div class="flow-step done" style="cursor: pointer" @click="goToStrategy">
-          <div class="step-badge"><el-icon><Check /></el-icon></div>
-          <div class="step-meta">
-            <div class="step-title-row">
-              <span class="step-num">05</span>
-              <strong>决策分析</strong>
-              <el-tag size="small" type="success" effect="plain">评估优选</el-tag>
-            </div>
-            <span class="step-desc">脆弱性评估与多目标优选</span>
-          </div>
-        </div>
-        <div class="flow-arrow"><el-icon><Right /></el-icon></div>
-        <div class="flow-step active">
-          <div class="step-badge"><span>06</span></div>
-          <div class="step-meta">
-            <div class="step-title-row">
-              <span class="step-num">06</span>
-              <strong>决策方案</strong>
-              <el-tag size="small" type="primary" effect="dark">当前方案</el-tag>
-            </div>
-            <span class="step-desc">候选建议与自适应触发规则</span>
-          </div>
-        </div>
-        <div class="flow-arrow"><el-icon><Right /></el-icon></div>
-        <div class="flow-step" style="cursor: pointer" @click="goToOverviewReport">
-          <div class="step-badge"><span>07</span></div>
-          <div class="step-meta">
-            <div class="step-title-row">
-              <span class="step-num">07</span>
-              <strong>报告生成</strong>
-              <el-tag size="small" type="primary" effect="plain">下一步专报</el-tag>
-            </div>
-            <span class="step-desc">实验结果与风险闭环专报</span>
-          </div>
-        </div>
-      </nav>
 
       <section class="decision-summary">
         <div class="decision-heading">
@@ -292,7 +191,7 @@
 <script setup>
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import MidStagePageHeader from './components/shared/MidStagePageHeader.vue'
+import StageGoalStrip from './components/shared/StageGoalStrip.vue'
 import MidStagePanelHeader from './components/shared/MidStagePanelHeader.vue'
 import DuringWorkflowNav from './components/DuringWorkflowNav.vue'
 import {
@@ -464,70 +363,74 @@ onMounted(() => uraniumStore.ensureInitialized())
 </script>
 
 <style scoped>
-/* 事中全链路推演时序流横幅 */
-.decision-hero-flow {
+/* 极简单行全链路推演时序流横幅 */
+.decision-flow-mini {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px 18px;
-  margin-bottom: 14px;
-  border-radius: 12px;
+  gap: 8px;
+  padding: 6px 14px;
+  margin-bottom: 10px;
+  border-radius: 8px;
   background: #ffffff;
   border: 1px solid #e2e8f0;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
-  gap: 8px;
   overflow-x: auto;
 }
 .flow-step {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 12px;
-  border-radius: 8px;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #475569;
   cursor: default;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.flow-step.clickable {
+  cursor: pointer;
+}
+.flow-step.clickable:hover {
+  background: #eff6ff;
+  color: #2563eb;
 }
 .flow-step.active {
   background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  font-weight: 700;
 }
-.flow-step .step-badge {
-  width: 24px;
-  height: 24px;
+.step-num-dot {
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
 }
-.flow-step.done .step-badge {
+.step-num-dot.done {
   background: #dcfce7;
   color: #15803d;
 }
-.flow-step.active .step-badge {
+.step-num-dot.active {
   background: #2563eb;
   color: #ffffff;
 }
-.step-title-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.step-title-row strong {
-  font-size: 13px;
-  color: #0f172a;
-}
-.step-num {
-  font-size: 11px;
-  font-weight: 700;
+.step-num-dot.pending {
+  background: #f1f5f9;
   color: #94a3b8;
 }
-.step-desc {
-  font-size: 11px;
-  color: #64748b;
-  display: block;
+.step-title {
+  font-size: 12px;
+}
+.flow-mini-tag {
+  font-size: 10px;
+  height: 16px;
+  line-height: 14px;
+  padding: 0 4px;
 }
 .flow-arrow {
   color: #cbd5e1;

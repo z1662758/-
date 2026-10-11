@@ -1,30 +1,27 @@
 <template>
   <div class="overview-page mid-stage-bg analysis-workspace">
-    <AnalysisLinkTabs v-if="!isAuto" active="overview" />
-    <header class="report-toolbar glass-panel">
-      <div class="report-heading">
+    <!-- 统一事中页面目标说明紫色横幅 -->
+    <StageGoalStrip
+      badge="实验总结报告目标"
+      title="汇总本次实验客观运行结论、关键断点演变与仍需关注的残余风险，形成闭环专报"
+      desc="本页客观汇总推演事实证据链与多指标敏感性测试结果，不把主观建议冒充为事实，支撑专报生成、高管审阅与 PDF 打印导出。"
+      popover-title="实验报告总结核心目标"
+    >
+      <template #side>
+        <div class="report-actions-mini">
+          <span class="report-updated-mini">更新于 {{ generatedAt }}</span>
+          <el-button size="small" :disabled="exportingPdf" @click="refreshReport">
+            <el-icon><Refresh /></el-icon>
+            <span>刷新结论</span>
+          </el-button>
+          <el-button size="small" type="primary" :loading="exportingPdf" @click="exportPdf">
+            <el-icon><Download /></el-icon>
+            <span>生成 PDF</span>
+          </el-button>
+        </div>
+      </template>
+    </StageGoalStrip>
 
-        <div><h1>供应链实验总结报告</h1><p>汇总本次实验事实结果、关键变化与仍需关注的风险。</p></div>
-      </div>
-      <div class="report-actions">
-        <span class="report-updated">更新于 {{ generatedAt }}</span>
-        <el-button :disabled="exportingPdf" @click="refreshReport">
-          <el-icon><Refresh /></el-icon>刷新结论
-        </el-button>
-        <el-button type="primary" :loading="exportingPdf" @click="exportPdf">
-          <el-icon><Download /></el-icon>生成 PDF
-        </el-button>
-      </div>
-    </header>
-
-    <!-- 业务核心问题导引条（阐明“报告生成想解决什么问题”） -->
-    <section class="report-core-question-strip glass-panel">
-      <div class="core-question-badge">报告定位</div>
-      <div class="core-question-text">
-        <strong>本页回答：这次实验实际观察到了什么，结果是否稳定，后续需要关注什么？</strong>
-        <p>建议动作请前往“决策方案”查看；本页只保留实验结果、证据链和风险复盘，不把建议冒充成已执行事实。</p>
-      </div>
-    </section>
 
     <nav class="report-contents" aria-label="报告目录">
       <button v-for="item in reportSections" :key="item.id" @click="scrollToSection(item.id)">{{ item.label }}</button>
@@ -236,7 +233,7 @@ import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStor
 import { buildUraniumReportViewModel } from '@/views/SCnet/adapters/uraniumMockAnalysisAdapter'
 import { useUraniumAnalysisExperiment } from './composables/useUraniumAnalysisExperiment'
 import AnalysisPageHero from './components/shared/AnalysisPageHero.vue'
-import AnalysisLinkTabs from './components/shared/AnalysisLinkTabs.vue'
+import StageGoalStrip from './components/shared/StageGoalStrip.vue'
 import DuringWorkflowNav from './components/DuringWorkflowNav.vue'
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
@@ -510,6 +507,8 @@ async function exportPdf() {
 .report-output-item > p { margin: 6px 0 0; color: #64748b; font-size: 11px; line-height: 1.65; }
 .report-output-item--decision { border-color: #bfdbfe; background: #eff6ff; }
 .report-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 11px 14px; margin: 8px 8px 8px; border-color: #dbe4ee; background: rgba(255,255,255,.96); backdrop-filter: blur(12px); }
+.report-actions-mini { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.report-updated-mini { color: #64748b; font-size: 11px; white-space: nowrap; margin-right: 2px; }
 .report-heading { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .report-heading > span { padding: 6px 8px; border-radius: 7px; background: #eff6ff; color: #2563eb; font-size: 9px; font-weight: 800; letter-spacing: .08em; white-space: nowrap; }
 .report-heading h1 { margin: 0; color: #0f172a; font-size: 18px; }

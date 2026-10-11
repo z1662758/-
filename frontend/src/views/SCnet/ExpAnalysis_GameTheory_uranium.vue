@@ -1,7 +1,5 @@
 <template>
   <div class="mid-stage-bg gm-page analysis-workspace">
-    <AnalysisLinkTabs active="gameTheory" />
-
     <el-empty
       v-if="!hasGameContext"
       class="game-empty"
@@ -10,42 +8,27 @@
     />
 
     <template v-else>
-      <AnalysisPageHero
-        eyebrow="脆弱性分析"
-        title="供应链关键节点与通道韧性评估"
-        headline="识别中断后果最严重、替代难度最高的供应节点"
-        summary="按地理、资源、通道和恢复能力计算节点脆弱性，并输出保供优先级。"
-        :tags="topTags"
-      />
-
-      <!-- 业务逻辑说明看板：回答“本分析想说明什么” -->
-      <section class="analysis-objective-strip glass-panel">
-        <div class="objective-head">
-          <span class="objective-badge">Step 01 · 诊断定点</span>
-          <div class="objective-title-wrap">
-            <h3>脆弱性分析在说明什么？</h3>
-            <p>通过复杂网络拓扑、度/介数中心度与依赖矩阵，回答核心问题：<b>“面对突发外部冲击，整个供应链哪里最易断裂、谁最难替代？”</b></p>
+      <!-- 统一事中页面目标说明紫色横幅 -->
+      <StageGoalStrip
+        badge="脆弱性分析目标"
+        title="识别中断后果最严重、替代难度最高的供应节点与关键物流走廊"
+        desc="通过复杂网络拓扑、度/介数中心度与依赖矩阵，量化评估外部地缘制裁与突发中断冲击下各供给国、关键枢纽和加工基地的脆弱度，直接映射锁定事中调控保供的核心瓶颈靶标。"
+        popover-title="脆弱性分析核心聚焦目标"
+      >
+        <template #side>
+          <div class="cfs-chips">
+            <span class="cfs-chip danger" title="介数中心度 0.84，宽窄轨换装负荷率达 94%">
+              <span class="cfs-dot">●</span> 阿拉山口口岸 (94%)
+            </span>
+            <span class="cfs-chip danger" title="承接全国 60% 燃料加工，原料库存降至 14 周破安全线">
+              <span class="cfs-dot">●</span> 包头制造基地 (库存14周)
+            </span>
+            <span class="cfs-chip safe" title="纳米比亚湖山矿→连云港，具备 400tU/季度应急承接冗余">
+              <span class="cfs-dot">●</span> 连云港海运 (400tU冗余)
+            </span>
           </div>
-        </div>
-
-        <div class="objective-findings-grid">
-          <div class="finding-card danger">
-            <span class="finding-label">核心脆弱断点 ①：口岸咽喉</span>
-            <strong>中哈阿拉山口铁路口岸</strong>
-            <p>介数中心度 0.84，宽窄轨换装负荷率达 94%。承担全国主要中亚陆运供给，一旦口岸通关受阻将无同口径陆路替代。</p>
-          </div>
-          <div class="finding-card danger">
-            <span class="finding-label">核心脆弱断点 ②：制造单点</span>
-            <strong>北方包头燃料元件基地</strong>
-            <p>承接全国 60% 燃料组件加工。当前原料库存降至 14 周破安全警戒线，断料传导至核电厂非计划停堆周期仅需 90 天。</p>
-          </div>
-          <div class="finding-card safe">
-            <span class="finding-label">关键弹性冗余：海运分流</span>
-            <strong>纳米比亚湖山矿 → 连云港</strong>
-            <p>海运接卸负荷率仅 62%，具备 400tU/季度的应急承接潜力，但海上运程需 45 天，需作为长周期调控的重要备份。</p>
-          </div>
-        </div>
-      </section>
+        </template>
+      </StageGoalStrip>
 
       <main class="vulnerability-workspace">
         <section class="vulnerability-overview glass-panel">
@@ -342,8 +325,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { Right, WarningFilled, CircleCheckFilled, Location, TrendCharts, Document, Promotion, Finished, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
-import AnalysisLinkTabs from './components/shared/AnalysisLinkTabs.vue'
-import AnalysisPageHero from './components/shared/AnalysisPageHero.vue'
+import StageGoalStrip from './components/shared/StageGoalStrip.vue'
 import DuringWorkflowNav from './components/DuringWorkflowNav.vue'
 import './components/shared/midStage.css'
 import { useUraniumAnalysisExperiment } from './composables/useUraniumAnalysisExperiment'
@@ -652,79 +634,121 @@ watch(() => snapshotStore.activeSnapshotId, (next, prev) => {
 </script>
 
 <style scoped>
-/* 业务逻辑说明看板与流转样式 */
-.analysis-objective-strip {
-  margin: 0 8px 12px;
-  padding: 14px 18px;
-  border-radius: 10px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
-}
-.objective-head {
+/* 紧凑型核心断点状态横幅样式 */
+.compact-findings-strip {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #f1f5f9;
+  margin: 0 8px 8px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
 }
-.objective-badge {
+.cfs-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.cfs-badge {
   font-size: 11px;
   font-weight: 700;
-  padding: 3px 8px;
+  padding: 2px 7px;
   border-radius: 4px;
   background: #fef3c7;
   color: #b45309;
-  white-space: nowrap;
 }
-.objective-title-wrap h3 {
-  margin: 0;
-  font-size: 15px;
+.cfs-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+}
+.cfs-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.cfs-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  cursor: help;
+}
+.cfs-chip.danger {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+.cfs-chip.danger .cfs-dot {
+  color: #ef4444;
+}
+.cfs-chip.safe {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #15803d;
+}
+.cfs-chip.safe .cfs-dot {
+  color: #10b981;
+}
+
+.cfs-info-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px dashed #cbd5e1;
+  background: transparent;
+  color: #64748b;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+.cfs-info-trigger:hover {
+  border-color: #3b82f6;
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+/* 浮窗详情样式 */
+.vg-popover-content {
+  padding: 2px;
+  font-size: 12px;
+}
+.vg-popover-content h4 {
+  margin: 0 0 6px 0;
+  font-size: 13px;
   font-weight: 700;
   color: #0f172a;
 }
-.objective-title-wrap p {
-  margin: 2px 0 0;
-  font-size: 12px;
+.vg-popover-content p {
+  margin: 0 0 8px 0;
   color: #475569;
+  line-height: 1.45;
 }
-.objective-findings-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-}
-.finding-card {
-  padding: 10px 12px;
-  border-radius: 8px;
+.vg-detail-item {
+  padding: 5px 8px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  font-size: 11.5px;
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
 }
-.finding-card.danger {
+.vg-detail-item.danger {
   border-left: 3px solid #ef4444;
-  background: #fffafa;
 }
-.finding-card.safe {
+.vg-detail-item.safe {
   border-left: 3px solid #10b981;
-  background: #f0fdf4;
-}
-.finding-label {
-  font-size: 10.5px;
-  font-weight: 600;
-  color: #64748b;
-}
-.finding-card strong {
-  font-size: 13px;
-  color: #0f172a;
-}
-.finding-card p {
-  margin: 2px 0 0;
-  font-size: 11px;
-  color: #475569;
-  line-height: 1.4;
 }
 
 .vulnerability-workspace {
