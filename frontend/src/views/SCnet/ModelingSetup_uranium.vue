@@ -520,6 +520,11 @@
             </div>
           </div>
 
+          <!-- 全球陆海战略走廊与地缘环境态势数字孪生沙盘 (对齐会议纪要：区分自然海运航线与社会地缘制裁，支撑动态外部条件设定) -->
+          <div class="env-corridor-map-container" style="margin-bottom: 16px;">
+            <UraniumEnvironmentCorridorMap :conditions="dynamicEnvConditions" />
+          </div>
+
           <!-- 自然环境 vs 社会环境解耦双核面板 -->
           <div class="env-dual-decouple-grid">
             <!-- 🌿 自然地理环境 -->
@@ -1358,11 +1363,11 @@
       </template>
     </el-drawer>
 
-    <!-- 侧滑抽屉：预演方案与沙盘底座基线预览 (对齐会议纪要待办：补充预演方案预览界面) -->
+    <!-- 侧滑抽屉：预演方案与沙盘底座基线矩阵控制台 (对齐会议纪要待办：补充预演方案预览界面) -->
     <el-drawer
       v-model="previewPlanDrawerVisible"
-      title="预演方案与沙盘底座基线预览"
-      size="620px"
+      title="沙盘推演预演方案控制台"
+      size="780px"
       direction="rtl"
       class="ms-preview-plan-drawer"
     >
@@ -1370,66 +1375,155 @@
         <div class="ms-drawer-head">
           <div class="ms-drawer-head-title">
             <el-icon><View /></el-icon>
-            <strong>预演方案配置与基线参数预览</strong>
+            <strong>沙盘推演预演方案控制台 (Simulation Protocol Studio)</strong>
           </div>
-          <small class="ms-drawer-head-sub">整合主体模型、环境扰动场与规则红线，预览本次推演任务的完整基线配置</small>
+          <small class="ms-drawer-head-sub">整合主体异质性、环境动态扰动场与规则刚性红线，支持多套预演方案横向比选与量化指标预测</small>
         </div>
       </template>
 
-      <div class="ms-preview-plan-body" style="padding: 10px 0; display: flex; flex-direction: column; gap: 14px;">
-        <!-- 主体模型方案概览 -->
-        <div class="plan-preview-card glass-panel" style="padding: 14px; border-radius: 8px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <strong style="color: #38bdf8; font-size: 14px; display: flex; align-items: center; gap: 6px;">
-              <el-icon><User /></el-icon> 01 主体模型基线 (28 个微观实体)
-            </strong>
-            <el-tag size="small" type="success">已完成规范注册</el-tag>
+      <div class="ms-preview-plan-body" style="padding: 10px 0; display: flex; flex-direction: column; gap: 16px;">
+        <!-- 方案横向比选切换 Tab -->
+        <div class="plan-selector-strip glass-panel" style="padding: 10px; border-radius: 8px;">
+          <div style="font-size: 12px; font-weight: 700; color: #94a3b8; margin-bottom: 8px; display: flex; justify-content: space-between;">
+            <span>选择预演方案比选基准 (PRESET SELECTION)：</span>
+            <span style="color: #38bdf8;">当前选中：{{ activePlan.id }}</span>
           </div>
-          <div style="font-size: 12px; color: #cbd5e1; line-height: 1.6;">
-            <div>• <b>实体层级：</b>6 个海外矿山/储备库、5 个跨境进出口岸、4 个制造转化基地、13 台终端核电机组。</div>
-            <div>• <b>网络拓扑：</b>全网 36 条海陆调度边就绪，第一介数枢纽包头基地 (0.91)、口岸枢纽阿拉山口 (0.84)。</div>
-            <div>• <b>认知决策：</b>嵌入 OODA 感知态势函数 S(t) 与效用求解器 U(a)，启用双层工作记忆与反思机制。</div>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+            <button
+              v-for="(p, pKey) in previewPlans"
+              :key="pKey"
+              type="button"
+              class="plan-tab-btn"
+              :class="{ active: activePreviewPlanKey === pKey }"
+              :style="{
+                background: activePreviewPlanKey === pKey ? 'rgba(56, 189, 248, 0.15)' : 'rgba(30, 41, 59, 0.5)',
+                border: activePreviewPlanKey === pKey ? '1px solid #38bdf8' : '1px solid rgba(148, 163, 184, 0.2)',
+                borderRadius: '6px',
+                padding: '8px 10px',
+                textAlign: 'left',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }"
+              @click="selectPreviewPlan(pKey)"
+            >
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <b style="font-size: 12px; color: #f8fafc;">{{ p.name.split('·')[0] }}</b>
+                <el-tag size="small" :type="p.tagType" effect="dark">{{ p.badgeText }}</el-tag>
+              </div>
+              <small style="display: block; font-size: 11px; color: #94a3b8; line-height: 1.3;">{{ p.name.split('·')[1] }}</small>
+            </button>
           </div>
         </div>
 
-        <!-- 环境模型方案概览 -->
-        <div class="plan-preview-card glass-panel" style="padding: 14px; border-radius: 8px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <strong style="color: #34d399; font-size: 14px; display: flex; align-items: center; gap: 6px;">
-              <el-icon><MapLocation /></el-icon> 02 环境模型动态条件 (自然与社会双解耦)
-            </strong>
-            <el-tag size="small" type="warning">{{ dynamicEnvConditions.activePresetScenario === 'baseline' ? '常态平稳' : '扰动注入中' }}</el-tag>
+        <!-- 当前选定方案的元数据卡片 -->
+        <div class="plan-meta-banner glass-panel" style="padding: 12px 16px; border-radius: 8px; border-left: 4px solid #38bdf8; background: rgba(30, 41, 59, 0.7);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <strong style="font-size: 15px; color: #f1f5f9;">{{ activePlan.name }}</strong>
+            <span style="font-size: 11px; font-family: monospace; color: #38bdf8; background: rgba(56, 189, 248, 0.1); padding: 2px 6px; border-radius: 4px;">{{ activePlan.id }}</span>
           </div>
-          <div style="font-size: 12px; color: #cbd5e1; line-height: 1.6;">
-            <div>• <b>自然走廊：</b>好望角远洋深水航线 (11,200海里/32天)、中亚中欧班列铁路走廊、跨里海多式联运走廊。</div>
-            <div>• <b>动态扰动：</b>海运航路通畅度 {{ dynamicEnvConditions.corridorSeaOpenness }}%，阿拉山口换轨负荷 {{ dynamicEnvConditions.alashankouCongestion }}%，港口滞期 +{{ dynamicEnvConditions.portMonsoonDelayDays }} 天。</div>
-            <div>• <b>社会制度：</b>美欧次级制裁扰动烈度 R_geo = {{ dynamicEnvConditions.geoSanctionSeverity }}，非美跨境结算摩擦指数 {{ dynamicEnvConditions.swiftSettlementFriction }}。</div>
+          <p style="margin: 0 0 8px 0; font-size: 12px; color: #cbd5e1; line-height: 1.5;">{{ activePlan.desc }}</p>
+          <div style="display: flex; gap: 16px; font-size: 11px; color: #94a3b8; flex-wrap: wrap;">
+            <span>⏱️ <b>推演时域：</b>{{ activePlan.horizon }}</span>
+            <span>🎲 <b>采样规模：</b>{{ activePlan.monteCarlo }}</span>
+            <span>🎯 <b>停止准则：</b>{{ activePlan.convergence }}</span>
           </div>
         </div>
 
-        <!-- 规则模型方案概览 -->
-        <div class="plan-preview-card glass-panel" style="padding: 14px; border-radius: 8px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <strong style="color: #fbbf24; font-size: 14px; display: flex; align-items: center; gap: 6px;">
-              <el-icon><SetUp /></el-icon> 03 规则模型约束 (4 大契约与多级熔断)
-            </strong>
-            <el-tag size="small" type="danger">IAEA 刚性安全保供</el-tag>
+        <!-- 预期推演实验 KPI 量化预测面板 (Expected KPI Projections) -->
+        <div class="plan-kpi-projections-panel glass-panel" style="padding: 14px; border-radius: 8px; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(56, 189, 248, 0.25);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <el-icon color="#38bdf8"><Histogram /></el-icon>
+              <strong style="font-size: 13px; color: #f1f5f9;">预期仿真衡算指标量化预测 (Simulation Forecast)</strong>
+            </div>
+            <el-tag size="small" type="primary" effect="plain">蒙特卡洛 1,000 轮置信区间</el-tag>
           </div>
-          <div style="font-size: 12px; color: #cbd5e1; line-height: 1.6;">
-            <div>• <b>核心契约：</b>65% 长协基准刚性履约、现货出价双轨竞价、跨基地平准借调、华龙一号示范机组特级保供。</div>
-            <div>• <b>安全红线：</b>北方基地安全库存底线 14 周，南方基地安全库存底线 34 周。</div>
-            <div>• <b>动态熔断：</b>国际现货价格突破 $85/lb 强制阻断追涨，调用 400 tU 国家储备对冲。</div>
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+            <div class="kpi-mini-card" style="background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; padding: 10px; text-align: center;">
+              <small style="color: #94a3b8; font-size: 11px; display: block; margin-bottom: 2px;">战略保供履约率</small>
+              <strong style="color: #34d399; font-size: 18px; font-weight: 800;">{{ activePlan.kpiProjections.fulfillmentRate }}</strong>
+              <span style="font-size: 10px; color: #64748b; display: block; margin-top: 2px;">全网各机组综合</span>
+            </div>
+            <div class="kpi-mini-card" style="background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 6px; padding: 10px; text-align: center;">
+              <small style="color: #94a3b8; font-size: 11px; display: block; margin-bottom: 2px;">到岸平准化成本</small>
+              <strong style="color: #fbbf24; font-size: 18px; font-weight: 800;">{{ activePlan.kpiProjections.landedCost }}</strong>
+              <span style="font-size: 10px; color: #64748b; display: block; margin-top: 2px;">浮动 {{ activePlan.kpiProjections.costSurge }}</span>
+            </div>
+            <div class="kpi-mini-card" style="background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 6px; padding: 10px; text-align: center;">
+              <small style="color: #94a3b8; font-size: 11px; display: block; margin-bottom: 2px;">级联雪崩风险度</small>
+              <strong style="color: #c084fc; font-size: 18px; font-weight: 800;">{{ activePlan.kpiProjections.cascadeRisk.split(' ')[0] }}</strong>
+              <span style="font-size: 10px; color: #64748b; display: block; margin-top: 2px;">相比原始断裂压降</span>
+            </div>
+            <div class="kpi-mini-card" style="background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; padding: 10px; text-align: center;">
+              <small style="color: #94a3b8; font-size: 11px; display: block; margin-bottom: 2px;">示范机组停堆风险</small>
+              <strong style="color: #38bdf8; font-size: 18px; font-weight: 800;">{{ activePlan.kpiProjections.unplannedOutage.split(' ')[0] }}</strong>
+              <span style="font-size: 10px; color: #64748b; display: block; margin-top: 2px;">华龙一号首炉刚性</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 三位一体方案要素矩阵规格卡片 (主体、环境、规则) -->
+        <div class="plan-three-pillars-grid" style="display: flex; flex-direction: column; gap: 10px;">
+          <!-- 01 主体模型要素 -->
+          <div class="pillar-card glass-panel" style="padding: 12px 14px; border-radius: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <strong style="color: #38bdf8; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+                <el-icon><User /></el-icon> 01 主体模型配置 (Agent Specification & Topology)
+              </strong>
+              <el-tag size="small" type="success" effect="plain">{{ activePlan.agentConfig.activeNodes }}</el-tag>
+            </div>
+            <div style="font-size: 12px; color: #cbd5e1; line-height: 1.6; display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+              <div>• <b>优先级策略：</b>{{ activePlan.agentConfig.hualongPriority }}</div>
+              <div>• <b>库存警戒线：</b>{{ activePlan.agentConfig.baotouSafeWeeks }}</div>
+              <div>• <b>记忆架构：</b>{{ activePlan.agentConfig.dualMemory }}</div>
+              <div>• <b>自适应反思：</b>{{ activePlan.agentConfig.reflexion }}</div>
+            </div>
+          </div>
+
+          <!-- 02 环境模型动态工况 -->
+          <div class="pillar-card glass-panel" style="padding: 12px 14px; border-radius: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <strong style="color: #34d399; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+                <el-icon><MapLocation /></el-icon> 02 环境模型工况 (Natural Maritime & Geopolitical Regimes)
+              </strong>
+              <el-tag size="small" :type="activePlan.tagType" effect="dark">{{ activePlan.tag }}</el-tag>
+            </div>
+            <div style="font-size: 12px; color: #cbd5e1; line-height: 1.6; display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+              <div>• <b>海运走廊通畅度：</b>{{ activePlan.envConfig.seaOpenness }}</div>
+              <div>• <b>港口水文滞期：</b>{{ activePlan.envConfig.portDelay }}</div>
+              <div>• <b>口岸换轨负荷：</b>{{ activePlan.envConfig.landCongestion }}</div>
+              <div>• <b>涉俄次级制裁 R_geo：</b>{{ activePlan.envConfig.geoSanction }}</div>
+            </div>
+          </div>
+
+          <!-- 03 规则模型约束与熔断 -->
+          <div class="pillar-card glass-panel" style="padding: 12px 14px; border-radius: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <strong style="color: #fbbf24; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+                <el-icon><SetUp /></el-icon> 03 规则模型约束与熔断机制 (Contracts & Circuit Breakers)
+              </strong>
+              <el-tag size="small" type="danger" effect="plain">刚性保供约束</el-tag>
+            </div>
+            <div style="font-size: 12px; color: #cbd5e1; line-height: 1.6; display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+              <div>• <b>长协基准保障：</b>{{ activePlan.ruleConfig.contractBase }}</div>
+              <div>• <b>现货敞口红线：</b>{{ activePlan.ruleConfig.spotCap }}</div>
+              <div>• <b>储备借调平准：</b>{{ activePlan.ruleConfig.bufferBorrow }}</div>
+              <div>• <b>现货熔断触发：</b>{{ activePlan.ruleConfig.circuitBreakerPrice }}</div>
+            </div>
           </div>
         </div>
       </div>
 
       <template #footer>
         <div class="ms-drawer-footer" style="display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-size: 12px; color: #94a3b8;">方案配置校验无误，可直接进入想定生成</span>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <el-tag size="small" type="info">参数协议就绪</el-tag>
+            <span style="font-size: 12px; color: #94a3b8;">已校准 IAEA/中核集团保供规程标准</span>
+          </div>
           <div style="display: flex; gap: 8px;">
             <el-button size="small" @click="previewPlanDrawerVisible = false">关闭预览</el-button>
-            <el-button size="small" type="primary" @click="goNext">
-              <span>应用方案并进入想定生成</span>
+            <el-button size="small" type="primary" @click="applySelectedPlanAndProceed">
+              <span>应用【{{ activePlan.name.split('·')[0].trim() }}】并进入想定生成</span>
               <el-icon><ArrowRight /></el-icon>
             </el-button>
           </div>
@@ -1460,6 +1554,7 @@ import {
 } from '@element-plus/icons-vue'
 import MidStagePageHeader from './components/shared/MidStagePageHeader.vue'
 import UraniumModelingTopology from './components/simulation/UraniumModelingTopology.vue'
+import UraniumEnvironmentCorridorMap from './components/simulation/UraniumEnvironmentCorridorMap.vue'
 import DuringWorkflowNav from './components/DuringWorkflowNav.vue'
 import './components/shared/midStage.css'
 import { useUraniumDuringStore } from '@/stores/scnet/useUraniumDuringStore'
@@ -1608,7 +1703,144 @@ function applyPresetEnvScenario(type) {
   }
 }
 
-// 人机对话与人工校准设定 (对齐师姐诉求)
+// ==================== 预演方案与沙盘底座基线矩阵控制台数据 ====================
+const activePreviewPlanKey = ref('planA')
+const previewPlans = reactive({
+  planA: {
+    id: 'SCNET-2024-URANIUM-PRESET-A',
+    name: '方案 A · 战略长协刚性履约方案 (推荐基准)',
+    tag: '常态稳健型',
+    tagType: 'success',
+    badgeText: '推荐基准',
+    desc: '面向常态及轻度地缘制裁扰动，优先锁定中哈/中非 65% 基线长协配额，辅以 400 tU 国家储备平准借调。',
+    horizon: '2024–2028 (5年期 / 20季滚动步进)',
+    convergence: '李喆认知不确定性收敛停止准则 (ε ≤ 0.05)',
+    monteCarlo: '1,000 轮蒙特卡洛实验采样',
+    agentConfig: {
+      activeNodes: '28 个微观实体全部入模',
+      hualongPriority: '华龙一号 P0 绝对刚性优先级 (权重 λ₁ = 0.45)',
+      baotouSafeWeeks: '14 周安全库存警戒底线',
+      dualMemory: '张明双层记忆机制 (12步FIFO工作记忆 + 情景知识库)',
+      reflexion: '推演后自适应 Reflexion 认知反思演化'
+    },
+    envConfig: {
+      seaOpenness: '85% (好望角-马六甲海运稳态)',
+      portDelay: '+3 天 (港口轻微水文时滞)',
+      landCongestion: '78% (阿拉山口口岸平稳换轨)',
+      geoSanction: '0.75 (涉俄次级脱钩中度管制)',
+      settlementFriction: '0.60 (双边本币非美清算通道)'
+    },
+    ruleConfig: {
+      contractBase: '65% 刚性基准长协份额保障',
+      spotCap: '35% 现货采购敞口上限 (防踩踏)',
+      bufferBorrow: '14周破线自动申请 400 tU 储备借调',
+      circuitBreakerPrice: '$85/lb (国际现货暴涨刚性熔断)'
+    },
+    kpiProjections: {
+      fulfillmentRate: '97.4%',
+      landedCost: '$76.8 / kgU',
+      costSurge: '+8.5%',
+      cascadeRisk: '0.26 (低危，压降 65%)',
+      unplannedOutage: '0 台次 (示范工程 100% 达成)'
+    }
+  },
+  planB: {
+    id: 'SCNET-2024-URANIUM-PRESET-B',
+    name: '方案 B · 地缘次级制裁与远洋绕行方案',
+    tag: '远洋分流型',
+    tagType: 'warning',
+    badgeText: '地缘承压',
+    desc: '假定美欧对俄次级制裁升级导致中亚陆运过境受阻，强制启动海运南移 55% 分流与跨里海铁海联运。',
+    horizon: '2024–2028 (5年期 / 20季滚动步进)',
+    convergence: '李喆认知不确定性收敛停止准则 (ε ≤ 0.05)',
+    monteCarlo: '1,000 轮蒙特卡洛实验采样',
+    agentConfig: {
+      activeNodes: '28 个实体 (中亚陆运配额动态削减 40%)',
+      hualongPriority: '华龙一号 P0 绝对优先独占南方基地',
+      baotouSafeWeeks: '14 周警戒 (北方库存承压)',
+      dualMemory: '启用历史断供案例向量化检索 (2022俄乌案例)',
+      reflexion: '动态提高运力风险厌恶系数 γ = 0.85'
+    },
+    envConfig: {
+      seaOpenness: '92% (大西洋-印度洋深水直航提速)',
+      portDelay: '+5 天 (南方港口集中接卸滞期)',
+      landCongestion: '94% (阿拉山口口岸极度拥堵)',
+      geoSanction: '0.85 (次级制裁全面升级)',
+      settlementFriction: '0.80 (SWIFT 清算摩擦加剧)'
+    },
+    ruleConfig: {
+      contractBase: '60% 基线长协份额',
+      spotCap: '40% 跨区调拨现货补充',
+      bufferBorrow: '强制启动防城港保税库对北方紧急调拨',
+      circuitBreakerPrice: '$92/lb (上浮容忍度熔断)'
+    },
+    kpiProjections: {
+      fulfillmentRate: '94.8%',
+      landedCost: '$84.2 / kgU',
+      costSurge: '+18.2%',
+      cascadeRisk: '0.38 (中危受控)',
+      unplannedOutage: '0 台次 (关键机组重点保供)'
+    }
+  },
+  planC: {
+    id: 'SCNET-2024-URANIUM-PRESET-C',
+    name: '方案 C · 极端双重断供与全网平准方案',
+    tag: '极限抗扰型',
+    tagType: 'danger',
+    badgeText: '极端极限',
+    desc: '假定自然海峡封锁叠加地缘全面脱钩，系统启动极限应急保供工作专班，全网南北基地紧急调拨与战略储备顶格平准。',
+    horizon: '2024–2028 (5年期 / 20季滚动步进)',
+    convergence: '李喆认知不确定性收敛停止准则 (ε ≤ 0.05)',
+    monteCarlo: '1,000 轮蒙特卡洛实验采样',
+    agentConfig: {
+      activeNodes: '28 个实体全量协同激活',
+      hualongPriority: '特级优先级独占全部在役库存',
+      baotouSafeWeeks: '12 周破线极限保供状态',
+      dualMemory: '极限工况自适应 Prompt 重构',
+      reflexion: '跨轮次多目标帕累托前沿寻优'
+    },
+    envConfig: {
+      seaOpenness: '45% (关键海峡受阻)',
+      portDelay: '+14 天 (极端滞期与管制)',
+      landCongestion: '98% (口岸限流与全面排查)',
+      geoSanction: '0.95 (地缘博弈全面脱钩)',
+      settlementFriction: '0.90 (非美清算高摩擦)'
+    },
+    ruleConfig: {
+      contractBase: '55% 刚性主权框架',
+      spotCap: '25% (严控追涨踩踏)',
+      bufferBorrow: '顶格调用国家战略储备 600 tU 平准介入',
+      circuitBreakerPrice: '$85/lb (强制熔断现货，禁止追涨)'
+    },
+    kpiProjections: {
+      fulfillmentRate: '91.6%',
+      landedCost: '$89.5 / kgU',
+      costSurge: '+24.6%',
+      cascadeRisk: '0.45 (极限平准承压)',
+      unplannedOutage: '0 台次 (零停堆底线死守)'
+    }
+  }
+})
+
+const activePlan = computed(() => previewPlans[activePreviewPlanKey.value] || previewPlans.planA)
+
+function selectPreviewPlan(planKey) {
+  activePreviewPlanKey.value = planKey
+  if (planKey === 'planA') {
+    applyPresetEnvScenario('baseline')
+  } else if (planKey === 'planB') {
+    applyPresetEnvScenario('sanction_surge')
+  } else if (planKey === 'planC') {
+    applyPresetEnvScenario('dual_extreme')
+  }
+  ElMessage.success(`已切换预览：${activePlan.value.name}`)
+}
+
+function applySelectedPlanAndProceed() {
+  ElMessage.success(`已成功锁定【${activePlan.value.name}】，方案矩阵已就绪，立即流转想定生成！`)
+  previewPlanDrawerVisible.value = false
+  goNext()
+}
 const calibrationDrawerVisible = ref(false)
 const calibInputText = ref('')
 const calibChatScroll = ref(null)
