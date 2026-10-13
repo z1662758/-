@@ -217,9 +217,9 @@
             保存方案
           </el-button>
           <el-button
-            v-if="store.planMode === 'example' && store.analysisStatus === 'completed'"
+            v-if="store.isConfirmed"
             type="primary"
-            @click="router.push({ path: SCNET_ROUTES.situationJudge, query: route.query })"
+            @click="goToJudgment"
           >下一步：态势研判</el-button>
           <el-button
             v-else
@@ -406,6 +406,12 @@ function goBack() {
   router.push({ path: SCNET_ROUTES.scenarioSetting, query: route.query })
 }
 
+function goToJudgment() {
+  router.push({ path: SCNET_ROUTES.situationJudge, query: route.query }).catch((error) => {
+    ElMessage.error(error?.message || '进入态势研判失败')
+  })
+}
+
 async function onRegenerate() {
   try {
     await ElMessageBox.confirm(
@@ -532,6 +538,17 @@ function onExportPdf() {
 /** 有未保存内容时离开路由需要用户确认 */
 onBeforeRouteLeave(async (to, from, next) => {
   // 离开页面一律停掉轮询与在飞请求,避免组件卸载后回调泄漏
+  // 已导入的完整案例只用于逐页浏览。案例产物已固定，不能把页面草稿
+  // 保存为新的研判输入；即使编辑控件标记了 dirty，也应能直接进入下一步。
+  if (
+    to.path === SCNET_ROUTES.situationJudge
+    && store.planMode === 'example'
+    && store.analysisStatus === 'completed'
+  ) {
+    store.stopAll()
+    next()
+    return
+  }
   if (!store.dirty || !store.draft) {
     store.stopAll()
     next()

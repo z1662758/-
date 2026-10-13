@@ -238,6 +238,7 @@ export const useExpertWorkflowStore = defineStore('expertWorkflow', () => {
     if (pollTimer) window.clearTimeout(pollTimer)
     const token = polledSessionId
     pollTimer = window.setTimeout(async () => {
+      pollTimer = null
       if (token !== polledSessionId) return
       try {
         await refresh(polledSessionId)
@@ -259,8 +260,8 @@ export const useExpertWorkflowStore = defineStore('expertWorkflow', () => {
    */
   function ensurePolling(id = sessionId.value) {
     if (!id) return
-    if (polledSessionId === id && pollTimer) return
-    if (polledSessionId === id && pollingStatus.value === 'stopped') return
+    if (polledSessionId === id && pollTimer && pollingStatus.value === 'polling') return
+    if (polledSessionId === id && pollingStatus.value === 'stopped' && finished.value) return
     polledSessionId = id
     bindSession(id)
     pollingStatus.value = 'polling'

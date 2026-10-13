@@ -72,7 +72,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useExpertWorkflowStore } from '@/stores/scnet/useExpertWorkflowStore'
 import { friendlyErrorText, hasTechnicalDetail } from './expertErrorText'
 
@@ -163,12 +163,15 @@ function formatTime(raw) {
 }
 
 const startedAtText = computed(() => formatTime(props.startedAt))
+const now = ref(Date.now())
+let elapsedTimer = null
+onMounted(() => { elapsedTimer = window.setInterval(() => { now.value = Date.now() }, 1000) })
+onUnmounted(() => { if (elapsedTimer) window.clearInterval(elapsedTimer) })
 
 const elapsedText = computed(() => {
-  // 由全局浮窗负责秒级刷新,这里只做一次粗略展示
   const start = Date.parse(String(props.startedAt || '').replace(' ', 'T'))
   if (!start || props.status !== 'running') return ''
-  const seconds = Math.max(0, Math.floor((Date.now() - start) / 1000))
+  const seconds = Math.max(0, Math.floor((now.value - start) / 1000))
   const m = String(Math.floor(seconds / 60)).padStart(2, '0')
   const s = String(seconds % 60).padStart(2, '0')
   return `${m}:${s}`

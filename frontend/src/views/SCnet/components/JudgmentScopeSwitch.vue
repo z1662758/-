@@ -6,7 +6,7 @@
       :class="{ 'is-active': scope === 'focused' }"
       @click="emit('update:scope', 'focused')"
     >
-      
+      与本次需求相关
     </button>
     <button
       type="button"
@@ -31,7 +31,8 @@ const emit = defineEmits(['update:scope'])
 .scope-switch {
   display: inline-flex;
   padding: 2px;
-  background: #f1f5f9;
+  background: #e2e8f0;
+  border: 1px solid #cbd5e1;
   border-radius: 8px;
 }
 .scope-tab {
@@ -41,6 +42,7 @@ const emit = defineEmits(['update:scope'])
   font-size: 12px;
   color: #475569;
   border-radius: 6px;
+  white-space: nowrap;
   cursor: pointer;
   transition: background .16s ease, color .16s ease;
 }

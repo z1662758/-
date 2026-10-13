@@ -7,15 +7,10 @@
     </div>
 
     <template v-if="!error && chartData">
-      <section v-if="chartData.scenarioAssessment" class="pred-section" style="padding: 18px; margin-bottom: 16px; background: #f4f8ff; border: 1px solid #cddff9; border-radius: 10px">
-        <h2 style="margin: 0 0 10px; font-size: 17px">本场景风险展望</h2>
-        <p><strong>研判问题：</strong>{{ chartData.scenarioAssessment.question }}</p>
-        <p v-if="chartData.forecastAssessment"><strong>预测结果：</strong>{{ chartData.forecastAssessment.outlook }}</p>
-        <p><strong>相关路线：</strong>{{ chartData.scenarioAssessment.riskRoutes?.length || 0 }} 条；<strong>相关情报：</strong>{{ chartData.scenarioAssessment.relatedEventCount }} 条</p>
-        <p v-if="chartData.scenarioAssessment.judgmentConclusion">{{ chartData.scenarioAssessment.judgmentConclusion }}</p>
-        <p v-for="(item, index) in chartData.scenarioAssessment.recommendations" :key="index">{{ item }}</p>
-        <p v-if="chartData.forecastAssessment" style="color: #64748b">{{ chartData.forecastAssessment.limit }}</p>
-        <p style="color: #64748b">{{ chartData.scenarioAssessment.note }}</p>
+      <section v-if="chartData.scenarioAssessment" class="pred-section scenario-risk-summary">
+        <h2>本场景风险展望</h2>
+        <p><strong>路线风险：</strong>{{ scenarioRiskSummary }}</p>
+        <p class="scenario-risk-basis"><strong>依据：</strong>{{ chartData.scenarioAssessment.riskRoutes?.length || 0 }} 条路线、{{ chartData.scenarioAssessment.relatedEventCount || 0 }} 条情报；风险为当前快照的定性研判，价格曲线为历史价格外推。</p>
       </section>
       <!-- 第一部分：顶部核心指标 -->
       <div class="sj-dashboard">
@@ -30,11 +25,37 @@
         </div>
       </div>
 
-      <!-- 第二部分：态势预测分析结果（真实算法：周期位置 + 拐点，纯文字卡片） -->
+      <nav class="analysis-tabs" aria-label="态势预测分析类型">
+        <button v-for="tab in analysisTabs" :key="tab.key" type="button" class="analysis-tab"
+                :class="{ active: activeAnalysisTab === tab.key }"
+                :aria-pressed="activeAnalysisTab === tab.key" @click="selectAnalysisTab(tab.key)">
+          {{ tab.label }}
+        </button>
+      </nav>
+
+      <section v-if="analysisOk" class="model-picker" aria-label="选择分析模型">
+        <div class="model-picker-head"><b>选择{{ analysisTabs.find(tab => tab.key === activeAnalysisTab)?.label }}模型</b><span>先选方法，再生成对应曲线</span></div>
+        <div v-if="activeModelOptions.length" class="model-picker-options">
+          <button v-for="option in activeModelOptions" :key="option.id" type="button"
+                  class="model-picker-option" :class="{ active: selectedModel[activeAnalysisTab] === option.id }"
+                  :aria-pressed="selectedModel[activeAnalysisTab] === option.id" @click="chooseModel(option.id)">
+            <strong>{{ option.label }}</strong><small>{{ option.description }}</small>
+          </button>
+        </div>
+        <div v-else class="analysis-method">当前数据没有可展示的该类模型结果。</div>
+        <div class="model-picker-action">
+          <el-button type="primary" size="small" :disabled="!activeModelOptions.length" @click="generateModelCurve">生成所选模型曲线</el-button>
+          <span v-if="generatedModel[activeAnalysisTab]">当前图：{{ generatedModelLabel }}</span>
+          <span v-else>曲线将在点击后生成</span>
+        </div>
+      </section>
+
+      <!-- 第二部分：态势预测分析结果 -->
       <div class="pred-section">
         <div class="pred-section-title">
           <span class="pred-section-mark"></span>态势预测分析结果
           <span class="pred-section-sub" v-if="analysisOk">算法真实计算结果 · 基于 {{ analysis.series?.label || '历史序列' }}</span>
+          <span v-if="analysisRefreshed" class="pred-section-sub">本图已按最新历史数据重新计算；原任务记录中的旧预测未用于绘图</span>
         </div>
 
         <!-- 无可用分析（auto / 数据不足） -->
@@ -42,15 +63,19 @@
           <el-empty :description="analysis?.reason || '暂无足够的真实数据执行态势分析'" :image-size="80" />
         </div>
 
-        <!-- 周期与拐点态势：纯文字结论，点击展开依据 -->
-        <div v-else class="ana-card cyc-brief">
+        <!-- 周期分析：纯文字结论，点击展开依据 -->
+        <div v-else-if="activeAnalysisTab === 'cycle'" class="ana-card cyc-brief">
           <div class="ana-card-head ana-card-head--wrap">
-            <span class="ana-card-title">周期与拐点态势</span>
+            <span class="ana-card-title">周期分析</span>
             <el-tag v-if="cycle" size="small" :type="cycleStatusMeta(cycleStatus).type">{{ cycleStatusMeta(cycleStatus).label }}</el-tag>
-            <el-tag v-if="cyclePos && cyclePos.extrapolated" size="small" type="warning" effect="plain">模型外推，非实测</el-tag>
           </div>
 
-          <template v-if="cyclePos || turningFull.length">
+          <div class="analysis-method" v-if="cycle">周期算法：{{ cycle.algorithm }} · {{ cycle.method }}；相位外推至 {{ cyclePos?.reference_year || '目标年份' }} 年</div>
+          <div v-if="generatedModel.cycle && cycleShown" class="cycle-model-result">
+            <p class="analysis-method">{{ generatedModel.cycle === 'harmonic' ? '去趋势后的周期分量；未来虚线是谐波外推，不代表价格预测。' : '历史价格与趋势+周期拟合；未来虚线仅为探索性外推，须结合下方回测。' }}</p>
+            <div ref="cycleModelChart" class="cycle-model-chart"></div>
+          </div>
+          <template v-if="cyclePos">
             <p class="cb-lead" v-if="cyclePos">
               当前（{{ cyclePos.reference_year }} 年）处于约 <b>{{ num(cycle.dominant_period) }} 年</b>主导周期的
               <b class="cb-stage" :class="cyclePos.stage">{{ stageLabel(cyclePos.stage) }}</b>阶段：
@@ -58,26 +83,15 @@
               按该周期推算，距下一波峰约 <b>{{ cyclePosNextPeak.years.toFixed(1) }} 年</b>（约 {{ cyclePosNextPeak.year }} 年）</template>。
             </p>
 
-            <p class="cb-lead" v-if="turningFull.length">
-              已识别的历史拐点共 <b>{{ turningCount }}</b> 个：<span
-                v-for="(p, i) in turningFull" :key="p.date + '-' + i" class="cb-tp" :class="p.type">{{ p.date }} 年{{ p.type === 'peak' ? '高点' : '低点' }} {{ num(p.value) }}<em v-if="i < turningFull.length - 1">、</em></span>。
-              最近一次在 <b>{{ turningInfo?.latest?.date }}</b> 年<template v-if="turningLatestAge != null">（距今 {{ turningLatestAge }} 年）</template>，此后无新增极值。
-            </p>
-
             <p class="cb-lead" v-if="cycle">
-              周期模型给出的下一<b>低点</b>窗口为 <b class="cb-win">{{ cycleWindowText(cycle.next_trough_window) }}</b>，
-              下一<b>高点</b>窗口为 <b class="cb-win">{{ cycleWindowText(cycle.next_peak_window) }}</b>
-              —— 来自周期外推，非拐点检测器输出。
+              周期模型给出的下一<b>低谷</b>窗口为 <b class="cb-win">{{ cycleWindowText(cycle.next_trough_window) }}</b>，
+              下一<b>高峰</b>窗口为 <b class="cb-win">{{ cycleWindowText(cycle.next_peak_window) }}</b>
+              —— 根据主导周期的谐波相位外推。
             </p>
-
-            <div class="cb-algo" v-if="cycle">
-              算法：周期 = {{ cycle.method }}；拐点 = 局部极值 + 均线交叉 + 动量（signal_strength / confidence 为启发式评分，非统计概率）。
-            </div>
 
             <div class="cb-caveat" v-if="cyclePos">
               价格序列止于 {{ cycle.sample_end }} 年，以上位置已外推 {{ cyclePos.years_beyond_data }} 年；
-              回测显示叠加周期后样本外误差未优于单用趋势线（改善 {{ signPct(cycle.backtest?.improvement) }}），
-              本卡仅作候选参考，<b>不构成采购时机建议</b>。
+              回测显示叠加周期后样本外误差未优于单用趋势线（改善 {{ signPct(cycle.backtest?.improvement) }}）。
             </div>
 
             <details class="ana-evidence">
@@ -109,38 +123,21 @@
                   </ul>
                 </div>
 
-                <div class="ae-sec" v-if="turningInfo">
-                  <div class="ae-h">三、拐点识别模型 <code>{{ turningInfo.algorithm || 'turning_point.detection.v1' }}</code></div>
-                  <ol>
-                    <li><b>局部极值</b>：逐点与左右邻居严格比较找局部峰/谷（等值平台取中点），再剔除序列首 2 点与末 1 点，只保留序列内部的极值作为历史拐点</li>
-                    <li><b>近期方向</b>：用最后 3 个点判定 up / down / flat，避免长窗口把历史主导方向误当当前方向</li>
-                    <li><b>均线交叉</b>：短均线 k=3、长均线 L=6（按序列长度自动收紧）；短线上穿长线记 <b>−0.3</b>（见底信号），短线跌破长线记 <b>+0.3</b>（见顶信号）；两线贴住且动能背离再记 ±0.2</li>
-                    <li><b>动量与减速度</b>：最近 4 步净变化 对比 前 4 步净变化；斜率方向反转记 ±0.5，动能递减/跌幅收窄记 ±0.25，动量低于（或高于）前 4 步记 ±0.2</li>
-                    <li><b>新极值提示</b>：创近期新高后回落 <b>+0.15</b>，创近期新低后反弹 <b>−0.15</b></li>
-                    <li><b>评分与信号</b>：各项累加后截断到 [−1, 1]；<code>≥ 0.3</code> → possible_peak，<code>≤ −0.3</code> → possible_trough，否则 none。<code>signal_strength = |score|</code>；<code>confidence_score</code> 由样本长度与触发项数启发式给出（<code>0.3 + 0.3×min(1, n/24) + …</code>），<b>两者都是启发式评分，不是概率</b></li>
-                  </ol>
-                  <ul>
-                    <li>本检测器<b>只识别已经发生的局部极值</b>，不预测未来拐点日期；卡片里的未来峰/谷窗口来自上面的周期模型外推，两者算法不同，不可混读</li>
-                  </ul>
-                </div>
-
                 <div class="ae-sec" v-if="cycle">
-                  <div class="ae-h">四、本序列实际算出的中间量</div>
+                  <div class="ae-h">三、本序列实际算出的中间量</div>
                   <ul>
                     <li>主导周期 <b>{{ num(cycle.dominant_period) }} 年</b>，谱功率 {{ cycle.dominant_spectral_power }}，占有效谱能量 {{ pct(cycle.spectral_strength) }}</li>
                     <li>候选周期：<span v-for="(cp, i) in (cycle.candidate_periods || [])" :key="'cp' + i">{{ cp.period }} 年（{{ pct(cp.relative_strength) }}）<em v-if="i < (cycle.candidate_periods || []).length - 1">、</em></span></li>
                     <li>ACF 支持度 {{ cycle.acf_support }} · 谐波拟合 R² {{ cycle.fit_r2 }} · 覆盖 {{ num(cycle.cycles_covered) }} 个周期 · 综合强度 {{ pct(cycle.cycle_strength) }}</li>
                     <li v-if="cyclePos">周期位置口径：{{ cyclePos.note }}</li>
                     <li v-if="cycle.backtest && cycle.backtest.trend_only_rmse != null">回测（前 {{ cycle.backtest.split_index }} / {{ cycle.sample_size }} 训练）：单趋势线 RMSE {{ cycle.backtest.trend_only_rmse }}，趋势+周期 RMSE {{ cycle.backtest.trend_cycle_rmse }}，改善 {{ signPct(cycle.backtest.improvement) }} → 预测可靠性 {{ relLabel(cycle.forecast_reliability) }}</li>
-                    <li v-if="turningInfo">拐点当前方向 {{ turningInfo.direction }} · 信号强度 signal_strength = {{ turningInfo.strength }} · 置信度评分 confidence_score = {{ turningInfo.confidence }}（两者均为启发式，非概率）</li>
                   </ul>
                 </div>
 
-                <div class="ae-sec" v-if="(cycle?.evidence || []).length || (turningInfo?.evidence || []).length">
-                  <div class="ae-h">五、算法原始输出（evidence 原文）</div>
+                <div class="ae-sec" v-if="cycle?.evidence?.length">
+                  <div class="ae-h">四、周期算法原始输出（evidence 原文）</div>
                   <ul>
                     <li v-for="(e, i) in (cycle?.evidence || [])" :key="'ce' + i">周期：{{ e }}</li>
-                    <li v-for="(e, i) in (turningInfo?.evidence || [])" :key="'te' + i">拐点：{{ e }}</li>
                   </ul>
                 </div>
               </div>
@@ -150,116 +147,49 @@
           <div v-else class="ana-msg">{{ cycle?.message || '当前序列未检测到具有预测价值的周期，无法给出周期位置' }}</div>
         </div>
 
-        <!-- 原有图表版趋势/拐点/周期卡片：本次不展示，保留代码以便恢复（把下行 v-if 改回 v-else 即可） -->
-        <div v-if="false" class="analysis">
-          <!-- 临时隐藏：趋势分析 + 关键拐点识别。如需恢复，删除下行开头的 <template v-if="false"> 与对应 </template> -->
-          <template v-if="false">
+        <!-- 趋势和拐点按按钮切换；周期使用上方文字卡片 -->
+        <div v-if="analysisOk && activeAnalysisTab !== 'cycle'" class="analysis">
           <div class="ana-row">
           <!-- 趋势分析 Dashboard（后端真实模型计算） -->
-          <div class="ana-card">
+          <div v-if="activeAnalysisTab === 'trend'" class="ana-card">
             <div class="ana-card-head ana-card-head--wrap">
               <span class="ana-card-title">趋势分析</span>
-              <div class="trend-chips" v-if="trendInfo">
-                <el-tag size="small" effect="plain" :type="dirTagType(trendInfo.long?.direction)">长期{{ dirCn(trendInfo.long?.direction) }}</el-tag>
-                <el-tag size="small" effect="plain" :type="dirTagType(trendInfo.recent?.direction)">近期{{ dirCn(trendInfo.recent?.direction) }}</el-tag>
-                <el-tag size="small" effect="plain" :type="dirTagType(trendInfo.fc?.direction)">预测{{ dirCn(trendInfo.fc?.direction) }}</el-tag>
-                <el-tag size="small" type="info" effect="plain">波动{{ trendInfo.vol?.level_cn }}</el-tag>
-                <el-tag size="small" type="warning" effect="plain">{{ trendInfo.fc?.model_label }}</el-tag>
-                <el-tag size="small" effect="plain" :type="confTag(trendInfo.fc?.confidence)">可信度{{ confCn(trendInfo.fc?.confidence) }}</el-tag>
-              </div>
             </div>
             <template v-if="trendInfo">
-              <div class="trend-summary-bar">
-                <div class="tsb-main"><b>主结论</b><span>{{ priceStageShort }}</span></div>
-                <div class="tsb-nums">
-                  <span>Sen <b>{{ snum(trendInfo.long?.sen_slope) }}</b></span>
-                  <span>5Y <b>{{ snum(trendInfo.recent?.slope) }}</b></span>
-                  <span>3Y <b>{{ snum(trendInfo.recent?.slope3) }}</b></span>
-                  <span>2032E <b>{{ num(forecastAt(2032)) }}</b></span>
-                </div>
-              </div>
-              <p class="trend-overview-line">{{ trendInfo.sum?.forecast_text }}  远期 95% 区间随预测期明显扩大，2032 节点不确定性高。</p>
-
-              <div class="trend-toolbar">
-                <span class="trend-tip">实线=历史实际 · 点线=历史缺失期模型估计 · 虚线=未来预测；图例可开关，右端切换时间窗口</span>
+              <div v-if="generatedModel.trend" class="trend-toolbar">
+                <span class="trend-tip">{{ displayedTrendLabel }} · 全球铀价年度序列</span>
                 <div class="win-btns">
                   <button v-for="w in trendWindows" :key="w.key" type="button" class="win-btn" :class="{ on: trendWindow === w.key }" @click="setTrendWindow(w.key)">{{ w.label }}</button>
                 </div>
               </div>
-              <div ref="trendChart" class="trend-main-chart"></div>
-
-              <div class="ov-title">Historical Overview · 1997–2032（含 2007 历史峰值，不参与主图压缩）</div>
-              <div ref="trendOverviewChart" class="trend-overview-chart"></div>
-
-              <div class="trend-sub">
-                <div class="trend-kpis">
-                  <span class="t-kpi"><i>长期(OLS) $/lb/年</i><b>{{ snum(trendInfo.long?.linear_slope) }}</b></span>
-                  <span class="t-kpi"><i>Theil-Sen</i><b>{{ snum(trendInfo.long?.sen_slope) }}</b></span>
-                  <span class="t-kpi"><i>R² / MK</i><b style="font-size:10px">{{ num(trendInfo.long?.r2) }} / {{ trendInfo.long?.significance ? '显著' : '未达显著' }}</b></span>
-                  <span class="t-kpi"><i>近5年 $/lb/年</i><b>{{ snum(trendInfo.recent?.slope) }}</b></span>
-                  <span class="t-kpi"><i>近3年 $/lb/年</i><b>{{ snum(trendInfo.recent?.slope3) }}</b></span>
-                  <span class="t-kpi"><i>预测累计</i><b>{{ sign(trendInfo.fc?.predicted_change_pct) }}</b></span>
-                  <span class="t-kpi"><i>近5年σ</i><b>{{ num(trendInfo.vol?.recent_std) }}</b></span>
-                  <span class="t-kpi"><i>最大回撤</i><b>{{ trendInfo.vol?.max_drawdown }}%</b></span>
-                </div>
-                <div class="trend-states">
-                  <span><b>长期趋势</b><i>{{ trendInfo.sum?.long_term_text }}</i></span>
-                  <span><b>近期趋势</b><i>{{ trendInfo.sum?.recent_text }}</i></span>
-                  <span><b>波动状态</b><i>{{ trendInfo.sum?.volatility_text }}</i></span>
-                  <span><b>预测结论</b><i>{{ trendInfo.sum?.forecast_text }}</i></span>
-                </div>
+              <div v-if="generatedModel.trend" ref="trendChart" class="trend-main-chart"></div>
+              <div v-if="generatedModel.trend" class="trend-chart-guide">
+                <span><b>横轴</b>：年份；带 E 的年份为模型外推，未带 E 的年份为实测。</span>
+                <span><b>纵轴</b>：全球铀价，单位 $/lb（美元/磅）。</span>
+                <span><b>蓝色实线</b>：截至 {{ trendInfo.fc?.last_actual_year }} 年的年度实测价格。</span>
+                <span v-if="generatedModel.trend === 'ensemble'"><b>彩色虚线</b>：各单模型路径；<b>橙色实线</b>：按历史留出误差加权的组合路径。</span>
+                <span v-else><b>彩色虚线</b>：所选 {{ displayedTrendLabel }} 的外推路径。</span>
+                <span><b>图例</b>：点击名称可暂时显示或隐藏对应曲线；鼠标移到曲线上可查看该年的数值。</span>
               </div>
-
-              <div class="fc-wrap">
-                <div class="fc-nodes" v-if="fcNodes.length">预测节点：
-                  <span v-for="nd in fcNodes" :key="nd.year"><i>{{ nd.year }}E</i><b>{{ num(nd.mean) }}</b></span>
-                </div>
-                <details class="fc-unc">
-                  <summary>2032 不确定性 / 查看预测区间</summary>
-                  <table class="pi-table" v-if="pi2032">
-                    <thead><tr><th>节点</th><th>中心预测</th><th>80% 区间</th><th>95% 区间</th></tr></thead>
-                    <tbody>
-                      <tr v-for="nd in fcNodes" :key="nd.year">
-                        <td>{{ nd.year }}E</td><td>{{ num(nd.mean) }} $/lb</td>
-                        <td>{{ num(nd.lo80) }} ~ {{ num(nd.hi80) }}</td>
-                        <td>{{ num(nd.lo95) }} ~ {{ num(nd.hi95) }}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  <p class="pi-note">说明：80%/95% 区间为基于拟合残差尺度的近似统计区间，下界可能跨越 0，表示“模型误差范围”，不代表真实负价格情景；区间随预测期明显扩大。</p>
-                </details>
-              </div>
-
-              <div class="trend-markers" v-if="trendInfo.anom?.length || trendInfo.cp?.length">
-                <span class="m-line" v-if="trendInfo.anom?.length">异常点(MAD稳健z&gt;2.5)：<em v-for="a in trendInfo.anom" :key="a.year">{{ a.year }}·{{ a.value }}({{ a.score }})</em></span>
-                <span class="m-line" v-if="trendInfo.cp?.length">结构转折：<em v-for="c in trendInfo.cp" :key="c.year">{{ c.year }}（{{ snum(c.before_trend) }}→{{ snum(c.after_trend) }}）</em></span>
-              </div>
+              <div v-else class="ana-msg">请先在上方选择模型，再点击“生成所选模型曲线”。</div>
             </template>
             <div v-else class="ana-msg">{{ analysis?.trend?.message || '趋势分析暂不可用' }}</div>
-            <details class="ana-evidence" v-if="trendInfo">
-              <summary>查看依据 / 模型与计算说明</summary>
-              <ul>
-                <li>长期趋势：Linear Regression + Theil-Sen 稳健斜率 + Mann-Kendall 趋势检验（内置实现）</li>
-                <li>近期趋势：近3年/近5年端到端斜率（含滚动窗口），并计算加速度</li>
-                <li>滚动：MA3 / MA5 尾随移动平均（图例开关）</li>
-                <li>波动：全期/近期标准差、变异系数、最大回撤、收敛等级</li>
-                <li>异常点：稳健 z-score（MAD），仅标最显著 1~3 个</li>
-                <li>结构转折：轻量二元分割（分段线性拟合 SSE 最小），最多 1~3 个</li>
-                <li>预测：Holt / LinearTrend / ARIMA(1,1,0) 候选，按末段回测 RMSE 择优选一；80%/95% 区间为基于拟合残差尺度的近似区间</li>
-                <li>横盘判定：预测累计变化幅度 &lt; {{ trendInfo.side?.threshold_pct || 3 }}%</li>
-                <li v-for="(e,i) in trendInfo.evidence || []" :key="'ev'+i">{{ e }}</li>
-              </ul>
-            </details>
           </div>
 
           <!-- 拐点识别 -->
-          <div class="ana-card">
+          <div v-if="activeAnalysisTab === 'turning'" class="ana-card">
             <div class="ana-card-head">
               <span class="ana-card-title">关键拐点识别</span>
               <el-tag v-if="turningInfo" size="small" :type="turningTagType(turningInfo.signal)">{{ turningLabel(turningInfo.signal) }}</el-tag>
             </div>
+            <div class="analysis-method" v-if="turningInfo">{{ generatedModel.turning === 'sma' ? '当前曲线：SMA(3/6) 短长均线；末次观测的交叉、斜率和动量组合为启发式信号。' : '历史拐点算法：SciPy find_peaks 峰显著度与间隔筛选；仅标记已发生的峰谷。' }} · {{ turningInfo.algorithm }}</div>
             <template v-if="turningInfo">
-              <div ref="turningChart" class="ana-chart"></div>
+            <p class="cb-lead" v-if="turningFull.length">
+              已识别的历史拐点共 <b>{{ turningCount }}</b> 个：<span
+                v-for="(p, i) in turningFull" :key="p.date + '-' + i" class="cb-tp" :class="p.type">{{ p.date }} 年{{ p.type === 'peak' ? '高点' : '低点' }} {{ num(p.value) }}<em v-if="i < turningFull.length - 1">、</em></span>。
+              最近一次在 <b>{{ turningInfo?.latest?.date }}</b> 年<template v-if="turningLatestAge != null">（距今 {{ turningLatestAge }} 年）</template>；实测数据止于 {{ analysis?.series?.data_end }} 年，此后未做拐点识别。
+            </p>
+              <div v-if="generatedModel.turning" ref="turningChart" class="ana-chart"></div>
               <div class="ana-list-mini">
                 <span v-for="p in turningPoints" :key="p.date" class="ana-chip" :class="p.type">
                   {{ p.date }} · {{ p.type === 'peak' ? '高点' : '低点' }} {{ num(p.value) }}
@@ -268,22 +198,48 @@
               </div>
               <div class="ana-metrics ana-metrics--3">
                 <span class="ana-metric"><i>历史拐点数</i><b>{{ turningCount }}</b></span>
-                <span class="ana-metric"><i>当前信号</i><b style="font-size:11px">{{ turningInfo ? turningLabel(turningInfo.signal) : '—' }}</b></span>
+                <span class="ana-metric"><i>末次观测信号</i><b style="font-size:11px">{{ turningInfo ? turningLabel(turningInfo.signal) : '—' }}</b></span>
                 <span class="ana-metric"><i>最高高点</i><b style="font-size:11px">{{ turningMaxTxt }}</b></span>
               </div>
             </template>
             <div v-else class="ana-msg">{{ analysis?.turningPoint?.message || '拐点识别暂不可用' }}</div>
-            <div class="ana-note">signal_strength / confidence 为启发式评分，非统计概率</div>
+            <div class="ana-note">识别结果基于截至 {{ analysis?.series?.data_end || '末次观测' }} 年的历史数据；signal_strength / confidence 为启发式评分，非统计概率。</div>
             <details class="ana-evidence" v-if="turningInfo?.evidence?.length">
-              <summary>查看依据 / 算法说明</summary>
-              <ul><li v-for="(e,i) in turningInfo.evidence" :key="i">{{ e }}</li></ul>
+              <summary>查看拐点识别依据 / 算法细节</summary>
+              <div class="ae-body">
+                <div class="ae-sec">
+                  <div class="ae-h">数据口径</div>
+                  <p>{{ analysis?.series?.label }}，{{ analysis?.series?.data_start }}–{{ analysis?.series?.data_end }} 年历史观测；局部极值均为已发生的历史拐点。</p>
+                </div>
+                <div class="ae-sec" v-if="turningInfo">
+                  <div class="ae-h">拐点识别模型 <code>{{ turningInfo.algorithm || 'turning_point.detection.v2' }}</code></div>
+                  <ol>
+                    <li><b>历史峰谷：SciPy <code>scipy.signal.find_peaks</code></b> 分别对价格和负价格找峰、谷；峰显著度 <code>prominence ≥ 历史逐年绝对变化的中位数</code>，相邻峰至少间隔 2 个年度点；剔除首 2 点与末 1 点。显著度是峰相对周围基线的突出程度，不是事件概率。<a href="https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.find_peaks.html" target="_blank" rel="noopener noreferrer">SciPy 官方说明</a></li>
+                    <li><b>近期方向</b>：用最后 3 个点判定 up / down / flat，避免长窗口把历史主导方向误当当前方向</li>
+                    <li><b>均线交叉</b>：短均线 k=3、长均线 L=6（按序列长度自动收紧）；短线上穿长线记 <b>−0.3</b>（见底信号），短线跌破长线记 <b>+0.3</b>（见顶信号）；两线贴住且动能背离再记 ±0.2</li>
+                    <li><b>动量与减速度</b>：最近 4 步净变化 对比 前 4 步净变化；斜率方向反转记 ±0.5，动能递减/跌幅收窄记 ±0.25，动量低于（或高于）前 4 步记 ±0.2</li>
+                    <li><b>新极值提示</b>：创近期新高后回落 <b>+0.15</b>，创近期新低后反弹 <b>−0.15</b></li>
+                    <li><b>末次观测的组合评分（本项目启发式规则，不是标准统计模型）</b>：各项累加后截断到 [−1, 1]；<code>≥ 0.3</code> → possible_peak，<code>≤ −0.3</code> → possible_trough，否则 none。<code>signal_strength = |score|</code>；<code>confidence_score</code> 由样本长度与触发项数启发式给出（<code>0.3 + 0.3×min(1, n/24) + …</code>），<b>两者都是启发式评分，不是概率</b></li>
+                  </ol>
+                  <ul>
+                    <li>峰显著度筛选是标准信号处理算法；SMA 交叉与动量的权重和阈值是本项目规则，未经过目标期数据校准。检测器<b>只识别已发生的局部极值</b>，不预测未来拐点日期。</li>
+                  </ul>
+                </div>
+                <div class="ae-sec">
+                  <div class="ae-h">本序列识别结果</div>
+                  <p>末次观测方向 {{ turningInfo.direction }}；信号强度 {{ turningInfo.strength }}；置信度评分 {{ turningInfo.confidence }}（均非概率）。</p>
+                </div>
+                <div class="ae-sec">
+                  <div class="ae-h">算法原始依据</div>
+                  <ul><li v-for="(e,i) in turningInfo.evidence" :key="i">{{ e }}</li></ul>
+                </div>
+              </div>
             </details>
           </div>
           </div><!-- /ana-row -->
-          </template><!-- /临时隐藏 趋势/拐点 -->
 
           <!-- 周期分析（整行卡片） -->
-          <div class="ana-card ana-cycle-full">
+          <div v-if="false" class="ana-card ana-cycle-full">
             <div class="ana-card-head">
               <span class="ana-card-title">周期特征分析</span>
               <el-tag v-if="cycleShown || cycleStatus==='no_cycle'" size="small" :type="cycleStatusMeta(cycleStatus).type">{{ cycleStatusMeta(cycleStatus).label }}</el-tag>
@@ -354,7 +310,7 @@
             <div class="dec-ev" v-if="cycleCards.price.data">
               <span v-for="(v,l) in cycleCards.price.data" :key="l" class="dec-ev-item"><i>{{ evKeyLabel(l) }}</i><b>{{ evKeyValue(l,v) }}</b></span>
             </div>
-            <div class="dec-foot">2032 Outlook：{{ priceOutlookText }}</div>
+            <div class="dec-foot">价格展望：{{ priceOutlookText }}</div>
           </div>
           <div class="dec-card dec-supply" v-if="cycleCards.supply_demand">
             <div class="dec-head"><b>供需周期 · 代理</b><span class="dec-tag dec-tag--proxy">代理指标 · 置信低</span></div>
@@ -637,17 +593,16 @@
               </div>
             </div>
           </div>
-          <p class="plan-note">{{ plan.disclaimer }}  基准预期损失 {{ wan(plan.loss_reference?.expected_loss_base) }} · 高风险情景 {{ wan(plan.loss_reference?.expected_loss_high) }}（未做策略效果/净收益估算）</p>
+          <p class="plan-note">{{ plan.disclaimer }}<template v-if="forecastUsable"> 基准预期损失 {{ wan(plan.loss_reference?.expected_loss_base) }} · 高风险情景 {{ wan(plan.loss_reference?.expected_loss_high) }}（未做策略效果/净收益估算）</template></p>
         </div>
       </div>
 
-      <!-- 第四部分：详细预测模型结果（原有真实图表保留） -->
-      <div v-if="chartData.gprPrediction?.series?.length && chartData.supplyDemandGap?.series?.length" class="pred-section">
-        <div class="pred-section-title"><span class="pred-section-mark"></span>详细预测模型结果</div>
+      <div v-if="['verified', 'demo'].includes(chartData.gprPrediction?.status) && chartData.gprPrediction?.series?.length && chartData.supplyDemandGap?.series?.length && chartData.modelComparison?.models?.length && chartData.scenarioEvolution?.scenarios?.length" class="pred-section">
+        <div class="pred-section-title"><span class="pred-section-mark"></span>详情分析</div>
 
         <!-- GPR 铀价格预测（整行，已去除右侧预测结论） -->
         <div class="pred-card" style="margin-bottom:1rem">
-          <div class="pred-card-title">GPR 高斯过程回归 — {{ gprTitle }}</div>
+          <div class="pred-card-title">{{ chartData.gprPrediction?.status === 'demo' ? '价格假设情景路径' : `GPR 高斯过程回归 — ${gprTitle}` }}</div>
           <div ref="gprChart" class="pred-chart" style="height:320px"></div>
         </div>
 
@@ -655,15 +610,15 @@
         <div class="pred-row">
           <div class="pred-left">
             <div class="pred-card">
-              <div class="pred-card-title">供需缺口预测 (2024-2030)</div>
+              <div class="pred-card-title">{{ chartData.supplyDemandGap?.status === 'demo' ? '供需缺口情景' : '供需缺口预测' }} (2024-2030)</div>
               <div ref="gapChart" class="pred-chart"></div>
             </div>
           </div>
           <div class="pred-right">
             <div class="pred-card">
-              <div class="pred-card-title">多模型预测对比</div>
+              <div class="pred-card-title">{{ chartData.modelComparison?.status === 'demo' ? '价格路径对照' : '多模型预测对比' }}</div>
               <div ref="modelCompareChart" class="pred-chart" style="height:220px"></div>
-              <div class="pred-model-notes">
+              <div v-if="chartData.modelComparison?.status !== 'demo'" class="pred-model-notes">
                 <template v-for="m in modelComparison.models" :key="m.name">
                   <span class="pred-model-tag" :class="modelTagClass(m.name)">{{ m.name }}</span>
                   {{ m.summary }}
@@ -677,12 +632,12 @@
         <div class="pred-row">
           <div class="pred-full">
             <div class="pred-card">
-              <div class="pred-card-title">情景概率随时间演化</div>
+              <div class="pred-card-title">{{ chartData.scenarioEvolution?.status === 'demo' ? '供应情景路径' : '情景概率随时间演化' }}</div>
               <div class="pred-scenario-row">
                 <div class="pred-scenario-chart">
                   <div ref="scenarioEvoChart" class="pred-chart"></div>
                 </div>
-                <div class="pred-scenario-interp">
+                <div v-if="chartData.scenarioEvolution?.status !== 'demo'" class="pred-scenario-interp">
                   <div class="pred-scenario-interp-title">情景解读</div>
                   <ul class="pred-list">
                     <li v-for="(interp, idx) in scenarioEvolution.interpretations" :key="idx" v-html="interp"></li>
@@ -691,12 +646,6 @@
               </div>
             </div>
           </div>
-        </div>
-      </div>
-      <div v-else class="pred-section">
-        <div class="pred-section-title"><span class="pred-section-mark"></span>详细预测模型结果</div>
-        <div class="pred-card" style="padding: 20px; color: #64748b">
-          {{ chartData.gprPrediction?.reason || '当前任务暂无可验证的详细预测模型结果。' }}
         </div>
       </div>
     </template>
@@ -727,7 +676,78 @@ const trendChart = ref(null)
 const turningChart = ref(null)
 const cycleChart = ref(null)
 const cycleCompChart = ref(null)
+const cycleModelChart = ref(null)
 const chartData = ref(null)
+const analysisRefreshed = ref(false)
+const analysisTabs = [
+  { key: 'trend', label: '趋势分析' },
+  { key: 'turning', label: '拐点识别' },
+  { key: 'cycle', label: '周期分析' },
+]
+const activeAnalysisTab = ref('trend')
+const selectedModel = ref({ trend: 'ensemble', turning: 'peaks', cycle: 'harmonic' })
+const generatedModel = ref({ trend: null, turning: null, cycle: null })
+const activeModelOptions = computed(() => {
+  if (activeAnalysisTab.value === 'trend') {
+    const paths = trendInfo.value?.fc?.model_forecasts || []
+    return trendInfo.value?.fc ? [
+      { id: 'ensemble', label: '误差加权组合', description: '朴素、ETS、ARIMA、Theta 分别拟合；按历史留出集 RMSE 的倒数逐年加权。' },
+      ...paths.map(path => ({ id: path.model, label: path.label, description: ({
+        Naive: '随机游走基线：未来年度沿用最后一个实测值。',
+        ETS: '指数平滑的阻尼趋势：最近水平与斜率逐步衰减。',
+        ARIMA110: 'ARIMA(1,1,0)：对一阶差分建模，外推价格变化。',
+        ARIMA100: 'ARIMA(1,0,0)：围绕估计的长期水平做均值回归。',
+        Theta: 'Theta 方法：结合长期趋势与局部水平进行外推。',
+      })[path.model] || '历史价格时间序列模型。' })),
+    ] : []
+  }
+  if (activeAnalysisTab.value === 'turning') return turningInfo.value ? [
+    { id: 'peaks', label: '显著峰谷检测', description: 'SciPy find_peaks；按峰显著度和最小间隔筛选已发生的高点与低点。' },
+    { id: 'sma', label: '短长均线信号', description: '展示 SMA(3) 与 SMA(6)；末次观测的交叉、斜率和动量组合是启发式信号。' },
+  ] : []
+  return cycleShown.value ? [
+    { id: 'harmonic', label: '去趋势谐波分量', description: 'OLS 去趋势后，FFT 选主周期、ACF 辅助检验，再用正弦/余弦回归拟合波动。' },
+    { id: 'pricefit', label: '趋势叠加周期拟合', description: '把谐波分量加回线性趋势；展示历史拟合及探索性外推，并与趋势模型回测比较。' },
+  ] : []
+})
+const generatedModelLabel = computed(() => activeModelOptions.value.find(option =>
+  option.id === generatedModel.value[activeAnalysisTab.value])?.label || '')
+
+function disposeModelCharts(tab) {
+  const refs = tab === 'trend' ? [trendChart]
+    : tab === 'turning' ? [turningChart] : [cycleModelChart]
+  refs.forEach(elRef => {
+    const inst = elRef.value && echarts.getInstanceByDom(elRef.value)
+    if (inst) { inst.dispose(); charts = charts.filter(chart => chart !== inst) }
+  })
+}
+function chooseModel(id) {
+  const tab = activeAnalysisTab.value
+  disposeModelCharts(tab)
+  selectedModel.value = { ...selectedModel.value, [tab]: id }
+  generatedModel.value = { ...generatedModel.value, [tab]: null }
+}
+function renderSelectedChart(tab) {
+  if (!generatedModel.value[tab]) return
+  if (tab === 'trend') initTrendChart()
+  else if (tab === 'turning') initTurningChart()
+  else initCycleModelChart()
+}
+function generateModelCurve() {
+  const tab = activeAnalysisTab.value
+  const id = selectedModel.value[tab]
+  if (!activeModelOptions.value.some(option => option.id === id)) return
+  disposeModelCharts(tab)
+  generatedModel.value = { ...generatedModel.value, [tab]: id }
+  nextTick(() => renderSelectedChart(tab))
+}
+
+function selectAnalysisTab(tab) {
+  if (activeAnalysisTab.value === tab) return
+  disposeModelCharts(activeAnalysisTab.value)
+  activeAnalysisTab.value = tab
+  nextTick(() => renderSelectedChart(tab))
+}
 const loading = ref(true)
 const error = ref(null)
 const verifyDrawer = ref(false)
@@ -737,6 +757,25 @@ const isAuto = computed(() => props.scenario === 'auto')
 
 // ── 从 API 数据派生 ─────────────────────
 const dashboardSummary = computed(() => chartData.value?.dashboardSummary || [])
+const scenarioRiskSummary = computed(() => {
+  const forecast = chartData.value?.forecastAssessment || {}
+  const basis = forecast.basis || {}
+  const start = String(forecast.timeWindow?.start || '')
+  const end = String(forecast.timeWindow?.end || '')
+  const startYear = Number(start.slice(0, 4))
+  const startMonth = Number(start.slice(5, 7))
+  const endYear = Number(end.slice(0, 4))
+  const endMonth = Number(end.slice(5, 7))
+  const sameQuarter = startYear && startYear === endYear && startMonth >= 1 && startMonth <= 12 &&
+    endMonth >= 1 && endMonth <= 12 && Math.ceil(startMonth / 3) === Math.ceil(endMonth / 3)
+  const period = sameQuarter ? `${startYear} 年第${['一', '二', '三', '四'][Math.ceil(startMonth / 3) - 1]}季度` :
+    (start && end ? `${start} 至 ${end}` : '当前计划期')
+  const high = Number(basis.highRiskRouteCount || 0)
+  const routes = Number(basis.relatedRouteCount || 0)
+  if (high > 0) return `${period}涉及 ${high} 条当前高风险路线；建议预备替代路线并留出交付缓冲。`
+  if (routes > 0) return `${period}的相关路线当前未标为高风险；执行前仍需核验运输与交付条件。`
+  return `${period}缺少可评估的路线风险数据，暂不能判断交付风险方向。`
+})
 const modelComparison = computed(() => chartData.value?.modelComparison || { xAxis: [], models: [] })
 const scenarioEvolution = computed(() => chartData.value?.scenarioEvolution || { xAxis: [], scenarios: [], interpretations: [] })
 
@@ -752,6 +791,34 @@ const trendInfo = computed(() => {
     anom: t.anomalies || [], cp: t.change_points || [], fc: t.forecast,
     sum: t.summary, side: t.sideways, evidence: t.evidence || [],
   }
+})
+const showModelForecast = computed(() => isCurrentTrendResult(analysis.value))
+const displayedTrendPath = computed(() => {
+  const fc = trendInfo.value?.fc
+  const chosen = generatedModel.value.trend
+  if (!fc || !chosen || chosen === 'ensemble') return fc || null
+  return (fc.model_forecasts || []).find(path => path.model === chosen) || fc
+})
+const displayedTrendValues = computed(() => displayedTrendPath.value?.values || [])
+const displayedTrendLabel = computed(() => displayedTrendPath.value?.label ||
+  displayedTrendPath.value?.model_label || '模型待选择')
+const displayedForecastText = computed(() => {
+  if (!generatedModel.value.trend || generatedModel.value.trend === 'ensemble') {
+    return trendInfo.value?.sum?.forecast_text || forecastCaveat.value
+  }
+  const last = displayedTrendValues.value.at(-1)
+  return `${displayedTrendLabel.value}：仅用截至 ${trendInfo.value?.fc?.last_actual_year} 年的历史价格拟合，2030 年模型值 ${num(last)} $/lb。单模型外推不是确定的逐年价格；其他方法结果可在上方选择。`
+})
+const forecastUsable = computed(() => {
+  const fc = trendInfo.value?.fc
+  if (!fc) return false
+  const dataGap = (fc.current_year || new Date().getFullYear()) - Number(fc.last_actual_year)
+  return fc.decision_usable !== false && dataGap < 2 && fc.confidence !== 'low'
+})
+const forecastCaveat = computed(() => {
+  const fc = trendInfo.value?.fc
+  if (!fc) return '缺少可验证的目标期价格预测。'
+  return `价格实测止于${fc.last_actual_year}年，距离目标采购期多年。${fc.model_label || fc.model}仅用历史价格外推，未纳入2026年四季度哈萨克斯坦供货、俄乌冲突相关运输风险、铁路运力、合同报价和交付条件；不能判断未来几年持续上涨，也不能据此决定锁价或采购量。`
 })
 const turningInfo = computed(() => {
   const t = analysis.value?.turningPoint
@@ -1105,7 +1172,7 @@ const pendingCycleKeys = computed(() => Object.keys(cycleCards.value || {}).filt
 const pendingTurnKeys = computed(() => Object.keys(turningCards.value || {}).filter(k => turningCards.value[k] && turningCards.value[k].confidence === 'unavailable'))
 const priceOutlookText = computed(() => {
   const fc = trendInfo.value?.fc
-  if (!fc || !fc.forecast_end_year) return '—'
+  if (!fc || !fc.forecast_end_year || !forecastUsable.value) return forecastCaveat.value
   const dir = fc.direction === 'up' ? '温和上行' : fc.direction === 'down' ? '下行' : '震荡'
   return `若基准预测路径成立，价格中枢预计至 ${fc.forecast_end_year} 保持${dir}（累计 ${sign(fc.predicted_change_pct)}）`
 })
@@ -1120,33 +1187,34 @@ const evKeyValue = (l, v) => {
   }
   return v
 }
-// 预测节点 2028/2030/2032(直接取后端 forecast 数组, 不另算)
+// 预测节点 2026/2028/2030(直接取后端 forecast 数组, 不另算)
 const fcNodes = computed(() => {
   const t = analysis.value?.trend
   if (!t) return []
   const fc = t.forecast || {}
   const fy = fc.forecast_years || []
   const out = []
-  for (const y of [2028, 2030, 2032]) {
+  for (const y of [2026, 2028, 2030]) {
     const i = fy.findIndex(v => String(v) === String(y))
-    if (i >= 0 && fc.values && fc.values[i] != null) {
-      out.push({ year: y, mean: fc.values[i], lo80: (fc.lower_80 || [])[i], hi80: (fc.upper_80 || [])[i], lo95: (fc.lower_95 || [])[i], hi95: (fc.upper_95 || [])[i] })
+    if (i >= 0 && displayedTrendValues.value[i] != null) {
+      out.push({ year: y, mean: displayedTrendValues.value[i], lo80: (fc.lower_80 || [])[i], hi80: (fc.upper_80 || [])[i], lo95: (fc.lower_95 || [])[i], hi95: (fc.upper_95 || [])[i] })
     }
   }
   return out
 })
 
 // 趋势主图时间窗口与概览(纯前端视图控制, 不参与业务计算)
-const trendWindow = ref('recent')
+const trendWindow = ref('all')
 const trendOverviewChart = ref(null)
 const trendWindows = [
-  { key: 'recent', label: '近期(2016–2032)' },
+  { key: 'recent', label: '近5年–2030' },
   { key: '10y', label: '10Y' },
   { key: 'all', label: '全历史' },
 ]
 const setTrendWindow = (k) => { trendWindow.value = k; nextTick(() => initTrendChart()) }
 const priceStageShort = computed(() => {
   const pc = dec.value?.cycle?.price
+  if (!forecastUsable.value) return `历史价格仅截至${trendInfo.value?.fc?.last_actual_year || '未知'}年；目标期方向待核验`
   if (pc && pc.status !== 'unavailable' && pc.label) return pc.label
   if (trendInfo.value && trendInfo.value.sum) return trendInfo.value.sum.recent_text
   return '—'
@@ -1157,9 +1225,13 @@ const forecastAt = (y) => {
   const fc = t.forecast || {}
   const fy = fc.forecast_years || []
   const i = fy.findIndex(v => String(v) === String(y))
-  return i >= 0 && fc.values ? fc.values[i] : null
+  return i >= 0 ? displayedTrendValues.value[i] ?? null : null
 }
-const pi2032 = computed(() => fcNodes.value)
+const modelAt = (model, year) => {
+  const fy = trendInfo.value?.fc?.forecast_years || []
+  const i = fy.findIndex(v => Number(v) === year)
+  return i < 0 ? null : model?.values?.[i]
+}
 
 const gprTitle = computed(() => {
   const gpr = chartData.value?.gprPrediction
@@ -1196,28 +1268,55 @@ const levelStyle = (lv) => {
   return m[lv] || m['中']
 }
 
+// 任务产物和案例包会长期保存；不能用旧 Holt 结果冒充当前的多模型预测。
+function isCurrentTrendResult(situation) {
+  const trend = situation?.trend
+  const fc = trend?.forecast
+  const years = fc?.forecast_years
+  const models = fc?.model_forecasts
+  return situation?.series?.source_revision === 'imf-puranusda-annual-2025-v1' &&
+    Number(situation?.values?.[situation?.xAxis?.indexOf('2025')]) === 58.765 &&
+    trend?.status === 'success' && fc?.model === 'RMSEWeightedEnsemble' &&
+    Array.isArray(years) && years.length > 0 && Number(years.at(-1)) >= 2030 &&
+    Array.isArray(fc.values) && fc.values.length === years.length &&
+    Array.isArray(models) && models.length >= 3 &&
+    models.every(model => Array.isArray(model.values) && model.values.length === years.length) &&
+    String(trend.sample_end) === String(fc.last_actual_year) &&
+    String(trend.x_axis?.at(-1)) === String(fc.last_actual_year)
+}
+
 // ── API 数据获取 ─────────────────────────
 async function fetchData() {
   loading.value = true
   error.value = null
+  analysisRefreshed.value = false
   try {
-    if (props.initialData) {
-      chartData.value = props.initialData
-      initLossFromAnalysis()
-      await nextTick()
-      initAllCharts()
-      return
+    let data = props.initialData
+    if (!data || (props.scenario === 'uranium' && !isCurrentTrendResult(data.situationAnalysis))) {
+      const res = await getResearchData(props.scenario)
+      if (!res.success) throw new Error(res.message || '接口未返回预测结果')
+      if (props.scenario === 'uranium' && !isCurrentTrendResult(res.data?.situationAnalysis)) {
+        throw new Error('预测服务仍返回旧版模型结果，请更新并重启后端服务后重试。')
+      }
+      if (data) {
+        // 保留任务自己的风险上下文，只替换过期的价格分析块。
+        const latestPriceCard = res.data.dashboardSummary?.[0]
+        const summary = data.dashboardSummary?.map((item, index) =>
+          index === 0 && latestPriceCard ? { ...item, ...latestPriceCard } : item)
+        data = { ...data, dashboardSummary: summary || res.data.dashboardSummary,
+          situationAnalysis: res.data.situationAnalysis }
+        analysisRefreshed.value = true
+      } else {
+        data = res.data
+      }
     }
-    const res = await getResearchData(props.scenario)
-    if (res.success) {
-      chartData.value = res.data
-      initLossFromAnalysis()
-      await nextTick()
-      initAllCharts()
-    } else {
-      error.value = res.message || '未知错误'
-    }
+    chartData.value = data
+    generatedModel.value = { trend: null, turning: null, cycle: null }
+    initLossFromAnalysis()
+    await nextTick()
+    initAllCharts()
   } catch (e) {
+    chartData.value = null
     error.value = e.message || '网络请求失败'
   } finally {
     loading.value = false
@@ -1235,164 +1334,94 @@ function chartSeriesMeta() {
 
 // ── 趋势分析图（真实历史 + 真实外推） ─────
 function initTrendChart() {
-  if (!trendChart.value || !trendInfo.value) return
-  const inst = echarts.getInstanceByDom(trendChart.value); if (inst) inst.dispose()
-  const c = echarts.init(trendChart.value); charts.push(c)
+  const el = trendChart.value
   const ti = trendInfo.value
-  const axis = ti.axis
-  const n = axis.length
+  if (!el || !ti || !generatedModel.value.trend) return
+  const old = echarts.getInstanceByDom(el); if (old) old.dispose()
+  const c = echarts.init(el); charts.push(c)
+  const axis = ti.axis || []
+  const history = ti.hist || []
   const fc = ti.fc || {}
-  const fy = fc.forecast_years || []
-  const h = fy.length
-  const hist = ti.hist || []
-  const cat = axis.concat(fy.map(y => `${y}E`))
-  const padH = nulls(h)
-  const padArr = (arr) => (arr && arr.length ? arr.concat(padH) : nulls(n).concat(padH))
-  const fyIdx = new Map(fy.map((s, i) => [Number(s), n + i]))
-  const lastY = fc.last_actual_year != null ? Number(fc.last_actual_year) : Number(axis[axis.length - 1])
-  const curY = fc.current_year != null ? Number(fc.current_year) : lastY + 1
-
-  // 分段主轨迹：每段含“共享边界点”(仅引用真实/同一预测值，不重算、不插值)
-  const A = nulls(cat.length)
-  hist.forEach((v, i) => { A[i] = v })
-  const G = nulls(cat.length)
-  if (lastY >= Number(axis[0])) G[n - 1] = hist[n - 1]
-  fy.forEach((s, i) => { const y = Number(s); if (fc.values && y > lastY && y <= curY) G[fyIdx.get(y)] = fc.values[i] })
-  const F = nulls(cat.length)
-  fy.forEach((s, i) => { const y = Number(s); if (fc.values && y >= curY) F[fyIdx.get(y)] = fc.values[i] })
-  const curIdx = fyIdx.get(curY)
-  const curVal = curIdx != null && fc.values ? fc.values[curIdx - n] : null
-
-  // 时间窗口
-  let i0 = 0
-  if (trendWindow.value === 'recent') { const s2 = axis.indexOf('2016'); i0 = s2 >= 0 ? s2 : Math.max(0, axis.length - 5) }
-  else if (trendWindow.value === '10y') i0 = Math.max(0, cat.length - 10)
-  const i1 = cat.length - 1
-  const visCat = cat.slice(i0, i1 + 1)
-  const slic = (arr) => (arr ? arr.slice(i0, i1 + 1) : arr)
-
-  // Y 范围只由可见 Actual+Estimate+ForecastMean 决定
-  const yvals = []
-  for (let i = i0; i <= i1; i++) {
-    const v = i < n ? hist[i] : (fc.values || [])[i - n]
-    if (v != null && isFinite(v)) yvals.push(v)
+  const futureYears = fc.forecast_years || []
+  const categories = axis.concat(futureYears.map(year => `${year}E`))
+  const n = axis.length
+  const isEnsemble = generatedModel.value.trend === 'ensemble'
+  const modelPaths = isEnsemble ? (fc.model_forecasts || []) :
+    (fc.model_forecasts || []).filter(model => model.model === generatedModel.value.trend)
+  let from = 0
+  if (trendWindow.value === 'recent') from = Math.max(0, n - 5)
+  if (trendWindow.value === '10y') from = Math.max(0, n - 10)
+  const visible = categories.slice(from)
+  const historical = history.concat(nulls(futureYears.length)).slice(from)
+  const connected = values => {
+    const points = nulls(categories.length)
+    if (n) points[n - 1] = history[n - 1]
+    values.forEach((value, index) => { points[n + index] = value })
+    return points.slice(from)
   }
-  let yMin = 0, yMax = 10
-  if (yvals.length) {
-    const mn = Math.min(...yvals), mx = Math.max(...yvals)
-    const pad = Math.max((mx - mn) * 0.15, 3)
-    yMin = Math.max(0, Math.floor(mn - pad)); yMax = Math.ceil(mx + pad)
-  }
-
-  // 80% 面积带（视觉用途，不进 Y 范围）
-  const bBase = nulls(cat.length)
-  const bH = nulls(cat.length)
-  if (fc.lower_80 && fc.upper_80) {
-    fy.forEach((_, i) => {
-      const idx = n + i
-      bBase[idx] = fc.lower_80[i]
-      bH[idx] = (fc.upper_80[i] != null && fc.lower_80[i] != null) ? fc.upper_80[i] - fc.lower_80[i] : null
-    })
-  }
+  const palette = { Naive: '#94a3b8', ETS: '#0ea5e9', ARIMA110: '#8b5cf6', ARIMA100: '#10b981', Theta: '#ec4899' }
   const series = [
-    { name: '实际价格', type: 'line', smooth: false, data: slic(A), lineStyle: { color: '#2563eb', width: 2.2 }, symbol: 'none', z: 3 },
-    { name: '缺失期估计', type: 'line', smooth: false, data: slic(G), lineStyle: { color: '#f59e0b', width: 2, type: 'dotted' }, symbol: 'none', z: 3 },
-    { name: '未来预测', type: 'line', smooth: false, data: slic(F), lineStyle: { color: '#d97706', width: 2.4, type: 'dashed' }, symbol: 'none', z: 3 },
+    { name: '历史实测', type: 'line', data: historical, smooth: false, symbol: 'none',
+      lineStyle: { color: '#2563eb', width: 2.6 }, z: 5 },
+    ...modelPaths.map(model => ({ name: model.label, type: 'line', data: connected(model.values || []),
+      smooth: false, symbol: 'none', lineStyle: { color: palette[model.model] || '#64748b', width: 1.5, type: 'dashed' }, z: 2 })),
+    ...(isEnsemble ? [{ name: '误差加权中心线', type: 'line', data: connected(fc.values || []), smooth: false, symbol: 'none',
+      lineStyle: { color: '#d97706', width: 3 }, z: 6,
+      markLine: n ? { silent: true, symbol: 'none', lineStyle: { color: '#cbd5e1', type: 'dotted' },
+        label: { formatter: `${axis[n - 1]} 实测截止`, color: '#64748b', fontSize: 10 }, data: [{ xAxis: axis[n - 1] }] } : undefined }] : []),
   ]
-  if (curVal != null && curIdx != null) {
-    series.push({ name: '当前年估计', type: 'scatter', data: [[curIdx, curVal]], symbol: 'circle', symbolSize: 9, itemStyle: { color: '#f59e0b', borderColor: '#fff', borderWidth: 2 }, label: { show: true, position: 'top', formatter: `${curY}E`, fontSize: 9, color: '#b45309' }, z: 6 })
-    series.push({ name: '_curLine', type: 'line', data: nulls(cat.length), lineStyle: { opacity: 0 }, symbol: 'none', markLine: { silent: true, symbol: 'none', lineStyle: { color: '#f59e0b', type: 'dashed', width: 1 }, label: { show: true, position: 'start', formatter: `${curY}E 当前年估计`, fontSize: 9, color: '#b45309' }, data: [{ xAxis: `${curY}E` }] } })
-  }
-  if (ti.recent && ti.recent.fit) series.push({ name: '近期趋势', type: 'line', data: slic(padArr(ti.recent.fit)), lineStyle: { color: '#f97316', width: 3 }, symbol: 'none', z: 2 })
-  if (ti.long && ti.long.fit_sen) series.push({ name: '长期稳健趋势(Theil-Sen)', type: 'line', data: slic(padArr(ti.long.fit_sen)), lineStyle: { color: '#2563eb', width: 1.6, type: 'dashed', opacity: 0.75 }, symbol: 'none', z: 1 })
-  if (ti.long && ti.long.fit) series.push({ name: '长期趋势(OLS)', type: 'line', data: slic(padArr(ti.long.fit)), lineStyle: { color: '#60a5fa', width: 1.4 }, symbol: 'none', z: 1 })
-  if (ti.roll && ti.roll.ma5) series.push({ name: 'MA5', type: 'line', data: slic(padArr(ti.roll.ma5)), lineStyle: { color: '#94a3b8', width: 1 }, symbol: 'none', z: 0 })
-  series.push({ name: '_b80base', type: 'line', data: slic(bBase), lineStyle: { opacity: 0 }, symbol: 'none', stack: 'b80', silent: true, tooltip: { show: false }, z: 0 })
-  series.push({ name: '_b80area', type: 'line', data: slic(bH), lineStyle: { opacity: 0 }, symbol: 'none', stack: 'b80', areaStyle: { color: 'rgba(249,115,22,0.14)' }, silent: true, tooltip: { show: false }, z: 0 })
-  if (trendWindow.value === 'all' && ti.anom && ti.anom.length) {
-    series.push({ name: '异常点', type: 'scatter', data: ti.anom.filter(a => axis.indexOf(String(a.year)) >= 0).map(a => ({ value: [axis.indexOf(String(a.year)), a.value], name: `${a.year}` })), symbol: 'pin', symbolSize: 22, itemStyle: { color: '#dc2626' }, label: { show: true, formatter: p => p.data.name, fontSize: 8, color: '#fff' }, z: 5 })
-  }
-
-  function dataTypeText(label) {
-    const y = Number(String(label).replace('E', ''))
-    if (isNaN(y)) return ['', '']
-    if (y <= lastY) return ['历史实际', '实际历史价格数据']
-    if (y === curY) return ['当前年估计', '当前年度模型估计（年度未完整/待核验）']
-    if (y < curY) return ['缺失期估计', '模型回填估计值，非实际历史数据']
-    return ['未来预测', '模型预测(Holt)']
-  }
-  const legendData = series.map(s => s.name).filter(x => !String(x).startsWith('_'))
-  const selected = {
-    '实际价格': true, '缺失期估计': true, '未来预测': true, '当前年估计': true,
-    '近期趋势': true, '长期稳健趋势(Theil-Sen)': true,
-    '长期趋势(OLS)': false, 'MA5': false, '异常点': false,
-  }
+  const values = [...history.slice(from), ...displayedTrendValues.value, ...modelPaths.flatMap(model => model.values || [])]
+    .filter(value => value != null && Number.isFinite(Number(value))).map(Number)
+  const low = values.length ? Math.min(...values) : 0
+  const high = values.length ? Math.max(...values) : 10
+  const pad = Math.max(3, (high - low) * 0.12)
   c.setOption({
-    tooltip: {
-      trigger: 'axis', confine: true,
-      formatter: (params) => {
-        const first = params && params[0]
-        if (!first) return ''
-        const label = String(first.axisValue || '')
-        const [type, note] = dataTypeText(label)
-        let val = null
-        for (const p of params) { if (p.value != null && isFinite(p.value)) { val = p.value; break } }
-        const lines = [`<b>${label}</b>`]
-        if (val != null) lines.push(`价格：${Number(val).toFixed(2)} $/lb`)
-        lines.push(`数据类型：<b>${type}</b>`)
-        if (String(label).includes('E') && type === '缺失期估计') lines.push(`<span style="color:#b45309">说明：${note}</span>`)
-        else if (type === '未来预测') lines.push(`<span style="color:#b45309">模型：${fc.model_label || 'Holt'}（${note}）</span>`)
-        else if (type === '当前年估计') lines.push(`<span style="color:#b45309">${note}</span>`)
-        return lines.join('<br/>')
-      },
-    },
-    legend: { top: 2, left: 4, data: legendData, selected, type: 'scroll', textStyle: { fontSize: 10 } },
-    grid: { left: 66, right: 36, top: 40, bottom: 30 },
-    xAxis: { type: 'category', data: visCat, axisLabel: { rotate: 45, fontSize: 9 } },
-    yAxis: { type: 'value', name: '$/lb', nameLocation: 'middle', nameGap: 46, min: yMin, max: yMax },
+    tooltip: { trigger: 'axis', confine: true, formatter: params => {
+      if (!params?.length) return ''
+      const label = String(params[0].axisValue || '')
+      const lines = [`<b>${label}</b>`, label.endsWith('E') ? '模型外推（非实测）' : '历史实测']
+      params.forEach(point => {
+        if (point.value != null && Number.isFinite(Number(point.value)) && !String(point.seriesName).startsWith('_'))
+          lines.push(`${point.marker}${point.seriesName}：${Number(point.value).toFixed(2)} $/lb`)
+      })
+      return lines.join('<br/>')
+    } },
+    legend: { top: 2, left: 4, type: 'scroll', data: series.map(item => item.name), textStyle: { fontSize: 10 } },
+    grid: { left: 64, right: 30, top: 42, bottom: 35 },
+    xAxis: { type: 'category', data: visible, axisLabel: { rotate: 45, fontSize: 9 } },
+    yAxis: { type: 'value', name: '$/lb', nameLocation: 'middle', nameGap: 44,
+      min: 0, max: Math.ceil(high + pad) },
     series,
   })
 }
 
-// Historical Overview: 1997-2032 连续主轨迹（共享边界点） + Theil-Sen
 function initTrendOverviewChart() {
   const el = trendOverviewChart.value
-  if (!el || !trendInfo.value) return
-  const inst = echarts.getInstanceByDom(el); if (inst) inst.dispose()
-  const c = echarts.init(el); charts.push(c)
   const ti = trendInfo.value
-  const axis = ti.axis
-  const n = axis.length
-  const fc = ti.fc || {}
-  const fy = fc.forecast_years || []
-  const h = fy.length
-  const hist = ti.hist || []
-  const cat = axis.concat(fy.map(y => `${y}E`))
-  const lastY = fc.last_actual_year != null ? Number(fc.last_actual_year) : Number(axis[axis.length - 1])
-  const curY = fc.current_year != null ? Number(fc.current_year) : lastY + 1
-  const padH = nulls(h)
-  const A = (hist || []).concat(padH)
-  const G = nulls(cat.length)
-  if (lastY >= Number(axis[0])) G[n - 1] = hist[n - 1]
-  fy.forEach((s, i) => { const y = Number(s); if (fc.values && y > lastY && y <= curY) G[n + i] = fc.values[i] })
-  const F = nulls(cat.length)
-  fy.forEach((s, i) => { const y = Number(s); if (fc.values && y >= curY) F[n + i] = fc.values[i] })
-  const sen = ti.long && ti.long.fit_sen ? (ti.long.fit_sen || []).concat(padH) : null
+  if (!el || !ti || !generatedModel.value.trend) return
+  const old = echarts.getInstanceByDom(el); if (old) old.dispose()
+  const c = echarts.init(el); charts.push(c)
+  const history = ti.hist || []
+  const fy = ti.fc?.forecast_years || []
+  const categories = (ti.axis || []).concat(fy.map(year => `${year}E`))
+  const actual = history.concat(nulls(fy.length))
+  const projected = nulls(categories.length)
+  if (history.length) projected[history.length - 1] = history[history.length - 1]
+  displayedTrendValues.value.forEach((value, i) => { projected[history.length + i] = value })
   c.setOption({
     tooltip: { trigger: 'axis', confine: true },
-    grid: { left: 52, right: 30, top: 6, bottom: 22 },
-    xAxis: { type: 'category', data: cat, axisLabel: { interval: 5, rotate: 30, fontSize: 8 } },
+    grid: { left: 52, right: 28, top: 12, bottom: 24 },
+    xAxis: { type: 'category', data: categories, axisLabel: { interval: 5, rotate: 30, fontSize: 8 } },
     yAxis: { type: 'value', name: '$/lb', nameLocation: 'middle', nameGap: 40 },
     series: [
-      { name: '实际', type: 'line', data: A, lineStyle: { color: '#2563eb', width: 1.4 }, symbol: 'none', z: 3 },
-      { name: '缺失期估计', type: 'line', data: G, lineStyle: { color: '#f59e0b', width: 1.2, type: 'dotted' }, symbol: 'none', z: 3 },
-      { name: '未来预测', type: 'line', data: F, lineStyle: { color: '#d97706', width: 1.4, type: 'dashed' }, symbol: 'none', z: 3 },
-      ...(sen ? [{ name: 'Theil-Sen', type: 'line', data: sen, lineStyle: { color: '#2563eb', width: 1.1, type: 'dashed', opacity: 0.6 }, symbol: 'none', z: 1 }] : []),
+      { name: '历史实测', type: 'line', data: actual, smooth: false, symbol: 'none', lineStyle: { color: '#2563eb', width: 1.6 } },
+      { name: displayedTrendLabel.value, type: 'line', data: projected, smooth: false, symbol: 'none', lineStyle: { color: '#d97706', width: 1.6, type: 'dashed' } },
     ],
   })
 }
+
 function initTurningChart() {
-  if (!turningChart.value || !turningInfo.value) return
+  if (!turningChart.value || !turningInfo.value || !generatedModel.value.turning) return
   const inst = echarts.getInstanceByDom(turningChart.value); if (inst) inst.dispose()
   const c = echarts.init(turningChart.value); charts.push(c)
   const meta = chartSeriesMeta()
@@ -1405,8 +1434,15 @@ function initTurningChart() {
     ;(p.type === 'peak' ? peaks : troughs).push({ value: [i, p.value], date: p.date, val: p.value })
   })
   const series = [{ name: '价格', type: 'line', smooth: false, data: meta.values, lineStyle: { color: '#2563eb', width: 2.2 }, itemStyle: { color: '#2563eb' }, symbolSize: 5, z: 1 }]
-  if (peaks.length) series.push({ name: '高点拐点', type: 'scatter', data: peaks, symbol: 'pin', symbolSize: 40, itemStyle: { color: '#ef4444' }, label: { show: true, formatter: p => `${p.data.date}`, fontSize: 9, color: '#fff', position: 'top' }, z: 3 })
-  if (troughs.length) series.push({ name: '低点拐点', type: 'scatter', data: troughs, symbol: 'pin', symbolSize: 34, itemStyle: { color: '#10b981' }, label: { show: true, formatter: p => `${p.data.date}`, fontSize: 9, color: '#fff', position: 'bottom' }, z: 3 })
+  if (generatedModel.value.turning === 'peaks') {
+    if (peaks.length) series.push({ name: '高点拐点', type: 'scatter', data: peaks, symbol: 'pin', symbolSize: 40, itemStyle: { color: '#ef4444' }, label: { show: true, formatter: p => `${p.data.date}`, fontSize: 9, color: '#fff', position: 'top' }, z: 3 })
+    if (troughs.length) series.push({ name: '低点拐点', type: 'scatter', data: troughs, symbol: 'pin', symbolSize: 34, itemStyle: { color: '#10b981' }, label: { show: true, formatter: p => `${p.data.date}`, fontSize: 9, color: '#fff', position: 'bottom' }, z: 3 })
+  } else {
+    const ma = window => meta.values.map((_, index) => index + 1 < window ? null :
+      Number((meta.values.slice(index + 1 - window, index + 1).reduce((sum, value) => sum + Number(value), 0) / window).toFixed(2)))
+    series.push({ name: 'SMA(3)', type: 'line', data: ma(3), smooth: false, symbol: 'none', lineStyle: { color: '#f59e0b', width: 2 } })
+    series.push({ name: 'SMA(6)', type: 'line', data: ma(6), smooth: false, symbol: 'none', lineStyle: { color: '#8b5cf6', width: 2 } })
+  }
   c.setOption({
     tooltip: { trigger: 'axis' },
     legend: { top: 4, right: 10, data: series.map(s => s.name) },
@@ -1427,6 +1463,37 @@ function histYearAxis(n0) {
     out.push(...chartSeriesMeta().xAxis.slice(0, n0))
   }
   return out
+}
+
+function initCycleModelChart() {
+  const el = cycleModelChart.value
+  const cy = cycle.value
+  const chosen = generatedModel.value.cycle
+  if (!el || !cy || !chosen || !cycleShown.value) return
+  const old = echarts.getInstanceByDom(el); if (old) old.dispose()
+  const c = echarts.init(el); charts.push(c)
+  const harmonic = chosen === 'harmonic'
+  const observed = harmonic ? (cy.detrended_series || []) : (cy.historical_series || [])
+  const fit = harmonic ? (cy.cycle_component || []) : (cy.cycle_fit || [])
+  const future = harmonic ? (cy.forecast_cycle_component || []) : (cy.cycle_forecast || [])
+  const years = histYearAxis(observed.length).concat(cy.forecast_years || [])
+  const actualLine = observed.concat(nulls(future.length))
+  const fittedLine = fit.concat(nulls(future.length))
+  const projectedLine = nulls(observed.length + future.length)
+  if (fit.length) projectedLine[observed.length - 1] = fit[fit.length - 1]
+  future.forEach((value, index) => { projectedLine[observed.length + index] = value })
+  c.setOption({
+    tooltip: { trigger: 'axis', confine: true },
+    legend: { top: 4, left: 8, textStyle: { fontSize: 10 } },
+    grid: { left: 62, right: 26, top: 42, bottom: 36 },
+    xAxis: { type: 'category', data: years, axisLabel: { rotate: 35, fontSize: 9 } },
+    yAxis: { type: 'value', name: harmonic ? '去趋势偏离 $/lb' : '$/lb', nameLocation: 'middle', nameGap: 46 },
+    series: [
+      { name: harmonic ? '历史去趋势波动' : '历史价格', type: 'line', data: actualLine, smooth: false, symbol: 'none', lineStyle: { color: '#2563eb', width: 1.8 } },
+      { name: harmonic ? '谐波拟合' : '趋势+周期历史拟合', type: 'line', data: fittedLine, smooth: false, symbol: 'none', lineStyle: { color: '#7c3aed', width: 2 } },
+      { name: harmonic ? '谐波分量外推' : '趋势+周期价格外推', type: 'line', data: projectedLine, smooth: false, symbol: 'none', lineStyle: { color: '#c084fc', width: 2, type: 'dashed' } },
+    ],
+  })
 }
 
 // ── 周期主图：候选周期频谱强度（横向条形，非价格曲线） ──
@@ -1488,6 +1555,10 @@ function initGprChart() {
   if (existingInstance) existingInstance.dispose()
   const c = echarts.init(gprChart.value); charts.push(c)
   const d = chartData.value.gprPrediction
+  const isScenario = d.status === 'demo'
+  const bandName = isScenario ? '情景范围' : '95%置信区间'
+  const baseName = isScenario ? '情景基准段' : (d.series[0]?.name || '历史')
+  const pathName = isScenario ? '后续情景路径' : (d.series[1]?.name || '预测')
 
   const bandData = d.series[2]?.data?.map((v, i) => {
     const lo = d.series[3]?.data?.[i]
@@ -1496,28 +1567,28 @@ function initGprChart() {
 
   const series = [
     ...(bandData.some(b => b != null) ? [{
-      name: '95%置信区间', type: 'line', data: bandData, smooth: true,
+      name: bandName, type: 'line', data: bandData, smooth: true,
       lineStyle: { opacity: 0 }, symbol: 'none',
       areaStyle: { color: 'rgba(239,68,68,0.1)', origin: 'auto' }, z: 0
     }] : []),
     {
-      name: d.series[0]?.name || '历史', type: 'line', smooth: true,
+      name: baseName, type: 'line', smooth: true,
       data: d.series[0]?.data || [],
       lineStyle: { color: '#2563eb', width: 2.5 }, itemStyle: { color: '#2563eb' }, z: 3
     },
     {
-      name: d.series[1]?.name || '预测', type: 'line', smooth: true,
+      name: pathName, type: 'line', smooth: true,
       data: d.series[1]?.data || [],
       lineStyle: { color: '#ef4444', width: 2.5, type: 'dashed' },
       itemStyle: { color: '#ef4444' }, symbol: 'diamond', symbolSize: 8, z: 2
     },
     {
-      name: '95%置信上界', type: 'line', smooth: true,
+      name: isScenario ? '情景上界' : '95%置信上界', type: 'line', smooth: true,
       data: d.series[2]?.data || [],
       lineStyle: { color: '#fca5a5', width: 1, type: 'dotted' }, symbol: 'none', z: 1
     },
     {
-      name: '95%置信下界', type: 'line', smooth: true,
+      name: isScenario ? '情景下界' : '95%置信下界', type: 'line', smooth: true,
       data: d.series[3]?.data || [],
       lineStyle: { color: '#fca5a5', width: 1, type: 'dotted' }, symbol: 'none', z: 1
     }
@@ -1525,7 +1596,7 @@ function initGprChart() {
 
   c.setOption({
     tooltip: { trigger: 'axis' },
-    legend: { top: 8, right: 10, data: [d.series[0]?.name, d.series[1]?.name, '95%置信区间'].filter(Boolean) },
+    legend: { top: 8, right: 10, data: [baseName, pathName, bandName] },
     grid: { left: 78, right: 48, top: 45, bottom: 35 },
     xAxis: { type: 'category', data: d.xAxis, axisLabel: { rotate: 30, fontSize: 10 } },
     yAxis: { type: 'value', name: isAuto.value ? '万辆/月' : (d.unit || '$/lb'), nameLocation: 'middle', nameGap: 54 },
@@ -1591,7 +1662,7 @@ function initModelCompareChart() {
   const yMax = Math.ceil(Math.max(...allVals) * 1.08)
 
   const series = d.models.map((m, idx) => ({
-    name: m.name, type: 'line', smooth: true, data: m.data,
+    name: d.status === 'demo' ? `情景路径 ${idx + 1}` : m.name, type: 'line', smooth: true, data: m.data,
     lineStyle: { color: m.color, width: lineWidths[idx] || 2.5, type: lineStyles[idx] || 'solid' },
     symbol: symbols[idx] || 'circle', symbolSize: idx === 0 ? 10 : 8,
     itemStyle: { color: m.color }, emphasis: { focus: 'series' }
@@ -1599,7 +1670,7 @@ function initModelCompareChart() {
 
   c.setOption({
     tooltip: { trigger: 'axis' },
-    legend: { top: 8, right: 10, data: d.models.map(m => m.name) },
+    legend: { top: 8, right: 10, data: series.map(item => item.name) },
     grid: { left: 74, right: 44, top: 45, bottom: 35 },
     xAxis: { type: 'category', data: d.xAxis },
     yAxis: { type: 'value', name: isAuto.value ? '万辆/月' : '$/lb', nameLocation: 'middle', nameGap: 52,
@@ -1626,7 +1697,7 @@ function initScenarioEvoChart() {
     legend: { top: 8, right: 10, data: d.scenarios.map(s => s.name) },
     grid: { left: 55, right: 30, top: 45, bottom: 35 },
     xAxis: { type: 'category', data: d.xAxis },
-    yAxis: { type: 'value', name: '概率(%)', nameLocation: 'middle', nameGap: 48, max: 70,
+    yAxis: { type: 'value', name: d.status === 'demo' ? '情景权重(%)' : '概率(%)', nameLocation: 'middle', nameGap: 48, max: 70,
              axisLabel: { formatter: '{value}%' } },
     series
   })
@@ -1634,7 +1705,7 @@ function initScenarioEvoChart() {
 
 // ── 初始化所有图表 ─────────────────────────
 function initAllCharts() {
-  ;[gprChart, gapChart, modelCompareChart, scenarioEvoChart, trendChart, trendOverviewChart, turningChart, cycleChart, cycleCompChart, lossChart, lossDriversChart].forEach(elRef => {
+  ;[gprChart, gapChart, modelCompareChart, scenarioEvoChart, trendChart, turningChart, cycleChart, cycleCompChart, cycleModelChart, lossChart, lossDriversChart].forEach(elRef => {
     if (elRef.value) {
       const inst = echarts.getInstanceByDom(elRef.value)
       if (inst) inst.dispose()
@@ -1644,10 +1715,10 @@ function initAllCharts() {
   charts = []
   setTimeout(() => {
     initTrendChart()
-    initTrendOverviewChart()
     initTurningChart()
     initCycleChart()
     initCycleCompChart()
+    initCycleModelChart()
     initGprChart()
     initLossCharts()
     initGapChart()
@@ -1711,6 +1782,10 @@ onUnmounted(() => {
 
 /* 分区 */
 .pred-section { margin-bottom: 1.2rem; }
+.scenario-risk-summary { padding: 12px 16px; background: #f4f8ff; border: 1px solid #cddff9; border-radius: 10px; }
+.scenario-risk-summary h2 { margin: 0 0 7px; font-size: 0.95rem; color: #1e293b; }
+.scenario-risk-summary p { margin: 3px 0; font-size: 0.78rem; line-height: 1.55; color: #334155; }
+.scenario-risk-summary .scenario-risk-basis { color: #64748b; }
 .pred-section-title { display: flex; align-items: center; gap: 8px; font-size: 1.02rem; font-weight: 800; color: #1e293b; margin-bottom: 0.7rem; }
 .pred-section-mark { width: 4px; height: 16px; border-radius: 2px; background: linear-gradient(180deg, #3b82f6, #2563eb); }
 .pred-section-sub { font-size: 0.75rem; color: #94a3b8; font-weight: 500; margin-left: 2px; }
@@ -1728,6 +1803,28 @@ onUnmounted(() => {
 .pred-card-title { font-size: 0.9rem; font-weight: 700; color: #1e293b; margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid #f1f5f9; }
 .pred-chart { width: 100%; height: 280px; }
 
+/* 分析视图切换 */
+.analysis-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 1rem; }
+.analysis-tab { padding: 9px 18px; border: 1px solid #cbd5e1; border-radius: 9px; background: #fff; color: #475569; font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
+.analysis-tab:hover { border-color: #3b82f6; color: #1d4ed8; }
+.analysis-tab.active { background: #2563eb; border-color: #2563eb; color: #fff; }
+.analysis-tab:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+.analysis-method { font-size: 0.73rem; line-height: 1.5; color: #64748b; }
+.model-picker { margin: -3px 0 14px; padding: 12px 14px; border: 1px solid #dbeafe; border-radius: 10px; background: #f8fbff; }
+.model-picker-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; margin-bottom: 9px; }
+.model-picker-head b { color: #1e3a8a; font-size: 0.82rem; }
+.model-picker-head span, .model-picker-action span { color: #64748b; font-size: 0.7rem; }
+.model-picker-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 7px; }
+.model-picker-option { text-align: left; display: flex; flex-direction: column; gap: 3px; min-height: 66px; padding: 8px 10px; border: 1px solid #dbe4f0; border-radius: 8px; background: #fff; cursor: pointer; }
+.model-picker-option:hover { border-color: #60a5fa; }
+.model-picker-option.active { border-color: #2563eb; background: #eff6ff; box-shadow: inset 0 0 0 1px #2563eb; }
+.model-picker-option:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+.model-picker-option strong { font-size: 0.74rem; color: #1e3a8a; }
+.model-picker-option small { font-size: 0.66rem; line-height: 1.45; color: #64748b; }
+.model-picker-action { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+.cycle-model-result { margin: 10px 0; }
+.cycle-model-chart { width: 100%; height: 260px; }
+
 /* 态势预测分析结果 */
 .analysis { display: block; }
 .ana-row { display: grid; grid-template-columns: 1fr; gap: 1rem; align-items: start; margin-bottom: 1rem; }
@@ -1737,6 +1834,8 @@ onUnmounted(() => {
 .trend-chips { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
 .trend-overall { margin: 0 0 0.5rem; padding: 8px 12px; background: #eff6ff; border: 1px solid #dbeafe; border-left: 3px solid #2563eb; border-radius: 8px; color: #1e40af; font-size: 0.82rem; line-height: 1.6; }
 .trend-main-chart { width: 100%; height: 320px; }
+.trend-chart-guide { display: flex; flex-wrap: wrap; gap: 5px 18px; margin-top: 8px; padding: 9px 12px; border-radius: 8px; background: #f8fafc; color: #64748b; font-size: 0.72rem; line-height: 1.55; }
+.trend-chart-guide b { color: #334155; }
 .trend-summary-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 8px 14px; margin-bottom: 6px; }
 .tsb-main { display: flex; gap: 8px; align-items: baseline; }
 .tsb-main b { font-size: 0.8rem; color: #1d4ed8; }
@@ -1787,7 +1886,7 @@ onUnmounted(() => {
 .ana-muted { color: #94a3b8; font-size: 0.75rem; }
 .ana-note { font-size: 0.7rem; color: #94a3b8; line-height: 1.5; }
 
-/* 周期与拐点态势（纯文字卡，无图表） */
+/* 周期分析（纯文字卡，无图表） */
 .cyc-brief { gap: 0.6rem; }
 .cb-lead { font-size: 0.85rem; color: #334155; line-height: 1.8; margin: 0; }
 .cb-lead b { color: #1e293b; }

@@ -58,6 +58,12 @@
             </div>
             <ExpertResultModeSwitch :stage="stage" />
           </div>
+          <div v-if="judgmentSnapshotStale" class="stage-notice">
+            <span>此任务保存的是旧快照（{{ artifactSnapshotId }}），节点和运输边仍按当时的模型分级。最新快照 {{ latestSnapshotId }} 已使用更新后的网络风险模型。</span>
+            <el-button type="danger" plain size="small" :loading="refreshingJudgment" @click="refreshJudgment">
+              按最新模型重新研判
+            </el-button>
+          </div>
           <!-- 已完成但产物缺失:明确报错,不能静默回退成背景数据 -->
           <div v-if="!liveArtifact || liveArtifact.result === undefined" class="stage-state-card is-failed">
             <div class="state-icon">!</div>
@@ -112,6 +118,7 @@ import { ElMessage } from 'element-plus'
 import { useExpertWorkflowStore } from '@/stores/scnet/useExpertWorkflowStore'
 import { useExpertExampleStore } from '@/stores/scnet/useExpertExampleStore'
 import { retryExpertStage } from '@/api/expertWorkflow'
+import { getLatestSnapshot } from '@/api/uraniumSituationSnapshot'
 import ExpertStageRunning from './ExpertStageRunning.vue'
 import ExpertExampleBadge from './ExpertExampleBadge.vue'
 import ExpertResultModeSwitch from './ExpertResultModeSwitch.vue'
@@ -142,6 +149,19 @@ const label = computed(
 
 const status = computed(() => store.stageStatus(props.stage))
 const liveArtifact = computed(() => store.artifacts?.[props.stage] || null)
+const artifactSnapshotId = computed(() => liveArtifact.value?.result?.global?.metrics?.snapshotId || '')
+const latestSnapshotId = ref('')
+const refreshingJudgment = ref(false)
+const judgmentSnapshotStale = computed(() => {
+  if (props.stage !== 'judgment' || status.value !== 'completed' || !latestSnapshotId.value) return false
+  const global = liveArtifact.value?.result?.global
+  const nodes = global?.nodes || []
+  const edges = global?.metrics?.edges || []
+  // 双驱动会在本次任务中生成独立快照 ID，不能单凭 ID 不同判断为旧模型。
+  return nodes.length > 0 && edges.length > 0
+    && (!nodes.some(node => Object.hasOwn(node, 'structural_guard_delta'))
+      || !edges.some(edge => Object.hasOwn(edge, 'topology_delta')))
+})
 const stageStartedAt = computed(() => store.stages?.[props.stage]?.started_at || '')
 const stageError = computed(() => store.stages?.[props.stage]?.error || '')
 
@@ -158,6 +178,32 @@ const hasUsableResult = computed(() => {
 })
 
 const isExampleMode = computed(() => store.displayMode === 'example')
+
+watch(() => [props.stage, status.value, artifactSnapshotId.value, store.displayMode], async ([stage, current, snapshotId, mode]) => {
+  if (stage !== 'judgment' || current !== 'completed' || mode !== 'live' || !snapshotId) return
+  try {
+    const result = await getLatestSnapshot('REAL')
+    latestSnapshotId.value = result?.data?.snapshot_id || ''
+  } catch {
+    latestSnapshotId.value = ''
+  }
+}, { immediate: true })
+
+async function refreshJudgment() {
+  if (refreshingJudgment.value) return
+  refreshingJudgment.value = true
+  try {
+    await retryExpertStage(props.sessionId, 'judgment')
+    store.stopPolling()
+    await store.refresh(props.sessionId)
+    store.ensurePolling(props.sessionId)
+    ElMessage.success('已启动态势研判及后续阶段重算，完成后主页和复杂网络图会使用同一份新结果')
+  } catch (e) {
+    ElMessage.error(e?.message || '重新研判启动失败')
+  } finally {
+    refreshingJudgment.value = false
+  }
+}
 const exampleArtifact = computed(() => exampleStore.stageArtifacts?.[props.stage] || null)
 const exampleLoading = computed(() => Boolean(exampleStore.stageLoading?.[props.stage]))
 const exampleError = computed(() => exampleStore.stageError?.[props.stage] || '')
@@ -186,7 +232,7 @@ async function loadExampleStage(force = false) {
 
 async function viewExample() {
   try {
-    await loadExampleStage()
+    await loadExampleStage(true)
   } catch {
     return
   }

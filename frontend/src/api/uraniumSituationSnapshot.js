@@ -38,3 +38,7 @@ export function getModelRegistry() {
     method: 'get'
   })
 }
+
+export function getSituationAssessments() {
+  return request({ url: '/SCnet/uraniumDecision/situation-assessments', method: 'get' })
+}

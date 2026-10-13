@@ -20,7 +20,10 @@
          三个视角共用下面这一张地图与路线筛选,只切换注入的数据口径。 -->
     <div class="judgment-mode-row">
       <JudgmentModeTabs :mode="viewMode" @update:mode="onJudgmentModeChange" />
+      <button type="button" class="complex-network-button" :disabled="openingComplexNetwork" @click="openComplexNetwork">{{ openingComplexNetwork ? '刷新快照中…' : '复杂网络分析' }}</button>
     </div>
+
+    <ComplexNetworkAnalysis v-model="showComplexNetwork" :snapshot="snapshotData" :dual-judgment="dualJudgment" />
 
     <ChinaCurrentSituationBar v-if="mode === 'real'" />
 
@@ -72,7 +75,7 @@
 
         <!-- 地图上的数据来源标识:当前这张图到底是谁的结果 -->
         <div class="map-source-badge" :style="{ borderColor: modeInfo.accent, color: modeInfo.accent }">
-          {{ modeInfo.sourceLabel }}
+          {{ riskMethodLabel || modeInfo.sourceLabel }}
         </div>
       </section>
 
@@ -89,7 +92,7 @@
           </div>
           <!-- 当前视角的数据来源:三种研判展示的不是同一份结果 -->
           <div class="k2-source-row" :style="{ color: modeInfo.accent, background: modeInfo.accentSoft }">
-            {{ modeInfo.sourceLabel }}
+            {{ riskMethodLabel || modeInfo.sourceLabel }}
             <span v-if="viewMode === 'llm'" class="k2-source-note">（大模型不给风险分数，数值位为 —）</span>
           </div>
           <div v-if="viewMode === 'dual'" class="k2-dual-brief">
@@ -114,10 +117,16 @@
             <div class="k2-route-stats">
               <span v-if="viewMode === 'dual'">领域模型路线统计</span>
               <span>路线 <b>{{ viewRoutes.length }}</b></span>
-              <span>高风险 <b class="high">{{ routeStats.high }}</b></span>
-              <span>中风险 <b class="medium">{{ routeStats.medium }}</b></span>
-              <span>低风险 <b class="low">{{ routeStats.low }}</b></span>
-              <span v-if="routeStats.unknown">未研判 <b class="unknown">{{ routeStats.unknown }}</b></span>
+              <template v-if="assessmentKind">
+                <span>有模型影响 <b class="high">{{ routeStats.high + routeStats.medium }}</b></span>
+                <span>{{ assessmentKind === 'min_cut' ? '未列入当前瓶颈' : '无新增总量损失' }} <b class="unknown">{{ routeStats.unknown }}</b></span>
+              </template>
+              <template v-else>
+                <span>高风险 <b class="high">{{ routeStats.high }}</b></span>
+                <span>中风险 <b class="medium">{{ routeStats.medium }}</b></span>
+                <span>低风险 <b class="low">{{ routeStats.low }}</b></span>
+                <span v-if="routeStats.unknown">未研判 <b class="unknown">{{ routeStats.unknown }}</b></span>
+              </template>
             </div>
 
             <!-- 大模型视角:没有分数,只有定性等级与点名情况 -->
@@ -134,9 +143,9 @@
 
             <template v-else>
               <div v-if="routeRanking.length" class="k2-top-route">
-                {{ viewMode === 'dual' ? '领域模型最高风险路线' : '最高风险路线' }}:<b>{{ routeRanking[0].country }}</b>
-                <span :class="['risk-tag', routeRanking[0].level]">{{ riskText(routeRanking[0].level) }}</span>
-                <b class="k2-top-risk">{{ num(routeRanking[0].displayRisk) }}</b>
+                {{ assessmentKind === 'min_cut' ? '最小割关联路线' : assessmentKind === 'event_driven' ? '当前事件冲击最大路线' : assessmentKind === 'n1_capacity' ? '断供影响最大路线' : '最高风险路线' }}:<b>{{ routeRanking[0].country }}</b>
+                <span :class="['risk-tag', routeRanking[0].level]">{{ routeLevelText(routeRanking[0].level) }}</span>
+                <b class="k2-top-risk">{{ assessmentKind ? metricValueText(routeRanking[0].displayRisk) : num(routeRanking[0].displayRisk) }}</b>
               </div>
               <div class="k2-osint-sum">
                 REAL OSINT:<b>{{ osintSummary.effective }}</b> Effective /
@@ -148,7 +157,7 @@
           <!-- 当前路线(§26/§29/§34) -->
           <div v-else-if="currentRoute" class="k2-route-overview">
             <div class="k2-route-tags">
-              <span :class="['risk-tag', currentRoute.riskLevel]">{{ riskText(currentRoute.riskLevel) }}</span>
+              <span :class="['risk-tag', currentRoute.riskLevel]">{{ routeLevelText(currentRoute.riskLevel) }}</span>
               <span class="k2-transport">运输:{{ currentRoute.transport }}</span>
               <span v-if="viewMode === 'dual' && currentRoute.llmLevel" class="k2-agree" :class="'agree-' + currentRoute.agreement">
                 大模型{{ agreementText(currentRoute.agreement) }}
@@ -158,9 +167,12 @@
             <!-- 领域模型 / 双驱动:展示真实风险数值(双驱动地图着色同样来自领域模型) -->
             <template v-if="viewMode !== 'llm'">
               <div class="k2-scores">
-                <span>展示风险<b>{{ num(currentRoute.display_risk_score ?? currentRoute.risk_score) }}</b></span>
-                <span>原始风险<b>{{ num(currentRoute.raw_risk_score ?? currentRoute.risk_score) }}</b></span>
-                <span>校准<b>{{ routeCalibrationMethod(currentRoute) }}</b></span>
+                <span>{{ assessmentMetricName }}<b>{{ assessmentKind ? metricValueText(currentRoute.assessment_score) : num(currentRoute.display_risk_score ?? currentRoute.risk_score) }}</b></span>
+                <span v-if="assessmentKind">原路线风险<b>{{ currentRoute.baseline_risk_score == null ? '—' : num(currentRoute.baseline_risk_score) + '/100' }}</b></span>
+                <template v-if="!assessmentKind">
+                  <span>原始风险<b>{{ num(currentRoute.raw_risk_score ?? currentRoute.risk_score) }}</b></span>
+                  <span>校准<b>{{ routeCalibrationMethod(currentRoute) }}</b></span>
+                </template>
               </div>
               <div class="k2-route-meta">
                 <span>OSINT:{{ routeOsintEventCount(currentRoute) }}</span>
@@ -168,12 +180,12 @@
                 <span v-if="routeEvidenceMap[currentRoute.id]">证据:{{ routeEvidenceMap[currentRoute.id].evidence_level }}</span>
               </div>
               <!-- K2-RISK-REAL-1:经验校准概率(§45-49) -->
-              <div class="k2-empirical" v-if="currentRoute.empirical_probability_90d != null">
+              <div class="k2-empirical" v-if="!assessmentKind && currentRoute.empirical_probability_90d != null">
                 <span>经验 90 天扰动概率</span>
                 <b>{{ (currentRoute.empirical_probability_90d * 100).toFixed(0) }}%</b>
                 <span class="k2-emp-method">校准:经验分箱 · n={{ empiricalSampleNote }}</span>
               </div>
-              <div v-else class="k2-empirical k2-emp-accum">
+              <div v-else-if="!assessmentKind" class="k2-empirical k2-emp-accum">
                 <span>经验 90 天扰动概率</span>
                 <b>数据积累中</b>
                 <span class="k2-emp-method">历史实证校准未就绪(样本不足),不显示假 0%(§49)</span>
@@ -233,10 +245,10 @@
         <!-- 风险解释:Tab(§30/§46:tab 内容区内部滚动) -->
         <section class="panel k2-tabs-panel">
           <div class="panel-title">
-            <h2>风险解释</h2>
+            <h2>{{ assessmentKind ? '方法解读' : '风险解释' }}</h2>
           </div>
           <div class="tabs">
-            <button :class="{ active: activeTab === 'risk' }" @click="activeTab = 'risk'">风险解释</button>
+            <button :class="{ active: activeTab === 'risk' }" @click="activeTab = 'risk'">{{ assessmentKind ? '模型结果' : '风险解释' }}</button>
             <button :class="{ active: activeTab === 'osint' }" @click="activeTab = 'osint'">
               OSINT 事件 <span v-if="routeOsintEvents.length" class="tab-count">{{ routeOsintEvents.length }}</span>
             </button>
@@ -245,7 +257,19 @@
           <div class="k2-tab-scroll">
 
           <!-- Tab1 风险解释 -->
-          <div v-if="activeTab === 'risk'" class="tab-body">
+          <div v-if="activeTab === 'risk' && assessmentKind" class="tab-body">
+            <div class="k2-view-note" :style="{ borderLeftColor: modeInfo.accent }">
+              <b>{{ riskMethodLabel }}</b><span>{{ assessmentPlainText }}</span>
+            </div>
+            <div class="k2-ranking">
+              <div v-for="(r, i) in routeRanking" :key="r.id" class="k2-rank-row" :class="r.level" @click="changeRoute(r.id)">
+                <span class="k2-rank-no">{{ i + 1 }}</span><span class="k2-rank-country">{{ r.country }}</span>
+                <span :class="['risk-tag', r.level]">{{ routeLevelText(r.level) }}</span>
+                <span class="k2-rank-risk k2-rank-model">{{ metricValueText(r.displayRisk) }}</span>
+              </div>
+            </div>
+          </div>
+          <div v-else-if="activeTab === 'risk'" class="tab-body">
             <!-- 视角说明:同一份地图,三种口径 -->
             <div class="k2-view-note" :style="{ borderLeftColor: modeInfo.accent }">
               <b>{{ riskSectionTitle }}</b>
@@ -294,8 +318,11 @@
               </div>
 
               <div class="k2-sec-title">
-                {{ viewMode === 'llm' ? '大模型点名的风险节点' : '高风险节点(节点风险,非网络关键性 §10-12)' }}
+                {{ viewMode === 'llm' ? '大模型点名的风险节点' : '节点风险分前五（按分数排序）' }}
               </div>
+              <p v-if="viewMode !== 'llm'" class="k2-risk-note">
+                当前快照高风险节点 {{ highNodeCount }} 个；高风险路线 {{ routeStats.high }} 条。路线风险由节点、运输边、供应依赖等因素聚合，等级不等于其节点等级。
+              </p>
               <div class="k2-critical-nodes">
                 <div v-for="n in highRiskNodesTop" :key="n.name" class="k2-cnode" @click="focusNode(n.routeId, n.name)">
                   <span :class="['dot', n.level]"></span>
@@ -382,7 +409,7 @@
               >
                 <div class="re-head">
                   <strong>{{ route.country }}</strong>
-                  <span :class="['risk-tag', route.riskLevel]">{{ riskText(route.riskLevel) }}</span>
+                  <span :class="['risk-tag', route.riskLevel]">{{ routeLevelText(route.riskLevel) }}</span>
                   <span v-if="viewMode === 'dual' && route.llmLevel" class="k2-rank-agree" :class="'agree-' + route.agreement">
                     大模型 {{ agreementText(route.agreement) }}
                   </span>
@@ -402,10 +429,11 @@
 
                 <template v-else>
                   <div class="re-scores">
-                    <span>展示 <b>{{ num(route.display_risk_score ?? route.risk_score) }}</b></span>
-                    <span>原始 <b>{{ num(route.raw_risk_score ?? route.risk_score) }}</b></span>
+                    <span>{{ assessmentMetricName }} <b>{{ assessmentKind ? metricValueText(route.assessment_score) : num(route.display_risk_score ?? route.risk_score) }}</b></span>
+                    <span v-if="assessmentKind">原路线风险 <b>{{ route.baseline_risk_score == null ? '—' : num(route.baseline_risk_score) + '/100' }}</b></span>
+                    <span v-if="!assessmentKind">原始 <b>{{ num(route.raw_risk_score ?? route.risk_score) }}</b></span>
                   </div>
-                  <div class="re-bd">
+                  <div v-if="!assessmentKind" class="re-bd">
                     <div
                       v-for="item in breakdownItems(route.risk_breakdown)"
                       :key="item.key"
@@ -429,7 +457,8 @@
                       <b>{{ num(p.risk_score) }}</b>
                     </div>
                   </div>
-                  <p class="re-note">展示风险分用于当前态势图颜色比较，经过 snapshot 内校准，不代表绝对概率。</p>
+                  <p v-if="!assessmentKind" class="re-note">展示风险分用于当前态势图颜色比较，经过 snapshot 内校准，不代表绝对概率。</p>
+                  <p v-else class="re-note">{{ assessmentPlainText }} 原路线风险分供对照，不是本模型输出或中断概率。</p>
                   <p v-if="viewMode === 'dual' && route.llmLevel" class="re-note k2-trace-note">
                     大模型判断：{{ riskText(route.llmLevel) }}{{ route.llmReason ? ' —— ' + route.llmReason : '' }}
                   </p>
@@ -691,6 +720,7 @@ import {
 } from '@/constants/judgmentModes'
 import ChinaCurrentSituationBar from './ChinaCurrentSituationBar.vue'
 import JudgmentModeTabs from '@/views/SCnet/components/JudgmentModeTabs.vue'
+import ComplexNetworkAnalysis from '@/views/SCnet/components/judgment/ComplexNetworkAnalysis.vue'
 import { getChinaEvidenceBackedNetwork } from '@/api/powerGame/uraniumKnowledge'
 
 const chartRef = ref(null)
@@ -1151,7 +1181,32 @@ const props = defineProps({
    */
   llmJudgment: { type: Object, default: null },
   dualJudgment: { type: Object, default: null },
+  riskMethodLabel: { type: String, default: '' },
+  assessmentKind: { type: String, default: '' },
 })
+
+const assessmentMetricName = computed(() => ({
+  min_cut: '瓶颈关联', n1_capacity: '断供后的总量损失', event_driven: '当前事件的总量影响'
+}[props.assessmentKind] || '展示风险'))
+const assessmentPlainText = computed(() => ({
+  min_cut: '瓶颈指限制整个网络总运量的关键通道；未列入本次瓶颈不等于安全。',
+  n1_capacity: '假设逐条路线完全停运，再看其余路线能补多少；无新增总量损失不等于低风险。',
+  event_driven: '按当前生效情报折减通道能力，再看全网供应量；无总量损失不等于没有风险。',
+}[props.assessmentKind] || ''))
+const assessmentLevelName = computed(() => ({
+  min_cut: '瓶颈关联', n1_capacity: '断供影响', event_driven: '事件冲击'
+}[props.assessmentKind] || '风险'))
+function routeLevelText(level) {
+  if (props.assessmentKind === 'min_cut') return level === 'unknown' ? '非当前瓶颈' : '关联瓶颈通道'
+  if (props.assessmentKind === 'n1_capacity') return level === 'unknown' ? '无新增总量损失' : level === 'high' ? '总量损失最大' : '有总量损失'
+  if (props.assessmentKind === 'event_driven') return level === 'unknown' ? '当前无总量损失' : level === 'high' ? '事件影响最大' : '有事件影响'
+  return riskText(level)
+}
+function metricValueText(value) {
+  if (value == null || !Number.isFinite(Number(value))) return '—'
+  if (Number(value) <= 0) return props.assessmentKind === 'min_cut' ? '非当前瓶颈' : '无新增总量损失'
+  return props.assessmentKind === 'min_cut' ? `${Number(value).toFixed(0)}段瓶颈通道` : `${Number(value).toFixed(1)}%`
+}
 
 /**
  * 研判视角状态不落在本组件里:由 useExpertWorkflowStore 持有,
@@ -1178,6 +1233,8 @@ const recomputeMessage = ref('')
 
 // ── 第十二步:风险解释与模型链可视化状态 ─────────────
 const snapshotData = ref(null) // 完整快照(osint_events / model_chain / model_runs / edges)
+const showComplexNetwork = ref(false)
+const openingComplexNetwork = ref(false)
 const activeTab = ref('risk') // risk | osint | chain
 const expandedRouteId = ref('')
 const showDataStatus = ref(false)
@@ -1298,7 +1355,9 @@ const viewRoutes = computed(() => {
 const showScores = computed(() => viewMode.value !== 'llm')
 
 /** 地图图例:每个视角的颜色含义不同 */
-const legendItems = computed(() => modeLegend(viewMode.value))
+const legendItems = computed(() => props.assessmentKind
+  ? ['high', 'medium', UNKNOWN_LEVEL].map(level => ({ level, text: routeLevelText(level) }))
+  : modeLegend(viewMode.value))
 
 /** 大模型点名过的路线数(用于"当前研判"面板说明覆盖面) */
 const llmPickedRouteCount = computed(() =>
@@ -1574,6 +1633,7 @@ const uniqueNodeRisk = computed(() => {
   })
   return Object.values(byName)
 })
+const highNodeCount = computed(() => uniqueNodeRisk.value.filter(node => node.level === 'high').length)
 
 // K2-UI-RISK-2:高风险节点(来自 node risk 输出,非 criticality;按 name 去重 §10-12)
 const highRiskNodesTop = computed(() => {
@@ -1888,6 +1948,23 @@ function num(v) {
 // ═══════════════════════════════════════════════
 // 后端 latest 快照接入(不触发 recompute)
 // ═══════════════════════════════════════════════
+async function openComplexNetwork() {
+  if (openingComplexNetwork.value) return
+  openingComplexNetwork.value = true
+  try {
+    await loadLatestSnapshot()
+    const hasCaseNetwork = props.networkOverride && Array.isArray(props.networkOverride.routes)
+      && props.networkOverride.routes.length > 0
+    if (!hasCaseNetwork && snapshotError.value) {
+      ElMessage({ type: 'error', message: '获取最新快照失败，已阻止展示旧的网络分析结果' })
+      return
+    }
+    showComplexNetwork.value = true
+  } finally {
+    openingComplexNetwork.value = false
+  }
+}
+
 async function loadLatestSnapshot() {
   // 已有外部注入的网络(案例包)时不再拉 live 快照,避免案例视图混入当前真实数据
   if (props.networkOverride && Array.isArray(props.networkOverride.routes) && props.networkOverride.routes.length) {
@@ -2291,9 +2368,9 @@ function renderChart() {
             return `
               <div>
                 <b>${d.country} → 中国</b><br/>
-                风险等级：${riskText(d.riskLevel)}<br/>
+                ${assessmentLevelName.value}：${routeLevelText(d.riskLevel)}<br/>
                 ${llmLine}
-                <span style="font-size:11px;color:#94A3B8;">${modeInfo.value.sourceLabel}</span>
+                <span style="font-size:11px;color:#94A3B8;">${props.riskMethodLabel || modeInfo.value.sourceLabel}</span>
               </div>
             `
           }
@@ -2519,6 +2596,9 @@ function applyNetworkOverride() {
   routes.value = override.routes
   snapshotData.value = {
     ...(snapshotData.value || {}),
+    snapshot_id: override.metrics?.snapshotId || '',
+    generated_at: override.metrics?.generatedAt || '',
+    as_of_date: override.metrics?.asOfDate || '',
     routes: override.routes,
     nodes: override.nodes || [],
     osint_events: override.events || [],
@@ -2609,12 +2689,27 @@ onBeforeUnmount(() => {
    本行只负责上下留白与窄屏折行,不再挤压任何地图/面板控件。 */
 .judgment-mode-row {
   display: flex;
+  gap: 10px;
   flex-wrap: wrap;
   align-items: center;
   margin: 10px 0 12px;
   /* 允许标签行在窄屏下收缩,内部自行折行而不是顶宽整页 */
   min-width: 0;
 }
+
+.complex-network-button {
+  margin-left: auto;
+  padding: 6px 14px;
+  border: 1px solid #2563eb;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.complex-network-button:hover { background: #dbeafe; }
+@media (max-width: 640px) { .complex-network-button { margin-left: 0; } }
 
 .eyebrow {
   display: inline-flex;
@@ -3041,6 +3136,7 @@ onBeforeUnmount(() => {
 }
 .k2-rank-row .risk-tag { flex: 0 0 auto; white-space: nowrap; }
 .k2-rank-risk { font-size: 14px; font-weight: 800; color: #0f172a; width: 44px; flex: 0 0 auto; text-align: right; }
+.k2-rank-risk.k2-rank-model { width: auto; max-width: 110px; font-size: 11px; font-weight: 600; line-height: 1.25; white-space: normal; }
 .k2-rank-ev {
   font-size: 10px; font-weight: 500; color: #7c8aa5; letter-spacing: 0.3px;
   flex: 0 0 auto; white-space: nowrap; padding-left: 2px;
@@ -3514,8 +3610,8 @@ onBeforeUnmount(() => {
   background: #dc2626;
 }
 
-/* 'unknown' = 当前研判视角没有对这条路线/节点给出等级(例如大模型没有点名)。
-   中性灰,既不是"低风险",也不代表"无风险"。 */
+/* unknown 用于未给出风险等级，或情景分析未算出额外总量损失。
+   中性灰不表示低风险或无风险，具体含义由当前方法的文字说明给出。 */
 .node.unknown,
 .dot.unknown {
   background: #94a3b8;

@@ -114,11 +114,15 @@ function provenanceOf(artifact, mode) {
 function globalNetwork(artifact, mode) {
   const global = result(artifact)?.global
   if (!global) return null
+  // 案例包保留原始阶段产物；地图与复杂网络图共用按原案例时间截点
+  // 用现行固定模型链复算的网络，避免路线已高风险但节点/边仍是旧分级。
+  const network = mode === 'example' && global.recomputedNetwork
+    ? global.recomputedNetwork : global
   return {
-    routes: global.routes || [],
-    nodes: global.nodes || [],
-    events: global.events || [],
-    metrics: global.metrics || {},
+    routes: network.routes || [],
+    nodes: network.nodes || [],
+    events: network.events || [],
+    metrics: network.metrics || {},
     // 来源随网络一起透传,供地图判断能否标记为「当前任务真实结果」
     provenance: provenanceOf(artifact, mode),
   }

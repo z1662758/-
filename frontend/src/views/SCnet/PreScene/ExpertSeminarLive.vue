@@ -1,164 +1,1047 @@
 <template>
   <main class="seminar-page">
     <div class="seminar-wrap">
-      <div class="page-kicker"><span class="kicker-mark"></span> SCnet / 专家协同研讨</div>
-
-      <section class="hero" aria-labelledby="seminar-title">
-        <div class="hero-content">
-          <div class="hero-label">EXPERT SEMINAR · 智能协同</div>
-          <h1 id="seminar-title">让专业判断，在研讨中形成</h1>
-          <p>围绕供应链问题发起结构化研讨。三类专家分别给出观点，主持人梳理共识、分歧与待核验问题，让每一步判断有据可循。</p>
-          <div class="hero-actions">
-            <button class="hero-primary" type="button" @click="focusQuestion">发起研讨 <span aria-hidden="true">↗</span></button>
-            <button class="hero-secondary" type="button" @click="scrollToHistory">查看历史研讨 <span aria-hidden="true">→</span></button>
-          </div>
+      <nav class="module-nav" aria-label="专家研讨系统导航">
+        <strong>供应链专家研讨系统</strong>
+        <button type="button" :class="{ active: screen === 'home' }" @click="showScreen('home')">首页</button>
+        <button type="button" :class="{ active: ['hall', 'create', 'detail', 'report'].includes(screen) }" @click="backToHall">研讨厅</button>
+        <button type="button" :class="{ active: ['knowledge', 'knowledge-detail', 'knowledge-upload'].includes(screen) }" @click="showScreen('knowledge')">知识库</button>
+        <button type="button" :class="{ active: ['experts', 'expert-detail', 'expert-create'].includes(screen) }" @click="showScreen('experts')">智能专家库</button>
+      </nav>
+      <template v-if="screen === 'home'">
+        <section class="home-hero">
+          <h1>供应链多智能体协同专家研讨系统</h1>
+          <p>聚合供应风险、运输与地缘、采购与市场等数字专家，围绕供应链议题开展结构化研讨，沉淀观点、证据与可执行建议。</p>
+          <div><button type="button" class="btn btn-light" @click="focusQuestion">发起研讨</button><button type="button" class="btn btn-outline" @click="backToHall">进入研讨厅</button><button type="button" class="btn btn-outline" @click="showScreen('experts')">智能专家库</button></div>
+        </section>
+        <div class="home-metrics">
+          <div class="card"><strong>{{ history.length }}</strong><span>研讨总数 · 进行中/待推进 {{ runningCount }}</span></div>
+          <div class="card"><strong>{{ completedCount }}</strong><span>已完成研讨</span></div>
+          <div class="card"><strong>{{ experts.length }}</strong><span>数字专家 · 活跃 {{ activeExpertCount }}</span></div>
+          <div class="card"><strong>{{ knowledge.length }}</strong><span>知识库文档</span></div>
         </div>
-        <div class="hero-art" aria-hidden="true"><span></span><span></span><span></span><i></i></div>
-      </section>
+        <div class="home-columns">
+          <section class="card home-panel"><h2>最新研讨</h2><table><thead><tr><th>标题</th><th>状态</th><th>时间</th></tr></thead><tbody><tr v-for="item in history.slice(0, 6)" :key="item.seminar_id"><td><button class="table-link" @click="open(item.seminar_id)">{{ seminarTitle(item) }}</button></td><td><span class="badge" :class="`is-${item.status}`">{{ statusText(item.status) }}</span></td><td>{{ formatDate(item.created_at).slice(5) }}</td></tr><tr v-if="!history.length"><td colspan="3">暂无研讨记录，点击“发起研讨”开始。</td></tr></tbody></table></section>
+          <section class="card home-panel"><h2>最新专家</h2><table><thead><tr><th>名称</th><th>角色</th><th>状态</th></tr></thead><tbody><tr v-for="item in experts.slice(0, 6)" :key="item.id"><td><button class="table-link" @click="openExpert(item)">{{ item.name }}</button></td><td>{{ item.role }}</td><td>{{ item.status === 'active' ? '活跃' : '停用' }}</td></tr></tbody></table></section>
+          <section class="card home-panel"><h2>研讨状态分布</h2><div v-for="item in statusDistribution" :key="item.label" class="distribution-row"><span>{{ item.label }}</span><div class="bar-track"><i :style="{ width: `${item.percent}%` }"></i></div><b>{{ item.count }}</b></div></section>
+          <section class="card home-panel"><h2>研讨模式分布</h2><div v-for="item in modeDistribution" :key="item.label" class="distribution-row"><span>{{ item.label }}</span><div class="bar-track"><i :style="{ width: `${item.percent}%` }"></i></div><b>{{ item.count }}</b></div></section>
+        </div>
+        <section class="card home-panel trend-panel"><h2>研讨创建趋势（最近 14 天）</h2><div class="trend-bars"><div v-for="item in creationTrend" :key="item.date"><span :style="{ height: `${Math.max(3, item.count * 28)}px` }"></span><small>{{ item.date.slice(5) }}</small></div></div></section>
+      </template>
+      <header v-else class="page-heading">
+        <div class="breadcrumb">SCnet / 专家研讨厅</div>
+        <div class="heading-row">
+          <div>
+            <h1>{{ pageTitle }}</h1>
+            <p>{{ ['knowledge', 'knowledge-detail', 'knowledge-upload'].includes(screen) ? '供应链参考资料与可追溯证据' : ['experts', 'expert-detail', 'expert-create'].includes(screen) ? '数字专家角色、领域与发言风格' : '供应风险、运输与地缘、采购与市场专家协同研讨，由主持人综合结论。' }}</p>
+          </div>
+          <button v-if="['hall', 'detail'].includes(screen)" class="btn btn-primary" type="button" @click="focusQuestion">+ 发起研讨</button>
+          <button v-if="screen === 'knowledge'" class="btn btn-primary" type="button" @click="showScreen('knowledge-upload')">+ 上传文档</button>
+          <button v-if="screen === 'experts'" class="btn btn-primary" type="button" @click="showScreen('expert-create')">+ 创建专家</button>
+        </div>
+      </header>
 
-      <section class="overview" aria-label="研讨概览">
-        <div class="metric"><strong>{{ history.length }}</strong><span>研讨总数</span></div>
-        <div class="metric"><strong>{{ completedCount }}</strong><span>已完成研讨</span></div>
-        <div class="metric"><strong>{{ runningCount }}</strong><span>正在进行</span></div>
-        <div class="metric"><strong>3</strong><span>协同专家角色</span></div>
-      </section>
+      <nav v-if="['hall', 'create', 'detail', 'report'].includes(screen)" class="seminar-nav" aria-label="研讨厅导航">
+        <button type="button" :class="{ active: screen === 'hall' }" @click="backToHall">研讨大厅</button>
+        <button type="button" :class="{ active: screen === 'create' }" @click="focusQuestion">发起研讨</button>
+        <button v-if="['detail', 'report'].includes(screen)" type="button" :class="{ active: screen === 'detail' }" @click="screen = 'detail'">研讨现场</button>
+        <button v-if="screen === 'report'" type="button" class="active">完整报告</button>
+      </nav>
 
-      <div class="workspace-grid">
-        <section ref="questionSection" class="start-panel" aria-labelledby="question-title">
-          <div class="section-heading"><div><span class="section-index">01 / START</span><h2 id="question-title">发起一场研讨</h2></div><span class="heading-note">从一个明确的问题开始</span></div>
-          <label class="field-label" for="seminar-question">你希望专家讨论什么？</label>
-          <el-input ref="questionInput" id="seminar-question" v-model="question" type="textarea" :rows="5"
-                    maxlength="2000" show-word-limit placeholder="例如：未来一年某来源国供应中断，会怎样影响采购与运输？"
-                    @keydown.ctrl.enter="submit" />
-          <div class="form-bottom">
-            <div class="scenario-field"><label for="seminar-scenario">研讨场景</label>
+      <template v-if="screen === 'knowledge'">
+        <section class="card filter-card"><div class="field search-field"><label>检索</label><input v-model.trim="knowledgeSearch" placeholder="搜索标题、关键词或机构"></div><div class="field"><label>来源</label><select v-model="knowledgeScope"><option value="">全部</option><option value="public">现有知识库</option><option value="uploaded">上传资料</option></select></div><button type="button" class="btn btn-secondary" @click="knowledgeSearch=''; knowledgeScope=''">重置</button></section>
+        <section class="card home-panel"><h2>知识库 <span class="count-accent">{{ filteredKnowledge.length }}</span></h2><table><thead><tr><th>标题</th><th>归属</th><th>来源</th><th>关键词</th><th>操作</th></tr></thead><tbody><tr v-for="item in filteredKnowledge" :key="item.id"><td><button class="table-link" @click="openKnowledge(item.id)">{{ item.title }}</button></td><td>{{ item.scope === 'uploaded' ? '上传' : '现有' }}</td><td>{{ item.publisher || item.source_type || '资料' }}</td><td>{{ (item.keywords || []).slice(0, 3).join(' · ') || '—' }}</td><td><button class="table-link" @click="openKnowledge(item.id)">查看</button></td></tr><tr v-if="!filteredKnowledge.length"><td colspan="5">没有符合条件的资料</td></tr></tbody></table></section>
+      </template>
+
+      <template v-if="screen === 'knowledge-detail' && activeKnowledge"><button class="back-link" @click="showScreen('knowledge')">← 返回知识库</button><section class="card detail-document"><h2>{{ activeKnowledge.title }}</h2><p>{{ activeKnowledge.publisher || activeKnowledge.source_type }} · {{ activeKnowledge.scope === 'uploaded' ? '上传资料' : '现有知识库' }}</p><div class="topic-keywords"><span v-for="tag in activeKnowledge.keywords || []" :key="tag" class="badge is-blue">{{ tag }}</span></div><h3>文档内容与证据</h3><pre v-if="activeKnowledge.content">{{ activeKnowledge.content }}</pre><div v-else-if="activeKnowledge.evidence?.length"><p v-for="row in activeKnowledge.evidence" :key="row.evidence_id">{{ row.title || row.summary || row.evidence_id }}</p></div><p v-else>该登记文档尚无可展示的正文，请通过原始来源查看。</p><a v-if="activeKnowledge.url" :href="activeKnowledge.url" target="_blank" rel="noopener noreferrer">查看原始来源 ↗</a></section></template>
+
+      <template v-if="screen === 'knowledge-upload'"><section class="card create-card"><div class="card-heading"><h2>上传知识文档</h2><span>选择文件或直接粘贴资料内容</span></div><div class="field"><label>文件（可选）</label><input type="file" accept=".txt,.md,.csv,.docx,.pdf,.pptx,.xlsx" @change="onKnowledgeFile"></div><div class="field"><label>标题 *</label><input v-model.trim="knowledgeForm.title" maxlength="160" placeholder="资料标题"></div><div class="field"><label>关键词</label><input v-model.trim="knowledgeForm.keywords" placeholder="逗号分隔"></div><div class="field"><label>来源类型</label><select v-model="knowledgeForm.source_type"><option>科技报告</option><option>学术文献</option><option>政策法规</option><option>市场资料</option><option>其他资料</option></select></div><div class="field"><label>内容（选择文件后可留空）</label><textarea v-model="knowledgeForm.content" rows="9" placeholder="可直接粘贴资料正文"></textarea></div><el-alert v-if="error" :title="error" type="error" :closable="false"/><div class="form-actions"><button class="btn btn-secondary" @click="showScreen(uploadFromCreate ? 'create' : 'knowledge')">取消</button><button class="btn btn-primary" :disabled="!knowledgeForm.title || (!knowledgeForm.content && !knowledgeFile) || submitting" @click="saveKnowledge">{{ submitting ? '入库中…' : '入库并标引' }}</button></div></section></template>
+
+      <template v-if="screen === 'experts'"><section class="card filter-card"><div class="field search-field"><label>关键词</label><input v-model.trim="expertSearch" placeholder="搜索专家名称、角色或领域"></div><div class="field"><label>状态</label><select v-model="expertStatus"><option value="">全部</option><option value="active">活跃</option></select></div><button class="btn btn-secondary" @click="expertSearch='';expertStatus=''">重置</button></section><section class="card home-panel"><h2>智能专家库 <span class="count-accent">{{ filteredExperts.length }}</span></h2><table><thead><tr><th>专家</th><th>角色</th><th>领域标签</th><th>风格</th><th>状态</th><th>操作</th></tr></thead><tbody><tr v-for="item in filteredExperts" :key="item.id"><td><button class="table-link" @click="openExpert(item)">{{ item.name }}</button></td><td>{{ item.role }}</td><td>{{ (item.tags || []).join(' · ') }}</td><td>{{ item.style }}</td><td>{{ item.status === 'active' ? '活跃' : '停用' }}</td><td><button class="table-link" @click="openExpert(item)">查看</button></td></tr></tbody></table></section></template>
+
+      <template v-if="screen === 'expert-detail' && activeExpert">
+        <button class="back-link" @click="showScreen('experts')">← 返回专家库</button>
+        <div class="expert-profile-heading"><div><h2>{{ activeExpert.name }}</h2><p>{{ activeExpert.role }} · {{ activeExpert.instruction }}</p></div><button class="btn btn-primary" @click="useExpert(activeExpert)">与该专家发起研讨</button></div>
+        <div class="expert-profile-grid">
+          <section class="card expert-profile-card"><h3>专家画像</h3>
+            <dl class="profile-list">
+              <div><dt>角色定位</dt><dd>{{ activeExpert.role }}</dd></div>
+              <div><dt>分析视角</dt><dd>{{ activeExpert.instruction }}</dd></div>
+              <div><dt>领域标签</dt><dd><span v-for="tag in activeExpert.tags || []" :key="tag" class="badge is-blue profile-tag">{{ tag }}</span><span v-if="!activeExpert.tags?.length">未设置</span></dd></div>
+              <div v-if="activeExpert.base_model"><dt>当前模型</dt><dd>{{ activeExpert.base_model }}</dd></div>
+              <div><dt>发言风格</dt><dd><span class="badge">{{ activeExpert.style || '未设置' }}</span></dd></div>
+              <div><dt>发言限制</dt><dd>目标每轮 250 至 350 字；过长时自动精简，轮数由研讨模式决定</dd></div>
+              <div><dt>参考资料</dt><dd>每场研讨可选参考资料，并可分配给指定专家</dd></div>
+              <div v-if="activeExpert.rag?.enabled"><dt>RAG 参数</dt><dd>Top-K={{ activeExpert.rag.top_k }} · 阈值={{ activeExpert.rag.threshold }}</dd></div>
+              <div v-if="activeExpert.few_shot_examples?.length"><dt>Few-Shot 示例</dt><dd>{{ activeExpert.few_shot_examples.length }} 条发言示例</dd></div>
+              <div><dt>实现机制</dt><dd>{{ activeExpert.rag?.enabled && activeExpert.few_shot_examples?.length ? '提示词级微调（Prompt + RAG + Few-Shot）' : activeExpert.rag?.enabled ? 'Prompt + RAG' : 'Prompt' }}</dd></div>
+              <div><dt>创建人</dt><dd>{{ activeExpert.built_in ? '系统预设' : '用户创建' }}</dd></div>
+              <div><dt>状态</dt><dd><span class="badge" :class="activeExpert.status === 'active' ? 'is-completed' : 'is-failed'">{{ activeExpert.status === 'active' ? '活跃' : '停用' }}</span></dd></div>
+            </dl>
+            <details class="profile-prompt-details"><summary>配置检索参数与示例</summary><p class="profile-muted">检索阈值按本场候选片段的相对相关度计算；0.5 表示保留达到本场最高分一半的片段，不是事实可信度。</p><div class="profile-rag-fields"><div class="field"><label>Top-K（1–10）</label><input v-model.number="retrievalForm.top_k" type="number" min="1" max="10"></div><div class="field"><label>阈值（0–1）</label><input v-model.number="retrievalForm.threshold" type="number" min="0" max="1" step="0.05"></div></div><div class="field"><label>Few-Shot 示例（每行一条，最多 3 条）</label><textarea v-model="retrievalForm.examples" rows="5" placeholder="结论：… 依据：… 待核验：…"></textarea></div><p v-if="retrievalError" class="profile-error">{{ retrievalError }}</p><button class="btn btn-primary btn-small" :disabled="savingRetrieval" @click="saveExpertRetrieval">{{ savingRetrieval ? '保存中…' : '保存专家配置' }}</button></details>
+          </section>
+          <section class="card expert-profile-card"><h3>提示词版本（{{ activeExpert.prompt_versions?.length || 1 }}）</h3><p class="profile-muted">版本记录来自当前专家配置；评测分为该版本实际发言的模型辅助参考分。</p><div class="profile-version-table"><div class="profile-version-row profile-version-head"><span>版本</span><span>评测分</span><span>状态</span><span>说明</span><span>时间</span></div><div v-for="version in activeExpert.prompt_versions || [{ version: 'v1.0', status: 'published', description: '当前角色指令', created_at: activeExpert.created_at }]" :key="version.version" class="profile-version-row"><strong>{{ version.version }}</strong><span>{{ expertEvaluations.find(row => row.prompt_version === version.version)?.overall ?? '未评测' }}</span><span class="badge" :class="version.status === 'published' ? 'is-completed' : ''">{{ version.status === 'published' ? '使用中' : '历史版本' }}</span><span>{{ version.description }}</span><span>{{ formatDate(version.created_at) }}</span></div></div><details class="profile-prompt-details"><summary>查看当前角色指令</summary><p class="profile-prompt">{{ activeExpert.instruction }}</p></details><details class="profile-prompt-details"><summary>创建新版本</summary><div class="field"><label>版本说明</label><input v-model.trim="promptVersionForm.description" maxlength="160" placeholder="本次调整了哪些分析边界"></div><div class="field"><label>角色指令</label><textarea v-model.trim="promptVersionForm.instruction" rows="5" maxlength="2000"></textarea></div><p v-if="promptVersionError" class="profile-error">{{ promptVersionError }}</p><button class="btn btn-primary btn-small" :disabled="savingPromptVersion || !promptVersionForm.instruction || promptVersionForm.instruction === activeExpert.instruction" @click="saveExpertPromptVersion">{{ savingPromptVersion ? '保存中…' : '保存并启用新版本' }}</button></details><p class="profile-muted">研讨时还会注入用户议题、轮次要求、已选资料和前序观点。</p></section>
+          <section class="card expert-profile-card"><div class="profile-section-head"><h3>能力评测</h3><button class="btn btn-secondary btn-small" :disabled="evaluatingExpert || !activeExpertSeminars.length" @click="runExpertEvaluation">{{ evaluatingExpert ? '评测中…' : '运行模型辅助评测' }}</button></div><p class="profile-muted">依据实际发言生成六维模型辅助参考分。</p><details class="profile-method"><summary>评测方法说明</summary><p>样本取自当前提示词版本的研讨发言，最多 6 条完整发言、合计不超过 1.8 万字。</p><p>由研讨服务配置的大模型按议题相关性、专业分析、证据意识、风险边界、建议可执行性和表达清晰度各给 0–100 分；综合分是六项的算术平均值。</p><p>这是文本质量的模型辅助评估，没有进行独立事实核验或真人盲评，不能代表专家资质、事实正确率或决策可靠性。</p></details><p v-if="expertEvaluationError" class="profile-error">{{ expertEvaluationError }}</p><template v-if="latestExpertEvaluation"><div class="profile-activity"><strong>{{ latestExpertEvaluation.overall }}</strong><span>综合参考分 · {{ latestExpertEvaluation.sample_count }} 条发言 · {{ formatDate(latestExpertEvaluation.created_at) }}</span></div><div v-for="(score, dimension) in latestExpertEvaluation.scores" :key="dimension" class="profile-score"><span>{{ dimension }}</span><div class="bar-track"><i :style="{ width: `${score}%` }"></i></div><b>{{ score }}</b></div><p class="profile-muted">{{ latestExpertEvaluation.comment }}</p></template><p v-else class="profile-muted">暂无评测记录。参与研讨后可运行评测。</p><h4>最近评测（{{ expertEvaluations.length }}）</h4><div v-for="record in expertEvaluations.slice(0, 5)" :key="record.id" class="profile-evaluation-record"><span>{{ formatDate(record.created_at) }}</span><strong>{{ record.overall }} 分</strong><small>{{ record.method }}</small></div><h4>最近参与（{{ activeExpertSeminars.length }}）</h4><div v-if="activeExpertSeminars.length" class="profile-recent"><div v-for="item in activeExpertSeminars.slice(0, 5)" :key="item.seminar_id"><button class="table-link" @click="open(item.seminar_id)">{{ seminarTitle(item) }}</button><small>{{ formatDate(item.updated_at || item.created_at) }}</small></div></div><p v-else class="profile-muted">该专家尚未参与研讨。</p></section>
+        </div>
+      </template>
+
+      <template v-if="screen === 'expert-create'"><section class="card create-card"><div class="card-heading"><h2>创建数字专家</h2><span>配置供应链角色与分析边界</span></div><div class="field"><label>专家名称 *</label><input v-model.trim="expertForm.name" maxlength="48" placeholder="例如：供应韧性专家"></div><div class="field"><label>角色定位 *</label><input v-model.trim="expertForm.role" maxlength="80" placeholder="例如：跨国采购与供应韧性分析"></div><div class="field"><label>领域标签</label><input v-model.trim="expertForm.tags" placeholder="逗号分隔"></div><div class="field"><label>发言风格</label><select v-model="expertForm.style"><option>严谨型</option><option>审慎型</option><option>务实型</option><option>前瞻型</option><option>保守型</option><option>激进型</option></select></div><div class="field"><label>系统提示词与分析边界 *</label><textarea v-model.trim="expertForm.instruction" rows="7" maxlength="2000" placeholder="说明专家分析什么、依据什么资料、哪些问题需要标明证据不足"></textarea></div><el-alert v-if="error" :title="error" type="error" :closable="false"/><div class="form-actions"><button class="btn btn-secondary" @click="showScreen('experts')">取消</button><button class="btn btn-primary" :disabled="!expertForm.name || !expertForm.role || !expertForm.instruction || submitting" @click="saveExpert">{{ submitting ? '创建中…' : '提交创建' }}</button></div></section></template>
+
+      <template v-if="screen === 'hall'">
+        <section ref="historySection" class="card filter-card" aria-label="筛选历史研讨">
+          <div class="field search-field">
+            <label for="seminar-search">关键词</label>
+            <input id="seminar-search" v-model.trim="searchKeyword" type="search" placeholder="搜索研讨问题…">
+          </div>
+          <div class="field">
+            <label for="seminar-status">状态</label>
+            <select id="seminar-status" v-model="statusFilter">
+              <option value="">全部</option>
+              <option value="running">进行中</option>
+              <option value="paused">等待主持人</option>
+              <option value="completed">已完成</option>
+              <option value="failed">未完成</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="seminar-mode-filter">研讨模式</label>
+            <select id="seminar-mode-filter" v-model="modeFilter">
+              <option value="">全部</option>
+              <option v-for="item in modeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="seminar-filter-scenario">研讨场景</label>
+            <select id="seminar-filter-scenario" v-model="scenarioFilter">
+              <option value="">全部</option>
+              <option value="uranium">铀供应链</option>
+              <option value="auto">汽车供应链</option>
+            </select>
+          </div>
+          <button class="btn btn-secondary filter-reset" type="button" @click="resetFilters">重置</button>
+        </section>
+
+        <div class="list-heading">
+          <h2>研讨记录 <span>{{ filteredHistory.length }}</span></h2>
+          <span>已完成 {{ completedCount }} · 进行中/待推进 {{ runningCount }}</span>
+        </div>
+        <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="alert" />
+        <div v-if="!filteredHistory.length" class="card empty-state">
+          <div class="empty-icon">◎</div>
+          <strong>{{ history.length ? '没有符合条件的研讨' : '还没有研讨记录' }}</strong>
+          <p>{{ history.length ? '试试调整关键词或筛选条件。' : '从一个明确的供应链问题开始，让专家给出各自判断。' }}</p>
+          <button v-if="!history.length" class="btn btn-primary" type="button" @click="focusQuestion">+ 发起研讨</button>
+        </div>
+        <div v-else class="seminar-list">
+          <article v-for="item in filteredHistory" :key="item.seminar_id" class="card seminar-item">
+            <div class="seminar-item-main">
+              <button class="seminar-item-title" type="button" @click="open(item.seminar_id)">{{ seminarTitle(item) }}</button>
+              <p v-if="seminarTitle(item) !== item.question">{{ item.question }}</p>
+              <div class="meta-line">
+                <span class="badge" :class="`is-${item.status}`">{{ statusText(item.status) }}</span>
+                <span class="badge is-neutral">{{ scenarioText(item.scenario) }}</span>
+                <span class="badge is-neutral">{{ modeText(item.mode) }}</span>
+                <span v-if="item.keywords?.length" class="meta-keywords">{{ item.keywords.slice(0, 3).join(' · ') }}</span>
+                <span class="meta-time">{{ formatDate(item.created_at) }}</span>
+              </div>
+            </div>
+            <div class="item-actions">
+              <button class="btn btn-secondary btn-small" type="button" @click="open(item.seminar_id)">进入研讨</button>
+              <button v-if="item.status === 'failed'" class="btn btn-primary btn-small" type="button" :disabled="retryingId === item.seminar_id" @click="retry(item.seminar_id)">{{ retryingId === item.seminar_id ? '重试中…' : '重新研讨' }}</button>
+            </div>
+          </article>
+        </div>
+      </template>
+
+      <template v-else-if="screen === 'create'">
+        <div class="step-hint">① 填写研讨议题 → ② 选择供应链场景 → ③ 专家发言与主持人综合</div>
+        <section ref="questionSection" class="card create-card" aria-labelledby="question-title">
+          <div class="card-heading">
+            <h2 id="question-title">研讨议题</h2>
+            <span>请写清时间、对象和希望判断的问题</span>
+          </div>
+          <div class="field">
+            <label for="seminar-question">讨论问题 <em>*</em></label>
+            <el-input ref="questionInput" id="seminar-question" v-model="question" type="textarea" :rows="5"
+                      maxlength="2000" show-word-limit
+                      placeholder="例如：如果哈萨克斯坦铀供应中断，未来一年我国应如何调整采购来源、运输路线与库存？"
+                      @keydown.ctrl.enter="submit" />
+            <div class="field-hint">按 Ctrl + Enter 也可以提交。专家只依据可获得的资料作答，证据不足时会明确说明。</div>
+            <button class="btn btn-secondary btn-small" type="button" :disabled="!question.trim() || suggesting" @click="getSuggestion">{{ suggesting ? '正在生成建议…' : '⚡ 智能建议' }}</button>
+            <div v-if="suggestion" class="suggestion-result"><strong>研讨设置建议</strong><p>{{ suggestion.reason || '建议已生成，可选择应用。' }}</p><p>标题：{{ suggestion.title }} · {{ modeText(suggestion.mode) }} · {{ scheduleText(suggestion.schedule_mode) }}</p><p>专家：{{ suggestion.experts.join('、') }}</p><button class="btn btn-primary btn-small" type="button" @click="applySuggestion">应用建议</button></div>
+          </div>
+          <div class="topic-suggestions" aria-label="常见研讨议题">
+            <strong>议题参考</strong>
+            <button v-for="item in suggestedQuestions" :key="item.label" type="button" @click="useSuggestion(item.question)">{{ item.label }}</button>
+          </div>
+          <div class="field">
+            <label for="seminar-title">研讨标题（可选）</label>
+            <input id="seminar-title" v-model.trim="title" type="text" maxlength="128" placeholder="留空时从讨论问题自动提取">
+          </div>
+          <div class="field">
+            <label for="seminar-keywords">聚焦关键词（可选，逗号分隔）</label>
+            <input id="seminar-keywords" v-model.trim="keywords" type="text" maxlength="256" placeholder="例如：供应稳定性，运输路线，采购时机">
+            <div class="field-hint">关键词会随议题传给专家，帮助发言聚焦。</div>
+          </div>
+          <div class="setting-grid">
+            <div class="field">
+              <label for="seminar-scenario">研讨场景</label>
               <el-select id="seminar-scenario" v-model="scenario" aria-label="研讨场景">
                 <el-option label="铀供应链" value="uranium" />
                 <el-option label="汽车供应链" value="auto" />
               </el-select>
             </div>
-            <el-button class="submit-button" type="primary" :loading="submitting" :disabled="!question.trim()" @click="submit">开始研讨 <span v-if="!submitting">↗</span></el-button>
+            <div class="field">
+              <label for="seminar-mode">研讨模式</label>
+              <select id="seminar-mode" v-model="mode">
+                <option v-for="item in modeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="seminar-schedule">调度方式</label>
+              <select id="seminar-schedule" v-model="scheduleMode">
+                <option value="serial">串行调度 · 依次回应</option>
+                <option value="parallel">并行调度 · 同时分析</option>
+                <option value="mixed">混合调度 · 先独立后讨论</option>
+                <option value="moderator">主持人调度 · 逐位推进</option>
+              </select>
+            </div>
           </div>
-          <div class="process-note"><span class="note-dot"></span>供应风险 → 运输与地缘 → 采购与市场 → 主持人综合</div>
-          <p class="boundary-note">专家仅依据可获得的资料作答；证据不足时会明确说明。</p>
-          <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="alert" />
+          <div class="field-hint">串行依次回应；并行独立分析；混合先独立分析再交叉讨论；主持人调度需在研讨现场逐位推进。</div>
+          <div class="field-hint">当前研讨模式计划 {{ modeRoundCounts[mode] }} 轮，每轮由所选专家分别发言；各轮内容和进度会在研讨现场展示。</div>
         </section>
-
-        <section ref="historySection" class="history-panel" aria-labelledby="history-title">
-          <div class="section-heading"><div><span class="section-index">02 / ARCHIVE</span><h2 id="history-title">最近研讨</h2></div><span class="heading-note">{{ history.length }} 条记录</span></div>
-          <div v-if="!history.length" class="empty-history"><span>◎</span><strong>还没有研讨记录</strong><p>发起第一场研讨后，结果会保存在这里。</p></div>
-          <div v-else class="history-list">
-            <button v-for="item in history.slice(0, 8)" :key="item.seminar_id" class="history-row" :class="{ selected: item.seminar_id === active?.seminar_id }" type="button" @click="open(item.seminar_id, true)">
-              <span class="history-main"><strong>{{ item.question }}</strong><small>{{ scenarioText(item.scenario) }} · {{ formatDate(item.created_at) }}</small></span>
-              <span class="status-pill" :class="`is-${item.status}`">{{ statusText(item.status) }}</span>
-            </button>
+        <section class="card sources-card" aria-label="研讨参考资料">
+          <div class="card-heading"><h2>研讨参考资料</h2><span>系统按场景读取可获得的数据</span></div>
+          <p v-if="scenario === 'uranium'">铀供应链研讨会读取最新供应链态势快照及其中的公开情报事件；议题与所取资料将发送给系统配置的大模型，研讨现场会列出使用的资料。</p>
+          <p v-else>汽车供应链暂未接入自动资料快照。议题会发送给系统配置的大模型；专家应对缺少证据的判断明确说明。</p>
+          <label class="web-search-choice"><input v-model="webSearch" type="checkbox"> 联网检索公开资讯后研讨</label>
+          <p class="field-hint">勾选后，开始研讨时从公开新闻源检索供应链资讯，并在研讨记录中显示来源与检索状态。未取得资讯时会明确提示。</p>
+          <button class="btn btn-secondary btn-small" type="button" @click="uploadFromCreate = true; screen = 'knowledge-upload'">上传本次研讨资料</button>
+          <div class="reference-choices"><strong>从知识库选择参考文档（可选）</strong><p>选中的文档正文或证据会随议题发送给系统配置的大模型；可指定进入哪位专家的发言提示词。</p><div v-for="item in knowledge" :key="item.id" class="reference-row"><label><input v-model="selectedKnowledge" type="checkbox" :value="item.id"><span>{{ item.title }}</span><small>{{ item.scope === 'uploaded' ? '上传' : '现有' }}</small></label><select v-if="selectedKnowledge.includes(item.id)" v-model="knowledgeAssignments[item.id]" :aria-label="`${item.title} 参考范围`"><option value="all">所有专家</option><option v-for="expert in selectedExperts" :key="expert" :value="expert">供 {{ expert }}</option></select></div><p v-if="!knowledge.length">知识库暂无文档，可先上传。</p></div>
+        </section>
+        <section class="card expert-card" aria-label="参与研讨的专家">
+          <div class="card-heading"><h2>AI 专家阵容</h2><span>选择至少一位专家；主持人负责综合</span></div>
+          <div class="expert-select-actions"><button class="btn btn-secondary btn-small" type="button" :disabled="!question.trim() || suggesting" @click="recommendExperts">{{ suggesting ? '推荐中…' : '智能推荐专家' }}</button><button class="btn btn-secondary btn-small" type="button" @click="selectedExperts = expertRoles.map(item => item.name)">全选</button><button class="btn btn-secondary btn-small" type="button" @click="selectedExperts = []">清空</button></div>
+          <div class="expert-grid">
+            <label v-for="(item, index) in expertRoles" :key="item.name" :class="{ selected: selectedExperts.includes(item.name) }">
+              <input v-model="selectedExperts" type="checkbox" :value="item.name">
+              <span class="expert-mark">0{{ index + 1 }}</span><strong>{{ item.name }}</strong><small>{{ item.description }}</small>
+            </label>
+            <div><span class="expert-mark host">◆</span><strong>主持人</strong><small>综合观点与待核验问题</small></div>
           </div>
         </section>
-      </div>
+        <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" class="alert" />
+        <div class="form-actions">
+          <button class="btn btn-secondary" type="button" @click="backToHall">返回大厅</button>
+          <button class="btn btn-primary" type="button" :disabled="!question.trim() || !selectedExperts.length || submitting" @click="submit">
+            {{ submitting ? '正在发起…' : '开始研讨' }}
+          </button>
+        </div>
+      </template>
 
-      <section ref="resultSection" class="discussion" aria-labelledby="discussion-title" aria-live="polite">
-        <div class="section-heading discussion-heading"><div><span class="section-index">03 / DISCUSSION</span><h2 id="discussion-title">研讨过程与结论</h2></div><span v-if="active" class="status-pill" :class="`is-${active.status}`">{{ statusText(active.status) }}</span></div>
-        <div v-if="!active" class="discussion-empty"><div class="empty-orbit" aria-hidden="true"><span>✦</span></div><h3>等待你的第一个问题</h3><p>发起研讨或打开历史记录，即可在这里查看专家观点与综合结论。</p></div>
-        <template v-else>
-          <div class="discussion-topic"><span>{{ scenarioText(active.scenario) }}</span><h3>{{ active.question }}</h3><small>{{ formatDate(active.created_at) }}</small></div>
-          <div v-if="active.status === 'running'" class="running-strip"><span class="pulse-dot"></span><div><strong>{{ phaseText(active.phase) }}</strong><small>专家观点会随研讨进展逐步出现</small></div></div>
-          <el-alert v-if="active.error" :title="active.error" type="error" show-icon :closable="false" class="result-error" />
-          <div v-if="active.opinions?.length" class="opinion-grid">
-            <article v-for="(opinion, index) in active.opinions" :key="opinion.expert" class="opinion"><div class="opinion-top"><span class="expert-number">0{{ index + 1 }}</span><h4>{{ opinion.expert }}</h4><span class="opinion-label">专家观点</span></div><p>{{ opinion.content }}</p></article>
-          </div>
-          <article v-if="active.conclusion" class="conclusion"><div class="conclusion-label"><span>✦</span> 主持人综合结论</div><p>{{ active.conclusion }}</p></article>
-          <div v-if="active.status === 'running' && !active.opinions?.length" class="waiting-opinions"><span class="loading-ring"></span>正在整理资料，专家观点即将呈现…</div>
-          <details v-if="active.evidence?.length" class="evidence"><summary>本次参考资料 <strong>{{ active.evidence.length }}</strong> 条 <span>展开查看 ↓</span></summary><ul><li v-for="(item, index) in active.evidence" :key="item.id || index"><a v-if="item.source" :href="item.source" target="_blank" rel="noopener noreferrer">{{ item.title || item.id || '未命名资料' }}</a><span v-else>{{ item.title || item.id || '未命名资料' }}</span><small>{{ item.published_at }}</small></li></ul></details>
+      <template v-else-if="screen === 'detail'">
+        <div class="detail-actions"><button class="back-link" type="button" @click="backToHall">← 返回研讨大厅</button><button v-if="active?.status === 'paused'" class="btn btn-primary btn-small" type="button" :disabled="advancing" @click="advance">{{ advancing ? '正在推进…' : '请下一位专家发言' }}</button><button v-if="active?.status === 'failed'" class="btn btn-primary btn-small" type="button" :disabled="retryingId === active.seminar_id" @click="retry(active.seminar_id)">{{ retryingId === active.seminar_id ? '重试中…' : '重新研讨' }}</button></div>
+        <div v-if="loadingDetail && !active" class="card loading-state">正在读取研讨记录…</div>
+        <el-alert v-else-if="!active && error" :title="error" type="error" show-icon :closable="false" class="alert" />
+        <template v-else-if="active">
+          <section class="card topic-card">
+            <div class="topic-head"><span class="badge" :class="`is-${active.status}`">{{ statusText(active.status) }}</span><span class="badge is-neutral">{{ scenarioText(active.scenario) }}</span><span class="badge is-neutral">{{ modeText(active.mode) }}</span><span class="badge is-neutral">{{ scheduleText(active.schedule_mode) }}</span><span class="badge is-neutral">{{ webStatusText(active) }}{{ active.web_search_provider ? ` · ${active.web_search_provider}` : '' }}</span><span class="meta-time">{{ formatDate(active.created_at) }}</span></div>
+            <p v-if="active.web_search_status === 'failed'" class="field-hint">联网检索失败：{{ active.web_search_error }}。本次仅使用其他可得资料。</p>
+            <h2>{{ active.title || active.question }}</h2>
+            <p v-if="active.title && active.title !== active.question" class="topic-question">{{ active.question }}</p>
+            <div v-if="active.keywords?.length" class="topic-keywords"><span v-for="keyword in active.keywords" :key="keyword" class="badge is-blue">{{ keyword }}</span></div>
+            <p class="topic-flow">{{ (active.experts?.length ? active.experts : fallbackRoles.slice(0, 3).map(item => item.name)).join(active.schedule_mode === 'parallel' ? ' · ' : ' → ') }} → 主持人综合</p>
+          </section>
+          <section class="card vote-card"><strong>议题立场投票</strong><span>每个浏览器可选择或修改一次立场</span><div><button type="button" class="btn btn-secondary btn-small" :class="{ selected: myVote === 'support' }" @click="vote('support')">👍 赞成（{{ voteCounts.support }}）</button><button type="button" class="btn btn-secondary btn-small" :class="{ selected: myVote === 'oppose' }" @click="vote('oppose')">👎 反对（{{ voteCounts.oppose }}）</button></div></section>
+          <el-alert v-if="error || active.error" :title="error || active.error" type="error" show-icon :closable="false" class="alert" />
+          <details :key="active.seminar_id" class="card dashboard-card" aria-label="研讨数据看板">
+            <summary class="board-heading"><strong>研讨数据看板</strong><span>发言差异趋势 · 观点矩阵 · 共识分歧 · 决策仪表盘</span></summary>
+            <div class="board-tabs" role="tablist" aria-label="看板类型">
+              <button v-for="tabItem in [{ id: 'convergence', label: '发言差异趋势' }, { id: 'matrix', label: '观点矩阵' }, { id: 'consensus', label: '共识分歧' }, { id: 'decision', label: '决策仪表盘' }]" :key="tabItem.id" type="button" role="tab" :aria-selected="boardTab === tabItem.id" :class="{ active: boardTab === tabItem.id }" @click="boardTab = tabItem.id">{{ tabItem.label }}</button>
+            </div>
+            <div v-if="boardTab === 'convergence'" class="board-panel">
+              <p class="board-explain">这条线展示每轮专家发言的<strong>文本差异度</strong>：0% 表示用词完全相同，越高表示用词差别越大。它不能判断专家是否真正达成共识。</p>
+              <div v-if="chartPoints.length" class="curve-summary"><strong>最新一轮 {{ chartPoints.at(-1).difference_score }}%</strong><span v-if="chartDelta !== null">较首轮{{ chartDelta < 0 ? '下降' : '上升' }} {{ Math.abs(chartDelta) }} 个百分点</span><span v-else>目前只有一轮可比较</span></div>
+              <div v-if="chartPoints.length" class="curve-wrap"><svg viewBox="0 0 1000 220" role="img" aria-label="各轮专家发言文本差异度曲线">
+                <line x1="55" y1="40" x2="945" y2="40" class="chart-grid"/><line x1="55" y1="105" x2="945" y2="105" class="chart-grid"/><line x1="55" y1="170" x2="945" y2="170" class="chart-grid"/>
+                <text x="9" y="27">差异度</text><text x="12" y="44">100</text><text x="18" y="109">50</text><text x="25" y="174">0</text>
+                <polyline v-if="chartPoints.length > 1" :points="chartLine" class="chart-line"/>
+                <g v-for="point in chartPoints" :key="point.round"><circle :cx="point.x" :cy="point.y" r="6" class="chart-dot"><title>第{{ point.round }}轮 · {{ point.label }}：文本差异度 {{ point.difference_score }}%，{{ point.speech_count }} 位专家发言</title></circle><text :x="point.x" :y="Math.max(28, point.y - 14)" text-anchor="middle" class="chart-value">{{ point.difference_score }}%</text><text :x="point.x" y="205" text-anchor="middle">第{{ point.round }}轮</text></g>
+              </svg></div>
+              <p v-else class="board-empty">至少两位专家完成同一轮发言后显示曲线。</p>
+              <p class="board-method">按同一轮专家发言的文字片段计算，仅用于观察措辞变化；共识和分歧请查看对应看板。</p>
+            </div>
+            <div v-else-if="boardTab === 'matrix'" class="board-panel matrix-scroll">
+              <p class="board-explain">各专家在议题关键词上的相对提及强度；同一列提及密度最高的专家记为 100。数值不代表支持该观点。</p>
+              <table v-if="matrixRows.length && matrixDimensions.length" class="opinion-heatmap"><thead><tr><th scope="col">专家</th><th v-for="dimension in matrixDimensions" :key="dimension" scope="col" :title="dimension">{{ dimension }}</th></tr></thead><tbody><tr v-for="row in matrixRows" :key="row.expert"><th scope="row">{{ row.expert }}</th><td v-for="cell in row.cells" :key="cell.dimension"><div class="heat-cell" :style="{ backgroundColor: `rgba(38, 110, 145, ${0.12 + cell.score * 0.0068})` }" :title="`${row.expert}提及“${cell.dimension}”${cell.count}次；相对强度${cell.score}`">{{ cell.count ? cell.score : '—' }}</div></td></tr></tbody></table>
+              <p v-else class="board-empty">专家发言和议题关键词齐备后显示观点矩阵。</p>
+            </div>
+            <div v-else-if="boardTab === 'consensus'" class="board-panel">
+              <p class="board-explain">按摘要与专家原始发言的文字关联度排序；分数不代表赞成率或事实可信度。</p>
+              <section class="point-group"><h3 class="consensus-title">共识点</h3><div v-for="(point, index) in consensusPoints" :key="index" class="point-row" :title="point.text"><span class="point-label">{{ point.text }}</span><div class="point-track"><i class="is-consensus" :style="{ width: `${point.score}%` }"></i></div><strong>{{ point.score }}</strong></div><p v-if="!consensusPoints.length" class="board-empty">尚未形成结构化共识。</p></section>
+              <section class="point-group"><h3 class="difference-title">分歧点</h3><div v-for="(point, index) in differencePoints" :key="index" class="point-row" :title="point.text"><span class="point-label">{{ point.text }}</span><div class="point-track"><i class="is-difference" :style="{ width: `${point.score}%` }"></i></div><strong>{{ point.score }}</strong></div><p v-if="!differencePoints.length" class="board-empty">尚未形成结构化分歧。</p></section>
+            </div>
+            <div v-else class="board-panel">
+              <div class="dashboard-grid"><div><strong>{{ active.opinions?.length || 0 }} / {{ active.planned_speeches || active.experts?.length || 3 }}</strong><span>专家发言</span></div><div><strong>{{ roundGroups.length }}</strong><span>已启动轮次</span></div><div><strong>{{ active.evidence?.length || 0 }}</strong><span>参考资料</span></div><div><strong>{{ voteCounts.support }} / {{ voteCounts.oppose }}</strong><span>议题赞成 / 反对</span></div></div>
+              <h3>建议行动</h3><ul v-if="summaryView.actions?.length"><li v-for="(text, index) in summaryView.actions" :key="index">{{ text }}</li></ul><p v-else class="board-empty">主持人总结完成后显示建议行动。</p>
+            </div>
+          </details>
+          <section ref="resultSection" class="card discussion-card" aria-label="研讨现场" aria-live="polite">
+            <div class="card-heading"><h2>研讨现场 <span class="round-count">第 {{ roundGroups.at(-1)?.number || 0 }} 轮</span></h2><span v-if="active.status === 'running'" class="running-tag">{{ phaseText(active.phase) }}</span></div>
+            <p class="discussion-sub">{{ active.status === 'completed' ? '研讨已完成；仍可评论已形成的观点，评论不会重新触发专家发言。' : 'AI 专家发言实时呈现；用户补充会进入尚未开始的后续发言提示词。' }}</p>
+            <div v-if="active.opinions?.length" class="speech-stats">
+              <span>专家发言次数</span><span v-for="item in speechCounts" :key="item.name" class="badge is-blue">{{ item.name }} × {{ item.count }}</span>
+            </div>
+            <div v-for="round in roundGroups" :key="round.number" class="seminar-round">
+              <div class="round-title">第 {{ round.number }} 轮 <span>{{ round.label }} · {{ round.opinions.length }} 位专家已发言</span></div>
+              <article v-for="opinion in round.opinions" :id="`seminar-speech-${opinion.index}`" :key="opinion.index" class="message-card">
+                <div class="message-head"><span class="speaker-avatar">{{ opinion.index + 1 }}</span><strong>{{ opinion.expert }}</strong><span class="badge is-blue">AI 专家</span><small>{{ formatDate(opinion.created_at) }}</small></div>
+                <div v-if="opinion.content.length <= 450 || expandedSpeeches.has(opinion.index)" class="markdown-body" v-html="renderMarkdown(opinion.content)"></div>
+                <p v-else class="speech-preview">{{ plainExcerpt(opinion.content, 300) }}</p>
+                <button v-if="opinion.content.length > 450" type="button" class="speech-toggle" @click="toggleSpeech(opinion.index)">{{ expandedSpeeches.has(opinion.index) ? '收起发言' : '展开完整发言' }}</button>
+                <details v-if="opinion.retrieved_sources?.length" class="speech-evidence"><summary>本轮检索资料（{{ opinion.retrieved_sources.length }}）</summary><ul><li v-for="(source, sourceIndex) in opinion.retrieved_sources" :key="`${source.id || source.title}-${sourceIndex}`">{{ source.title || source.id || '未命名资料' }} <small>相对相关度 {{ Math.round(source.relevance * 100) }}</small></li></ul></details>
+                <div class="speech-actions"><button type="button" :class="{ selected: mySpeechVote(opinion.index) === 'support' }" @click="voteOpinion(opinion.index)">👍 赞同（{{ speechVoteCount(opinion.index) }}）</button><button type="button" @click="commentOn(opinion.index)">评论 / 反驳 / 补充</button><span>{{ (active.interactions || []).filter(item => item.target === `speech:${opinion.index}`).length }} 条互动</span></div>
+                <div v-for="row in (active.interactions || []).filter(item => item.target === `speech:${opinion.index}` || item.target === opinion.expert && !opinion.round)" :key="row.id" class="interaction-row"><b>{{ interactionKindText(row.kind) }}</b> {{ row.content }} <small>{{ formatDate(row.created_at) }}</small></div>
+              </article>
+            </div>
+            <article v-if="active.conclusion" class="message-card moderator-card">
+              <div class="message-head"><span class="speaker-avatar moderator-avatar">◆</span><strong>主持人</strong><span class="badge is-green">综合结论</span></div>
+              <div class="markdown-body" v-html="renderMarkdown(active.conclusion.slice(0, 700) + (active.conclusion.length > 700 ? '…' : ''))"></div><button v-if="active.conclusion.length > 700" type="button" class="table-link" @click="screen = 'report'">查看全文</button>
+            </article>
+            <div v-if="active.status === 'running' && !active.opinions?.length" class="waiting-state"><span class="spinner"></span>正在整理资料，专家观点即将呈现…</div>
+            <div v-if="!active.opinions?.length && !active.conclusion && active.status !== 'running'" class="waiting-state">暂无专家发言</div>
+            <section id="seminar-interaction-form" class="interaction-form"><h3>发表观点 / 评论 / 补充</h3><p>你的内容会保存在本场研讨中，供查看和复核。</p><div class="interaction-fields"><select v-model="interactionTarget"><option value="topic">研讨议题</option><option v-for="(row, index) in active.opinions || []" :key="index" :value="`speech:${index}`">第{{ row.round || 1 }}轮 · {{ row.expert }}</option><option v-if="active.conclusion" value="conclusion">主持人结论</option></select><select v-model="interactionKind"><option value="comment">评论</option><option value="supplement">补充</option><option value="rebuttal">反驳</option></select></div><textarea v-model="interactionContent" rows="3" maxlength="2000" placeholder="写下你的观点或待核验的问题"></textarea><button class="btn btn-primary btn-small" :disabled="!interactionContent.trim() || savingInteraction" @click="postInteraction">{{ savingInteraction ? '提交中…' : '提交互动' }}</button><div v-for="row in (active.interactions || []).filter(item => item.target === 'topic' || item.target === 'conclusion')" :key="row.id" class="interaction-row"><b>{{ row.target === 'conclusion' ? '主持人结论' : '研讨议题' }} · {{ interactionKindText(row.kind) }}</b> {{ row.content }} <small>{{ formatDate(row.created_at) }}</small></div></section>
+          </section>
+          <section v-if="active.conclusion" class="card smart-summary"><h2>研讨智能总结</h2><p class="summary-path">核心议题 → 各专家观点 → 共识 → 分歧 → 遗留问题 <span v-if="summaryView.source">· {{ summaryView.source }}</span></p><div class="summary-row"><strong>核心问题</strong><p>{{ active.question }}</p></div><div class="summary-row"><strong>各专家观点</strong><div><p v-for="row in summaryView.expert_views || []" :key="row.expert"><b>{{ row.expert }}：</b>{{ row.view }}</p><p v-if="!summaryView.expert_views?.length">本场记录暂无单独提取的专家观点，可查看上方各轮完整发言。</p></div></div><div class="summary-row"><strong>共识</strong><ul v-if="summaryView.consensus?.length"><li v-for="(row, index) in summaryView.consensus" :key="index">{{ row }}</li></ul><p v-else>尚无结构化共识。</p></div><div class="summary-row"><strong>分歧</strong><ul v-if="summaryView.differences?.length"><li v-for="(row, index) in summaryView.differences" :key="index">{{ row }}</li></ul><p v-else>尚无结构化分歧。</p></div><div class="summary-row"><strong>遗留问题</strong><ul v-if="summaryView.open_questions?.length"><li v-for="(row, index) in summaryView.open_questions" :key="index">{{ row }}</li></ul><p v-else>尚无结构化遗留问题。</p></div><div class="summary-row"><strong>综合结论</strong><div class="markdown-body" v-html="renderMarkdown(summaryView.overall?.slice(0, 700) + (summaryView.overall?.length > 700 ? '…' : ''))"></div></div><button class="btn btn-primary btn-small" type="button" @click="screen = 'report'">查看完整报告</button></section>
+          <details v-if="active.evidence?.length" class="card evidence-card"><summary>本次参考资料 <span class="badge is-blue">{{ active.evidence.length }} 条</span></summary><ul><li v-for="(item, index) in active.evidence" :key="item.id || index"><a v-if="item.source" :href="item.source" target="_blank" rel="noopener noreferrer">{{ item.title || item.id || '未命名资料' }}</a><span v-else>{{ item.title || item.id || '未命名资料' }}</span><small>{{ item.audience && item.audience !== 'all' ? `供${item.audience}发言参考 · ` : '' }}{{ item.published_at }}</small></li></ul></details>
         </template>
-      </section>
+      </template>
+      <template v-else-if="screen === 'report' && active">
+        <div class="detail-actions"><button class="back-link" type="button" @click="screen = 'detail'">← 返回研讨现场</button><button class="btn btn-primary btn-small" type="button" @click="downloadReport">下载 Markdown 报告</button></div>
+        <article class="card full-report"><h2>{{ active.title || '专家研讨报告' }}</h2><p class="report-meta">{{ scenarioText(active.scenario) }} · {{ modeText(active.mode) }} · {{ formatDate(active.created_at) }} · 正文约 {{ reportCharacterCount }} 字</p><section v-for="section in reportSections" :key="section.title"><h3>{{ section.title }}</h3><p v-if="!section.ordered">{{ section.lines[0] }}</p><ol v-else><li v-for="(line, index) in section.lines" :key="index">{{ line }}</li></ol></section><p class="report-note">需要查看完整讨论过程和 {{ active.evidence?.length || 0 }} 条参考资料，请返回研讨现场。</p></article>
+      </template>
     </div>
   </main>
 </template>
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { getExpertSeminar, listExpertSeminars, startExpertSeminar } from '@/api/expertSeminar'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
+import { advanceExpertSeminar, createSeminarExpert, createSeminarExpertPromptVersion, createSeminarKnowledge, evaluateSeminarExpert, getExpertSeminar, getSeminarKnowledge, interactExpertSeminar, listExpertSeminars, listSeminarExpertEvaluations, listSeminarExperts, listSeminarKnowledge, retryExpertSeminar, startExpertSeminar, suggestExpertSeminar, updateSeminarExpertRetrieval, voteExpertSeminar } from '@/api/expertSeminar'
 
+const screen = ref('home')
 const question = ref('')
+const title = ref('')
+const keywords = ref('')
 const scenario = ref('uranium')
+const mode = ref('topic')
+const scheduleMode = ref('serial')
+const webSearch = ref(false)
+const suggesting = ref(false)
+const suggestion = ref(null)
+const advancing = ref(false)
+const fallbackRoles = [
+  { name: '供应风险专家', description: '来源、产能与供应稳定性' },
+  { name: '运输与地缘专家', description: '路线、物流与区域事件' },
+  { name: '采购与市场专家', description: '价格、采购时机与库存' },
+  { name: '发展趋势专家', description: '政策、技术与市场走势' },
+  { name: '落地可行性专家', description: '替代方案与执行步骤' },
+]
+const experts = ref([])
+const expertRoles = computed(() => experts.value.length ? experts.value.map(item => ({ name: item.name, description: item.role })) : fallbackRoles)
+const selectedExperts = ref(fallbackRoles.slice(0, 3).map(item => item.name))
+const knowledge = ref([])
+const selectedKnowledge = ref([])
+const knowledgeAssignments = ref({})
+const uploadFromCreate = ref(false)
+const knowledgeSearch = ref('')
+const knowledgeScope = ref('')
+const expertSearch = ref('')
+const expertStatus = ref('')
+const activeKnowledge = ref(null)
+const activeExpert = ref(null)
+const activeExpertSeminars = computed(() => activeExpert.value ? history.value.filter(item => (item.experts || []).includes(activeExpert.value.name)) : [])
+const expertEvaluations = ref([])
+const evaluatingExpert = ref(false)
+const expertEvaluationError = ref('')
+const promptVersionForm = ref({ instruction: '', description: '' })
+const savingPromptVersion = ref(false)
+const promptVersionError = ref('')
+const retrievalForm = ref({ top_k: 5, threshold: 0.5, examples: '' })
+const savingRetrieval = ref(false)
+const retrievalError = ref('')
+const latestExpertEvaluation = computed(() => expertEvaluations.value[0] || null)
+const knowledgeFile = ref(null)
+const knowledgeForm = ref({ title: '', keywords: '', source_type: '科技报告', content: '' })
+const expertForm = ref({ name: '', role: '', tags: '', style: '严谨型', instruction: '' })
+const modeOptions = [
+  { value: 'topic', label: '定题研讨' },
+  { value: 'brainstorm', label: '头脑风暴' },
+  { value: 'open', label: '开放式研讨' },
+  { value: 'debate', label: '观点辩论' },
+  { value: 'scenario', label: '情景推演' },
+  { value: 'six_hats', label: '六顶帽法研讨' },
+  { value: 'delphi', label: '德尔菲研讨' },
+  { value: 'red_blue', label: '红蓝对抗' },
+]
+const modeRoundCounts = { topic: 5, brainstorm: 3, open: 3, debate: 3, scenario: 3, six_hats: 6, delphi: 2, red_blue: 2 }
 const active = ref(null)
+const expandedSpeeches = ref(new Set())
+const boardTab = ref('convergence')
 const history = ref([])
 const error = ref('')
 const submitting = ref(false)
+const loadingDetail = ref(false)
+const retryingId = ref('')
+const savingInteraction = ref(false)
+const interactionTarget = ref('topic')
+const interactionKind = ref('comment')
+const interactionContent = ref('')
+const voterId = (() => {
+  try {
+    const existing = localStorage.getItem('mace_seminar_voter_id')
+    if (existing) return existing
+    const value = crypto.randomUUID()
+    localStorage.setItem('mace_seminar_voter_id', value)
+    return value
+  } catch { return '00000000-0000-4000-8000-000000000001' }
+})()
+const voteCounts = computed(() => {
+  const votes = Object.values(active.value?.votes || {})
+  return { support: votes.filter(value => value === 'support').length, oppose: votes.filter(value => value === 'oppose').length }
+})
+const roundGroups = computed(() => {
+  const groups = new Map()
+  for (const [index, opinion] of (active.value?.opinions || []).entries()) {
+    const number = Math.max(1, Number(opinion.round) || 1)
+    if (!groups.has(number)) groups.set(number, { number, label: opinion.round_label || `第${number}轮`, opinions: [] })
+    groups.get(number).opinions.push({ ...opinion, index })
+  }
+  return [...groups.values()].sort((a, b) => a.number - b.number)
+})
+const roundMetrics = computed(() => active.value?.analytics?.rounds || [])
+const chartPoints = computed(() => roundMetrics.value.filter(row => row.difference_score !== null && row.difference_score !== undefined).map((row, index, rows) => ({
+  ...row, x: rows.length === 1 ? 500 : 55 + index * 890 / (rows.length - 1),
+  y: 170 - row.difference_score * 1.3,
+})))
+const chartLine = computed(() => chartPoints.value.map(row => `${row.x},${row.y}`).join(' '))
+const chartDelta = computed(() => chartPoints.value.length > 1 ? chartPoints.value.at(-1).difference_score - chartPoints.value[0].difference_score : null)
+const speechCounts = computed(() => (active.value?.experts || []).map(name => ({ name, count: (active.value?.opinions || []).filter(row => row.expert === name).length })))
+const summaryView = computed(() => active.value?.summary || { overall: active.value?.conclusion || '', key_findings: [], risks: [], expert_views: [], consensus: [], differences: [], open_questions: [], actions: [] })
+const expertTexts = computed(() => {
+  const texts = new Map()
+  for (const opinion of active.value?.opinions || []) {
+    if (!opinion.expert) continue
+    texts.set(opinion.expert, `${texts.get(opinion.expert) || ''} ${opinion.content || ''}`)
+  }
+  return texts
+})
+const matrixDimensions = computed(() => {
+  const question = String(active.value?.question || '')
+  const topicTerms = ['安全', '技术', '工程', '成本', '风险', '部署', '供应', '运输', '价格', '库存', '交期', '质量', '采购', '市场', '趋势', '执行']
+  const inferred = topicTerms.filter(term => question.includes(term))
+  const keywords = (active.value?.keywords || []).map(value => String(value).trim()).filter(value => value.length >= 2 && value.length <= 12)
+  return [...new Set([...inferred, ...keywords, ...topicTerms])].slice(0, 6)
+})
+const matrixRows = computed(() => {
+  const names = active.value?.experts?.length ? active.value.experts : [...expertTexts.value.keys()]
+  if (!expertTexts.value.size) return []
+  const countTerm = (content, term) => content.split(term).length - 1
+  const densities = names.map(expert => {
+    const content = String(expertTexts.value.get(expert) || '').replace(/\s+/g, '')
+    return matrixDimensions.value.map(dimension => {
+      const count = countTerm(content, dimension)
+      return { dimension, count, density: content.length ? count * 1000 / content.length : 0 }
+    })
+  })
+  const maximums = matrixDimensions.value.map((_, index) => Math.max(...densities.map(row => row[index].density), 0))
+  return names.map((expert, rowIndex) => ({ expert, cells: densities[rowIndex].map((cell, index) => ({
+    dimension: cell.dimension, count: cell.count,
+    score: maximums[index] ? Math.round(cell.density / maximums[index] * 100) : 0,
+  })) }))
+})
+const speechTokenSets = computed(() => [...expertTexts.value.values()].map(text => twoCharacterSet(text)))
+const pointMetrics = items => (items || []).map(text => {
+  const tokens = twoCharacterSet(text)
+  const score = tokens.size && speechTokenSets.value.length
+    ? Math.round(speechTokenSets.value.reduce((sum, speechTokens) => sum + [...tokens].filter(token => speechTokens.has(token)).length / tokens.size, 0) / speechTokenSets.value.length * 100)
+    : 0
+  return { text, score }
+}).sort((first, second) => second.score - first.score)
+const consensusPoints = computed(() => pointMetrics(summaryView.value.consensus))
+const differencePoints = computed(() => pointMetrics(summaryView.value.differences))
+function twoCharacterSet(value) {
+  const normalized = String(value || '').replace(/[^\u4e00-\u9fa5A-Za-z0-9]/g, '')
+  return new Set(Array.from({ length: Math.max(0, normalized.length - 1) }, (_, index) => normalized.slice(index, index + 2)))
+}
+const reportSections = computed(() => {
+  const summary = summaryView.value
+  const sections = []
+  let remaining = 1850 - String(active.value?.title || '专家研讨报告').length
+  const add = (title, values, itemLimit, maxItems, ordered = true) => {
+    const lines = []
+    for (const value of values.slice(0, maxItems)) {
+      const room = remaining - (lines.length ? 0 : title.length) - 2
+      if (room < 20) break
+      const line = plainExcerpt(value, Math.min(itemLimit, room))
+      if (!line) continue
+      lines.push(line)
+      remaining -= line.length + 2
+    }
+    if (lines.length) sections.push({ title, lines, ordered: ordered && lines.length > 1 })
+  }
+  const roundCount = roundGroups.value.length
+  const expertCount = active.value?.experts?.length || 0
+  add('背景', [`${active.value?.question || ''} 本场由${expertCount}位专家进行${roundCount}轮研讨，以下结论仅依据本场发言及所列资料。`], 260, 1, false)
+  add('一、核心结论', summary.key_findings?.length ? summary.key_findings : [summary.overall || '尚未形成结论'], 350, 4)
+  add('二、共识', summary.consensus || [], 110, 4)
+  add('三、分歧', summary.differences || [], 110, 3)
+  add('四、建议', summary.actions || [], 110, 4)
+  add('五、风险提示', summary.risks?.length ? summary.risks : (summary.open_questions || []).map(text => `待核验：${text}`), 110, 4)
+  return sections
+})
+const reportCharacterCount = computed(() => String(active.value?.title || '专家研讨报告').length + reportSections.value.reduce((sum, section) => sum + section.title.length + section.lines.join('').length, 0))
+const speechVoteCount = index => Object.values(active.value?.opinion_votes?.[`speech:${index}`] || {}).filter(value => value === 'support').length
+const mySpeechVote = index => active.value?.opinion_votes?.[`speech:${index}`]?.[voterId.replaceAll('-', '')] || ''
+const myVote = computed(() => active.value?.votes?.[voterId.replaceAll('-', '')] || '')
+const searchKeyword = ref('')
+const statusFilter = ref('')
+const modeFilter = ref('')
+const scenarioFilter = ref('')
 const questionSection = ref(null)
 const questionInput = ref(null)
 const historySection = ref(null)
 const resultSection = ref(null)
 const completedCount = computed(() => history.value.filter(item => item.status === 'completed').length)
-const runningCount = computed(() => history.value.filter(item => item.status === 'running').length)
+const runningCount = computed(() => history.value.filter(item => ['running', 'paused'].includes(item.status)).length)
+const activeExpertCount = computed(() => experts.value.filter(item => item.status === 'active').length)
+const pageTitle = computed(() => ({ hall: '研讨大厅', create: '发起研讨', detail: '研讨现场', report: '完整研讨报告', knowledge: '知识库', 'knowledge-detail': '文档详情', 'knowledge-upload': '上传知识文档', experts: '智能专家库', 'expert-detail': '专家画像', 'expert-create': '创建数字专家' }[screen.value] || '专家研讨厅'))
+const filteredKnowledge = computed(() => knowledge.value.filter(item => {
+  const query = knowledgeSearch.value.toLowerCase()
+  return (!knowledgeScope.value || item.scope === knowledgeScope.value)
+    && (!query || `${item.title} ${item.publisher || ''} ${(item.keywords || []).join(' ')}`.toLowerCase().includes(query))
+}))
+const filteredExperts = computed(() => experts.value.filter(item => {
+  const query = expertSearch.value.toLowerCase()
+  return (!expertStatus.value || item.status === expertStatus.value)
+    && (!query || `${item.name} ${item.role} ${(item.tags || []).join(' ')}`.toLowerCase().includes(query))
+}))
+const statusDistribution = computed(() => ['completed', 'running', 'paused', 'failed'].map(status => {
+  const count = history.value.filter(item => item.status === status).length
+  return { label: statusText(status), count, percent: history.value.length ? Math.round(count / history.value.length * 100) : 0 }
+}))
+const modeDistribution = computed(() => modeOptions.map(item => {
+  const count = history.value.filter(row => (row.mode || 'topic') === item.value).length
+  return { label: item.label, count, percent: history.value.length ? Math.round(count / history.value.length * 100) : 0 }
+}))
+const creationTrend = computed(() => Array.from({ length: 14 }, (_, index) => {
+  const day = new Date()
+  day.setDate(day.getDate() - 13 + index)
+  const date = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`
+  return { date, count: history.value.filter(item => String(item.created_at || '').startsWith(date)).length }
+}))
+const filteredHistory = computed(() => history.value.filter((item) => {
+  const haystack = `${item.title || ''} ${item.question || ''} ${(item.keywords || []).join(' ')}`.toLowerCase()
+  const matchesKeyword = !searchKeyword.value || haystack.includes(searchKeyword.value.toLowerCase())
+  return matchesKeyword
+    && (!statusFilter.value || item.status === statusFilter.value)
+    && (!modeFilter.value || item.mode === modeFilter.value)
+    && (!scenarioFilter.value || item.scenario === scenarioFilter.value)
+}))
+const suggestedQuestions = [
+  { label: '供应中断', question: '如果哈萨克斯坦铀供应中断，未来一年我国应如何调整采购来源、运输路线与库存？' },
+  { label: '运输路线', question: '从哈萨克斯坦进口铀燃料时，哪些运输环节最脆弱？关键路线中断后有哪些可行的替代方案？' },
+  { label: '采购时机', question: '如果未来半年铀价持续波动，提前采购、分批采购和维持现有节奏各有什么风险与适用条件？' },
+]
 let timer = null
 let selectedId = ''
 
-const statusText = value => ({ running: '研讨中', completed: '已完成', failed: '未完成' }[value] || '未知状态')
+const statusText = value => ({ running: '进行中', paused: '等待主持人', completed: '已完成', failed: '未完成' }[value] || '未知状态')
+const modeText = value => modeOptions.find(item => item.value === value)?.label || '定题研讨'
+const scheduleText = value => ({ parallel: '并行调度', mixed: '混合调度', moderator: '主持人调度' }[value] || '串行调度')
+const webStatusText = item => !item.web_search ? '未联网' : ({ pending: '联网检索中', completed: '已联网检索', empty: '联网无结果', failed: '联网失败' }[item.web_search_status] || '联网状态未知')
 const scenarioText = value => value === 'auto' ? '汽车供应链' : '铀供应链'
-const phaseText = value => ({ preparing: '正在准备研讨资料', synthesis: '主持人正在梳理结论', completed: '研讨已完成' }[value] || (value ? `${value}正在分析` : '研讨进行中'))
-const formatDate = value => value ? value.replace('T', ' ').slice(0, 16) : '—'
+const phaseText = value => ({ preparing: '正在准备研讨资料', experts_parallel: '专家正在并行分析', synthesis: '主持人正在梳理结论', completed: '研讨已完成' }[value] || (value ? `${value}正在分析` : '研讨进行中'))
+const formatDate = value => value ? String(value).replace('T', ' ').slice(0, 16) : '—'
+const seminarTitle = item => {
+  const text = String(item?.title || item?.question || '').trim()
+  return text.length > 48 ? `${text.slice(0, 48)}…` : text
+}
 const payload = response => response?.data || response
+const renderMarkdown = value => DOMPurify.sanitize(marked.parse(String(value || ''), { gfm: true, breaks: true }), {
+  ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'blockquote', 'hr', 'code', 'pre', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'a'],
+  ALLOWED_ATTR: ['href', 'title'],
+})
+const plainExcerpt = (value, limit = 90) => {
+  const clean = String(value || '').replace(/^#{1,6}\s*/gm, '').replace(/\*\*|__|`|^---+$/gm, '').replace(/\s+/g, ' ').trim()
+  return clean.length > limit ? `${clean.slice(0, limit)}…` : clean
+}
+const interactionKindText = value => ({ comment: '评论', supplement: '补充', rebuttal: '反驳' }[value] || '互动')
+
+function clearPolling() {
+  if (timer) clearTimeout(timer)
+  timer = null
+}
+
+function showScreen(value) {
+  clearPolling()
+  if (value !== 'knowledge-upload') uploadFromCreate.value = false
+  selectedId = ''
+  active.value = null
+  error.value = ''
+  screen.value = value
+  if (value === 'home' || value === 'hall') loadHistory()
+  if (value === 'home' || value === 'experts' || value === 'knowledge') loadCatalog()
+}
+
+async function loadCatalog() {
+  try {
+    const [expertResponse, knowledgeResponse] = await Promise.all([listSeminarExperts(), listSeminarKnowledge()])
+    experts.value = payload(expertResponse)?.items || []
+    knowledge.value = payload(knowledgeResponse)?.items || []
+  } catch (e) {
+    error.value = e?.message || '研讨资料加载失败'
+  }
+}
+
+async function openKnowledge(id) {
+  error.value = ''
+  try {
+    activeKnowledge.value = payload(await getSeminarKnowledge(id))
+    screen.value = 'knowledge-detail'
+  } catch (e) { error.value = e?.message || '文档加载失败' }
+}
+
+function onKnowledgeFile(event) {
+  knowledgeFile.value = event.target.files?.[0] || null
+  if (knowledgeFile.value && !knowledgeForm.value.title) knowledgeForm.value.title = knowledgeFile.value.name.replace(/\.[^.]+$/, '')
+}
+
+async function saveKnowledge() {
+  if (!knowledgeForm.value.title || (!knowledgeForm.value.content && !knowledgeFile.value)) return
+  submitting.value = true
+  error.value = ''
+  try {
+    const data = new FormData()
+    Object.entries(knowledgeForm.value).forEach(([key, value]) => data.append(key, value))
+    if (knowledgeFile.value) data.append('file', knowledgeFile.value)
+    const created = payload(await createSeminarKnowledge(data))
+    knowledgeForm.value = { title: '', keywords: '', source_type: '科技报告', content: '' }
+    knowledgeFile.value = null
+    await loadCatalog()
+    if (uploadFromCreate.value) {
+      if (created?.id) selectedKnowledge.value = [...selectedKnowledge.value, created.id]
+      screen.value = 'create'
+      uploadFromCreate.value = false
+    } else screen.value = 'knowledge'
+  } catch (e) { error.value = e?.message || '资料入库失败' }
+  finally { submitting.value = false }
+}
+
+async function openExpert(item) {
+  activeExpert.value = item
+  expertEvaluations.value = []
+  expertEvaluationError.value = ''
+  promptVersionForm.value = { instruction: item.instruction || '', description: '' }
+  promptVersionError.value = ''
+  retrievalForm.value = { top_k: item.rag?.top_k ?? 5, threshold: item.rag?.threshold ?? 0.5,
+    examples: (item.few_shot_examples || []).join('\n') }
+  retrievalError.value = ''
+  screen.value = 'expert-detail'
+  try {
+    const records = payload(await listSeminarExpertEvaluations(item.id))?.items || []
+    if (activeExpert.value?.id === item.id) expertEvaluations.value = records
+  } catch {
+    // The profile remains available if the evaluation endpoint is not yet running.
+  }
+}
+
+async function saveExpertPromptVersion() {
+  if (!activeExpert.value || savingPromptVersion.value) return
+  savingPromptVersion.value = true
+  promptVersionError.value = ''
+  try {
+    const updated = payload(await createSeminarExpertPromptVersion(activeExpert.value.id, promptVersionForm.value))
+    activeExpert.value = updated
+    experts.value = experts.value.map(row => row.id === updated.id ? updated : row)
+    promptVersionForm.value = { instruction: updated.instruction, description: '' }
+  } catch (e) { promptVersionError.value = e?.message || '版本保存失败' }
+  finally { savingPromptVersion.value = false }
+}
+
+async function saveExpertRetrieval() {
+  if (!activeExpert.value || savingRetrieval.value) return
+  savingRetrieval.value = true
+  retrievalError.value = ''
+  try {
+    const updated = payload(await updateSeminarExpertRetrieval(activeExpert.value.id, {
+      top_k: Number(retrievalForm.value.top_k), threshold: Number(retrievalForm.value.threshold),
+      few_shot_examples: retrievalForm.value.examples.split('\n').map(row => row.trim()).filter(Boolean),
+    }))
+    activeExpert.value = updated
+    experts.value = experts.value.map(row => row.id === updated.id ? updated : row)
+  } catch (e) { retrievalError.value = e?.message || '检索配置保存失败' }
+  finally { savingRetrieval.value = false }
+}
+
+async function runExpertEvaluation() {
+  if (!activeExpert.value || evaluatingExpert.value) return
+  const id = activeExpert.value.id
+  evaluatingExpert.value = true
+  expertEvaluationError.value = ''
+  try {
+    const record = payload(await evaluateSeminarExpert(id))
+    if (activeExpert.value?.id === id) expertEvaluations.value = [record, ...expertEvaluations.value]
+  } catch (e) {
+    if (activeExpert.value?.id === id) expertEvaluationError.value = e?.message || '评测失败，请稍后重试'
+  } finally { evaluatingExpert.value = false }
+}
+
+async function saveExpert() {
+  if (!expertForm.value.name || !expertForm.value.role || !expertForm.value.instruction) return
+  submitting.value = true
+  error.value = ''
+  try {
+    await createSeminarExpert({ ...expertForm.value, tags: expertForm.value.tags.replace(/，/g, ',').split(',').map(x => x.trim()).filter(Boolean) })
+    expertForm.value = { name: '', role: '', tags: '', style: '严谨型', instruction: '' }
+    await loadCatalog()
+    screen.value = 'experts'
+  } catch (e) { error.value = e?.message || '专家创建失败' }
+  finally { submitting.value = false }
+}
+
+function useExpert(item) {
+  selectedExperts.value = [item.name]
+  focusQuestion()
+}
 
 function focusQuestion() {
-  questionSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  clearPolling()
+  selectedId = ''
+  active.value = null
+  error.value = ''
+  screen.value = 'create'
+  loadCatalog()
   nextTick(() => questionInput.value?.focus())
 }
-function scrollToHistory() { historySection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+
+function backToHall() {
+  clearPolling()
+  selectedId = ''
+  active.value = null
+  error.value = ''
+  screen.value = 'hall'
+  loadHistory()
+}
+
+function resetFilters() {
+  searchKeyword.value = ''
+  statusFilter.value = ''
+  modeFilter.value = ''
+  scenarioFilter.value = ''
+}
+
+function useSuggestion(value) {
+  question.value = value
+  nextTick(() => questionInput.value?.focus())
+}
 
 async function loadHistory() {
   try { history.value = payload(await listExpertSeminars())?.items || [] }
-  catch (e) { error.value = e.message || '历史记录加载失败' }
+  catch (e) { error.value = e?.message || '历史记录加载失败' }
 }
 
-async function open(id, scroll = false) {
+async function open(id) {
   selectedId = id
-  if (timer) clearTimeout(timer)
-  timer = null
+  clearPolling()
   error.value = ''
+  loadingDetail.value = true
+  screen.value = 'detail'
   try {
     const result = payload(await getExpertSeminar(id))
     if (selectedId !== id) return
     active.value = result
-    if (scroll) nextTick(() => resultSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
     if (result?.status === 'running') timer = setTimeout(() => open(id), 2000)
     else loadHistory()
   } catch (e) {
-    if (selectedId === id) error.value = e.message || '研讨记录读取失败'
+    if (selectedId === id) error.value = e?.message || '研讨记录读取失败'
+  } finally {
+    loadingDetail.value = false
   }
 }
 
+async function getSuggestion() {
+  if (!question.value.trim() || suggesting.value) return
+  suggesting.value = true
+  suggestion.value = null
+  error.value = ''
+  try { suggestion.value = payload(await suggestExpertSeminar(question.value.trim(), scenario.value)) }
+  catch (e) { error.value = e?.message || '智能建议生成失败' }
+  finally { suggesting.value = false }
+}
+
+async function recommendExperts() {
+  if (!question.value.trim() || suggesting.value) return
+  suggesting.value = true
+  error.value = ''
+  try {
+    const row = payload(await suggestExpertSeminar(question.value.trim(), scenario.value))
+    const matches = (row.experts || []).filter(name => expertRoles.value.some(item => item.name === name))
+    if (matches.length) selectedExperts.value = matches
+    suggestion.value = row
+  } catch (e) { error.value = e?.message || '专家推荐失败' }
+  finally { suggesting.value = false }
+}
+
+function applySuggestion() {
+  const row = suggestion.value
+  if (!row) return
+  title.value = row.title || ''
+  question.value = row.question || question.value
+  keywords.value = Array.isArray(row.keywords) ? row.keywords.join('，') : ''
+  mode.value = row.mode || 'topic'
+  scheduleMode.value = row.schedule_mode || 'serial'
+  selectedExperts.value = Array.isArray(row.experts) ? row.experts.filter(name => expertRoles.value.some(item => item.name === name)) : selectedExperts.value
+  suggestion.value = null
+}
+
 async function submit() {
-  if (!question.value.trim() || submitting.value) return
+  if (!question.value.trim() || !selectedExperts.value.length || submitting.value) return
   error.value = ''
   submitting.value = true
   try {
-    const result = payload(await startExpertSeminar(question.value.trim(), scenario.value))
+    const result = payload(await startExpertSeminar(question.value.trim(), scenario.value, {
+      title: title.value.trim(), keywords: keywords.value.trim(),
+      mode: mode.value, schedule_mode: scheduleMode.value,
+      experts: [...selectedExperts.value],
+      knowledge_ids: [...selectedKnowledge.value],
+      knowledge_assignments: Object.fromEntries(selectedKnowledge.value.map(id => [id, selectedExperts.value.includes(knowledgeAssignments.value[id]) ? knowledgeAssignments.value[id] : 'all'])),
+      web_search: webSearch.value,
+    }))
     if (!result?.seminar_id) throw new Error('研讨启动后未返回会话编号')
-    active.value = result
     question.value = ''
+    title.value = ''
+    keywords.value = ''
     await loadHistory()
-    await open(result.seminar_id, true)
+    await open(result.seminar_id)
   } catch (e) {
-    error.value = e.message || '研讨启动失败'
+    error.value = e?.message || '研讨启动失败'
   } finally {
     submitting.value = false
   }
 }
 
-onMounted(loadHistory)
-onBeforeUnmount(() => { if (timer) clearTimeout(timer); selectedId = '' })
+async function advance() {
+  if (!active.value?.seminar_id || advancing.value) return
+  advancing.value = true
+  error.value = ''
+  try {
+    await advanceExpertSeminar(active.value.seminar_id)
+    await open(active.value.seminar_id)
+  } catch (e) { error.value = e?.message || '推进专家发言失败' }
+  finally { advancing.value = false }
+}
+
+async function retry(id) {
+  if (!id || retryingId.value) return
+  retryingId.value = id
+  error.value = ''
+  try {
+    const result = payload(await retryExpertSeminar(id))
+    active.value = result
+    await loadHistory()
+    await open(id)
+  } catch (e) {
+    error.value = e?.message || '重新研讨失败'
+  } finally {
+    retryingId.value = ''
+  }
+}
+
+async function vote(stance) {
+  if (!active.value?.seminar_id) return
+  error.value = ''
+  try { active.value = payload(await voteExpertSeminar(active.value.seminar_id, voterId, stance)) }
+  catch (e) { error.value = e?.message || '投票失败' }
+}
+
+async function voteOpinion(index) {
+  if (!active.value?.seminar_id) return
+  error.value = ''
+  try { active.value = payload(await voteExpertSeminar(active.value.seminar_id, voterId, 'support', `speech:${index}`)) }
+  catch (e) { error.value = e?.message || '观点投票失败' }
+}
+
+function jumpToSpeech(index) {
+  document.getElementById(`seminar-speech-${index}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
+
+function commentOn(index) {
+  interactionTarget.value = `speech:${index}`
+  interactionKind.value = 'comment'
+  document.getElementById('seminar-interaction-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
+
+function toggleSpeech(index) {
+  const next = new Set(expandedSpeeches.value)
+  if (next.has(index)) next.delete(index)
+  else next.add(index)
+  expandedSpeeches.value = next
+}
+
+function downloadReport() {
+  if (!active.value) return
+  const row = active.value
+  const lines = [`# ${row.title || '专家研讨报告'}`, '', `${scenarioText(row.scenario)} · ${modeText(row.mode)} · ${formatDate(row.created_at)}`, '']
+  for (const section of reportSections.value) lines.push(`## ${section.title}`, ...section.lines.map(line => `- ${line}`), '')
+  lines.push('完整逐轮发言及参考资料请在研讨现场查看。')
+  const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `专家研讨报告-${row.seminar_id?.slice(0, 8) || 'report'}.md`
+  link.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+async function postInteraction() {
+  if (!active.value?.seminar_id || !interactionContent.value.trim() || savingInteraction.value) return
+  savingInteraction.value = true
+  error.value = ''
+  try {
+    await interactExpertSeminar(active.value.seminar_id, { target: interactionTarget.value, kind: interactionKind.value, content: interactionContent.value.trim() })
+    interactionContent.value = ''
+    await open(active.value.seminar_id)
+  } catch (e) { error.value = e?.message || '互动提交失败' }
+  finally { savingInteraction.value = false }
+}
+
+onMounted(() => { loadHistory(); loadCatalog() })
+onBeforeUnmount(() => { clearPolling(); selectedId = '' })
 </script>
 
 <style scoped>
-.seminar-page{min-height:100%;padding:30px 28px 64px;box-sizing:border-box;background:#f1f5fb;color:#172a48;font-family:'Microsoft YaHei','PingFang SC',sans-serif}
-.seminar-wrap{max-width:1440px;margin:0 auto}.page-kicker{display:flex;align-items:center;gap:8px;margin:0 0 17px;color:#67809f;font-size:12px;letter-spacing:.08em;font-weight:600}.kicker-mark{width:7px;height:7px;border-radius:50%;background:#357bd5}
-.hero{position:relative;display:flex;align-items:center;min-height:272px;overflow:hidden;border-radius:20px;background:linear-gradient(107deg,#112f67 0%,#1c54a5 57%,#2874d4 100%);box-shadow:0 15px 35px rgba(23,75,151,.13)}.hero-content{position:relative;z-index:2;padding:40px 50px;max-width:770px}.hero-label{color:#98c4ff;font-size:12px;font-weight:700;letter-spacing:.17em}.hero h1{margin:12px 0 13px;color:#fff;font-size:32px;line-height:1.3;letter-spacing:.015em}.hero p{margin:0;max-width:730px;color:#d5e6ff;font-size:14px;line-height:1.9}.hero-actions{display:flex;gap:11px;margin-top:24px}.hero-actions button{border-radius:8px;padding:10px 19px;font-size:14px;font-weight:700;cursor:pointer;transition:transform .2s,background .2s}.hero-actions button:hover{transform:translateY(-2px)}.hero-primary{background:#fff;border:1px solid #fff;color:#1b559e}.hero-secondary{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.39);color:#fff}.hero-actions span{margin-left:16px}.hero-art{position:absolute;inset:0 0 0 auto;width:41%;pointer-events:none}.hero-art span{position:absolute;border:1px solid rgba(165,208,255,.19);border-radius:50%}.hero-art span:nth-child(1){width:340px;height:340px;right:-78px;top:-150px;background:rgba(129,191,255,.12)}.hero-art span:nth-child(2){width:270px;height:270px;right:110px;bottom:-155px;background:rgba(126,183,252,.11)}.hero-art span:nth-child(3){width:160px;height:160px;right:225px;top:35px}.hero-art i{position:absolute;width:9px;height:9px;right:215px;top:110px;background:#91c9ff;border-radius:50%;box-shadow:0 0 0 12px rgba(131,198,255,.1),0 0 0 32px rgba(131,198,255,.06)}
-.overview{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin:20px 0 28px}.metric{display:flex;flex-direction:column;gap:7px;padding:22px 25px;background:#fff;border:1px solid #e0e8f4;border-radius:14px;box-shadow:0 4px 14px rgba(31,67,116,.035)}.metric strong{color:#2373cc;font-size:30px;line-height:1;font-weight:750}.metric span{color:#6e7e93;font-size:13px}
-.workspace-grid{display:grid;grid-template-columns:minmax(0,1.07fr) minmax(0,.93fr);gap:20px;align-items:stretch}.start-panel,.history-panel,.discussion{min-width:0;background:#fff;border:1px solid #dfe7f2;border-radius:16px;box-shadow:0 5px 20px rgba(31,67,116,.04)}.start-panel,.history-panel{padding:26px 28px}.section-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:25px}.section-index{color:#2c7ed4;font-size:11px;font-weight:800;letter-spacing:.16em}.section-heading h2{margin:6px 0 0;font-size:21px;line-height:1.3;color:#142d52}.heading-note{font-size:12px;color:#8a9ab0;white-space:nowrap}.field-label,.scenario-field label{display:block;margin-bottom:10px;font-size:13px;font-weight:700;color:#314764}.start-panel :deep(.el-textarea__inner){min-height:146px!important;resize:vertical;border-radius:10px;padding:15px 16px;box-shadow:0 0 0 1px #dce5f0 inset;font-size:14px;line-height:1.7}.start-panel :deep(.el-textarea__inner:focus){box-shadow:0 0 0 1px #2879d2 inset}.form-bottom{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-top:18px}.scenario-field{min-width:180px}.scenario-field :deep(.el-select){width:100%}.scenario-field :deep(.el-select__wrapper){min-height:39px;border-radius:8px}.submit-button{height:40px!important;min-width:150px;border-radius:8px!important;background:#236fc4!important;border-color:#236fc4!important;font-weight:700!important}.submit-button span{margin-left:10px}.process-note{display:flex;align-items:center;gap:8px;margin-top:21px;padding:12px 14px;border-radius:8px;background:#f1f7ff;color:#456589;font-size:12px}.note-dot{width:7px;height:7px;flex:none;border-radius:50%;background:#3b8cdd}.boundary-note{margin:12px 0 0;color:#8a98a9;font-size:12px}.alert{margin-top:14px}
-.history-list{max-height:355px;overflow:auto}.history-row{width:100%;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:15px 4px;text-align:left;border:0;border-bottom:1px solid #edf1f6;background:transparent;cursor:pointer}.history-row:last-child{border-bottom:0}.history-row:hover,.history-row.selected{background:#f4f8fe}.history-main{min-width:0}.history-main strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#245d9d;font-size:13px;font-weight:600}.history-main small{display:block;margin-top:8px;color:#93a1b3;font-size:11px}.status-pill{flex:none;display:inline-flex;align-items:center;border-radius:999px;padding:5px 10px;background:#ecf3fc;color:#3773b9;font-size:11px;font-weight:700}.status-pill.is-running{background:#e7f6ef;color:#24986b}.status-pill.is-failed{background:#fff2ef;color:#c76050}.empty-history{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:230px;color:#9aabc0;text-align:center}.empty-history span{font-size:35px;color:#a9c7e8}.empty-history strong{margin-top:9px;color:#506784;font-size:14px}.empty-history p{font-size:12px}
-.discussion{margin-top:20px;padding:26px 28px}.discussion-heading{margin-bottom:22px}.discussion-empty{text-align:center;padding:28px 16px 43px;color:#899ab0}.empty-orbit{width:70px;height:70px;display:grid;place-items:center;margin:0 auto 15px;border:1px solid #bfd5f0;border-radius:50%;background:#f2f7fe;color:#3684d5;font-size:28px}.discussion-empty h3{margin:0 0 9px;font-size:16px;color:#415c7c}.discussion-empty p{margin:0;font-size:13px}.discussion-topic{padding:19px 21px;border-radius:10px;background:#f4f8fe;border-left:3px solid #347fd4}.discussion-topic>span{color:#3175bf;font-size:11px;font-weight:800}.discussion-topic h3{margin:8px 0 7px;color:#1b385d;font-size:17px;line-height:1.5}.discussion-topic small{color:#8b9bb0}.running-strip{display:flex;align-items:center;gap:12px;margin-top:18px;padding:12px 15px;border-radius:9px;background:#eaf7f1}.pulse-dot{width:9px;height:9px;border-radius:50%;background:#2eb381;box-shadow:0 0 0 5px rgba(46,179,129,.13);animation:pulse 1.8s infinite}.running-strip strong,.running-strip small{display:block}.running-strip strong{color:#257b5d;font-size:13px}.running-strip small{margin-top:4px;color:#669782;font-size:11px}.result-error{margin-top:16px}.opinion-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:18px}.opinion{padding:19px;border:1px solid #e1eaf5;border-radius:11px;background:#fff}.opinion-top{display:flex;align-items:center;gap:9px;border-bottom:1px solid #edf2f8;padding-bottom:12px}.expert-number{color:#4b92dd;font-size:11px;font-weight:800}.opinion h4{margin:0;color:#24476e;font-size:13px}.opinion-label{margin-left:auto;color:#93a6bb;font-size:10px;white-space:nowrap}.opinion p,.conclusion p{margin:14px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.8;color:#455a73;font-size:13px}.conclusion{margin-top:18px;padding:22px 24px;border:1px solid #c9ddf4;border-radius:11px;background:linear-gradient(125deg,#f1f7ff,#fff)}.conclusion-label{color:#246fbd;font-size:14px;font-weight:800}.conclusion-label span{margin-right:6px}.conclusion p{color:#294866}.waiting-opinions{display:flex;align-items:center;gap:10px;padding:32px 4px;color:#7d91a8;font-size:13px}.loading-ring{width:16px;height:16px;border:2px solid #bfd9f5;border-top-color:#327ccc;border-radius:50%;animation:spin .8s linear infinite}.evidence{margin-top:18px;border-top:1px solid #e8eef6;padding-top:17px;color:#506884}.evidence summary{cursor:pointer;font-size:13px;font-weight:700}.evidence summary strong{color:#2574c4}.evidence summary span{float:right;font-size:11px;color:#8b9fb5}.evidence ul{padding-left:19px}.evidence li{margin:10px 0;font-size:12px;line-height:1.5}.evidence a{color:#2b71b8}.evidence small{margin-left:10px;color:#9aa9b8}
-@keyframes spin{to{transform:rotate(360deg)}}@keyframes pulse{50%{box-shadow:0 0 0 9px rgba(46,179,129,0)}}
-@media(max-width:1050px){.workspace-grid{grid-template-columns:1fr}.opinion-grid{grid-template-columns:1fr}.hero-art{opacity:.5}}
-@media(max-width:680px){.seminar-page{padding:16px 12px 38px}.hero{min-height:0}.hero-content{padding:29px 24px}.hero h1{font-size:25px}.hero p{font-size:13px}.hero-art{display:none}.overview{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:12px 0 18px}.metric{padding:16px}.metric strong{font-size:25px}.start-panel,.history-panel,.discussion{padding:20px 17px}.section-heading h2{font-size:18px}.heading-note{display:none}.form-bottom{align-items:stretch;flex-direction:column}.scenario-field{min-width:0}.submit-button{width:100%}.hero-actions{flex-wrap:wrap}.hero-actions button{font-size:12px}}
+.seminar-page{min-height:100%;padding:24px 28px 64px;background:#f2f6fc;color:#16233b;font:14px/1.6 -apple-system,'PingFang SC','Microsoft YaHei',sans-serif;box-sizing:border-box}
+.seminar-page *{box-sizing:border-box}
+.seminar-wrap{max-width:1180px;margin:0 auto}
+.module-nav{display:flex;align-items:center;gap:5px;margin:-24px -28px 18px;padding:0 max(20px,calc((100% - 1180px)/2));min-height:48px;background:linear-gradient(100deg,#103574,#2467c8);color:#fff}
+.module-nav strong{font-size:15px;margin-right:12px;white-space:nowrap}.module-nav button{height:46px;padding:0 11px;border:0;border-bottom:2px solid transparent;background:transparent;color:#eef5ff;font:inherit;cursor:pointer}.module-nav button.active,.module-nav button:hover{border-bottom-color:#fff;color:#fff}
+.home-hero{position:relative;overflow:hidden;padding:30px 28px;margin:16px 0;border-radius:14px;background:linear-gradient(115deg,#0c2d69,#1c61c6);color:#fff}.home-hero:before,.home-hero:after{content:'';position:absolute;width:210px;height:210px;border-radius:50%;background:#5da0ff;opacity:.12;right:-35px;top:-80px}.home-hero:after{right:70px;top:95px}.home-hero h1{position:relative;margin:0 0 8px;font-size:23px}.home-hero p{position:relative;max-width:690px;margin:0 0 19px;font-size:13px;line-height:1.8}.home-hero>div{position:relative;display:flex;gap:8px}.btn-light{border:1px solid #fff;background:#fff;color:#1558b8}.btn-outline{border:1px solid #aac9f6;background:#ffffff12;color:#fff}
+.home-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}.home-metrics>div{padding:16px}.home-metrics strong{display:block;color:#1d66d1;font-size:28px;line-height:1.2}.home-metrics span{display:block;margin-top:5px;color:#5b6b84;font-size:12px}
+.home-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.home-panel{min-width:0;padding:16px;margin-bottom:0}.home-panel h2{margin:0 0 13px;font-size:15px}.home-panel table{width:100%;border-collapse:collapse;font-size:12px}.home-panel th,.home-panel td{padding:8px 7px;border-bottom:1px solid #dbe6f5;text-align:left;vertical-align:top}.home-panel th{color:#536781;font-weight:600}.home-panel td{color:#48607f}.home-panel td:first-child{max-width:280px}.table-link{border:0;padding:0;background:none;color:#1558b8;cursor:pointer;text-align:left;font:inherit}.table-link:hover{text-decoration:underline}.count-accent{color:#1e6fd9}
+.distribution-row{display:flex;align-items:center;gap:10px;margin:9px 0;font-size:12px}.distribution-row>span{width:85px;white-space:nowrap;color:#5b6b84}.distribution-row b{width:20px;text-align:right}.bar-track{flex:1;height:11px;border-radius:5px;background:#e7eef8;overflow:hidden}.bar-track i{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,#78aaf2,#236bd4)}.trend-panel{margin-top:14px}.trend-bars{display:flex;align-items:flex-end;justify-content:space-between;gap:6px;height:130px}.trend-bars>div{display:flex;flex:1;flex-direction:column;align-items:center;justify-content:end;height:100%}.trend-bars span{width:min(100%,30px);min-height:3px;border-radius:4px 4px 0 0;background:#4d90e9}.trend-bars small{margin-top:5px;color:#71809a;font-size:9px}
+.detail-document{padding:20px;margin-top:13px}.detail-document h2{margin:0 0 8px;font-size:20px}.detail-document h3{margin:20px 0 8px;font-size:15px}.detail-document>p{color:#5b6b84}.detail-document pre{white-space:pre-wrap;overflow-wrap:anywhere;font-family:inherit;font-size:13px;line-height:1.7;color:#33465f}.detail-document a{color:#1558b8}
+.expert-profile-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;margin:12px 0 18px}.expert-profile-heading h2{margin:0;color:#102d55;font-size:21px}.expert-profile-heading p{margin:3px 0 0;color:#5b6b84;font-size:13px}.expert-profile-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.expert-profile-card{min-width:0;padding:18px 20px}.expert-profile-card h3{margin:0 0 14px;font-size:16px;color:#102d55}.expert-profile-card h4{margin:18px 0 8px;font-size:14px}.profile-list{margin:0}.profile-list>div{display:grid;grid-template-columns:105px minmax(0,1fr);gap:12px;padding:10px 6px;border-bottom:1px solid #dbe6f5}.profile-list dt{color:#536b8c;font-weight:600;font-size:12px}.profile-list dd{margin:0;min-width:0;color:#18365c;overflow-wrap:anywhere}.profile-tag{margin:0 5px 4px 0}.profile-muted{color:#617590;font-size:12px;line-height:1.65}.profile-prompt-head{display:flex;align-items:center;gap:10px;padding:11px 0;border-top:1px solid #dbe6f5;border-bottom:1px solid #dbe6f5}.profile-prompt{padding:12px;background:#f5f8fd;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere;color:#243e60;line-height:1.75}.profile-activity{display:flex;align-items:baseline;gap:10px;padding:12px 0;border-top:1px solid #dbe6f5;border-bottom:1px solid #dbe6f5}.profile-activity strong{font-size:24px;color:#1768c8}.profile-activity span{color:#617590;font-size:12px}.profile-recent>div{display:flex;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px solid #dbe6f5}.profile-recent small{flex:none;color:#8493aa}.profile-id{font-family:ui-monospace,Consolas,monospace;font-size:12px}
+.profile-version-table{overflow-x:auto}.profile-version-row{display:grid;grid-template-columns:56px 60px 54px minmax(90px,1fr) 92px;align-items:center;gap:7px;min-width:425px;padding:9px 5px;border-bottom:1px solid #dbe6f5;font-size:12px}.profile-version-head{color:#536b8c;font-weight:600}.profile-prompt-details{margin-top:14px}.profile-prompt-details summary{color:#1558b8;cursor:pointer;font-weight:600}
+.profile-section-head{display:flex;justify-content:space-between;align-items:center;gap:10px}.profile-section-head h3{margin-bottom:8px}.profile-score{display:grid;grid-template-columns:95px minmax(0,1fr) 40px;align-items:center;gap:9px;margin:9px 0;font-size:12px}.profile-score .bar-track i{display:block;height:100%;background:#3185cf;border-radius:10px}.profile-score b{text-align:right}.profile-evaluation-record{display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid #dbe6f5;font-size:12px}.profile-evaluation-record small{color:#71809a}.profile-error{color:#c43333;font-size:12px}
+.profile-method{margin:2px 0 12px;color:#64758c;font-size:11px;line-height:1.65}.profile-method summary{width:max-content;cursor:pointer;color:#64758c}.profile-method p{margin:7px 0 0;padding-left:13px}
+.profile-rag-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.profile-prompt-details .field{margin-top:12px}.profile-prompt-details .field input,.profile-prompt-details .field textarea{width:100%}
+.speech-evidence{margin:9px 0;color:#687b95;font-size:11px}.speech-evidence summary{width:max-content;cursor:pointer}.speech-evidence ul{margin:7px 0;padding-left:20px}.speech-evidence li{margin:3px 0}.speech-evidence small{margin-left:8px;color:#8393a8}
+.field textarea{display:block;width:100%;padding:10px 11px;border:1px solid #c6d6ec;border-radius:8px;background:#fff;color:#16233b;font:inherit;resize:vertical}.reference-choices{margin-top:15px;padding-top:14px;border-top:1px solid #e5edf8;max-height:245px;overflow-y:auto}.reference-choices strong{display:block;margin-bottom:8px;font-size:13px}.reference-choices label{display:flex;align-items:center;gap:8px;padding:7px 0;color:#425c7c;font-size:12px}.reference-choices label span{flex:1}.reference-choices input{accent-color:#1e6fd9}.reference-choices small{color:#8290a5}
+.breadcrumb{font-size:12px;color:#70819b;margin-bottom:10px}
+.heading-row{display:flex;align-items:center;justify-content:space-between;gap:20px}
+.heading-row h1{font-size:22px;line-height:1.35;margin:0 0 3px;font-weight:700}
+.heading-row p{margin:0;color:#5b6b84;font-size:13px}
+.seminar-nav{display:flex;align-items:center;gap:6px;margin:18px 0 16px;border-bottom:1px solid #dbe6f5}
+.seminar-nav button{padding:9px 16px;border:0;border-bottom:2px solid transparent;background:transparent;color:#5b6b84;font:inherit;cursor:pointer}
+.seminar-nav button:hover{color:#1558b8}
+.seminar-nav button.active{color:#1558b8;border-bottom-color:#1e6fd9;font-weight:700}
+.btn{min-height:38px;padding:8px 16px;border-radius:8px;font:inherit;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn-primary{color:#fff;border:1px solid #1558b8;background:linear-gradient(120deg,#1558b8,#1e6fd9);box-shadow:0 1px 4px rgba(30,111,217,.2)}
+.btn-primary:hover{filter:brightness(1.08)}
+.btn-secondary{color:#1558b8;border:1px solid #9ec0ec;background:#fff}
+.btn-secondary:hover{background:#eef6ff}
+.btn-small{min-height:32px;padding:5px 12px;font-size:12px}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.card{background:#fff;border:1px solid #dbe6f5;border-radius:12px;box-shadow:0 1px 3px rgba(30,111,217,.05)}
+.filter-card{display:flex;flex-wrap:wrap;align-items:end;gap:10px;padding:14px 16px;margin-bottom:18px}
+.field{min-width:0;margin-bottom:15px}.filter-card .field{flex:1 1 150px;margin:0}.filter-card .search-field{flex:2 1 220px}
+.field label{display:block;margin-bottom:5px;color:#273b58;font-size:13px;font-weight:600}
+.field em{color:#d43c3c;font-style:normal}
+.field input,.field select{width:100%;min-height:39px;padding:8px 11px;border:1px solid #c6d6ec;border-radius:8px;background:#fff;color:#16233b;font:inherit}
+.field input:focus,.field select:focus{outline:2px solid #d6e8ff;border-color:#1e6fd9}
+.filter-reset{flex:0 0 auto}
+.list-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 10px}
+.list-heading h2{margin:0;font-size:16px}.list-heading h2 span{margin-left:4px;color:#1e6fd9}
+.list-heading>span{color:#71809a;font-size:12px}
+.seminar-list{display:grid;gap:10px}
+.seminar-item{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px}
+.seminar-item:hover{box-shadow:0 3px 10px rgba(30,111,217,.1)}
+.seminar-item-main{min-width:0;flex:1}
+.item-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:7px}
+.seminar-item-title{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0;border:0;background:none;color:#1558b8;font-size:15px;font-weight:700;text-align:left;cursor:pointer}
+.seminar-item-title:hover{text-decoration:underline}
+.seminar-item-main p{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:2px 0 6px;color:#5b6b84;font-size:12px}
+.meta-line,.topic-head{display:flex;flex-wrap:wrap;align-items:center;gap:7px}
+.badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:10px;background:#eef1f6;color:#5b6b84;font-size:11.5px;white-space:nowrap}
+.badge.is-completed,.badge.is-blue{background:#e3eefc;color:#1558b8}
+.badge.is-running,.badge.is-green{background:#e8f7ef;color:#17a35c}
+.badge.is-paused{background:#fff4d9;color:#9a6400}
+.badge.is-failed{background:#fdecec;color:#d43c3c}
+.badge.is-neutral{background:#eef1f6;color:#5b6b84}
+.meta-time{color:#8694aa;font-size:12px}
+.meta-keywords{color:#71809a;font-size:11.5px}
+.empty-state{text-align:center;padding:42px 16px}.empty-state .empty-icon{font-size:32px;color:#9fc1ee}.empty-state strong{display:block;margin:6px 0 3px}.empty-state p{margin:0 0 14px;color:#71809a;font-size:13px}
+.step-hint{margin:0 0 14px;color:#5b6b84;font-size:12.5px}
+.create-card,.expert-card{padding:18px 20px;margin-bottom:14px}
+.card-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.card-heading h2{margin:0;font-size:16px}.card-heading>span{color:#71809a;font-size:12px}
+.create-card :deep(.el-textarea__inner){min-height:130px!important;padding:10px 12px;border-radius:8px;box-shadow:0 0 0 1px #c6d6ec inset;font-size:14px;line-height:1.65}
+.create-card :deep(.el-textarea__inner:focus){box-shadow:0 0 0 1px #1e6fd9 inset}
+.suggestion-result{margin-top:10px;padding:12px;border:1px solid #b8d3f7;border-radius:8px;background:#f1f7ff;color:#28486e}.suggestion-result p{margin:5px 0;font-size:12px}.suggestion-result button{margin-top:6px}.web-search-choice{display:flex;align-items:center;gap:8px;margin:14px 0 3px;font-weight:600;color:#1558b8}.web-search-choice input{accent-color:#1e6fd9}
+.expert-select-actions{display:flex;gap:8px;flex-wrap:wrap;margin:-4px 0 12px}
+.reference-row{display:flex;align-items:center;gap:8px}.reference-row label{flex:1;min-width:0}.reference-row select{max-width:160px;padding:4px;border:1px solid #c6d6ec;border-radius:6px;color:#425c7c;background:#fff}
+.field-hint{margin-top:5px;color:#71809a;font-size:11.5px}
+.topic-suggestions{display:flex;align-items:center;flex-wrap:wrap;gap:7px;padding:12px 0 14px;border-top:1px solid #eef2f8}
+.topic-suggestions strong{margin-right:3px;color:#5b6b84;font-size:12px}
+.topic-suggestions button{padding:5px 10px;border:1px solid #cfe0f6;border-radius:16px;background:#eef6ff;color:#1558b8;font-size:12px;cursor:pointer}
+.topic-suggestions button:hover{background:#dcecff}
+.scenario-field{max-width:240px;margin:0}.scenario-field :deep(.el-select){width:100%}
+.setting-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px}.setting-grid .field{margin-bottom:7px}.setting-grid :deep(.el-select){width:100%}
+.settings-summary{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid #eef2f8}
+.settings-summary span{padding:6px 10px;border-radius:8px;background:#f0f6ff;color:#5b6b84;font-size:12px}
+.settings-summary b{margin-left:5px;color:#1558b8}
+.sources-card{padding:18px 20px;margin-bottom:14px}.sources-card p{margin:0;color:#5b6b84;font-size:13px;line-height:1.7}
+.expert-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.expert-grid>label,.expert-grid>div{display:flex;flex-direction:column;align-items:flex-start;min-width:0;padding:12px;border:1px solid #dbe6f5;border-radius:9px;background:#f8fbff}
+.expert-grid>label{position:relative;cursor:pointer}.expert-grid>label.selected{border-color:#8db9ef;background:#f0f7ff}.expert-grid>label input{position:absolute;top:12px;right:12px;width:16px;height:16px;accent-color:#1e6fd9}
+.expert-mark{display:inline-grid;place-items:center;width:27px;height:27px;margin-bottom:8px;border-radius:7px;background:#e3eefc;color:#1558b8;font-size:11px;font-weight:800}
+.expert-mark.host{background:#e8f7ef;color:#17a35c}
+.expert-grid strong{font-size:13px}.expert-grid small{margin-top:3px;color:#71809a;font-size:11px}
+.form-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:14px}
+.alert{margin:12px 0}
+.detail-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px}.back-link{padding:0;border:0;background:none;color:#1558b8;font:inherit;font-size:13px;cursor:pointer}
+.back-link:hover{text-decoration:underline}
+.loading-state{padding:30px;text-align:center;color:#71809a}
+.topic-card{padding:18px 20px;margin-bottom:14px}.topic-card h2{margin:12px 0 6px;font-size:18px;line-height:1.55}.topic-card p{margin:0;color:#71809a;font-size:12px}
+.topic-card .topic-question{margin-bottom:8px;color:#435874;font-size:13px}
+.topic-keywords{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.topic-card .topic-flow{margin-top:8px}
+.vote-card{display:flex;align-items:center;flex-wrap:wrap;gap:9px;padding:12px 18px;margin-bottom:14px}.vote-card strong{font-size:13px}.vote-card>span{color:#8290a5;font-size:11px}.vote-card>div{display:flex;gap:8px;margin-left:auto}.vote-card .selected{border-color:#1e6fd9;background:#e7f1ff}
+.dashboard-card{margin-bottom:14px;padding:0 18px}.dashboard-card summary{display:flex;align-items:center;gap:10px;padding:13px 0;cursor:pointer;font-weight:700;list-style:none}.dashboard-card summary::-webkit-details-marker{display:none}.dashboard-card summary::before{content:'▸';color:#253f59;font-size:12px;transition:transform .15s}.dashboard-card[open] summary::before{transform:rotate(90deg)}.dashboard-card summary span{color:#71809a;font-size:12px;font-weight:400}
+.dashboard-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:0 0 14px}.dashboard-grid>div{display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px;border:1px solid #dbe6f5;border-radius:8px;background:#f8fbff}.dashboard-grid strong{color:#1558b8;font-size:18px}.dashboard-grid span{color:#71809a;font-size:11.5px}
+.board-heading{display:flex;align-items:baseline;gap:10px;padding:16px 0 10px}.board-heading strong{font-size:15px}.board-heading span{color:#71809a;font-size:12px}.board-tabs{display:flex;gap:7px;flex-wrap:wrap;padding-bottom:12px}.board-tabs button{padding:6px 15px;border:1px solid #9dbdde;border-radius:19px;background:#fff;color:#245174;font:inherit;font-size:12px;font-weight:600;cursor:pointer}.board-tabs button.active{background:#22617c;border-color:#22617c;color:#fff}.board-panel{min-height:190px;padding:10px 0 18px}.board-panel h3{margin:7px 0;font-size:13px}.board-panel ul{margin:5px 0;padding-left:18px}.board-panel li{margin:5px 0;font-size:12.5px;color:#33465f}.board-explain,.board-method,.board-empty{margin:0 0 8px;color:#71809a;font-size:12px}.board-explain strong{color:#245174}.board-method{margin-top:8px;font-size:11px}.curve-summary{display:flex;align-items:baseline;gap:12px;margin:12px 0 2px}.curve-summary strong{color:#1c5876;font-size:18px}.curve-summary span{color:#71809a;font-size:12px}.curve-wrap{width:100%;overflow-x:auto}.curve-wrap svg{display:block;width:100%;min-width:520px;height:auto;overflow:visible}.curve-wrap text{font-size:14px;fill:#7890aa}.curve-wrap .chart-grid{stroke:#dce6f2;stroke-width:1}.curve-wrap .chart-line{fill:none;stroke:#2d7394;stroke-width:3;stroke-linejoin:round}.curve-wrap .chart-dot{fill:#2d7394;stroke:#fff;stroke-width:2}.curve-wrap .chart-value{font-weight:700;fill:#1c3e5b}.matrix-scroll{overflow-x:auto}.opinion-matrix{width:100%;min-width:580px;border-collapse:collapse;text-align:left}.opinion-matrix th,.opinion-matrix td{padding:10px;border:1px solid #dbe6f5;vertical-align:top;font-size:12px}.opinion-matrix thead th{background:#f3f8ff;color:#245174}.opinion-matrix tbody th{min-width:105px;color:#284260}.opinion-matrix td button{border:0;padding:0;background:none;color:#1558b8;text-align:left;cursor:pointer;font:inherit;line-height:1.6}.opinion-matrix td span{color:#9aa7b7}.board-columns{display:grid;grid-template-columns:1fr 1fr;gap:18px}.board-columns>div{padding:10px;border:1px solid #e1eaf5;border-radius:8px;background:#fafcff}.board-columns p{color:#8190a5;font-size:12px}
+.opinion-heatmap{width:100%;min-width:650px;border-collapse:separate;border-spacing:3px;text-align:center}.opinion-heatmap th{padding:8px 4px;color:#62738e;font-size:12px;font-weight:600}.opinion-heatmap thead th:first-child{width:125px}.opinion-heatmap tbody th{text-align:left;white-space:nowrap;color:#33465f;font-weight:500}.opinion-heatmap td{padding:0}.heat-cell{display:grid;place-items:center;min-height:40px;border-radius:4px;color:#1e354d;font-size:12px}.point-group{margin:12px 0 18px}.point-group h3{margin:0 0 7px!important;font-size:14px!important}.consensus-title{color:#159d58}.difference-title{color:#d84242}.point-row{display:grid;grid-template-columns:190px minmax(0,1fr) 40px;align-items:center;gap:10px;margin:8px 0}.point-label{overflow:hidden;color:#526783;font-size:12px;text-overflow:ellipsis;white-space:nowrap}.point-track{height:18px;overflow:hidden;border-radius:5px;background:#e7edf6}.point-track i{display:block;height:100%;border-radius:5px}.point-track .is-consensus{background:#19a361}.point-track .is-difference{background:#df4141}.point-row strong{color:#21344d;font-size:12px;text-align:right}
+.discussion-card{padding:18px 20px}.discussion-sub{margin:-6px 0 14px;color:#71809a;font-size:12.5px}
+.running-tag{color:#17a35c!important;font-weight:600}
+.speech-stats{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:0 0 14px}.speech-stats>span:first-child{color:#71809a;font-size:12px}
+.round-title{margin:10px 0 10px;padding-left:9px;border-left:3px solid #1e6fd9;color:#1558b8;font-size:13px;font-weight:700}
+.round-title span{margin-left:10px;color:#71809a;font-size:11px;font-weight:400}.round-count{display:inline-block;padding:4px 10px;border-radius:18px;background:#eff5fa;color:#24405c;font-size:14px}.seminar-round{margin:15px 0 24px}.seminar-round .message-card{scroll-margin-top:90px}.speech-actions{display:flex;align-items:center;gap:8px;margin-top:10px}.speech-actions button{padding:6px 11px;border:1px solid #dae4ef;border-radius:6px;background:#f4f7fb;color:#49647e;font:inherit;font-size:11px;cursor:pointer}.speech-actions button.selected{background:#e5f1ff;border-color:#70a9ed;color:#1558b8}.speech-actions span{color:#8a98ab;font-size:11px}
+.message-card{padding:13px 15px;margin-bottom:10px;border:1px solid #dbe6f5;border-radius:10px;background:#fff}
+.message-head{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.message-head strong{font-size:13.5px}.message-head small{margin-left:auto;color:#8a98ab;font-size:11px}
+.speaker-avatar{display:inline-grid;place-items:center;width:25px;height:25px;border-radius:50%;background:#e3eefc;color:#1558b8;font-size:11px;font-weight:800}
+.moderator-card{background:#f5f9ff;border-color:#bcd5f3}.moderator-avatar{background:#d8eafe;color:#0d47a1}
+.message-card p{margin:10px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;color:#33465f;font-size:13.5px;line-height:1.75}
+.speech-preview{line-height:1.8!important}.speech-toggle{margin:6px 0 3px;padding:0;border:0;background:none;color:#1558b8;font:inherit;font-size:12px;font-weight:600;cursor:pointer}.speech-toggle:hover{text-decoration:underline}
+.markdown-body{overflow-wrap:anywhere;color:#33465f;font-size:13.5px;line-height:1.8}.markdown-body :deep(p){margin:10px 0;white-space:normal;font-size:inherit;line-height:inherit}.markdown-body :deep(h1),.markdown-body :deep(h2),.markdown-body :deep(h3),.markdown-body :deep(h4){margin:18px 0 7px;color:#1d4b72;font-size:14px;line-height:1.45}.markdown-body :deep(h1){font-size:16px}.markdown-body :deep(h2){font-size:15px}.markdown-body :deep(h3){font-size:14px}.markdown-body :deep(h4){font-size:13.5px}.markdown-body :deep(ul),.markdown-body :deep(ol){margin:7px 0;padding-left:22px}.markdown-body :deep(li){margin:4px 0}.markdown-body :deep(blockquote){margin:12px 0;padding:7px 12px;border-left:3px solid #8db9ef;background:#f5f9ff;color:#516985}.markdown-body :deep(blockquote p){margin:0}.markdown-body :deep(hr){margin:16px 0;border:0;border-top:1px solid #dbe6f5}.markdown-body :deep(code){padding:1px 4px;border-radius:4px;background:#eef4fb;font-size:12px}.markdown-body :deep(pre){overflow-x:auto;padding:10px;border-radius:7px;background:#f3f7fc}.markdown-body :deep(pre code){padding:0;background:none}.markdown-body :deep(table){display:block;overflow-x:auto;max-width:100%;border-collapse:collapse}.markdown-body :deep(th),.markdown-body :deep(td){padding:6px 9px;border:1px solid #dbe6f5;text-align:left}.markdown-body :deep(a){color:#1558b8;text-decoration:underline}.markdown-body :deep(> :first-child){margin-top:8px}.markdown-body :deep(> :last-child){margin-bottom:4px}
+.interaction-form{margin-top:20px;padding-top:15px;border-top:1px solid #dbe6f5}.interaction-form h3{margin:0;font-size:15px}.interaction-form>p{margin:3px 0 10px;color:#71809a;font-size:12px}.interaction-fields{display:flex;gap:8px;margin-bottom:9px}.interaction-fields select{min-height:34px;padding:5px 9px;border:1px solid #c6d6ec;border-radius:7px;background:#fff}.interaction-form textarea{display:block;width:100%;margin-bottom:9px;padding:9px;border:1px solid #c6d6ec;border-radius:8px;font:inherit;resize:vertical}.interaction-row{margin-top:10px;padding:9px 11px;border-left:3px solid #8db9ef;background:#f5f9ff;color:#405671;font-size:12px;white-space:pre-wrap}.interaction-row b{color:#1558b8}.interaction-row small{margin-left:8px;color:#8a98ab}
+.waiting-state{display:flex;justify-content:center;align-items:center;gap:9px;padding:26px;color:#71809a;font-size:13px}
+.spinner{width:17px;height:17px;border:2px solid #c5dcf5;border-top-color:#1e6fd9;border-radius:50%;animation:spin .8s linear infinite}
+.evidence-card{margin-top:14px;padding:14px 18px}.evidence-card summary{cursor:pointer;font-weight:700}.evidence-card ul{margin:12px 0 0;padding-left:18px}.evidence-card li{margin:7px 0;color:#5b6b84;font-size:12px}.evidence-card a{color:#1558b8}.evidence-card small{margin-left:8px;color:#8a98ab}
+.smart-summary{margin-top:14px;padding:18px 20px}.smart-summary h2{margin:0;font-size:15px}.summary-path{margin:8px 0 14px;color:#71809a;font-size:12px}.summary-row{display:grid;grid-template-columns:110px 1fr;gap:10px;padding:11px 5px;border-bottom:1px solid #dbe6f5}.summary-row>strong{color:#536c89;font-size:12px}.summary-row p{margin:0;white-space:pre-wrap;color:#283f5c;font-size:12.5px;line-height:1.7}.summary-row p+p{margin-top:7px}.summary-row ul{margin:0;padding-left:18px}.summary-row li{margin:3px 0;color:#283f5c;font-size:12.5px}.smart-summary>.btn{margin-top:12px}.full-report{padding:26px 30px}.full-report h2{margin:0;font-size:21px}.full-report h3{margin:25px 0 9px;padding-bottom:6px;border-bottom:1px solid #dbe6f5;font-size:16px}.full-report h4{margin:15px 0 7px;color:#1558b8}.full-report p,.full-report li{white-space:pre-wrap;color:#33465f;line-height:1.8}.full-report .report-meta{color:#8290a5;font-size:12px}.report-speech{padding:12px 0;border-bottom:1px solid #edf2f8}.full-report a{color:#1558b8}
+.full-report .report-note{margin-top:22px;padding-top:12px;border-top:1px solid #dbe6f5;color:#71809a;font-size:12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:850px){.expert-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.setting-grid{grid-template-columns:1fr 1fr}.seminar-page{padding:18px 16px 48px}.module-nav{margin:-18px -16px 15px;padding:0 16px}.home-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.heading-row{align-items:flex-start;flex-direction:column}.filter-card .field,.filter-card .search-field{flex:1 1 100%}.filter-reset{width:100%}.seminar-item{align-items:flex-start;flex-direction:column}.seminar-item .btn{align-self:flex-end}.expert-grid{grid-template-columns:1fr 1fr}.expert-profile-grid{grid-template-columns:1fr}.expert-profile-heading{align-items:flex-start;flex-direction:column}.profile-list>div{grid-template-columns:88px minmax(0,1fr)}.profile-recent>div{flex-direction:column;gap:2px}.setting-grid{grid-template-columns:1fr}.card-heading{align-items:flex-start;flex-direction:column}.scenario-field{max-width:none}.form-actions .btn{flex:1}.seminar-page{padding:14px 12px 36px}.module-nav{margin:-14px -12px 15px;padding:0 9px;overflow-x:auto}.module-nav strong{display:none}.module-nav button{white-space:nowrap}.home-columns{grid-template-columns:1fr}.home-hero{padding:22px 17px}.home-hero>div{flex-wrap:wrap}.board-columns{grid-template-columns:1fr}.summary-row{grid-template-columns:1fr}.full-report{padding:17px}}
 </style>

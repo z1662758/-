@@ -29,6 +29,7 @@ export const ROUTE_TO_PHASE = Object.freeze({
   '/home/SCnet/knowledgeBase': 'pre',
   '/home/SCnet/knowledgeGraph': 'pre',
   '/home/SCnet/openSourceIntelligence': 'pre',
+  '/home/SCnet/situationJudge': 'pre',
   '/home/SCnet/reportGeneration': 'pre',
   '/home/SCnet/situationResearch-main': 'pre',
 

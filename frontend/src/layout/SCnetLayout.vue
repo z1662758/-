@@ -41,7 +41,7 @@
 
         <!-- ===== 以下随阶段（事前 / 事中 / 事后）整组切换 ===== -->
         <!-- li 而非 div：el-menu 渲染的就是 ul，插 div 是非法嵌套 -->
-        <li class="phase-menu-divider" aria-hidden="true"></li>
+        <li v-if="currentPhase" class="phase-menu-divider" aria-hidden="true"></li>
 
         <!--	阶段徽标（折叠时隐藏文字，保持边距）	-->
         <div v-show="!isCollapse && currentPhase" class="phase-indicator" :class="'phase-' + currentPhase">
@@ -161,14 +161,20 @@
           </el-menu-item>
         </template>
 
-        <!-- 独立附加功能，不参与任何阶段工作流 -->
-        <el-menu-item index="/home/SCnet/expertSeminar">
-          <el-icon size="18"><Connection/></el-icon>
-          <template #title>专家研讨厅</template>
-        </el-menu-item>
+        <!-- 附加功能位于当前阶段的报告之后，不参与阶段工作流 -->
+        <el-sub-menu v-if="currentPhase" index="additional-functions">
+          <template #title>
+            <el-icon size="18"><FolderOpened/></el-icon>
+            <span>附加功能</span>
+          </template>
+          <el-menu-item index="/home/SCnet/expertSeminar">
+            <el-icon size="18"><Connection/></el-icon>
+            <template #title>专家研讨厅</template>
+          </el-menu-item>
+        </el-sub-menu>
 
         <!-- index 不可为 "0"：router 模式下会执行 router.push("0") 导致无法访问 -->
-        <el-menu-item index="scnet-menu-exit" :route="'/home'">
+        <el-menu-item v-if="currentPhase" index="scnet-menu-exit" :route="'/home'">
           <el-icon size="18"><SwitchButton/></el-icon>
           <template #title>退出系统</template>
         </el-menu-item>
@@ -225,15 +231,9 @@ import {ref, onMounted, onUnmounted, computed, watch} from "vue";
 import {useRoute} from "vue-router";
 import {Files, Refresh} from "@element-plus/icons-vue";
 import AppHeader from "@/components/Header.vue";
-import EventPhaseStepper from "@/components/EventPhaseStepper.vue";
 import ScnetPhaseNav from "@/components/ScnetPhaseNav.vue";
 import ExpertWorkflowProgressFloat from "@/views/SCnet/components/ExpertWorkflowProgressFloat.vue";
 import { useExpertWorkflowStore } from "@/stores/scnet/useExpertWorkflowStore";
-import { useDuringFlowSteps, routeToStepKey } from "@/views/SCnet/composables/useDuringFlowSteps";
-import {
-  useDuringFlowSteps as useUraniumDuringFlowSteps,
-  routeToStepKey as uraniumRouteToStepKey
-} from "@/views/SCnet/composables/useDuringFlowSteps_uranium";
 import { useScenarioStore } from "@/stores/scenario";
 import { useKnowledgePlatform } from "@/views/SCnet/composables/useKnowledgePlatform";
 import { PHASE_EVENT, PHASE_STORAGE_KEY, ROUTE_TO_PHASE } from "@/constants/scnetPhase";
@@ -315,12 +315,16 @@ export default {
     const activeIndex = ref('1')
     const storedPhase = ref(localStorage.getItem(PHASE_STORAGE_KEY) || '')
 
-    // currentPhase 优先按当前路由推断，避免旧的 localStorage 状态把菜单带偏；
-    // 仅当路由无法识别时再回落到 localStorage。
+    // 阶段页以路由为准；独立的专家研讨厅沿用离开前的阶段菜单。
+    // 直接打开研讨厅且没有历史阶段时，默认展示事前菜单。
     const currentPhase = computed(() => {
-      if (route.path === '/home/SCnet/expertSeminar') return ''
-      return ROUTE_TO_PHASE[route.path] || storedPhase.value || ''
+      if (route.path === '/home/SCnet/total') return ''
+      return ROUTE_TO_PHASE[route.path] || storedPhase.value || 'pre'
     })
+    watch(() => route.path, (path) => {
+      const phase = ROUTE_TO_PHASE[path]
+      if (phase) storedPhase.value = phase
+    }, { immediate: true })
 
     // ── 场景感知：从 URL 或 store 获取当前场景 ──
     const scenarioStore = useScenarioStore()
@@ -335,25 +339,6 @@ export default {
 
     // 场景标签
     const scenarioLabel = computed(() => currentScenario.value === 'supply_chain' ? '🚗 汽车' : '☢️ 铀')
-
-    // ── 知识库（左侧栏常驻入口）──
-    // 与 /SCnet/total 右上角「知识平台」共用同一个全屏浮层
-    const {
-      KnowledgePlatform,
-      visible: showKnowledgePlatform,
-      open: openKnowledgePlatform,
-      close: closeKnowledgePlatform
-    } = useKnowledgePlatform()
-    /**
-     * 知识库菜单项不是真路由：el-menu 开了 router 模式，会把 index 当 path 推。
-     * 这里把 route 顶成"当前地址"，push 退化成重复导航（不跳转、不报错），
-     * 菜单项的选中态再由 onMenuSelect 跳过，避免它把高亮抢走。
-     */
-    const currentLocation = computed(() => ({
-      path: route.path,
-      query: route.query,
-      hash: route.hash
-    }))
 
     // ── 知识库（左侧栏常驻入口）──
     // 与 /SCnet/total 右上角「知识平台」共用同一个全屏浮层
@@ -478,11 +463,6 @@ export default {
       postMainMenuItems: POST_MAIN_MENU_ITEMS,
       postAnalysisMenuItems: POST_ANALYSIS_MENU_ITEMS,
       postTailMenuItems: POST_TAIL_MENU_ITEMS,
-      duringSteps,
-      duringCurrentKey,
-      showDuringFlowStepper,
-      isDuringStepCompleted,
-      onDuringStepClick,
       showExpertProgress
     }
   },
@@ -497,14 +477,30 @@ export default {
     }
   },
   created() {
-    this.activeIndex = this.$route.path
+    this.syncActiveIndex()
   },
   watch: {
-    '$route.path'(path) {
-      this.activeIndex = path
+    '$route.fullPath'() {
+      this.$nextTick(() => this.syncActiveIndex())
     }
   },
   methods: {
+    syncActiveIndex() {
+      const items = [
+        ...this.preMainMenuItems,
+        ...this.preAnalysisMenuItems,
+        ...this.preTailMenuItems,
+        ...this.duringMainMenuItems,
+        ...this.duringDecisionMenuItems,
+        ...this.duringAnalysisMenuItems,
+        ...this.duringTailMenuItems,
+        ...this.postMainMenuItems,
+        ...this.postAnalysisMenuItems,
+        ...this.postTailMenuItems
+      ]
+      const match = items.find(item => item.index?.split('?')[0] === this.$route.path)
+      this.activeIndex = match?.index || this.$route.path
+    },
     onMenuSelect(index) {
       // 退出系统是跳转项、知识库是浮层项，两者都不改变当前页，别让它们抢走高亮
       if (index && index !== 'scnet-menu-exit' && index !== KNOWLEDGE_PLATFORM_INDEX) {
@@ -531,10 +527,15 @@ export default {
   position: fixed;
   justify-content: space-between;
   height: 100vh;
+  z-index: 2201;
+  background: #fff;
 }
 
 .el-menu-vertical-demo{
-  min-height: calc(100vh - 60px);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 .el-menu-vertical-demo:not(.el-menu--collapse) {
   width: 200px;
