@@ -1,11 +1,5 @@
 <template>
   <div class="mid-stage-bg gm-page analysis-workspace">
-    <AnalysisLinkTabs active="gameTheory">
-      <template #right>
-        <el-tag type="warning" effect="plain">节点 · 资源 · 通道 · 恢复</el-tag>
-      </template>
-    </AnalysisLinkTabs>
-
     <el-empty
       v-if="!hasGameContext"
       class="game-empty"
@@ -14,20 +8,33 @@
     />
 
     <template v-else>
-      <AnalysisPageHero
-        eyebrow="脆弱性分析"
-        title="供应链关键节点与通道韧性评估"
-        headline="识别中断后果最严重、替代难度最高的供应节点"
-        summary="按地理、资源、通道和恢复能力计算节点脆弱性，并输出保供优先级。"
-        :tags="topTags"
-      />
-
+      <!-- 统一事中页面目标说明紫色横幅 -->
+      <StageGoalStrip
+        badge="脆弱性分析目标"
+        title="识别中断后果最严重、替代难度最高的供应节点与关键物流走廊"
+        desc="通过复杂网络拓扑、度/介数中心度与依赖矩阵，量化评估外部地缘制裁与突发中断冲击下各供给国、关键枢纽和加工基地的脆弱度，直接映射锁定事中调控保供的核心瓶颈靶标。"
+        popover-title="脆弱性分析核心聚焦目标"
+      >
+        <template #side>
+          <div class="cfs-chips">
+            <span class="cfs-chip danger" title="介数中心度 0.84，宽窄轨换装负荷率达 94%">
+              <span class="cfs-dot">●</span> 阿拉山口口岸 (94%)
+            </span>
+            <span class="cfs-chip danger" title="承接全国 60% 燃料加工，原料库存降至 14 周破安全线">
+              <span class="cfs-dot">●</span> 包头制造基地 (库存14周)
+            </span>
+            <span class="cfs-chip safe" title="纳米比亚湖山矿→连云港，具备 400tU/季度应急承接冗余">
+              <span class="cfs-dot">●</span> 连云港海运 (400tU冗余)
+            </span>
+          </div>
+        </template>
+      </StageGoalStrip>
 
       <main class="vulnerability-workspace">
         <section class="vulnerability-overview glass-panel">
           <div class="vulnerability-overview-main">
             <span>综合脆弱性等级</span>
-            <strong>{{ vulnerabilityLevel.label }}</strong>
+            <strong :class="vulnerabilityLevel.type">{{ vulnerabilityLevel.label }}</strong>
             <p>围绕供应国、关键节点、运输通道和库存缓冲评估中断后果。</p>
           </div>
           <div class="vulnerability-overview-grid">
@@ -39,61 +46,122 @@
           </div>
         </section>
 
-        <section class="vulnerability-priority glass-panel">
-          <div class="analysis-column-head">
-            <span class="analysis-column-index">00</span>
-            <div>
-              <h3>治理优先级</h3>
-              <p>按脆弱性评分生成保供、绕行、补库顺序。</p>
-            </div>
-          </div>
-          <div class="priority-grid">
-            <article v-for="(item, index) in vulnerabilityPriorityCards" :key="item.title" :class="item.tone">
-              <span>{{ String(index + 1).padStart(2, '0') }}</span>
+        <!-- 01 俄乌冲突高风险节点与通道【脆弱性排行榜】 (脆弱断点直通事中应对调控措施) -->
+        <section class="vulnerability-ranking-panel glass-panel">
+          <div class="ranking-panel-head">
+            <div class="analysis-column-head">
+              <span class="analysis-column-index">01</span>
               <div>
-                <strong>{{ item.title }}</strong>
-                <p>{{ item.detail }}</p>
+                <h3>俄乌冲突高风险节点与通道【脆弱性排行榜】</h3>
+                <p>基于地缘制裁断航、中欧口岸换装挤兑与原料库存警戒线综合测算，脆弱断点直接映射事中保供/绕行/补库调控措施</p>
               </div>
-              <el-tag size="small" :type="item.tagType" effect="light">{{ item.level }}</el-tag>
-            </article>
-          </div>
-        </section>
-
-        <section class="algorithm-screening-panel glass-panel">
-          <div class="analysis-column-head">
-            <span class="analysis-column-index">A1</span>
-            <div>
-              <h3>筛选依据</h3>
-              <p>抽样给出风险权重，反馈结果用于修正下一轮排序。</p>
+            </div>
+            <div class="ranking-head-meta">
+              <el-tag size="small" type="danger" effect="dark">地缘冲击模式</el-tag>
+              <el-tag size="small" type="success" effect="plain">4 大关键瓶颈已锁定</el-tag>
             </div>
           </div>
-          <div class="algorithm-flow-grid">
-            <article v-for="item in algorithmFlowCards" :key="item.label">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-              <p>{{ item.detail }}</p>
-            </article>
+
+          <div class="ranking-table-wrapper">
+            <el-table :data="vulnerabilityRankingRows" stripe class="ranking-modern-table" style="width: 100%">
+              <el-table-column label="排名" width="70" align="center">
+                <template #default="{ row }">
+                  <span class="rank-num-badge" :class="`rank-${row.rank}`">
+                    0{{ row.rank }}
+                  </span>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="关键瓶颈对象" min-width="190">
+                <template #default="{ row }">
+                  <div class="choke-cell">
+                    <div class="choke-title-row">
+                      <strong class="choke-name">{{ row.name }}</strong>
+                      <el-tag size="small" :type="row.typeTag" effect="plain" class="choke-type-tag">
+                        {{ row.type }}
+                      </el-tag>
+                    </div>
+                    <span class="choke-impact">{{ row.impactDesc }}</span>
+                  </div>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="脆弱度指数" width="140" align="center">
+                <template #default="{ row }">
+                  <div class="score-cell">
+                    <div class="score-num-row">
+                      <strong class="score-number">{{ row.score }}</strong>
+                      <span class="score-unit">/100</span>
+                      <el-tag size="small" :type="row.riskTag" effect="light">{{ row.riskLevel }}</el-tag>
+                    </div>
+                    <el-progress
+                      :percentage="row.score"
+                      :show-text="false"
+                      :stroke-width="5"
+                      :status="row.score >= 85 ? 'exception' : 'warning'"
+                    />
+                  </div>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="俄乌地缘致因机制" min-width="230" show-overflow-tooltip>
+                <template #default="{ row }">
+                  <div class="reason-cell">
+                    <el-icon class="reason-icon"><WarningFilled /></el-icon>
+                    <span>{{ row.triggerReason }}</span>
+                  </div>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="事中定向破局措施映射" min-width="260">
+                <template #default="{ row }">
+                  <div class="dispatch-mapping-cell">
+                    <div class="dispatch-chip-row">
+                      <el-tag size="small" :type="row.dispatchOrder.tagType" effect="dark">
+                        {{ row.dispatchOrder.type }}
+                      </el-tag>
+                      <strong class="dispatch-title">{{ row.dispatchOrder.name }}</strong>
+                    </div>
+                    <p class="dispatch-action-text">{{ row.dispatchOrder.action }}</p>
+                  </div>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="处置成效预期" width="170">
+                <template #default="{ row }">
+                  <div class="effect-cell">
+                    <el-icon class="effect-icon"><CircleCheckFilled /></el-icon>
+                    <span>{{ row.recoveryEffect }}</span>
+                  </div>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="应对方案联动" width="130" align="center" fixed="right">
+                <template #default="{ row }">
+                  <el-button
+                    size="small"
+                    type="primary"
+                    plain
+                    @click="goToDispatchOrder(row.dispatchOrder.id)"
+                  >
+                    查看应对措施 →
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
           </div>
         </section>
 
         <section class="gm-column output-column glass-panel">
           <header class="analysis-column-head">
-            <span class="analysis-column-index">01</span>
+            <span class="analysis-column-index">02</span>
             <div>
-              <h3>关键节点依赖矩阵</h3>
-              <p>按地理、资源、运输通道和替代难度定位高暴露节点。</p>
+              <h3>关键节点多维依赖矩阵与恢复评估</h3>
+              <p>评估核心枢纽对地理、资源、通道的敏感性与鲁棒性恢复难度</p>
             </div>
           </header>
 
           <section id="matrix-analysis" ref="matrixSectionRef" class="payoff-card analysis-anchor">
-            <div class="payoff-card-head">
-              <div>
-                <span>矩阵分析</span>
-                <strong>关键节点 × 依赖类型</strong>
-              </div>
-              <el-tag size="small" type="info" effect="light">风险值 0—100</el-tag>
-            </div>
-
             <div class="payoff-table-wrap">
               <table class="payoff-table">
                 <thead>
@@ -174,140 +242,255 @@
           </section>
 
         </section>
+        <section class="vulnerability-priority glass-panel">
+          <div class="analysis-column-head">
+            <span class="analysis-column-index">03</span>
+            <div>
+              <h3>处置优先级</h3>
+              <p>按脆弱性评分生成保供、绕行、补库顺序。</p>
+            </div>
+          </div>
+          <div class="priority-grid">
+            <article v-for="(item, index) in vulnerabilityPriorityCards" :key="item.title" :class="item.tone">
+              <span>{{ String(index + 1).padStart(2, '0') }}</span>
+              <div>
+                <strong>{{ item.title }}</strong>
+                <p>{{ item.detail }}</p>
+              </div>
+              <el-tag size="small" :type="item.tagType" effect="light">{{ item.level }}</el-tag>
+            </article>
+          </div>
+        </section>
+
+        <!-- A1 筛选依据与脆弱性演进闭环 (执行流水线) -->
+        <section class="algorithm-screening-panel glass-panel">
+          <div class="screening-panel-header">
+            <div class="analysis-column-head">
+              <span class="analysis-column-index">A1</span>
+              <div>
+                <h3>脆弱性评估依据与闭环流水线</h3>
+                <p>基于敏感性矩阵与鲁棒性评分动态抽样赋予风险权重，反馈结果用于修正下一轮对策树排序。</p>
+              </div>
+            </div>
+            <div class="screening-status-pill">
+              <span class="mc-iter-tag">博弈收敛判定：已达成</span>
+              <el-tag size="small" type="success" effect="plain">反馈闭环已联通</el-tag>
+            </div>
+          </div>
+
+          <div class="algorithm-pipeline-track">
+            <div
+              v-for="(item, index) in algorithmFlowCards"
+              :key="item.label"
+              class="pipeline-step-card"
+              :class="'step-tier-' + (index + 1)"
+            >
+              <div class="pipeline-step-head">
+                <span class="step-badge">STEP 0{{ index + 1 }}</span>
+                <span class="step-role-label">{{ item.label }}</span>
+              </div>
+              <div class="pipeline-step-body">
+                <strong class="step-value">{{ item.value }}</strong>
+                <p class="step-detail">{{ item.detail }}</p>
+              </div>
+              <div class="pipeline-step-footer">
+                <span class="pipeline-status-text">
+                  {{ index === 0 ? '标的对象已锁定' : index === 1 ? '韧性指标已达标' : index === 2 ? '权重调节就绪' : '输入对策树推演' }}
+                </span>
+                <el-icon v-if="index < algorithmFlowCards.length - 1" class="step-arrow-icon"><Right /></el-icon>
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
     </template>
+
+    <!-- 统一流程导航 -->
+    <DuringWorkflowNav
+      back="/home/SCnet/interface?view=simulation"
+      back-label="上一步：沙盘推演"
+      process-view="/home/SCnet/interface?view=simulation&theaterMode=replay"
+      process-label="过程查看 (剧场回放)"
+      next="/home/SCnet/expAnalysisScenario"
+      next-label="下一步：决策分析评估"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { buildUraniumVulnerability, uraniumVulnerabilityLevel } from '@/utils/uraniumVulnerability'
+import { computed, nextTick, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { Right, WarningFilled, CircleCheckFilled, Location, TrendCharts, Document, Promotion, Finished, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
-import AnalysisLinkTabs from './components/shared/AnalysisLinkTabs.vue'
-import AnalysisPageHero from './components/shared/AnalysisPageHero.vue'
+import StageGoalStrip from './components/shared/StageGoalStrip.vue'
+import DuringWorkflowNav from './components/DuringWorkflowNav.vue'
 import './components/shared/midStage.css'
+import { useUraniumAnalysisExperiment } from './composables/useUraniumAnalysisExperiment'
 import { buildUraniumGameTheoryViewModel } from '@/views/SCnet/adapters/uraniumMockAnalysisAdapter'
+import { createUraniumDemoSeed } from '@/views/SCnet/mock/uraniumDemoLab'
 
+useUraniumAnalysisExperiment()
 const route = useRoute()
+const router = useRouter()
+
+function goToSimulation() {
+  router.push({
+    path: '/home/SCnet/interface',
+    query: { ...route.query, scenario: 'uranium' }
+  })
+}
+
+function goToStrategyAnalysis() {
+  router.push({
+    path: '/home/SCnet/expAnalysisScenario',
+    query: { ...route.query, scenario: 'uranium' }
+  })
+}
+
+function goToDispatchOrder(orderId = '') {
+  router.push({
+    path: '/home/SCnet/experimentManager',
+    query: { ...route.query, scenario: 'uranium', view: 'decision', orderId: orderId || undefined }
+  })
+}
+
 const matrixSectionRef = ref(null)
 const vulnerabilitySectionRef = ref(null)
 const structureSectionRef = ref(null)
 const logisticsSectionRef = ref(null)
 const snapshotStore = useAnalysisSnapshotStore()
 const uraniumStore = useUraniumDemoStore()
-const { history, selectedExperiment, selectedExperimentId } = storeToRefs(uraniumStore)
+const { selectedExperiment } = storeToRefs(uraniumStore)
 
-const snapshotMode = computed(() => !!snapshotStore.activeSnapshotId)
 const activeSnapshot = computed(() => snapshotStore.getActiveSnapshot())
-const hasGameContext = computed(() => !!selectedExperiment.value || !!activeSnapshot.value)
 
-// 默认场景（无快照时兜底）
-const DEFAULT_SCENARIO_KEY = 'supplierVsRetailer'
+// 稳健实验回退保障
+const effectiveExperiment = computed(() => {
+  if (selectedExperiment.value) return selectedExperiment.value
+  if (activeSnapshot.value?.experiment) return activeSnapshot.value.experiment
+  const experiments = uraniumStore.experiments || {}
+  const list = Object.values(experiments)
+  if (list.length) return list[0]
+  try {
+    const seed = createUraniumDemoSeed()
+    return seed?.experiments?.['uranium-security-first-20260708-131000'] || (seed?.experiments ? Object.values(seed.experiments)[0] : null)
+  } catch (e) {
+    return null
+  }
+})
+const hasGameContext = computed(() => !!effectiveExperiment.value)
+
+// 俄乌冲突高风险断点与通道排行榜（事前脆弱点直通事中保供/绕行/补库三大调度令）
+const vulnerabilityRankingRows = computed(() => [
+  {
+    rank: 1,
+    name: '黑海 / 圣彼得堡至欧洲海运走廊',
+    type: '咽喉海运通道',
+    typeTag: 'danger',
+    score: 95,
+    riskLevel: '极高危',
+    riskTag: 'danger',
+    triggerReason: '俄乌冲突爆发与西方禁俄铀法案，俄罗斯44%浓缩产能脱钩，欧洲港口拒运俄籍放射性货物',
+    impactDesc: '原既有中欧海运转运彻底断航，直接阻断国内北方基地约 38% 原料回运通路',
+    dispatchOrder: {
+      id: 'DISPATCH-2024-001',
+      type: '绕行令',
+      name: '跨里海与好望角远洋海运分流重构令',
+      action: '海运分流提至 55%，启动纳米比亚直航防城港/连云港航线，彻底避开黑海与欧洲中转',
+      tagType: 'primary'
+    },
+    recoveryEffect: '航道阻断消除率 100%，回运周期稳定在 45 天'
+  },
+  {
+    rank: 2,
+    name: '中哈阿拉山口铁路口岸',
+    type: '陆运铁路枢纽',
+    typeTag: 'warning',
+    score: 88,
+    riskLevel: '高危',
+    riskTag: 'danger',
+    triggerReason: '欧洲海运受阻后引发陆路过境运力严重挤兑，中哈铁路宽窄轨换装负荷率突破 94%',
+    impactDesc: '中亚陆运在途延误从 18 天飙升至 38 天，口岸通关周转率下降 40%，形成严重跨境拥堵',
+    dispatchOrder: {
+      id: 'DISPATCH-2024-001',
+      type: '绕行令',
+      name: '跨里海多式联运分流令',
+      action: '启动阿克套港至巴库跨里海铁水联运分流 25%，平抑阿拉山口口岸挤兑压力',
+      tagType: 'primary'
+    },
+    recoveryEffect: '口岸负荷率回落至 78%，通关准点率提至 92%'
+  },
+  {
+    rank: 3,
+    name: '北方包头核燃料元件制造基地',
+    type: '核心制造枢纽',
+    typeTag: 'danger',
+    score: 84,
+    riskLevel: '高危',
+    riskTag: 'danger',
+    triggerReason: '承担全国 60% 华龙一号核燃料组件加工，原料严重受制于进口且到厂交付延误',
+    impactDesc: '在途延误叠加原料到厂延迟，基地安全库存跌至 14 周破 180 天红线，下游面临断料停堆风险',
+    dispatchOrder: {
+      id: 'DISPATCH-2024-002',
+      type: '补库令',
+      name: '国家保税战略储备库削峰借调平准令',
+      action: '自防城港国家战略保税库应急借调 400 tU 平准，实行“借一还一”动态回填，补足制造缺口',
+      tagType: 'warning'
+    },
+    recoveryEffect: '库存覆盖由 14 周迅速恢复至 21 周安全阈值'
+  },
+  {
+    rank: 4,
+    name: '海阳 / 大亚湾等沿海核电在运机组',
+    type: '终端装料节点',
+    typeTag: 'info',
+    score: 79,
+    riskLevel: '承压',
+    riskTag: 'warning',
+    triggerReason: '首炉机组集中并网装料叠加在运机组集中大修换料，刚性燃料组件装料窗口不可延误',
+    impactDesc: '国际现货跳涨至 $106/lb，被动高价追单将引发供应链成本剧烈震荡及非计划超支',
+    dispatchOrder: {
+      id: 'DISPATCH-2024-003',
+      type: '保供令',
+      name: '战略重点机组刚性装料定向保供令',
+      action: '对战略首炉与首充装料机组建立点对点直供保障通道，实行配额专供与特快排产，确保 0 停堆',
+      tagType: 'success'
+    },
+    recoveryEffect: '核电机组非计划停堆率 0 次，燃料保供率 100%'
+  }
+])
 
 // 非快照模式下的手动场景切换
 const manualScenarioKey = ref('')
 const manualModelKey = ref('')
-const scenarioSelectKey = computed({
-  get() {
-    return snapshotMode.value
-      ? gameVm.value.scenarioKey
-      : (manualScenarioKey.value || baseGameVm.value.scenarioKey || DEFAULT_SCENARIO_KEY)
-  },
-  set(value) {
-    manualScenarioKey.value = value
-  }
-})
-
 const baseGameVm = computed(() => buildUraniumGameTheoryViewModel({
-  experiment: selectedExperiment.value,
+  experiment: effectiveExperiment.value,
   snapshot: activeSnapshot.value,
   manualScenarioKey: manualScenarioKey.value
 }))
 const gameVm = computed(() => buildUraniumGameTheoryViewModel({
-  experiment: selectedExperiment.value,
+  experiment: effectiveExperiment.value,
   snapshot: activeSnapshot.value,
   manualScenarioKey: manualScenarioKey.value,
   manualModelKey: manualModelKey.value
 }))
 const effectiveScenarioKey = computed(() => baseGameVm.value.scenarioKey)
-const currentScenario = computed(() => baseGameVm.value.currentScenario)
-const currentModel = computed(() => gameVm.value.modelSelection.selectedModel)
-const simulationAgent = computed(() => gameVm.value.modelSelection.simulationAgent)
 const topTags = computed(() => gameVm.value.hero.tags.filter((item) => ['场景', '时点'].includes(item.label)))
-const payoffMatrix = computed(() => gameVm.value.payoffMatrix || [])
-const selectedMatrixKey = ref('')
-const selectedMatrix = computed(() => {
-  const matrix = payoffMatrix.value
-  if (!matrix.length) return null
-  const fallbackKey = gameVm.value.matrixSummary?.dominantKey || '0-0'
-  const targetKey = selectedMatrixKey.value || fallbackKey
-  const [rowIndex, colIndex] = targetKey.split('-').map(Number)
-  const cell = matrix[rowIndex]?.[colIndex]
-  if (!cell) return null
-  return {
-    ...cell,
-    rowIndex,
-    colIndex
-  }
-})
-const selectedMatrixLabel = computed(() => {
-  const cell = selectedMatrix.value
-  if (!cell) return '等待矩阵'
-  return `${currentScenario.value.p1Strategies[cell.rowIndex]?.name || '行策略'} × ${currentScenario.value.p2Strategies[cell.colIndex]?.name || '列策略'}`
-})
-
-function clampScore(value) {
-  return Math.max(0, Math.min(100, Math.round(Number(value) || 0)))
-}
-
-const vulnerabilityMetrics = computed(() => {
-  const summary = selectedExperiment.value?.summary || selectedExperiment.value?.report || {}
-  const toPercent = value => {
-    const num = Number(value)
-    if (!Number.isFinite(num)) return 0
-    return num <= 1 ? num * 100 : num
-  }
-  const risk = clampScore(toPercent(summary.avg_risk_exposure ?? summary.risk_exposure ?? 0.48))
-  const concentration = clampScore(toPercent(summary.final_supply_concentration_hhi ?? summary.avg_supply_hhi ?? 0.56))
-  const unmet = clampScore(toPercent(summary.avg_unmet_ratio ?? 0.12))
-  const inventoryYears = Number(summary.final_inventory_coverage_years ?? summary.avg_inventory_coverage_years ?? 0.9)
-  const inventoryPressure = clampScore(82 - Math.max(0, inventoryYears) * 38 + unmet * .35)
-  const sensitivity = clampScore(risk * .48 + concentration * .34 + unmet * .3)
-  const robustness = clampScore(100 - risk * .42 - concentration * .28 - inventoryPressure * .22)
-  const recoveryDifficulty = clampScore(25 + sensitivity * 0.35 + (100 - robustness) * 0.4)
-  const costPressure = clampScore(risk * .36 + recoveryDifficulty * .42 + concentration * .22)
-  const recoveryDays = Math.max(3, Math.round(7 + recoveryDifficulty * 0.38))
-  const recoveryCost = Math.max(5, Math.round(costPressure * 0.72 + recoveryDifficulty * 0.35))
-  return [
-    { label: '敏感性', value: `${sensitivity}`, score: sensitivity, color: '#f59e0b', detail: '供应风险、来源集中度与缺口对系统的扰动程度' },
-    { label: '鲁棒性', value: `${robustness}`, score: robustness, color: '#10b981', detail: '中断情景下供应、库存与交付能力的保持程度' },
-    { label: '库存压力', value: `${inventoryPressure}`, score: inventoryPressure, color: '#3b82f6', detail: '供需偏差对库存缓冲的占用程度' },
-    { label: '恢复难度', value: `${recoveryDifficulty}`, score: recoveryDifficulty, color: '#ef4444', detail: '策略失效后恢复稳定状态的难度' },
-    { label: '恢复时长', value: `${recoveryDays}天`, score: recoveryDifficulty, color: '#f97316', detail: '关键节点受损后的预估恢复周期' },
-    { label: '恢复成本', value: `${recoveryCost}`, score: Math.min(100, recoveryCost), color: '#8b5cf6', detail: '替代采购、航线切换与库存补位的综合成本指数' },
-    { label: '成本压力', value: `${costPressure}`, score: costPressure, color: '#6366f1', detail: '相对低脆弱组合的机会与执行成本' }
-  ]
-})
-
-const vulnerabilityLevel = computed(() => {
-  const rows = vulnerabilityMetrics.value.filter(item => item.label !== '鲁棒性')
-  const avg = rows.length ? rows.reduce((sum, item) => sum + item.score, 0) / rows.length : 0
-  if (avg >= 70) return { label: '高脆弱', type: 'danger' }
-  if (avg >= 45) return { label: '中脆弱', type: 'warning' }
-  return { label: '低脆弱', type: 'success' }
-})
+const vulnerabilityMetrics = computed(() => buildUraniumVulnerability(effectiveExperiment.value?.summary || effectiveExperiment.value?.report || {}))
+const vulnerabilityLevel = computed(() => uraniumVulnerabilityLevel(vulnerabilityMetrics.value))
 
 const metricScore = (label, fallback = 50) => (
   vulnerabilityMetrics.value.find(item => item.label === label)?.score ?? fallback
 )
 
 const vulnerabilityHeadlineCards = computed(() => [
-  { label: '最高风险节点', value: '跨境运输通道', detail: '地缘与物流依赖叠加' },
-  { label: '预估恢复时长', value: vulnerabilityMetrics.value.find(item => item.label === '恢复时长')?.value || '--', detail: '关键节点受损后' },
-  { label: '结构替代能力', value: `${metricScore('鲁棒性')}%`, detail: '备选国家与航线的承接能力' },
-  { label: '库存缓冲压力', value: `${metricScore('库存压力')}%`, detail: '当前库存对中断的覆盖程度' }
+  { label: '依赖最集中节点', value: [...dependencyMatrixRows.value].sort((a, b) => b.values.reduce((sum, v) => sum + v.value, 0) - a.values.reduce((sum, v) => sum + v.value, 0))[0]?.node || '暂无数据', detail: '按四类依赖评分合计比较' },
+  { label: '恢复难度', value: `${metricScore('恢复难度')} 分`, detail: '评分越高，恢复越困难' },
+  { label: '结构替代能力', value: `${metricScore('鲁棒性')} 分`, detail: '评分越高，替代能力越强' },
+  { label: '库存缓冲压力', value: `${metricScore('库存压力')} 分`, detail: '评分越高，库存压力越大' }
 ])
 
 const dependencyColumns = Object.freeze(['地理依赖', '资源依赖', '通道依赖', '替代难度'])
@@ -327,10 +510,10 @@ const dependencyMatrixRows = computed(() => {
   const inventory = metricScore('库存压力')
   const robustness = metricScore('鲁棒性')
   const rows = [
-    { node: '哈萨克供应链', role: '主要供应国', scores: [72, sensitivity + 8, 78, recovery] },
-    { node: '跨境陆运通道', role: '关键物流链路', scores: [82, 38, 88, recovery + 8] },
-    { node: '海运备份通道', role: '替代航线', scores: [58, 32, 64, 100 - robustness] },
-    { node: '国内储备节点', role: '库存缓冲', scores: [18, inventory, 24, Math.max(20, inventory - 12)] }
+    { node: '阿拉山口铁路口岸', role: '口岸枢纽 · 陆运咽喉', scores: [88, 76, 94, Math.max(75, recovery + 8)] },
+    { node: '北方包头燃料基地', role: '制造枢纽 · 60%华龙一号', scores: [82, Math.min(95, sensitivity + 10), 78, 86] },
+    { node: '连云港海运接卸港', role: '港口中转 · 非洲矿石分流', scores: [58, 42, 62, Math.max(30, 100 - robustness)] },
+    { node: '防城港战略储备库', role: '平准缓冲 · 国家战略储备', scores: [24, inventory, 32, Math.max(20, inventory - 12)] }
   ]
   return rows.map(row => ({
     ...row,
@@ -342,8 +525,8 @@ const structureIndicators = computed(() => {
   const sensitivity = vulnerabilityMetrics.value.find(item => item.label === '敏感性')?.score || 0
   const robustness = vulnerabilityMetrics.value.find(item => item.label === '鲁棒性')?.score || 0
   return [
-    { label: '单一节点依赖', value: `${Math.round((sensitivity + 45) / 2)}%`, detail: '由策略切换敏感度估算' },
-    { label: '结构替代能力', value: `${robustness}%`, detail: '最坏响应下的结构保持度' },
+    { label: '单一节点依赖', value: `${Math.round((sensitivity + 45) / 2)} 分`, detail: '由策略切换敏感度估算' },
+    { label: '结构替代能力', value: `${robustness} 分`, detail: '最坏响应下的结构保持度' },
     { label: '关键链路压力', value: vulnerabilityLevel.value.label, detail: '综合矩阵局部波动与恢复难度' }
   ]
 })
@@ -352,8 +535,8 @@ const logisticsIndicators = computed(() => {
   const inventory = vulnerabilityMetrics.value.find(item => item.label === '库存压力')?.score || 0
   const recovery = vulnerabilityMetrics.value.find(item => item.label === '恢复难度')?.score || 0
   return [
-    { label: '航线冗余度', value: `${Math.max(0, 100 - recovery)}%`, detail: '恢复难度的反向表征' },
-    { label: '库存缓冲压力', value: `${inventory}%`, detail: '供需偏差对缓冲库存的占用' },
+    { label: '航线冗余度', value: `${Math.max(0, 100 - recovery)} 分`, detail: '恢复难度的反向表征' },
+    { label: '库存缓冲压力', value: `${inventory} 分`, detail: '供需偏差对缓冲库存的占用' },
     { label: '通道稳定等级', value: recovery >= 70 ? '偏低' : recovery >= 45 ? '中等' : '稳定', detail: '结合恢复难度与库存压力判定' }
   ]
 })
@@ -403,14 +586,14 @@ const algorithmFlowCards = computed(() => {
       detail: '来自实验方案汇总，绑定节点、通道、库存三类对象。'
     },
     {
-      label: '蒙特卡罗采样',
-      value: `${Math.max(300, Math.round((sensitivity + recovery) * 8))} 次`,
-      detail: `高压样本集中在恢复难度 ${recovery}、敏感性 ${sensitivity}。`
+      label: '风险评估',
+      value: vulnerabilityLevel.value.label,
+      detail: `恢复难度 ${recovery} 分，敏感性 ${sensitivity} 分。`
     },
     {
-      label: '贝叶斯反馈',
+      label: '处置方向',
       value: robustness < 55 ? '上调保供' : '维持权重',
-      detail: `库存压力 ${inventory}，结构替代能力 ${robustness}%。`
+      detail: `库存压力 ${inventory}，结构替代能力 ${robustness} 分。`
     },
     {
       label: '输出',
@@ -438,97 +621,8 @@ watch(() => route.query.section, section => nextTick(() => focusAnalysisSection(
 watch(hasGameContext, ready => {
   if (ready) nextTick(() => focusAnalysisSection(route.query.section))
 })
-const equilibriumCards = computed(() => gameVm.value.equilibriumCards || [])
-const playerGuideCards = computed(() => (
-  (gameVm.value.playerGuideCards || []).filter((item) => item.id !== 'bridge-guide')
-))
-const currentEventCard = computed(() => gameVm.value.modelSelection.inputSignalCards.find((item) => item.label === '当前事件') || null)
-const visibleInputCards = computed(() => {
-  const cards = gameVm.value.modelSelection.inputSignalCards || []
-  const priorityLabels = ['参与方', '核心冲突', '时间压力', '关键约束']
-  const selected = priorityLabels
-    .map((label) => cards.find((item) => item.label === label))
-    .filter(Boolean)
-  return selected.length ? selected : cards.slice(1, 5)
-})
-const primaryInputCards = computed(() => {
-  const cards = visibleInputCards.value
-  return cards.filter((item) => ['参与方', '核心冲突'].includes(item.label))
-})
-const secondaryInputCards = computed(() => {
-  const cards = visibleInputCards.value
-  const rows = cards.filter((item) => ['时间压力', '关键约束'].includes(item.label))
-  return rows.length ? rows : cards.slice(2)
-})
-const focusInputCard = computed(() => {
-  return gameVm.value.modelSelection.inputSignalCards.find((item) => item.label === '关键约束')
-    || visibleInputCards.value[visibleInputCards.value.length - 1]
-    || currentEventCard.value
-})
-const inputLeadText = computed(() => {
-  return focusInputCard.value?.detail
-    || gameVm.value.hero.briefs?.find((item) => item.label === '冲突焦点')?.text
-    || currentScenario.value.viewDesc
-})
-const selectedModelReason = computed(() => {
-  return gameVm.value.modelSelection.candidateCards.find((item) => item.selected)?.reason
-    || currentScenario.value.viewDesc
-})
-// 「为什么是它」已在上方 model-focus-card 展示，这里只列模型自身的定义卡
-const modelDetailCards = computed(() => (
-  gameVm.value.modelSelection.definitionCards.filter((item) => ['收益结构', '核心洞见', '博弈策略'].includes(item.label))
-))
-const agentContextCards = computed(() => {
-  const cards = []
-  const primaryEquilibrium = equilibriumCards.value[0] || null
-  const firstGuide = playerGuideCards.value[0] || null
-  const secondGuide = playerGuideCards.value[1] || null
-
-  cards.push({
-    label: '默认稳定点',
-    title: primaryEquilibrium?.pairText || '当前没有纯策略稳定点',
-    text: primaryEquilibrium
-      ? `收益 ${primaryEquilibrium.payoffText}`
-      : '建议优先查看双方均值优势，再决定是否主动调整策略。'
-  })
-
-  if (firstGuide) {
-    cards.push({
-      label: firstGuide.eyebrow,
-      title: firstGuide.title,
-      text: firstGuide.metricValue && firstGuide.metricValue !== '—'
-        ? `平均收益 ${firstGuide.metricValue} · ${firstGuide.summary}`
-        : firstGuide.summary
-    })
-  }
-
-  if (secondGuide) {
-    cards.push({
-      label: secondGuide.eyebrow,
-      title: secondGuide.title,
-      text: secondGuide.metricValue && secondGuide.metricValue !== '—'
-        ? `平均收益 ${secondGuide.metricValue} · ${secondGuide.summary}`
-        : secondGuide.summary
-    })
-  }
-
-  cards.push({
-    label: '当前输入',
-    title: simulationAgent.value.currentInput,
-    text: simulationAgent.value.modelBinding
-  })
-
-  return cards
-})
 watch(effectiveScenarioKey, () => {
   manualModelKey.value = ''
-  selectedMatrixKey.value = ''
-})
-
-onMounted(() => {
-  uraniumStore.ensureInitialized()
-    .then(() => uraniumStore.loadExperiment(selectedExperimentId.value || history.value[0]?.experiment_id || ''))
-    .catch(() => {})
 })
 
 // 快照切换 → 恢复推荐模型
@@ -537,40 +631,126 @@ watch(() => snapshotStore.activeSnapshotId, (next, prev) => {
   manualModelKey.value = ''
 })
 
-watch(selectedExperimentId, (nextId) => {
-  if (!nextId) return
-  if (selectedExperiment.value?.experiment_id === nextId) return
-  uraniumStore.loadExperiment(nextId).catch(() => {})
-})
-
-function matrixKey(rowIndex, colIndex) {
-  return `${rowIndex}-${colIndex}`
-}
-
-function isEquilibrium(rowIndex, colIndex) {
-  return gameVm.value.matrixSummary?.dominantKey === matrixKey(rowIndex, colIndex)
-    || (gameVm.value.nashEquilibria || []).some((item) => item.row === rowIndex && item.col === colIndex)
-}
-
-function isEfficientCell(rowIndex, colIndex) {
-  return gameVm.value.matrixSummary?.efficiencyKey === matrixKey(rowIndex, colIndex)
-}
-
-function isFragileCell(rowIndex, colIndex) {
-  return gameVm.value.matrixSummary?.worstKey === matrixKey(rowIndex, colIndex)
-}
-
-function selectMatrixCell(rowIndex, colIndex) {
-  selectedMatrixKey.value = matrixKey(rowIndex, colIndex)
-}
-
-function formatPayoff(cell) {
-  if (!cell) return '-- / --'
-  return `${Number(cell.p1).toFixed(1)} / ${Number(cell.p2).toFixed(1)}`
-}
 </script>
 
 <style scoped>
+/* 紧凑型核心断点状态横幅样式 */
+.compact-findings-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 8px 8px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+}
+.cfs-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.cfs-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: #fef3c7;
+  color: #b45309;
+}
+.cfs-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+}
+.cfs-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.cfs-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  cursor: help;
+}
+.cfs-chip.danger {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+.cfs-chip.danger .cfs-dot {
+  color: #ef4444;
+}
+.cfs-chip.safe {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #15803d;
+}
+.cfs-chip.safe .cfs-dot {
+  color: #10b981;
+}
+
+.cfs-info-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px dashed #cbd5e1;
+  background: transparent;
+  color: #64748b;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+.cfs-info-trigger:hover {
+  border-color: #3b82f6;
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+/* 浮窗详情样式 */
+.vg-popover-content {
+  padding: 2px;
+  font-size: 12px;
+}
+.vg-popover-content h4 {
+  margin: 0 0 6px 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.vg-popover-content p {
+  margin: 0 0 8px 0;
+  color: #475569;
+  line-height: 1.45;
+}
+.vg-detail-item {
+  padding: 5px 8px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  font-size: 11.5px;
+  background: #f8fafc;
+}
+.vg-detail-item.danger {
+  border-left: 3px solid #ef4444;
+}
+.vg-detail-item.safe {
+  border-left: 3px solid #10b981;
+}
+
 .vulnerability-workspace {
   display: grid;
   gap: 10px;
@@ -586,12 +766,162 @@ function formatPayoff(cell) {
 
 .vulnerability-overview-main > span { color: #64748b; font-size: var(--mid-fs-label); font-weight: 700; }
 .vulnerability-overview-main > strong { display: block; margin-top: 4px; color: #dc2626; font-size: 24px; }
+.vulnerability-overview-main > strong.success { color: #15803d; }
+.vulnerability-overview-main > strong.warning { color: #b45309; }
 .vulnerability-overview-main > p { margin: 5px 0 0; color: #64748b; font-size: var(--mid-fs-label); line-height: var(--mid-lh-body); }
 .vulnerability-overview-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .vulnerability-overview-grid article { padding: 9px 10px; border: 1px solid #e2e8f0; border-radius: 9px; background: #f8fafc; }
 .vulnerability-overview-grid span,
 .vulnerability-overview-grid small { display: block; color: #64748b; font-size: var(--mid-fs-micro); }
-.vulnerability-overview-grid strong { display: block; margin: 4px 0; color: #0f172a; font-size: var(--mid-fs-strong); }
+/* 俄乌冲突高风险断点与通道排行榜 */
+.vulnerability-ranking-panel {
+  padding: 14px 18px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+.ranking-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.ranking-head-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ranking-table-wrapper {
+  overflow-x: auto;
+}
+.ranking-modern-table {
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 13px;
+}
+.rank-num-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  font-weight: 800;
+  font-size: 12px;
+  color: #ffffff;
+  background: #64748b;
+}
+.rank-num-badge.rank-1 {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.35);
+}
+.rank-num-badge.rank-2 {
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  box-shadow: 0 2px 6px rgba(249, 115, 22, 0.3);
+}
+.rank-num-badge.rank-3 {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+.rank-num-badge.rank-4 {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+}
+.choke-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.choke-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.choke-name {
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 13px;
+}
+.choke-type-tag {
+  font-size: 11px;
+}
+.choke-impact {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.4;
+}
+.score-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.score-num-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+}
+.score-number {
+  font-size: 16px;
+  font-weight: 800;
+  color: #dc2626;
+}
+.score-unit {
+  font-size: 11px;
+  color: #94a3b8;
+}
+.reason-cell {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  color: #334155;
+  line-height: 1.45;
+}
+.reason-icon {
+  color: #f59e0b;
+  font-size: 14px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.dispatch-mapping-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dispatch-chip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.dispatch-title {
+  font-size: 12px;
+  color: #1e293b;
+  font-weight: 700;
+}
+.dispatch-action-text {
+  margin: 0;
+  font-size: 11px;
+  color: #475569;
+  line-height: 1.4;
+}
+.effect-cell {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  color: #059669;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.effect-icon {
+  font-size: 14px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
 
 .vulnerability-priority {
   padding: 12px 14px;
@@ -645,46 +975,145 @@ function formatPayoff(cell) {
 .priority-grid article.inventory { border-color: #fde68a; background: #fffbeb; }
 
 .algorithm-screening-panel {
-  padding: 12px 14px;
+  margin-top: 14px;
+  padding: 18px 20px;
+  border-radius: 14px;
+  border: 1px solid #dbe6f3;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(246, 250, 255, 0.88) 100%);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.05);
 }
 
-.algorithm-flow-grid {
+.screening-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #eef3f9;
+}
+
+.screening-status-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.mc-iter-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: #1e40af;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+/* 4步执行流水线 */
+.algorithm-pipeline-track {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  gap: 12px;
+  margin-top: 16px;
 }
 
-.algorithm-flow-grid article {
+.pipeline-step-card {
+  position: relative;
   min-width: 0;
-  padding: 10px;
-  border: 1px solid #dbe4ef;
-  border-radius: 9px;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
   background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  transition: all 0.2s ease;
 }
 
-.algorithm-flow-grid span {
-  display: block;
-  color: #2563eb;
-  font-size: var(--mid-fs-micro);
+.pipeline-step-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.08);
+  border-color: #bfdbfe;
+}
+
+.pipeline-step-card.step-tier-1 {
+  border-top: 3px solid #3b82f6;
+}
+
+.pipeline-step-card.step-tier-2 {
+  border-top: 3px solid #10b981;
+}
+
+.pipeline-step-card.step-tier-3 {
+  border-top: 3px solid #f59e0b;
+}
+
+.pipeline-step-card.step-tier-4 {
+  border-top: 3px solid #6366f1;
+}
+
+.pipeline-step-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.step-badge {
+  font-size: 10px;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #f1f5f9;
+  color: #475569;
+  font-family: var(--mid-font-mono, monospace);
+  letter-spacing: 0.05em;
 }
 
-.algorithm-flow-grid strong {
-  display: block;
-  margin-top: 4px;
+.step-role-label {
+  font-size: 12px;
+  font-weight: 800;
   color: #0f172a;
-  font-size: var(--mid-fs-strong);
-  line-height: var(--mid-lh-tight);
-  overflow-wrap: anywhere;
 }
 
-.algorithm-flow-grid p {
+.pipeline-step-body {
+  flex: 1;
+}
+
+.step-value {
+  display: block;
+  color: #1e3a8a;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.step-detail {
   margin: 6px 0 0;
-  color: #64748b;
-  font-size: var(--mid-fs-label);
-  line-height: var(--mid-lh-body);
-  overflow-wrap: anywhere;
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.pipeline-step-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed #f1f5f9;
+}
+
+.pipeline-status-text {
+  font-size: 10px;
+  font-weight: 600;
+  color: #059669;
+}
+
+.step-arrow-icon {
+  font-size: 14px;
+  color: #94a3b8;
 }
 
 .dependency-matrix-cell {

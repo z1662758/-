@@ -19,14 +19,17 @@
           <span class="toolbar-title-sub">{{ currentExperimentLabel }}</span>
         </div>
         <!-- 场景选择 -->
-        <el-button-group class="scenario-group">
-          <el-button :type="currentScenario === 'supplyChain' ? 'primary' : ''" @click="switchScenario('supplyChain')" size="small">
+          <el-button-group class="scenario-group">
+          <el-button :type="currentScenario === 'supplyChain' && viewMode === 'simulation' ? 'primary' : ''" @click="viewMode = 'simulation'; switchScenario('supplyChain')" size="small">
             供应链地图
           </el-button>
-          <el-button :type="currentScenario === 'collaborationNetwork' ? 'primary' : ''" @click="switchScenario('collaborationNetwork')" size="small">
+          <el-button :type="currentScenario === 'collaborationNetwork' && viewMode === 'simulation' ? 'primary' : ''" @click="viewMode = 'simulation'; switchScenario('collaborationNetwork')" size="small">
             协作网络
           </el-button>
-        </el-button-group>
+          </el-button-group>
+          <el-button size="small" :type="viewMode === 'bullwhip' ? 'primary' : ''" @click="currentScenario = 'supplyChain'; viewMode = 'bullwhip'">
+            牛鞭效应
+          </el-button>
       </div>
       <div class="toolbar-controls">
         <!-- 供应链仿真控制 -->
@@ -69,6 +72,9 @@
           <div v-if="currentExperimentId" class="events-section">
             <ExtremeEventsPanel :experiment-id="currentExperimentId" />
           </div>
+        </div>
+        <div v-else-if="viewMode === 'bullwhip'" class="analysis-view">
+          <BullwhipAnalysis />
         </div>
         <div v-else class="analysis-view">
           <el-empty description="分析视图开发中" />
@@ -120,6 +126,9 @@ const NetworkEvolutionChart = defineAsyncComponent(() =>
 )
 const ExtremeEventsPanel = defineAsyncComponent(() =>
   import('@/components/SCnet/ExtremeEventsPanel.vue')
+)
+const BullwhipAnalysis = defineAsyncComponent(() =>
+  import('@/components/SupplyChain/BullwhipAnalysis.vue')
 )
 
 // ================== 协作网络组件（懒加载） ==================

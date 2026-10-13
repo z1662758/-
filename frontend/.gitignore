@@ -59,4 +59,7 @@ data/experiments/*.json
 # Temporary files
 *.tmp
 *.bak
+*.swp
+*.bat
+start.bat
 .DS_Store

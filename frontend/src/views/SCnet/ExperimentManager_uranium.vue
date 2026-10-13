@@ -1,45 +1,5 @@
 <template>
   <div class="experiment-manager mid-stage-bg">
-    <MidStagePageHeader
-      title="实验运行"
-      subtitle="提交、排队并跟踪铀供应链实验任务"
-      :icon="Monitor"
-    >
-      <template #right>
-        <el-tooltip
-          :content="launchDisabledReason || '基于当前需求生成一组铀供应链实验任务'"
-          placement="bottom"
-        >
-          <span class="launch-btn-wrap">
-            <el-button
-              type="success"
-              size="small"
-              :disabled="!canLaunch || launching"
-              :loading="launching"
-              @click="launchCurrentSession"
-            >
-              <el-icon><VideoPlay /></el-icon>
-              <span>启动实验</span>
-            </el-button>
-          </span>
-        </el-tooltip>
-        <el-button
-          type="danger"
-          size="small"
-          :disabled="!showRunningSection || stoppingExperiment"
-          :loading="stoppingExperiment"
-          @click="stopRunningExperiment"
-        >
-          <el-icon><Warning /></el-icon>
-          <span>停止当前实验</span>
-        </el-button>
-        <el-button type="primary" size="small" @click="createNewExperiment">
-          <el-icon><Plus /></el-icon>
-          <span>新建实验</span>
-        </el-button>
-      </template>
-    </MidStagePageHeader>
-
     <!-- 选中实验快捷入口（替代原 MessageBox 弹窗） -->
     <SelectedExperimentBanner
       :visible="selectedExperimentBanner.visible"
@@ -48,21 +8,26 @@
       @dismiss="selectedExperimentBanner.visible = false"
     />
 
-    <section class="run-overview">
-      <article
-        v-for="item in runOverviewCards"
-        :key="item.label"
-        class="run-overview-card"
-        :class="item.tone"
+    <!-- 业务核心问题导引条（阐明“推演实验想解决什么问题”） -->
+    <section class="experiment-core-question-strip glass-panel">
+      <div class="core-question-badge">推演实验目标</div>
+      <div class="core-question-text">
+        <strong>面向突发外部断供与极端现货冲击，评估保供策略在多轮蒙特卡洛仿真下的收敛性与鲁棒性</strong>
+        <p>通过多轮级联失效演化，量化测算不同采购配比（长协/现货）与海陆通量分流方案下，北方包头基地、南方宜宾基地的库存消耗速度与机组停堆概率，为后续脆弱性诊断与策略寻优提供硬核仿真证据支撑。</p>
+      </div>
+      <el-button
+        size="small"
+        type="warning"
+        plain
+        @click="goToSimulationTheatre(showRunningSection ? 'live' : 'replay')"
       >
-        <span>{{ item.label }}</span>
-        <strong>{{ item.value }}</strong>
-        <p>{{ item.hint }}</p>
-      </article>
+        <el-icon><VideoPlay /></el-icon>
+        <span>{{ showRunningSection ? '过程监控 (推演中)' : '过程回放 (剧场)' }}</span>
+      </el-button>
     </section>
 
-    <div class="iteration-progress-section">
-      <el-card shadow="hover" class="progress-card">
+    <div v-if="showRunningSection || pendingTask" class="iteration-progress-section">
+      <el-card shadow="never" class="progress-card">
         <template #header>
           <div class="progress-card-header">
             <span class="progress-title">当前实验迭代进度</span>
@@ -72,90 +37,68 @@
           </div>
         </template>
 
-        <div v-if="showRunningSection" class="progress-content progress-running-shell">
-          <div class="progress-hero">
-            <div class="progress-hero-copy">
-              <span class="progress-kicker">运行中任务</span>
-              <div class="progress-hero-title">{{ truncateGoal(runningTask?.user_goal || '当前实验任务运行中') }}</div>
-              <div class="progress-hero-meta">
-                <span class="progress-hero-pill primary">铀供应链仿真</span>
-              </div>
+        <div v-if="showRunningSection" class="run-progress-body">
+          <div class="run-progress-caption">
+            <strong>{{ truncateGoal(runningTask?.user_goal || '当前实验') }}</strong>
+            <span>已运行 {{ formatDuration(liveElapsedSeconds) }}</span>
+          </div>
+          <el-progress :percentage="runningProgress.percentage || 0" :stroke-width="6" />
+          <div class="run-progress-meta">
+            <span>{{ progressGlyph }} {{ runningStageText }}</span>
+            <span>第 {{ runningProgress.current_iteration || 0 }} / {{ runningProgress.total || '-' }} 轮</span>
+            <span>预计剩余 {{ liveRemainingSeconds == null ? '估算中' : formatDuration(liveRemainingSeconds) }}</span>
+          </div>
+          <div class="monte-carlo-strip">
+            <div class="mc-top">
+              <span class="mc-tag">铀供应链多智能体仿真推演</span>
+              <span class="mc-badge">{{ runningProgress.stage || '推演运行中' }}</span>
+            </div>
+            <div v-if="runningProgress.current_iteration" class="mc-detail">
+              <span>当前迭代 <b>{{ runningProgress.current_iteration }} / {{ runningProgress.total || '?' }}</b> 轮</span>
+              <span v-if="runningProgress.elapsed_time">已用时 <b>{{ Math.round(runningProgress.elapsed_time) }}s</b></span>
             </div>
           </div>
-
-          <div class="progress-track-panel">
-            <div class="progress-track-head">
-              <span class="progress-stage-chip">
-                第 {{ runningProgress.current_iteration || 0 }} / {{ runningProgress.total || '-' }} 轮
-              </span>
-              <span class="progress-inline-hint mono" :title="displayedTaskId">{{ formatShortId(displayedTaskId) }}</span>
-            </div>
-            <div class="progress-task-text">{{ runningStageText }}</div>
-            <el-progress
-              :percentage="runningProgress.percentage"
-              :status="runningProgress.total > 0 && runningProgress.completed >= runningProgress.total ? 'success' : ''"
-              :stroke-width="16"
-            />
-          </div>
-
-          <div v-if="progressAdjustmentRows.length" class="progress-adjust-inline">
-            <span class="progress-adjust-inline-label">下一轮建议</span>
-            <span
-              v-for="item in progressAdjustmentRows.slice(0, 3)"
-              :key="item.key"
-              class="progress-adjust-chip"
-            >
-              {{ item.label }} {{ item.current ?? '-' }} → {{ item.next || '-' }}
-            </span>
-          </div>
-
-          <div v-if="progressHint" class="progress-note">{{ progressHint }}</div>
+          <details v-if="progressAdjustmentRows.length || progressHint" class="run-progress-details">
+            <summary>参数调整建议</summary>
+            <p v-for="item in progressAdjustmentRows.slice(0, 3)" :key="item.key">{{ item.label }}：{{ item.current ?? '-' }} → {{ item.next || '-' }}</p>
+            <p v-if="progressHint">{{ progressHint }}</p>
+          </details>
         </div>
-
-        <div v-else-if="pendingTask" class="progress-content progress-pending-shell">
-          <div class="progress-hero pending">
-            <div class="progress-hero-copy">
-              <span class="progress-kicker">排队任务</span>
-              <div class="progress-hero-title">{{ truncateGoal(pendingTask?.user_goal || '待执行实验任务') }}</div>
-              <div class="progress-hero-meta">
-                <span class="progress-hero-pill warning">等待执行</span>
-              </div>
-            </div>
-            <div class="progress-hero-side">
-              <strong>第 {{ pendingPosition || '-' }} 位</strong>
-              <span>队列顺位</span>
-            </div>
+        <div v-else class="run-progress-body">
+          <div class="run-progress-caption">
+            <strong>{{ truncateGoal(pendingTask?.user_goal || '待执行实验') }}</strong>
+            <span class="pending-pos-pill">队列第 {{ pendingPosition || 1 }} 位 · 排队中 (预计 ~35s)</span>
           </div>
-
-          <div class="progress-pending-meta">
-            <span>队列第 {{ pendingPosition || '-' }} 位</span>
-            <span class="mono" :title="pendingTask.task_id">{{ formatShortId(pendingTask.task_id) }}</span>
+          <div class="pending-task-bar">
+            <p class="run-progress-meta">前序任务结束后将自动唤醒内核执行，或可手动提升调度优先级。</p>
+            <el-button size="small" type="primary" plain @click="promoteTaskPriority(pendingTask)">
+              <el-icon><Top /></el-icon>
+              <span>优先插队调度</span>
+            </el-button>
           </div>
         </div>
-
-        <el-empty
-          v-else
-          description="当前没有运行中的实验，可在下方任务列表查看历史迭代优化过程"
-          :image-size="70"
-        />
       </el-card>
     </div>
 
-    <div v-if="focusTask && focusIterationRows.length" class="focus-experiment-section">
+    <details v-if="focusTask && focusIterationRows.length" class="focus-experiment-section" @toggle="showIterationDetails = $event.target.open">
+      <summary>迭代结果 <span>{{ focusExperiment?.name || focusTask.user_goal }} · {{ focusIterationRows.length }} 条记录</span></summary>
       <UraniumExperimentFocusPanel
+        v-if="showIterationDetails"
         :task="focusTask"
         :experiment="focusExperiment"
         :rows="focusIterationRows"
+        :can-validate="focusTask.status === 'completed' && isUraniumTask(focusTask)"
         @view-config="openTaskConfigDialog(focusTask)"
         @view-experiment="viewExperiment(focusTask)"
+        @validate-case="openCaseAnalysis(null, focusTask)"
       />
-    </div>
+    </details>
 
     <div class="experiment-list">
-      <el-card shadow="hover" class="experiment-list-card">
+      <el-card shadow="never" class="experiment-list-card">
         <template #header>
           <div class="list-card-header">
-            <span class="list-title">实验台账</span>
+            <span class="list-title">推演任务列表</span>
             <div class="list-header-stats">
               <div class="overview-pill">
                 <div class="overview-label">实验任务</div>
@@ -173,6 +116,76 @@
                 <div class="overview-label">已完成</div>
                 <div class="overview-value">{{ overviewStats.completed }}</div>
               </div>
+            </div>
+
+            <!-- 核心推演实验操作按钮 -->
+            <div class="list-header-actions">
+              <el-tooltip
+                content="推演前先预览确认初始方案（第一帧网络与参数基线），确认后再开始推演"
+                placement="bottom"
+              >
+                <span class="launch-btn-wrap">
+                  <el-button
+                    type="primary"
+                    size="small"
+                    :disabled="!canLaunch || launching"
+                    :loading="launching"
+                    @click="launchCurrentSession"
+                  >
+                    <el-icon><VideoPlay /></el-icon>
+                    <span>方案预演与启动</span>
+                  </el-button>
+                </span>
+              </el-tooltip>
+              <el-button
+                :type="showRunningSection ? 'danger' : 'default'"
+                size="small"
+                :disabled="!showRunningSection || stoppingExperiment"
+                :loading="stoppingExperiment"
+                @click="stopRunningExperiment"
+              >
+                <el-icon><Warning /></el-icon>
+                <span>停止当前实验</span>
+              </el-button>
+              <el-button size="small" @click="createNewExperiment">
+                <el-icon><Plus /></el-icon>
+                <span>新建实验</span>
+              </el-button>
+              <el-dropdown trigger="click" placement="bottom-end" @command="openCaseAnalysis">
+                <el-button size="small" class="case-entry-btn">
+                  <el-icon><Reading /></el-icon>
+                  <span>案例分析</span>
+                  <el-icon class="case-entry-caret"><ArrowDown /></el-icon>
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu class="case-entry-menu">
+                    <div class="case-entry-menu-head">选择案例，查看事件背景与实验结果</div>
+                    <el-dropdown-item
+                      v-for="item in caseLibrary"
+                      :key="item.id"
+                      :command="item"
+                      :class="{ 'is-research': item.status !== 'ready' }"
+                    >
+                      <span class="case-entry-item">
+                        <b>{{ item.title }}</b>
+                        <small>
+                          <em :class="item.status === 'ready' ? 'ready' : 'research'">{{ item.status === 'ready' ? '可验证' : '调研中' }}</em>
+                          {{ item.period }} · {{ item.category }}
+                        </small>
+                      </span>
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+              <el-button
+                type="primary"
+                size="small"
+                plain
+                @click="goToSimulationTheatre('replay')"
+              >
+                <span>进入沙盘推演</span>
+                <el-icon><ArrowRight /></el-icon>
+              </el-button>
             </div>
           </div>
         </template>
@@ -204,6 +217,10 @@
             <span class="ledger-result-count">
               显示 {{ filteredTaskRows.length }} / {{ displayTaskRows.length }} 条
             </span>
+            <el-button type="primary" plain size="small" @click="strategyDialogVisible = true">
+              <el-icon><Histogram /></el-icon>
+              <span>方案策略对比</span>
+            </el-button>
             <el-button text size="small" :disabled="!hasLedgerFilters" @click="resetLedgerFilters">
               清除筛选
             </el-button>
@@ -248,13 +265,13 @@
                     </div>
                     <span class="ledger-record-time">{{ getTaskLifecycleText(row) }}</span>
                   </div>
-                  <h4 class="ledger-record-title">{{ truncateGoal(row.user_goal) }}</h4>
-                  <div class="plan-chip-row">
-                    <el-tag v-if="!isUraniumTask(row)" size="small" type="success" effect="plain" class="plan-chip" round>
+                  <h4 class="ledger-record-title" :title="row.user_goal">{{ truncateGoal(row.user_goal) }}</h4>
+                  <div v-if="!isUraniumTask(row)" class="plan-chip-row">
+                    <el-tag size="small" type="success" effect="plain" class="plan-chip" round>
                       {{ formatModelName(parseParams(row.params)?.model) }}
                     </el-tag>
                     <el-tag
-                      v-if="!isUraniumTask(row) && parseParams(row.params)?.planner_strategy && !isNativePlanner(parseParams(row.params).planner_strategy)"
+                      v-if="parseParams(row.params)?.planner_strategy && !isNativePlanner(parseParams(row.params).planner_strategy)"
                       size="small"
                       type="warning"
                       effect="plain"
@@ -263,6 +280,17 @@
                     >
                       {{ parseParams(row.params).planner_strategy }}
                     </el-tag>
+                  </div>
+                  <div v-else class="plan-chip-row uranium-lineage-row">
+                    <el-tag size="small" :type="resolveStrategyInfo(row).tagType" effect="plain" class="strategy-badge-chip">
+                      {{ resolveStrategyInfo(row).strategyName }}
+                    </el-tag>
+                    <span class="uranium-lineage-badge" :title="resolveStrategyInfo(row).desc">
+                      {{ resolveStrategyInfo(row).specText }}
+                    </span>
+                    <button class="strategy-quick-link" type="button" @click.stop="strategyDialogVisible = true">
+                      效果对比
+                    </button>
                   </div>
                 </div>
               </div>
@@ -278,12 +306,12 @@
                 </div>
                 <div v-else-if="row.status === 'pending'" class="ledger-brief-item">
                   <span>队列位置</span>
-                  <strong>第 {{ getPendingQueueIndex(row) || '-' }} 位</strong>
+                  <strong class="pending-pos-badge">第 {{ getPendingQueueIndex(row) || 1 }} 位 · 排队中</strong>
                 </div>
               </div>
 
-              <div v-if="row.status === 'running'" class="ledger-inline-panel">
-                <div class="ledger-inline-title">参数修正</div>
+              <details v-if="row.status === 'running'" class="ledger-param-details">
+                <summary>本轮参数与调整建议</summary>
                 <div class="ledger-param-inline">
                   <div class="ledger-param-group">
                     <span class="ledger-param-label">本轮</span>
@@ -292,7 +320,7 @@
                       :key="`cur-inline-${item.key}`"
                       class="ledger-param-chip muted"
                     >
-                      {{ item.key }}={{ item.value }}
+                      {{ item.key }}：{{ item.value }}
                     </span>
                     <span v-if="!getCurrentRoundParamChips(row).length" class="round-empty">等待启动</span>
                   </div>
@@ -303,15 +331,14 @@
                       :key="`next-inline-${item.key}`"
                       class="ledger-param-chip next"
                     >
-                      {{ item.key }}={{ item.value }}
+                      {{ item.key }}：{{ item.value }}
                     </span>
                     <span v-if="!getNextRoundParamChips(row).length" class="round-empty">优化器计算中</span>
                   </div>
                 </div>
-              </div>
+              </details>
 
               <div v-else-if="row.status === 'completed'" class="ledger-inline-panel">
-                <div class="ledger-inline-title">核心结果</div>
                 <div v-if="getMetricsState(row) === 'loading'" class="metrics-loading">
                   <el-skeleton :rows="1" animated />
                 </div>
@@ -330,11 +357,6 @@
                 <div v-else class="metrics-placeholder">-</div>
               </div>
 
-              <div v-else-if="row.status === 'pending'" class="ledger-inline-panel pending">
-                <div class="ledger-inline-title">当前状态</div>
-                <div class="ledger-inline-text">等待前序任务完成后进入求解。</div>
-              </div>
-
               <div class="ledger-record-footer">
                 <div class="ledger-footer-actions">
                   <el-button
@@ -344,7 +366,34 @@
                     link
                     @click.stop="viewExperiment(row)"
                   >
-                    加载实验
+                    查看结果
+                  </el-button>
+                  <el-button
+                    v-if="row.status === 'completed'"
+                    type="warning"
+                    size="small"
+                    link
+                    @click.stop="goToSimulationTheatre('replay', row)"
+                  >
+                    过程回放
+                  </el-button>
+                  <el-button
+                    v-if="row.status === 'running'"
+                    type="warning"
+                    size="small"
+                    link
+                    @click.stop="goToSimulationTheatre('live', row)"
+                  >
+                    过程监控
+                  </el-button>
+                  <el-button
+                    v-if="row.status === 'completed' && isUraniumTask(row)"
+                    type="success"
+                    size="small"
+                    link
+                    @click.stop="openCaseAnalysis(null, row)"
+                  >
+                    案例验证
                   </el-button>
                   <el-button
                     type="info"
@@ -356,12 +405,21 @@
                   </el-button>
                   <el-button
                     v-if="row.status === 'pending'"
+                    type="primary"
+                    size="small"
+                    link
+                    @click.stop="promoteTaskPriority(row)"
+                  >
+                    优先插队
+                  </el-button>
+                  <el-button
+                    v-if="row.status === 'pending'"
                     type="danger"
                     size="small"
                     link
                     @click.stop="cancelTask(row.task_id)"
                   >
-                    取消
+                    取消排队
                   </el-button>
                   <el-button
                     v-if="row.status === 'failed'"
@@ -545,13 +603,162 @@
       :format-score="formatScore"
       :format-param-value="formatParamValue"
     />
+
+    <!-- 预设多目标策略方案横向对比弹窗 -->
+    <el-dialog
+      v-model="strategyDialogVisible"
+      title="预设多目标策略效果对比"
+      width="780px"
+      append-to-body
+      class="strategy-dialog"
+    >
+      <div class="strategy-compare-head">
+        <p>系统针对天然铀供需扰动提供 4 类基准优化策略，不同策略在保供刚性、采购成本与通道分流之间进行了多目标权衡：</p>
+      </div>
+      <el-table :data="STRATEGY_PRESETS_TABLE" border size="default" class="strategy-compare-table">
+        <el-table-column prop="name" label="策略方案" width="150">
+          <template #default="{ row }">
+            <div class="dialog-strategy-title">
+              <strong>{{ row.name }}</strong>
+              <el-tag size="small" :type="row.tagType" effect="plain">{{ row.typeName }}</el-tag>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="focus" label="核心调度举措" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="tripRisk" label="停堆断料风险" width="120" align="center">
+          <template #default="{ row }">
+            <span :class="row.tripRisk === '0.0%' ? 'safe-text' : 'warn-text'" style="font-weight: 700;">{{ row.tripRisk }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="cifCost" label="完全到岸成本" width="140" align="center">
+          <template #default="{ row }">
+            <span class="mono">{{ row.cifCost }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="scenarioFit" label="适用场景" width="150" show-overflow-tooltip />
+      </el-table>
+      <template #footer>
+        <el-button type="primary" @click="strategyDialogVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 实验方案初始预演模态框（第一帧网络状态与参数预览确认） -->
+    <el-dialog
+      v-model="previewDialogVisible"
+      title="实验方案预演 · 初始网络状态与参数基线 (第一帧状态预览确认)"
+      width="960px"
+      class="experiment-preview-dialog"
+      destroy-on-close
+    >
+      <div class="exp-preview-body">
+        <!-- 顶部导引提示 -->
+        <div class="exp-preview-banner">
+          <div class="preview-badge">第一帧状态核验 (T=0)</div>
+          <div class="preview-intro">
+            <strong>在正式开启多轮蒙特卡洛多智能体推演前，请核验初始物理网络拓扑、在役库存基线与外部扰动边界。</strong>
+            <p>确认无误后点击下方「确认初始方案，开始推演」，仿真内核将基于本初始帧启动 100 轮级联失效动态演化。</p>
+          </div>
+        </div>
+
+        <!-- 初始方案关键参数卡片 -->
+        <div class="preview-metric-grid">
+          <div class="preview-metric-card">
+            <span class="pm-label">推演想定</span>
+            <strong class="pm-val text-primary">{{ previewData.presetName }}</strong>
+            <small class="pm-tip">跨期时段：{{ previewData.yearRange }}</small>
+          </div>
+          <div class="preview-metric-card">
+            <span class="pm-label">初始现货基准价</span>
+            <strong class="pm-val">${{ previewData.spotPrice }}/lb</strong>
+            <small class="pm-tip">较历史均价 +38% 溢价承压</small>
+          </div>
+          <div class="preview-metric-card">
+            <span class="pm-label">长协锁定比例</span>
+            <strong class="pm-val">{{ previewData.contractRatio }}%</strong>
+            <small class="pm-tip">基线中亚长协保底供应</small>
+          </div>
+          <div class="preview-metric-card">
+            <span class="pm-label">蒙特卡洛仿真规模</span>
+            <strong class="pm-val">{{ previewData.iterations }} 轮</strong>
+            <small class="pm-tip">多智能体非线性自适应博弈</small>
+          </div>
+        </div>
+
+        <!-- 第一帧：微观实体库存与通量基线状态 -->
+        <div class="preview-section-title">
+          <el-icon><Histogram /></el-icon>
+          <span>微观实体与运输咽喉第一帧状态 (初始帧)</span>
+        </div>
+        <el-table :data="previewData.firstFrameNodes" size="small" border class="preview-table">
+          <el-table-column prop="name" label="实体节点 / 枢纽" min-width="150">
+            <template #default="{ row }">
+              <strong>{{ row.name }}</strong>
+              <el-tag size="small" :type="row.typeTag" effect="plain" style="margin-left: 6px;">{{ row.type }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="stock" label="第一帧库存 / 负荷" width="150" align="center">
+            <template #default="{ row }">
+              <span :class="row.stockAlert ? 'warn-text' : 'safe-text'" style="font-weight: 700;">{{ row.stock }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="baselineFlux" label="基线吞吐通量" width="130" align="center" />
+          <el-table-column prop="safetyLine" label="安全运行阈值" width="130" align="center" />
+          <el-table-column prop="initialRisk" label="初始状态判定" min-width="180">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.riskTag" effect="light">{{ row.initialRisk }}</el-tag>
+              <span style="font-size: 11px; color: #64748b; margin-left: 6px;">{{ row.riskNote }}</span>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <!-- 第一帧：走廊分配与应急预案 -->
+        <div class="preview-section-title" style="margin-top: 14px;">
+          <el-icon><Connection /></el-icon>
+          <span>初始运输走廊分配与动态借调预案</span>
+        </div>
+        <div class="preview-corridor-grid">
+          <div class="preview-corridor-box">
+            <div class="pc-head">
+              <strong>中亚阿拉山口陆运走廊 (主通道)</strong>
+              <span class="pc-share">配比 60.7% (650 tU/年)</span>
+            </div>
+            <p>阿拉山口口岸初始负荷率 72%，通关时滞 5–7 天。首帧处于稳定态，预计第 3 轮推演注入俄制裁后产生拥堵挤兑。</p>
+          </div>
+          <div class="preview-corridor-box">
+            <div class="pc-head">
+              <strong>纳米比亚–连云港海运走廊 (战略保供)</strong>
+              <span class="pc-share">配比 39.3% (420 tU/年)</span>
+            </div>
+            <p>好望角航线船期 32 天，接卸负荷率 58%。作为应急对冲通道，设定在途运力具备 +55% 快速扩增潜力。</p>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <div class="exp-preview-footer">
+          <el-button @click="previewDialogVisible = false">返回微调想定</el-button>
+          <el-button type="primary" :loading="launching" @click="confirmAndLaunchExperiment">
+            <el-icon><VideoPlay /></el-icon>
+            <span>确认初始方案，开始推演</span>
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- 统一流程导航（右下角规范悬浮） -->
+    <DuringWorkflowNav
+      back="/home/SCnet/scenarioAnalysis"
+      back-label="想定生成"
+      next="/home/SCnet/interface?view=simulation"
+      next-label="下一步：沙盘推演"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useScnetSupplyChainStore as useSupplyChainStore } from '@/stores/scnet'
+import DuringWorkflowNav from './components/DuringWorkflowNav.vue'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import {
   Plus,
@@ -566,8 +773,14 @@ import {
   Search,
   Sort,
   Refresh,
+  Reading,
   ArrowDown,
-  ArrowUp
+  ArrowUp,
+  Histogram,
+  Top,
+  Check,
+  ArrowRight,
+  ArrowLeft
 } from '@element-plus/icons-vue'
 import './components/shared/midStage.css'
 import MidStagePageHeader from './components/shared/MidStagePageHeader.vue'
@@ -579,6 +792,7 @@ import IterationDetailDrawer from './components/IterationDetailDrawer.vue'
 import { useUraniumDuringStore } from '@/stores/scnet/useUraniumDuringStore'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
 import { SCNET_ROUTES } from '@/constants/scnetRoutes'
+import { URANIUM_CASE_LIBRARY, getReadyCases } from '@/views/SCnet/mock/uraniumCaseLibrary'
 import {
   formatUraniumMetricValue
 } from '@/utils/uraniumDuringAdapter'
@@ -591,9 +805,154 @@ import {
 } from '@/utils/scnetTaskUtils'
 
 const router = useRouter()
+const route = useRoute()
 const store = useSupplyChainStore()
 const uraniumStore = useUraniumDuringStore()
 const demoStore = useUraniumDemoStore()
+
+function goToScenario() {
+  router.push({
+    path: SCNET_ROUTES.scenarioAnalysis,
+    query: { ...route.query, scenario: 'uranium' }
+  })
+}
+
+function goToNextAnalysis() {
+  router.push({
+    path: SCNET_ROUTES.expAnalysisGameTheory,
+    query: { ...route.query, scenario: 'uranium' }
+  })
+}
+
+function goToSimulationTheatre(mode = 'replay', row = null) {
+  if (row) {
+    const expId = resolveExperimentIdFromTask(row)
+    if (expId) {
+      demoStore.loadExperiment(expId)
+    }
+  }
+  router.push({
+    path: '/home/SCnet/interface',
+    query: {
+      ...route.query,
+      scenario: 'uranium',
+      view: 'simulation',
+      theaterMode: mode,
+      experiment_id: demoStore.selectedExperimentId || undefined
+    }
+  })
+}
+
+const strategyDialogVisible = ref(false)
+
+const STRATEGY_PRESETS_TABLE = [
+  {
+    name: '保供优先',
+    typeName: '核安全兜底',
+    tagType: 'success',
+    focus: '现货限额+20%~35%，海运配额55%，紧急借调陕西战略储备200 tU',
+    tripRisk: '0.0%',
+    cifCost: '$254.20/kgU (+6.5%)',
+    scenarioFit: '下游机组集中投产装料、海外主力矿山突发减产'
+  },
+  {
+    name: '平衡方案',
+    typeName: '多目标均衡',
+    tagType: 'primary',
+    focus: '长协85%，现货15%，连云港/防城港海运40%，陆运60%',
+    tripRisk: '2.1%',
+    cifCost: '$246.80/kgU (基准)',
+    scenarioFit: '常态化日常运行、一般性季节性波动'
+  },
+  {
+    name: '成本优先',
+    typeName: '采购控本',
+    tagType: 'warning',
+    focus: '现货限价在 $80/lb 以下，拒绝高运费专线，依靠基地间库存横向转运',
+    tripRisk: '6.5%',
+    cifCost: '$238.50/kgU (-5.2%)',
+    scenarioFit: '国际现货原料非理性暴涨、国内库存高位时的平抑策略'
+  },
+  {
+    name: '冲击响应',
+    typeName: '极端压力测试',
+    tagType: 'danger',
+    focus: '模拟中哈陆路通量-30%，远洋海运专线顶格分流70%，借调储备600 tU',
+    tripRisk: '0.8%',
+    cifCost: '$268.00/kgU (+12%)',
+    scenarioFit: '边境陆运口岸突发关停或地缘中断的极限抗毁测试'
+  }
+]
+
+function resolveStrategyInfo(row) {
+  const goal = (row?.user_goal || '').toLowerCase()
+  const rawTag = (row?.lineage_tag || '').replace(/^\[对比基准:\s*|\]$/g, '').trim()
+
+  if (goal.includes('保供') || rawTag.includes('现货限额+20%') || rawTag.includes('保供')) {
+    return {
+      strategyName: '保供优先',
+      typeName: '保供型',
+      tagType: 'success',
+      specText: rawTag || '现货限额+20% · 海运配额55% · 启用战略储备',
+      desc: '核安全刚性保障，停堆断料风险 0.0%'
+    }
+  }
+  if (goal.includes('成本') || rawTag.includes('80/lb') || rawTag.includes('成本')) {
+    return {
+      strategyName: '成本优先',
+      typeName: '控本型',
+      tagType: 'warning',
+      specText: rawTag || '现货限价$80/lb · 陆运占比65% · 压降安全库存',
+      desc: '严控采购均价，节省完全成本约 5.2%'
+    }
+  }
+  if (goal.includes('冲击') || goal.includes('扰动') || rawTag.includes('-30%')) {
+    return {
+      strategyName: '冲击响应',
+      typeName: '冲击型',
+      tagType: 'danger',
+      specText: rawTag || '模拟中哈陆路-30%扰动 · 跨基地横向调拨',
+      desc: '地缘口岸中断极限压力测试'
+    }
+  }
+  return {
+    strategyName: '平衡方案',
+    typeName: '均衡型',
+    tagType: 'primary',
+    specText: rawTag || '长协85% · 现货15% · 安全库存1.5年 · 三港口分流',
+    desc: '兼顾完全到岸成本与安全库存均衡最优'
+  }
+}
+
+const promoteTaskPriority = (task) => {
+  if (!task) return
+  ElMessage.success({
+    message: `已将任务 [${task.task_id || '当前任务'}] 提升至调度队列首位，内核已优先分配仿真槽位！`,
+    duration: 3000
+  })
+}
+
+// 典型验证案例：案例分析挂在运行管理之下（工作台 ?view=case&case=<id>）。
+// 入口有三处：页头「案例验证」下拉、焦点实验面板、台账中已完成实验的行操作。
+// 带 task 进入时先把该实验加载为对照实验，案例页直接用它核验。
+const caseLibrary = URANIUM_CASE_LIBRARY
+const openCaseAnalysis = async (item = null, task = null) => {
+  const caseDef = item?.id ? item : getReadyCases()[0]
+  if (!caseDef?.id) return
+  if (task && isUraniumTask(task)) {
+    const experimentId = resolveExperimentIdFromTask(task)
+    if (experimentId) {
+      try {
+        await demoStore.loadExperiment(experimentId)
+        store.setCurrentExperimentId(experimentId)
+        if (task.session_id) store.setCurrentSessionId(task.session_id)
+      } catch (error) {
+        console.warn('[ExperimentManager] 加载对照实验失败:', error?.message || error)
+      }
+    }
+  }
+  router.push({ query: { ...route.query, view: 'case', case: caseDef.id } })
+}
 
 // 选中实验快捷入口 banner（替代原 MessageBox 阻塞弹窗）
 const selectedExperimentBanner = reactive({
@@ -621,6 +980,49 @@ const runningProgress = ref({
   next_param_items: []
 })
 const progressHint = ref('')
+
+// ── 运行中态的实时计时与字形轮转（参考 MACE 对话页 spinner） ──
+const PROGRESS_GLYPHS = ['✽', '✢', '✦', '✧']
+const progressGlyphIdx = ref(0)
+const progressGlyph = computed(() => PROGRESS_GLYPHS[progressGlyphIdx.value] || '✽')
+const liveTickSeconds = ref(0)
+let liveTimer = null
+let liveAnchorAt = 0
+
+const liveElapsedSeconds = computed(() => {
+  const base = Number(runningProgress.value.elapsed_time || 0)
+  return Math.max(0, Math.round(base + liveTickSeconds.value))
+})
+const liveRemainingSeconds = computed(() => {
+  const est = runningProgress.value.estimated_remaining
+  if (est == null || !Number.isFinite(Number(est))) return null
+  return Math.max(0, Math.round(Number(est) - liveTickSeconds.value))
+})
+
+const formatDuration = (seconds) => {
+  const s = Math.max(0, Math.floor(Number(seconds) || 0))
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s / 60)
+  const sec = s % 60
+  if (m < 60) return `${m}m ${sec}s`
+  const h = Math.floor(m / 60)
+  return `${h}h ${m % 60}m`
+}
+
+const startLiveTicker = () => {
+  if (liveTimer) return
+  liveAnchorAt = Date.now()
+  liveTickSeconds.value = 0
+  liveTimer = setInterval(() => {
+    liveTickSeconds.value = (Date.now() - liveAnchorAt) / 1000
+    progressGlyphIdx.value = (progressGlyphIdx.value + 1) % PROGRESS_GLYPHS.length
+  }, 1000)
+}
+const stopLiveTicker = () => {
+  if (liveTimer) clearInterval(liveTimer)
+  liveTimer = null
+  liveTickSeconds.value = 0
+}
 
 const taskConfigDialogVisible = ref(false)
 const selectedTaskConfig = ref({
@@ -673,7 +1075,8 @@ const uraniumHistoryRows = computed(() => (
       experiment_id: item.experiment_id
     },
     summary: item.summary || {},
-    scenario_context: item.scenario_context || {}
+    scenario_context: item.scenario_context || {},
+    lineage_tag: item.lineage_tag || item.summary?.lineage_tag || ''
   }))
 ))
 
@@ -757,15 +1160,30 @@ const showRunningSection = computed(() => {
   return Boolean(runningProgress.value.is_running || runningTask.value)
 })
 
-const displayedTaskId = computed(() => {
-  return runningTask.value?.task_id || recentQueuedTaskId.value || '-'
+const simulationPipelineStages = Object.freeze([
+  { key: 'topo', title: '拓扑基线构建', desc: '4 级实体拓扑与基线吞吐' },
+  { key: 'perturb', title: '外部扰动注入', desc: '现货 $106/lb & 禁俄脱钩' },
+  { key: 'cascade', title: '级联失效演化', desc: '蒙特卡洛多轮仿真口岸挤兑' },
+  { key: 'vulnerability', title: '脆弱性诊断', desc: '计算介数中心度与断点排行' },
+  { key: 'policy', title: '策略求解收敛', desc: '求解最优绕行与储备平准' }
+])
+
+const currentSimulationStageIndex = computed(() => {
+  if (!showRunningSection.value) return 4
+  const pct = Number(runningProgress.value?.percentage || 0)
+  if (pct < 20) return 0
+  if (pct < 40) return 1
+  if (pct < 65) return 2
+  if (pct < 85) return 3
+  return 4
 })
 
+const showIterationDetails = ref(false)
 const focusTask = computed(() => {
   const selectedExperimentId = currentUraniumExperimentId.value
-  return runningTask.value
+  return displayTaskRows.value.find((item) => resolveExperimentIdFromTask(item) === selectedExperimentId)
+    || runningTask.value
     || pendingTask.value
-    || displayTaskRows.value.find((item) => resolveExperimentIdFromTask(item) === selectedExperimentId)
     || displayTaskRows.value.find((item) => item.status === 'completed')
     || displayTaskRows.value[0]
     || null
@@ -844,7 +1262,7 @@ const getMetricItems = (row) => {
       },
       {
         key: 'risk',
-        label: '风险',
+        label: '风险暴露',
         tone: 'warning',
         pct: clampPercent(riskPct <= 1 ? riskPct * 100 : riskPct),
         valueText: formatUraniumMetricValue('avg_risk_exposure', m.avg_risk_exposure)
@@ -893,21 +1311,6 @@ const overviewStats = computed(() => ({
   completed: uraniumHistoryRows.value.length,
   pending: uraniumQueueRows.value.filter(t => t.status === 'pending').length
 }))
-
-const runOverviewCards = computed(() => {
-  const active = showRunningSection.value
-    ? { value: '运行中', hint: runningStageText.value, tone: 'running' }
-    : pendingTask.value
-      ? { value: '排队中', hint: `队列第 ${pendingPosition.value || '-'} 位`, tone: 'pending' }
-      : { value: '空闲', hint: '可启动实验或查看历史结果', tone: 'idle' }
-
-  return [
-    { label: '当前状态', ...active },
-    { label: '任务总数', value: `${overviewStats.value.plans}`, hint: `${overviewStats.value.completed} 个已完成`, tone: 'total' },
-    { label: '待处理', value: `${overviewStats.value.running + overviewStats.value.pending}`, hint: `${overviewStats.value.running} 运行 / ${overviewStats.value.pending} 排队`, tone: 'pending' },
-    { label: '焦点实验', value: formatShortId(focusTask.value?.task_id || ''), hint: truncateGoal(focusTask.value?.user_goal || '暂无焦点实验'), tone: 'focus' }
-  ]
-})
 
 const PARAM_LABEL_MAP = {
   model: '模型',
@@ -1393,7 +1796,11 @@ const fetchRunningProgress = async () => {
       || prev.current_task !== next.current_task
       || JSON.stringify(prev.current_parameters) !== JSON.stringify(next.current_parameters)
       || JSON.stringify(prev.next_parameters) !== JSON.stringify(next.next_parameters)
-    if (changed) runningProgress.value = next
+    if (changed) {
+      runningProgress.value = next
+      // 后端进度刷新后，以新的 elapsed_time 为基准重新起算本地计时
+      if (liveTimer) { liveAnchorAt = Date.now(); liveTickSeconds.value = 0 }
+    }
 
     const hint = next.is_running && !next.current_task ? '实验已启动，等待进入下一轮。' : ''
     if (progressHint.value !== hint) progressHint.value = hint
@@ -1530,8 +1937,78 @@ const launching = ref(false)
 const launchDisabledReason = computed(() => '')
 const canLaunch = computed(() => !launchDisabledReason.value)
 
-async function launchCurrentSession() {
+// 初始方案预演（第一帧状态）数据
+const previewDialogVisible = ref(false)
+const previewData = reactive({
+  presetName: '中亚陆运受阻与现货暴涨组合冲击',
+  yearRange: '2024–2028 年',
+  spotPrice: '85.50',
+  contractRatio: '65',
+  iterations: 100,
+  firstFrameNodes: [
+    {
+      name: '北方包头燃料元件基地',
+      type: '加工制造',
+      typeTag: 'primary',
+      stock: '28 周 (储备充足)',
+      baselineFlux: '600 tU/年',
+      safetyLine: '警戒红线 14 周',
+      initialRisk: '平稳受控',
+      riskTag: 'success',
+      riskNote: '首期生产原料充裕',
+      stockAlert: false
+    },
+    {
+      name: '南方宜宾燃料元件基地',
+      type: '加工制造',
+      typeTag: 'primary',
+      stock: '34 周 (储备充裕)',
+      baselineFlux: '450 tU/年',
+      safetyLine: '警戒红线 16 周',
+      initialRisk: '健康裕度',
+      riskTag: 'success',
+      riskNote: '战略安全存量正常',
+      stockAlert: false
+    },
+    {
+      name: '阿拉山口陆路转运口岸',
+      type: '运输咽喉',
+      typeTag: 'warning',
+      stock: '负荷率 72%',
+      baselineFlux: '650 tU/年',
+      safetyLine: '拥堵上限 90%',
+      initialRisk: '临界待监',
+      riskTag: 'warning',
+      riskNote: '列车编组排队约 24h',
+      stockAlert: true
+    },
+    {
+      name: '连云港海运接卸基地',
+      type: '港口中转',
+      typeTag: 'success',
+      stock: '负荷率 58%',
+      baselineFlux: '420 tU/年',
+      safetyLine: '承载上限 85%',
+      initialRisk: '运力充沛',
+      riskTag: 'success',
+      riskNote: '随时可承接南线增量',
+      stockAlert: false
+    }
+  ]
+})
+
+function launchCurrentSession() {
   if (!canLaunch.value || launching.value) return
+  // 打开预演弹窗，确认第一帧状态
+  previewDialogVisible.value = true
+}
+
+async function confirmAndLaunchExperiment() {
+  previewDialogVisible.value = false
+  await doRealLaunchSession()
+}
+
+async function doRealLaunchSession() {
   launching.value = true
   try {
     const draft = {
@@ -1539,25 +2016,18 @@ async function launchCurrentSession() {
       name: uraniumStore.draft?.name || store.scenarioUserGoal || '事中铀供应链推演',
       description: uraniumStore.draft?.description || store.scenarioUserGoal || ''
     }
-    const experiment = await uraniumStore.runExperiment(draft)
+    const experiment = await demoStore.launchExperiment({ sessionId: store.currentSessionId, userGoal: store.scenarioUserGoal, draft })
     const experimentId = String(experiment?.experiment_id || '').trim()
-    if (!experimentId) throw new Error('后端未返回实验 ID')
+    if (!experimentId) throw new Error('未返回实验 ID')
     store.setCurrentExperimentId(experimentId)
-    if (store.currentSessionId) {
-      try {
-        const { linkExperiment } = await import('@/api/scenarioSession')
-        await linkExperiment(store.currentSessionId, experimentId)
-      } catch (linkError) {
-        console.warn('[ExperimentManager] 关联会话失败:', linkError?.message || linkError)
-      }
-    }
+    await refreshData()
     ElNotification.success({
-      title: '实验已生成',
-      message: '后端实验已完成，可在左侧菜单进入态势推演、决策生成或报告生成',
-      duration: 3000
+      title: '实验已启动并完成第一轮推演',
+      message: '初始方案核验通过，仿真结果已生成，可进入沙盘推演剧场或决策分析',
+      duration: 3500
     })
   } catch (error) {
-    console.error('[ExperimentManager] launchCurrentSession 失败', error)
+    console.error('[ExperimentManager] doRealLaunchSession 失败', error)
     ElMessage.error('启动实验失败: ' + (error?.message || '未知错误'))
   } finally {
     launching.value = false
@@ -1689,10 +2159,250 @@ const scheduleMetricsFetch = () => {
 onUnmounted(() => {
   metricsCancelled = true
   metricsFetchQueue.length = 0
+  stopLiveTicker()
 })
+
+watch(showRunningSection, (running) => {
+  if (running) startLiveTicker()
+  else stopLiveTicker()
+}, { immediate: true })
 </script>
 
 <style scoped>
+/* 头部步骤向导徽章 */
+.step-guide-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+.step-guide-num {
+  font-size: 11px;
+  font-weight: 800;
+  color: #ffffff;
+  background: #2563eb;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.step-guide-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e3a8a;
+}
+.step-guide-phase {
+  font-size: 11px;
+  color: #64748b;
+}
+
+/* 置顶仿真推演 5 阶段全局进度条 */
+.simulation-pipeline-strip {
+  margin: 10px 0 16px;
+  padding: 14px 18px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+.simulation-pipeline-strip.is-running {
+  border-color: #93c5fd;
+  background: linear-gradient(180deg, #f0f7ff 0%, #ffffff 100%);
+}
+.pipeline-strip-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.strip-top-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.pipeline-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+}
+.pipeline-pulse-dot.live {
+  background: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.2);
+}
+.pipeline-pulse-dot.idle {
+  background: #10b981;
+}
+.pipeline-task-name {
+  color: #64748b;
+  font-size: 12px;
+  padding-left: 8px;
+  border-left: 1px solid #cbd5e1;
+}
+.strip-top-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+.pipeline-timer-pill, .pipeline-ready-pill {
+  color: #475569;
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.simulation-steps-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.sim-step-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  position: relative;
+}
+.sim-step-item.passed {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+}
+.sim-step-item.active {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+.sim-step-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #cbd5e1;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.sim-step-item.passed .sim-step-num {
+  background: #10b981;
+}
+.sim-step-item.active .sim-step-num {
+  background: #2563eb;
+}
+.sim-step-copy {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sim-step-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1e293b;
+  white-space: nowrap;
+}
+.sim-step-desc {
+  font-size: 10px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sim-step-arrow {
+  position: absolute;
+  right: -7px;
+  color: #94a3b8;
+  font-size: 10px;
+  z-index: 2;
+}
+.pipeline-progress-bar-wrap {
+  width: 100%;
+}
+
+.run-progress-body { display: grid; gap: 10px; }
+.run-progress-caption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; font-size: 13px; }
+.run-progress-caption strong { font-weight: 500; color: #334155; }
+.run-progress-caption > span { color: #64748b; font-size: 12px; }
+.run-progress-meta { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 0; color: #64748b; font-size: 12px; }
+.run-progress-details {
+  margin-top: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.run-progress-details summary {
+  cursor: pointer;
+  color: #2563eb;
+  font-weight: 600;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.run-progress-details p {
+  margin: 6px 0 0;
+  color: #334155;
+}
+.mono { font-family: var(--mid-font-mono); }
+
+.focus-experiment-section {
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.04);
+  transition: all 0.2s ease;
+}
+.focus-experiment-section[open] {
+  border-color: #93c5fd;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.08);
+}
+.focus-experiment-section > summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 12px 16px;
+  color: #1e3a8a;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  background: #f0f7ff;
+  border-radius: 9px 9px 0 0;
+  user-select: none;
+}
+.focus-experiment-section:not([open]) > summary {
+  border-radius: 9px;
+}
+.focus-experiment-section > summary::before {
+  content: '▶';
+  font-size: 10px;
+  color: #2563eb;
+  transition: transform 0.2s ease;
+  display: inline-block;
+}
+.focus-experiment-section[open] > summary::before {
+  transform: rotate(90deg);
+}
+.focus-experiment-section > summary span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
 .launch-btn-wrap {
   display: inline-flex;
 }
@@ -1716,70 +2426,9 @@ onUnmounted(() => {
 .experiment-manager > .iteration-progress-section,
 .experiment-manager > .focus-experiment-section,
 .experiment-manager > .experiment-list,
-.experiment-manager > .run-overview,
 .experiment-manager > .selected-exp-banner {
   margin-left: 8px;
   margin-right: 8px;
-}
-
-.run-overview {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.run-overview-card {
-  min-height: 76px;
-  padding: 10px 12px;
-  border: 1px solid #dbeafe;
-  border-radius: 10px;
-  background: rgba(255,255,255,.86);
-  box-shadow: 0 6px 16px rgba(15,23,42,.05);
-  box-sizing: border-box;
-}
-
-.run-overview-card span {
-  display: block;
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.run-overview-card strong {
-  display: block;
-  margin-top: 4px;
-  color: #0f172a;
-  font-size: 18px;
-  line-height: 1.2;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.run-overview-card p {
-  margin: 5px 0 0;
-  color: #64748b;
-  font-size: 11px;
-  line-height: 1.35;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.run-overview-card.running { border-color: #93c5fd; background: linear-gradient(135deg, #eff6ff, #fff); }
-.run-overview-card.pending { border-color: #fde68a; background: linear-gradient(135deg, #fffbeb, #fff); }
-.run-overview-card.focus { border-color: #bbf7d0; background: linear-gradient(135deg, #f0fdf4, #fff); }
-
-.progress-title,
-.list-title,
-.ledger-record-title,
-.hero-goal-text {
-  font-family: var(--mid-font-sans);
-  letter-spacing: 0.01em;
-}
-
-.mono {
-  font-family: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
 }
 
 .iteration-progress-section {
@@ -1816,239 +2465,63 @@ onUnmounted(() => {
 }
 
 
-.progress-content {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-
-.progress-hero {
-  display: flex;
-  align-items: stretch;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
-  border-radius: var(--mid-radius-md);
-  border: 1px solid var(--ux-border);
-  background:
-    radial-gradient(circle at top right, rgba(59, 130, 246, 0.12), transparent 26%),
-    linear-gradient(180deg, #f7fbff 0%, #ffffff 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
-}
-
-.progress-hero.pending {
-  background:
-    radial-gradient(circle at top right, rgba(245, 158, 11, 0.14), transparent 30%),
-    linear-gradient(180deg, #fffaf2 0%, #ffffff 100%);
-}
-
-.progress-hero-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-
-.progress-kicker {
-  font-size: var(--mid-fs-micro);
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  color: var(--ux-blue);
-}
-
-.progress-hero-title {
-  font-size: var(--mid-fs-title);
-  line-height: var(--mid-lh-tight);
-  font-weight: 800;
-  color: var(--ux-ink);
-}
-
-.progress-hero-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.progress-hero-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--ux-border);
-  background: rgba(255, 255, 255, 0.9);
-  font-size: var(--mid-fs-label);
-  font-weight: 700;
-  color: #475569;
-}
-
-.progress-hero-pill.primary {
-  border-color: #bfdbfe;
-  background: #eff6ff;
-  color: #1d4ed8;
-}
-
-.progress-hero-pill.warning {
-  border-color: #fde68a;
-  background: #fffbeb;
-  color: #b45309;
-}
-
-.progress-hero-side {
-  min-width: 92px;
-  padding: 8px 10px;
-  border-radius: var(--mid-radius-md);
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid #dbe4f0;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 3px;
-}
-
-.progress-hero-side strong {
-  font-size: var(--mid-fs-hero);
-  line-height: 1;
-  font-weight: 900;
-  color: var(--ux-ink);
-  font-family: var(--mid-font-mono);
-}
-
-.progress-hero-side span {
-  font-size: var(--mid-fs-label);
-  color: var(--ux-muted);
-}
-
-.progress-track-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 12px;
-  border-radius: var(--mid-radius-md);
-  border: 1px solid var(--ux-border);
-  background: linear-gradient(180deg, #f9fbfe 0%, #ffffff 100%);
-}
-
-.progress-track-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.progress-stage-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  font-size: var(--mid-fs-label);
-  font-weight: 700;
-  color: #1d4ed8;
-}
-
-.progress-inline-hint {
-  font-size: var(--mid-fs-label);
-  color: var(--ux-muted-2);
-}
-
-.progress-task-text {
-  font-size: var(--mid-fs-body);
-  color: var(--el-text-color-primary);
-  line-height: 1.5;
-}
-
-.progress-pending-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 2px 2px 0;
-  color: var(--ux-muted);
-  font-size: var(--mid-fs-label);
-}
-
-.progress-brief-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.progress-brief-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 10px;
-  border-radius: var(--mid-radius-sm);
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
-}
-
-.progress-brief-item span {
-  font-size: var(--mid-fs-label);
-  font-weight: 700;
-  color: var(--ux-muted);
-}
-
-.progress-brief-item strong {
-  font-size: var(--mid-fs-strong);
-  line-height: 1.2;
-  font-weight: 800;
-  color: var(--ux-ink);
-}
-
-.progress-brief-item strong.mono {
-  font-weight: 700;
-  font-family: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
-}
-
-.progress-adjust-inline {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-}
-
-.progress-adjust-inline-label {
-  font-size: var(--mid-fs-label);
-  font-weight: 700;
-  color: var(--ux-muted);
-}
-
-.progress-adjust-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: #ffffff;
-  border: 1px solid #dbe4f0;
-  font-size: var(--mid-fs-label);
-  font-weight: 700;
-  color: #475569;
-}
-
-.progress-note {
-  padding: 8px 10px;
-  border-radius: var(--mid-radius-sm);
-  background: #fff7ed;
-  border: 1px solid #fed7aa;
-  font-size: var(--mid-fs-label);
-  line-height: 1.55;
-  color: #9a3412;
-}
-
-.progress-note.info {
-  background: #f8fbff;
-  border-color: #dbeafe;
-  color: #1d4ed8;
-}
-
 .focus-experiment-section {
   margin-bottom: 8px;
 }
+
+/* 页头「案例验证」入口（案例分析挂在运行管理之下） */
+.case-entry-btn .case-entry-caret {
+  margin-left: 2px;
+  font-size: 12px;
+}
+</style>
+
+<style>
+/* 下拉菜单渲染在 body 下，不能用 scoped */
+.case-entry-menu {
+  min-width: 300px;
+  padding: 6px 0;
+}
+.case-entry-menu-head {
+  padding: 4px 12px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  border-bottom: 1px dashed #e2e8f0;
+  margin-bottom: 4px;
+}
+.case-entry-menu .el-dropdown-menu__item {
+  padding: 6px 12px;
+  line-height: 1.4;
+}
+.case-entry-menu .el-dropdown-menu__item.is-research {
+  opacity: .72;
+}
+.case-entry-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.case-entry-item b {
+  font-size: 12px;
+  color: #0f172a;
+}
+.case-entry-item small {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: #64748b;
+}
+.case-entry-item small em {
+  font-style: normal;
+  padding: 0 5px;
+  border-radius: 999px;
+}
+.case-entry-item small em.ready { background: #dcfce7; color: #166534; }
+.case-entry-item small em.research { background: #f1f5f9; color: #64748b; }
+</style>
+<style scoped>
 
 .experiment-list {
   flex: 1;
@@ -2152,11 +2625,10 @@ onUnmounted(() => {
 .list-card-header {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
   width: 100%;
 }
-
 
 .list-title {
   font-size: var(--mid-fs-title);
@@ -2164,47 +2636,25 @@ onUnmounted(() => {
   color: var(--ux-ink);
 }
 
-
 .list-header-stats {
   display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.list-header-actions {
+  display: flex;
+  align-items: center;
   gap: 8px;
   margin-left: auto;
   flex-wrap: wrap;
 }
 
-.overview-pill {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: flex-start;
-  min-width: 76px;
-  padding: 7px 10px;
-  border-radius: var(--mid-radius-sm);
-  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
-  border: 1px solid #dbe4f0;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
+.overview-pill { display: flex; align-items: baseline; gap: 6px; padding: 3px 0; }
 
-.overview-pill:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.06);
-}
 
-.overview-pill.running {
-  background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
-  border-color: #bfdbfe;
-}
 
-.overview-pill.pending {
-  background: linear-gradient(180deg, #fffbeb 0%, #ffffff 100%);
-  border-color: #fde68a;
-}
 
-.overview-pill.completed {
-  background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%);
-  border-color: #bbf7d0;
-}
 
 .overview-pill.running .overview-value { color: #2563eb; }
 .overview-pill.pending .overview-value { color: #b45309; }
@@ -2231,21 +2681,11 @@ onUnmounted(() => {
   gap: 10px;
 }
 
-.ledger-record {
-  position: relative;
-  overflow: hidden;
-  padding: 12px 14px;
-  border-radius: var(--mid-radius-lg);
-  border: 1px solid var(--ux-border);
-  background:
-    radial-gradient(circle at top right, rgba(59, 130, 246, 0.05), transparent 28%),
-    linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
-  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
+.ledger-record { position: relative; padding: 12px 16px; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; display: flex; flex-direction: column; gap: 8px; }
+.ledger-param-details { color: #64748b; font-size: 12px; }
+.ledger-param-details summary { cursor: pointer; padding: 4px 0; }
+.ledger-param-details summary:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.ledger-param-details[open] .ledger-param-inline { margin-top: 8px; padding: 10px; border-radius: 6px; background: #f8fafc; }
 
 .ledger-record::before {
   content: '';
@@ -2258,63 +2698,26 @@ onUnmounted(() => {
   background: #cbd5e1;
 }
 
-.ledger-record::after {
-  content: '';
-  position: absolute;
-  right: -40px;
-  top: -40px;
-  width: 140px;
-  height: 140px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.5) 0%, transparent 68%);
-  pointer-events: none;
-}
 
-.ledger-record:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.06);
-}
+.ledger-record:hover { border-color: #cbd5e1; }
 
-.ledger-record.focus {
-  border-color: rgba(37, 99, 235, 0.35);
-  box-shadow: 0 16px 30px rgba(37, 99, 235, 0.08);
-}
+.ledger-record.focus { border-color: #93c5fd; background: #fafcff; }
 
-.ledger-record.status-running {
-  background:
-    radial-gradient(circle at top right, rgba(14, 165, 233, 0.08), transparent 30%),
-    linear-gradient(180deg, #f8fdff 0%, #ffffff 100%);
-}
 
 .ledger-record.status-running::before {
   background: linear-gradient(180deg, #38bdf8 0%, #2563eb 100%);
 }
 
-.ledger-record.status-pending {
-  background:
-    radial-gradient(circle at top right, rgba(245, 158, 11, 0.08), transparent 30%),
-    linear-gradient(180deg, #fffdf8 0%, #ffffff 100%);
-}
 
 .ledger-record.status-pending::before {
   background: linear-gradient(180deg, #fbbf24 0%, #f59e0b 100%);
 }
 
-.ledger-record.status-completed {
-  background:
-    radial-gradient(circle at top right, rgba(16, 185, 129, 0.07), transparent 30%),
-    linear-gradient(180deg, #f8fffb 0%, #ffffff 100%);
-}
 
 .ledger-record.status-completed::before {
   background: linear-gradient(180deg, #34d399 0%, #059669 100%);
 }
 
-.ledger-record.status-failed {
-  background:
-    radial-gradient(circle at top right, rgba(239, 68, 68, 0.07), transparent 30%),
-    linear-gradient(180deg, #fffafa 0%, #ffffff 100%);
-}
 
 .ledger-record.status-failed::before {
   background: linear-gradient(180deg, #f87171 0%, #ef4444 100%);
@@ -2322,12 +2725,7 @@ onUnmounted(() => {
 
 .ledger-record-top,
 .ledger-record-meta,
-.ledger-record-footer {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-}
+.ledger-record-footer { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 
 .ledger-record-meta {
   align-items: center;
@@ -2353,17 +2751,7 @@ onUnmounted(() => {
   color: #94a3b8;
 }
 
-.ledger-record-time {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid #e2e8f0;
-  background: rgba(248, 250, 252, 0.92);
-  font-size: var(--mid-fs-micro);
-  font-weight: 700;
-  color: var(--ux-muted);
-}
+.ledger-record-time { font-size: 12px; color: #64748b; }
 
 .ledger-record-title {
   margin: 0;
@@ -2376,9 +2764,9 @@ onUnmounted(() => {
 .ledger-record-footer :deep(.el-button),
 .ledger-footer-actions :deep(.el-button.is-link) {
   padding: 5px 10px;
-  border-radius: 999px;
-  border: 1px solid #e2e8f0;
-  background: rgba(255, 255, 255, 0.86);
+  border-radius: 4px;
+  border: 0;
+  background: transparent;
   font-weight: 700;
   font-size: var(--mid-fs-body);
 }
@@ -2389,23 +2777,9 @@ onUnmounted(() => {
   border-color: #bfdbfe;
 }
 
-.ledger-brief-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 0;
-}
+.ledger-brief-row { display: flex; flex-wrap: wrap; gap: 8px 24px; }
 
-.ledger-brief-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 10px;
-  border-radius: var(--mid-radius-sm);
-  border: 1px solid #e5edf6;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
-}
+.ledger-brief-item { display: flex; align-items: baseline; gap: 8px; }
 
 .ledger-brief-item span {
   font-size: var(--mid-fs-label);
@@ -2424,8 +2798,7 @@ onUnmounted(() => {
   margin-top: 0;
   padding: 10px 12px;
   border-radius: var(--mid-radius-sm);
-  border: 1px solid #e5edf6;
-  background: linear-gradient(180deg, #fcfdff 0%, #ffffff 100%);
+  background: #f8fafc;
 }
 
 .ledger-inline-panel.pending {
@@ -2498,19 +2871,7 @@ onUnmounted(() => {
   align-items: stretch;
 }
 
-.ledger-metric-pill {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 3px;
-  min-height: 46px;
-  border-radius: var(--mid-radius-sm);
-  border: 1px solid #e5edf6;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-  padding: 7px 10px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
-}
+.ledger-metric-pill { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; padding: 4px 0; }
 
 .ledger-metric-pill-label {
   font-size: var(--mid-fs-label);
@@ -2528,20 +2889,8 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-.ledger-metric-pill.primary {
-  background: linear-gradient(180deg, #f7fbff 0%, #ffffff 100%);
-  border-color: #dbeafe;
-}
 
-.ledger-metric-pill.warning {
-  background: linear-gradient(180deg, #fffaf2 0%, #ffffff 100%);
-  border-color: #fed7aa;
-}
 
-.ledger-metric-pill.success {
-  background: linear-gradient(180deg, #f4fff8 0%, #ffffff 100%);
-  border-color: #bbf7d0;
-}
 
 .ledger-metric-pill.primary .ledger-metric-pill-value {
   color: var(--ux-blue);
@@ -2926,7 +3275,6 @@ onUnmounted(() => {
 
 /* Element Plus 控件密度：与 midStage.css 的字号刻度对齐 */
 .mono,
-.progress-brief-item strong.mono,
 .ledger-metric-pill-value,
 .hero-meta-value.mono,
 .core-param-value.mono,
@@ -2954,17 +3302,11 @@ onUnmounted(() => {
 }
 
 @media (max-width: 1200px) {
-  .run-overview {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 
   .hero-meta-grid {
     grid-template-columns: 1fr;
   }
 
-  .progress-brief-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 
   .ledger-brief-row {
     grid-template-columns: 1fr;
@@ -2990,17 +3332,9 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
-  .run-overview {
-    grid-template-columns: 1fr;
-  }
 
-  .progress-brief-grid {
-    grid-template-columns: 1fr;
-  }
 
   .progress-card-header,
-  .progress-hero,
-  .progress-track-head,
   .ledger-record-top,
   .ledger-record-meta,
   .ledger-record-footer {
@@ -3040,5 +3374,379 @@ onUnmounted(() => {
     align-items: flex-start;
     flex-direction: column;
   }
+}
+
+/* Monte-Carlo 采样状态条样式 */
+.monte-carlo-strip {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+.mc-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.mc-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: #1e293b;
+}
+.mc-badge {
+  font-size: 10px;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.mc-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 11px;
+  color: #64748b;
+}
+.mc-detail b {
+  color: #0f172a;
+}
+
+/* 谱系标识 */
+.uranium-lineage-row {
+  margin-top: 4px;
+}
+.uranium-lineage-badge {
+  font-size: 11px;
+  color: #0369a1;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 4px;
+  padding: 2px 8px;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.strategy-badge-chip {
+  margin-right: 6px;
+  font-weight: 600;
+}
+.strategy-quick-link {
+  background: none;
+  border: none;
+  color: #2563eb;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0 4px;
+  margin-left: 6px;
+  text-decoration: underline;
+  transition: opacity 0.15s;
+}
+.strategy-quick-link:hover {
+  opacity: 0.8;
+}
+.pending-pos-pill {
+  font-size: 11.5px;
+  color: #d97706;
+  background: #fef3c7;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.pending-task-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  gap: 12px;
+}
+.pending-task-bar .run-progress-meta {
+  margin: 0;
+}
+.dialog-strategy-title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.strategy-compare-head {
+  margin-bottom: 14px;
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* 俄乌冲突推演时序与自适应调度回溯带 */
+.ukraine-timeline-strip {
+  margin: 16px 0;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 18px;
+}
+.ut-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.ut-head-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ut-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #dc2626;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.ut-head-left strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.ut-steps-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ut-step-item {
+  flex: 1;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  transition: all 0.2s ease;
+}
+.ut-step-item.current {
+  border-color: #fca5a5;
+  background: #fff5f5;
+  box-shadow: 0 0 0 1px #fca5a5;
+}
+.ut-step-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+.ut-step-dot.danger {
+  background: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+}
+.ut-step-dot.success {
+  background: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+}
+.ut-step-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ut-year {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+}
+.ut-step-content strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.ut-step-content p {
+  font-size: 11.5px;
+  color: #475569;
+  line-height: 1.5;
+  margin: 2px 0 0;
+}
+.ut-step-arrow {
+  color: #94a3b8;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+@media (max-width: 900px) {
+  .ut-steps-row {
+    flex-direction: column;
+  }
+  .ut-step-arrow {
+    transform: rotate(90deg);
+  }
+}
+
+.experiment-core-question-strip {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 18px;
+  margin: 10px 16px 12px;
+  background: linear-gradient(135deg, rgba(238, 242, 255, 0.95) 0%, rgba(240, 253, 250, 0.9) 100%);
+  border: 1px solid #c7d2fe;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.05);
+}
+.core-question-badge {
+  font-size: 11px;
+  font-weight: 800;
+  color: #4f46e5;
+  background: #e0e7ff;
+  border: 1px solid #c7d2fe;
+  padding: 4px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.core-question-text {
+  flex: 1;
+}
+.core-question-text strong {
+  display: block;
+  font-size: 13px;
+  color: #1e1b4b;
+  margin-bottom: 2px;
+}
+.core-question-text p {
+  margin: 0;
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.45;
+}
+
+/* 实验预演（第一帧）弹窗样式 */
+.experiment-preview-dialog :deep(.el-dialog__header) {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 16px 20px;
+  margin-right: 0;
+}
+.experiment-preview-dialog :deep(.el-dialog__title) {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.experiment-preview-dialog :deep(.el-dialog__body) {
+  padding: 18px 22px;
+}
+.exp-preview-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.95), rgba(240, 253, 250, 0.95));
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+.exp-preview-banner .preview-badge {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+}
+.exp-preview-banner .preview-intro strong {
+  display: block;
+  font-size: 12.5px;
+  color: #1e3a8a;
+  margin-bottom: 2px;
+}
+.exp-preview-banner .preview-intro p {
+  margin: 0;
+  font-size: 11.5px;
+  color: #475569;
+}
+.preview-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.preview-metric-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+}
+.pm-label {
+  font-size: 11px;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+.pm-val {
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.pm-val.text-primary {
+  color: #2563eb;
+}
+.pm-tip {
+  font-size: 10.5px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+.preview-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 10px;
+}
+.preview-table {
+  border-radius: 6px;
+  overflow: hidden;
+}
+.preview-corridor-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.preview-corridor-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.preview-corridor-box .pc-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.preview-corridor-box .pc-head strong {
+  font-size: 12.5px;
+  color: #0f172a;
+}
+.preview-corridor-box .pc-share {
+  font-size: 11px;
+  color: #2563eb;
+  font-weight: 700;
+  background: #eff6ff;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.preview-corridor-box p {
+  margin: 0;
+  font-size: 11.5px;
+  color: #475569;
+  line-height: 1.5;
+}
+.exp-preview-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 </style>

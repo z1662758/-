@@ -1,8 +1,11 @@
 <template>
   <div
     class="route-progress-rail"
+    :class="{ collapsible, collapsed: collapsible && !hovered }"
+    @mouseenter="hovered = true"
+    @mouseleave="hovered = false"
   >
-    <div class="route-progress-head">事中流程</div>
+    <div class="route-progress-head">{{ title }}</div>
     <div
       v-for="(step, index) in steps"
       :key="step.key"
@@ -28,19 +31,26 @@
 </template>
 
 <script setup>
+import { ref } from 'vue'
+
 const props = defineProps({
   steps: { type: Array, required: true },
   currentKey: { type: String, default: '' },
-  completedPredicate: { type: Function, default: () => false }
+  completedPredicate: { type: Function, default: () => false },
+  title: { type: String, default: '事中流程' },
+  /** 参考 MACE 工作台的流程进度栏：默认折叠为圆点，悬停展开标签 */
+  collapsible: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['step-click'])
+
+const hovered = ref(false)
 
 function isStepCompleted(key) {
   if (key === props.currentKey) return false
   try {
     return !!props.completedPredicate(key)
-  } catch (e) {
+  } catch {
     return false
   }
 }
@@ -70,6 +80,16 @@ function onClick(step) {
   box-shadow:
     0 8px 24px rgba(15, 23, 42, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  transition: width 0.28s cubic-bezier(.4,0,.2,1), padding 0.28s cubic-bezier(.4,0,.2,1), background 0.28s ease;
+}
+
+.route-progress-rail.collapsed {
+  width: 52px;
+  padding: 12px 9px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow:
+    0 4px 16px rgba(59, 130, 246, 0.08),
+    0 1px 4px rgba(15, 23, 42, 0.04);
 }
 
 .route-progress-head {
@@ -78,6 +98,15 @@ function onClick(step) {
   color: #0f172a;
   margin-bottom: 10px;
   padding: 0 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: opacity 0.2s ease, max-height 0.2s ease;
+}
+
+.route-progress-rail.collapsed .route-progress-head {
+  opacity: 0;
+  max-height: 0;
+  margin-bottom: 0;
 }
 
 .route-progress-item {
@@ -191,6 +220,11 @@ function onClick(step) {
   transition: opacity 0.28s cubic-bezier(.4,0,.2,1),
               max-width 0.28s cubic-bezier(.4,0,.2,1),
               color 0.2s ease;
+}
+
+.route-progress-rail.collapsed .route-progress-label {
+  max-width: 0;
+  opacity: 0;
 }
 
 .route-progress-item:hover .route-progress-label {

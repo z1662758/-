@@ -2,36 +2,24 @@
   <div class="studio-host mid-stage-bg" :class="{ 'page-loaded': pageLoaded }">
     <div class="workflow-page">
       <MidStagePageHeader
-        title="实体图"
-        :subtitle="pageSubtitle"
+        title="实体关系图 · 供应链拓扑设计态"
+        subtitle="查看受俄乌地缘制裁影响下的海陆供应链网络受损与备选拓扑布局"
         :icon="Cpu"
       >
         <template #right>
           <div class="graph-stat-row">
+            <span class="design-state-tag">设计态已校验</span>
             <article v-for="item in activeGraphStats" :key="item.label" class="graph-stat-chip">
               <span>{{ item.label }}</span>
               <strong>{{ item.value }}</strong>
             </article>
           </div>
+          <el-button type="primary" size="small" @click="goToExperiment">
+            <span>下一步：实验管理</span>
+            <el-icon><ArrowRight /></el-icon>
+          </el-button>
         </template>
       </MidStagePageHeader>
-      <section class="plan-summary" aria-label="实验方案汇总">
-        <div class="plan-summary-title">
-          <span>EXPERIMENT PLAN</span>
-          <strong>实验方案汇总</strong>
-          <small>从国家、航线与调度策略三个层面组合形成可执行方案</small>
-        </div>
-        <div class="plan-dimension-grid">
-          <article v-for="dimension in planDimensions" :key="dimension.label" class="plan-dimension-card">
-            <div class="plan-dimension-head">
-              <span>{{ dimension.label }}</span>
-              <el-tag size="small" effect="plain" :type="dimension.type">{{ dimension.scope }}</el-tag>
-            </div>
-            <strong>{{ dimension.selection }}</strong>
-            <p>{{ dimension.detail }}</p>
-          </article>
-        </div>
-      </section>
       <div class="main-container">
         <div class="workflow-canvas-shell">
           <AgentDesignCanvas
@@ -67,7 +55,7 @@
 <script setup>
 import { useRouter, useRoute } from 'vue-router'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { Cpu } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Cpu } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import { useScnetSupplyChainStore as useSupplyChainStore } from '@/stores/scnet'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
@@ -84,17 +72,12 @@ import {
   pickLatestParameterCatalog
 } from './composables/scnetCatalogAdapter_uranium'
 import { AGENT_GRAPH_SNAPSHOTS, URANIUM_REFERENCE_GRAPH } from './mock/agentGraphMock'
+import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 import './components/shared/midStage.css'
 
 const router = useRouter()
 const route = useRoute()
 const pageLoaded = ref(false)
-
-const planDimensions = Object.freeze([
-  { label: '国家层面', scope: '供应组合', selection: '哈萨克斯坦 + 加拿大 + 纳米比亚', detail: '核心供应国与备选供应国分层配置，控制单一国家依赖。', type: 'primary' },
-  { label: '航线层面', scope: '通道选择', selection: '陆运主通道 + 海运备份通道', detail: '在中欧班列、跨里海运输与大西洋海运之间进行方式选择。', type: 'success' },
-  { label: '策略层面', scope: '策略选择', selection: '成本优先 / 风险均衡 / 保供优先', detail: '每轮实验从三类策略中选择，并记录航线切换与份额调整。', type: 'warning' }
-])
 
 const { simulationData, loadingData, loadAgentDesignPayload } = useAgentDesignPayload('AgentStudioHost')
 
@@ -147,7 +130,7 @@ const hasWorkflowPayload = computed(() => {
 
 const pageSubtitle = computed(() => isShowingReference.value
   ? URANIUM_REFERENCE_GRAPH.title
-  : '当前会话返回的实体关系与参数配置')
+  : '查看 Agent 关系与角色参数')
 
 // 参数目录有时只返回“供给方 / 制造方”两个聚合配置模板。它们用于参数编辑，
 // 并不是一张完整的实体关系图，不能覆盖首屏的供应链参考图。
@@ -161,7 +144,7 @@ const activeGraphStats = computed(() => {
   const rows = activeAgentList.value || []
   const countBy = (category) => rows.filter((item) => item.category === category).length
   return [
-    { label: '节点', value: String(rows.length) },
+    { label: 'Agent', value: String(rows.length) },
     { label: '关系', value: String(edges.value.length) },
     { label: '供应', value: String(countBy('supply')) },
     { label: '运输', value: String(countBy('transport')) }
@@ -173,6 +156,10 @@ function applyCatalogAgents() {
 }
 
 async function refreshParameterCatalog() {
+  if (String(store.currentSessionId).startsWith('during-session-')) {
+    applyCatalogAgents()
+    return
+  }
   try {
     const response = await getParameterCatalog('uranium')
     fetchedParameterCatalog.value = unwrapApiData(response)
@@ -277,6 +264,12 @@ async function applyCatalogGraph({ render = true } = {}) {
   await refreshParameterCatalog()  // 写入 agentList（目录三级实体）
   mergeSetAgentsIntoLocalList()    // 合并已保存的实体参数配置
   if (!render || graphSource.value !== 'simulation') return
+  // 铀场景的默认实体图使用铀业务参考骨架（六个专属实体）。
+  // 通用参数目录只提供供应商/制造/销售模板，不能覆盖铀实体图。
+  if (!snapshotStore.activeSnapshotId) {
+    applyReferenceGraph()
+    return
+  }
   await nextTick()
   // 空目录、聚合参数模板或空会话结果不得覆盖已经显示的参考图。
   if (!snapshotStore.activeSnapshotId && (!hasWorkflowPayload.value || !hasCompleteCatalogGraph.value)) {
@@ -313,24 +306,22 @@ function applyReferenceGraph() {
 }
 
 function onSnapshotCleared() {
-  // 退出快照模式：回退到目录三级实体
-  applyCatalogAgents()
-  if (graphSource.value === 'simulation') {
-    if (!hasWorkflowPayload.value || !hasCompleteCatalogGraph.value) {
-      applyReferenceGraph()
-      return
-    }
-    clearGraphSelection()
-    isShowingReference.value = false
-    activeAgentList.value = [...simulationAgentList.value]
-    buildNodesFromAgents(simulationAgentList.value)
-  }
+  // 退出快照模式：回到铀场景六实体参考图
+  applyReferenceGraph()
 }
 
 function revealPage() {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => { pageLoaded.value = true })
   })
+}
+
+function goToScenario() {
+  router.push({ path: SCNET_ROUTES.scenarioAnalysis, query: { ...route.query, scenario: 'uranium' } })
+}
+
+function goToExperiment() {
+  router.push({ path: SCNET_ROUTES.experimentManager, query: { ...route.query, scenario: 'uranium', view: 'run' } })
 }
 
 async function syncViewQuery() {
@@ -357,7 +348,7 @@ onMounted(async () => {
   }
 
   // 仍加载 agent_design 以同步已存参数/会话，但不阻塞实体图首屏展示。
-  loadAgentDesignPayload({ reuseCache: true }).catch((error) => {
+  if (!String(sid).startsWith('during-session-')) loadAgentDesignPayload({ reuseCache: true }).catch((error) => {
     console.warn('[AgentSimulationStudio] loadAgentDesignPayload failed:', error?.message || error)
   })
   revealPage()
@@ -380,13 +371,7 @@ watch(() => snapshotStore.activeSnapshotId, (next, prev) => {
 
 watch(simulationData, () => {
   if (snapshotStore.activeSnapshotId) return // 快照模式不被实时数据覆盖
-  // 画布以目录三级实体为准，这里只同步可能新增的实体参数配置
-  mergeSetAgentsIntoLocalList()
-  if (graphSource.value === 'simulation' && hasWorkflowPayload.value && hasCompleteCatalogGraph.value) {
-    isShowingReference.value = false
-    activeAgentList.value = [...simulationAgentList.value]
-    buildNodesFromAgents(simulationAgentList.value)
-  }
+  applyReferenceGraph()
 })
 
 watch(() => [route.path, route.query?.view], async () => {
@@ -401,25 +386,12 @@ watch(() => store.currentSessionId, async (next, prev) => {
 
 watch(effectiveParameterCatalog, () => {
   if (snapshotStore.activeSnapshotId) return
-  applyCatalogAgents()
-  if (graphSource.value === 'simulation' && hasWorkflowPayload.value && hasCompleteCatalogGraph.value) {
-    clearGraphSelection()
-    isShowingReference.value = false
-    activeAgentList.value = [...simulationAgentList.value]
-    buildNodesFromAgents(simulationAgentList.value)
-  } else if (!hasCompleteCatalogGraph.value) {
-    applyReferenceGraph()
-  }
+  applyReferenceGraph()
 })
 
 watch([setAgentsResult, setAgentsResultSessionId, currentSessionId], () => {
   if (snapshotStore.activeSnapshotId) return
-  mergeSetAgentsIntoLocalList()
-  if (graphSource.value === 'simulation' && hasWorkflowPayload.value && hasCompleteCatalogGraph.value) {
-    isShowingReference.value = false
-    activeAgentList.value = [...simulationAgentList.value]
-    buildNodesFromAgents(simulationAgentList.value)
-  }
+  applyReferenceGraph()
 })
 
 watch(graphSource, (next) => {
@@ -431,14 +403,7 @@ watch(graphSource, (next) => {
     applySnapshotGraph({ render: true })
     return
   }
-  clearGraphSelection()
-  if (!hasWorkflowPayload.value || !hasCompleteCatalogGraph.value) {
-    applyReferenceGraph()
-    return
-  }
-  isShowingReference.value = false
-  activeAgentList.value = [...simulationAgentList.value]
-  buildNodesFromAgents(simulationAgentList.value)
+  applyReferenceGraph()
 }, { immediate: false })
 </script>
 
@@ -462,7 +427,8 @@ watch(graphSource, (next) => {
   flex-direction: column;
   overflow: hidden;
   font-family: var(--mid-font-sans);
-  padding: 6px 0 14px;
+  padding: 6px 0 0;
+  box-sizing: border-box;
   gap: 8px;
 }
 
@@ -493,50 +459,10 @@ watch(graphSource, (next) => {
   font-weight: 700;
 }
 
-.plan-summary {
-  display: grid;
-  grid-template-columns: minmax(210px, .72fr) minmax(0, 2.28fr);
-  gap: 12px;
-  margin: 0 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--mid-border-soft);
-  border-radius: var(--mid-radius-md);
-  background: rgba(255, 255, 255, .92);
-}
-
-.plan-summary-title {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 3px;
-}
-
-.plan-summary-title > span { color: #2563eb; font-size: 10px; font-weight: 800; letter-spacing: .08em; }
-.plan-summary-title > strong { color: #0f172a; font-size: 16px; }
-.plan-summary-title > small { color: #64748b; line-height: 1.5; }
-
-.plan-dimension-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.plan-dimension-card {
-  min-width: 0;
-  padding: 8px 10px;
-  border: 1px solid #e2e8f0;
-  border-radius: 9px;
-  background: #f8fafc;
-}
-
-.plan-dimension-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-.plan-dimension-head > span { color: #64748b; font-size: 11px; font-weight: 700; }
-.plan-dimension-card > strong { display: block; margin-top: 6px; color: #1e293b; font-size: 12px; }
-.plan-dimension-card > p { margin: 4px 0 0; color: #64748b; font-size: 10px; line-height: 1.45; }
-
 .main-container {
   display: flex;
   flex: 1;
+  min-height: 0;
   gap: 12px;
   align-items: stretch;
   overflow: hidden;
@@ -568,15 +494,14 @@ watch(graphSource, (next) => {
   background: #a8a8a8;
 }
 
-@media (max-width: 1100px) {
-  .graph-stat-row {
-    flex-wrap: wrap;
-  }
-  .plan-summary { grid-template-columns: 1fr; }
-}
-
-@media (max-width: 760px) {
-  .plan-dimension-grid { grid-template-columns: 1fr; }
-  .plan-summary { max-height: 260px; overflow-y: auto; }
+.design-state-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 3px 8px;
+  border-radius: 999px;
+  margin-right: 4px;
 }
 </style>

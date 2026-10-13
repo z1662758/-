@@ -339,19 +339,10 @@ export function getCausalGraph(experimentId) {
   })
 }
 
-/**
- * 反事实推理
- * @param {string} experimentId - 实验ID
- * @param {Object} intervention - 干预参数
- * @returns {Promise}
- */
-export function postCounterfactualReasoning(experimentId, intervention) {
-  return request({
-    url: `/SCnet/supplyChain/experiments/${experimentId}/counterfactual-reasoning`,
-    method: 'post',
-    data: intervention
-  })
-}
+// P1：反事实推理入口已收敛到 @/api/counterfactual；这里保留同名再导出，
+// 既有调用方（如 CausalInference.vue）无需改动。
+export { postCounterfactualReasoning } from './counterfactual'
+
 
 /**
  * 拉取后端最近一次保存的智能体设计（供仿真工作室渲染画布）

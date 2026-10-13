@@ -25,6 +25,7 @@ export function writeScnetPhase(phase) {
 export const ROUTE_TO_PHASE = Object.freeze({
   '/home/SCnet/scenarioSetting': 'pre',
   '/home/SCnet/planConfirmation': 'pre',
+  '/home/SCnet/situationJudge': 'pre',
   '/home/SCnet/situationAnalysis': 'pre',
   '/home/SCnet/knowledgeBase': 'pre',
   '/home/SCnet/knowledgeGraph': 'pre',
@@ -32,7 +33,14 @@ export const ROUTE_TO_PHASE = Object.freeze({
   '/home/SCnet/situationJudge': 'pre',
   '/home/SCnet/reportGeneration': 'pre',
   '/home/SCnet/situationResearch-main': 'pre',
+  '/home/SCnet/expertSeminar': 'pre',
+  '/home/SCnet/resultVerification': 'pre',
+  '/home/SCnet/DisruptRisk': 'pre',
+  '/home/SCnet/oilIntelligence': 'pre',
+  '/home/SCnet/oilSituationAnalysis': 'pre',
+  '/home/SCnet/oilReportGeneration': 'pre',
 
+  '/home/SCnet/modelingSetup': 'during',
   '/home/SCnet/scenarioModeling': 'during',
   '/home/SCnet/scenarioAnalysis': 'during',
   '/home/SCnet/agentSimulationStudio': 'during',
@@ -44,11 +52,12 @@ export const ROUTE_TO_PHASE = Object.freeze({
   '/home/SCnet/expAnalysisScenario': 'during',
   '/home/SCnet/expAnalysisGameTheory': 'during',
   '/home/SCnet/expAnalysisOverview': 'during',
+  '/home/SCnet/decisionGeneration': 'during',
 
   '/home/SCnet/expAnalysisObserve': 'post',
   '/home/SCnet/expAnalysisIntervention': 'post',
   '/home/SCnet/expAnalysisMechanism': 'post',
+  '/home/SCnet/experimentPlan': 'post',
   '/home/SCnet/counterfactualExperiment': 'post',
-  '/home/SCnet/expAnalysisMap': 'post',
   '/home/SCnet/EXreport': 'post'
 })

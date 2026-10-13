@@ -49,6 +49,18 @@ export default defineConfig({
         target: 'http://localhost:9091/',
         changeOrigin: true
       },
+      '/api/during': {
+        target: 'http://localhost:9091/',
+        changeOrigin: true
+      },
+      '/api/pre': {
+        target: 'http://localhost:9091/',
+        changeOrigin: true
+      },
+      '/api/post': {
+        target: 'http://localhost:9091/',
+        changeOrigin: true
+      },
       // 后端已包含 /api 前缀的路由，不做路径重写
       '/api/queue': {
         target: 'http://localhost:9091/',

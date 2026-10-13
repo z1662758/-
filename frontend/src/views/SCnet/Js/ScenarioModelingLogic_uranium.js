@@ -698,50 +698,41 @@ export default {
 
       return [
         {
-          task_id: 'task_environment',
-          title: '刻画需求冲击与供给约束',
-          description: '明确需求上升幅度、节点供给能力和库存约束，形成本轮铀供应扰动输入。',
-          assigned_agent: 'ENVIRONMENT',
-          agent_type: 'ENVIRONMENT',
+          task_id: 'subq_vulnerability',
+          title: '子问题 1【网络脆弱性诊断】：突发外部冲击下，全网哪些通道与制造基地最易断裂、谁最难替代？',
+          description: '基于复杂网络拓扑、度/介数中心度与依赖矩阵，诊断出阿拉山口口岸与包头基地为首要脆弱断点，指导后续定点防护。',
+          assigned_agent: 'OBSERVER',
+          agent_type: 'OBSERVER',
           priority: 5,
+          phase_hint: '指向：Step 01 · 脆弱性分析',
           parameters: {
-            influence_factors: toNamed(envFactors),
+            influence_factors: toNamed(envFactors.slice(0, 3)),
             response_variables: toNamed(obsResponses.slice(0, 2))
           }
         },
         {
-          task_id: 'task_observer',
-          title: '设定缺口与履约观测口径',
-          description: '定义局部供给缺口、履约完成率和成本收益等指标，作为方案比较标准。',
-          assigned_agent: 'OBSERVER',
-          agent_type: 'OBSERVER',
+          task_id: 'subq_scenario',
+          title: '子问题 2【宏观情景演化测算】：西方制裁与现货飙涨演进中，长周期供需缺口与到岸成本冲击有多大？',
+          description: '推演 2024–2030 年长周期扰动情景，测算在现货 $106/lb 与中欧断航极端情景下的全系统缺口率，为微观决策树提供输入。',
+          assigned_agent: 'ENVIRONMENT',
+          agent_type: 'ENVIRONMENT',
           priority: 4,
+          phase_hint: '指向：Step 02 · 策略分析 (情景演化)',
           parameters: {
-            influence_factors: toNamed(envFactors.slice(0, 3)),
+            influence_factors: toNamed(envFactors),
             response_variables: toNamed(obsResponses)
           }
         },
         {
-          task_id: 'task_social',
-          title: '推演跨节点供给调配方案',
-          description: '比较不同供应节点、矿山和库存之间的调配策略，判断缺口是否被放大或缓解。',
-          assigned_agent: 'SOCIAL',
-          agent_type: 'SOCIAL',
-          priority: 3,
-          parameters: {
-            influence_factors: toNamed(envFactors.slice(0, 3)),
-            response_variables: toNamed(obsResponses.slice(0, 2))
-          }
-        },
-        {
-          task_id: 'task_planner',
-          title: '输出优先级与迭代策略',
-          description: '汇总各方案在履约、缺口和成本上的表现，给出优先执行顺序和后续迭代方向。',
+          task_id: 'subq_policy',
+          title: '子问题 3【策略寻优与方案落地】：多路径应对中如何求解最优调控对策，并输出可执行的应对方案？',
+          description: '展开博弈决策树求解最优对策（南向海运分流 55% + 储备借调 400 tU），核验落地合规规章并输出具体应对措施清单。',
           assigned_agent: 'PLANNER',
           agent_type: 'PLANNER',
-          priority: 4,
+          priority: 3,
+          phase_hint: '指向：Step 03 · 决策方案落地',
           parameters: {
-            influence_factors: toNamed(envFactors),
+            influence_factors: toNamed(envFactors.slice(0, 2)),
             response_variables: toNamed(obsResponses)
           }
         }
@@ -964,10 +955,10 @@ export default {
     formatTaskAnalysisHtml(tasks) {
       let html = '<div class="task-list">'
       html += '<div class="analysis-header">'
-      html += '<div class="header-badge">✨ AI分析完成</div>'
-      html += '<h3>任务分解结果</h3>'
+      html += '<div class="header-badge">推演任务已生成</div>'
+      html += '<h3>推演任务分解</h3>'
       html += '</div>'
-      html += '<p class="analysis-intro">根据您的问题，系统自动生成以下任务步骤：</p>'
+      html += '<p class="analysis-intro">根据当前供需冲击与设定条件，系统已生成以下分析任务：</p>'
       html += '<div class="tasks-grid">'
 
       // 如果有详细的subtask数据，展示更丰富的卡片
@@ -1225,18 +1216,16 @@ export default {
       this.selectedResult = null
       this.currentResult = {
         agent_type: 'SUMMARY',
-        title: '实验设计生成完成',
-        description: '已完成目标分析与实验设计。可在右侧查看方案概览，或点击「下一步」查看完整实验设计。',
-        emoji: '🎉'
+        title: '推演方案已生成',
+        description: '已完成需求分解与方案规划。可在右侧查看策略对比，或点击「下一步」进入实体拓扑。',
+        emoji: '✓'
       }
 
       this.editingContent = this.currentResult
 
       this.pushMessage({
         type: 'system',
-        content: this.agentDesignSynced
-          ? `✅ 实验设计已生成，已形成 ${this.tasks.length} 项子任务并同步实体方案配置。请点击「下一步」继续。`
-          : `✅ 实验设计已生成，已形成 ${this.tasks.length} 项子任务。请点击「下一步」继续同步智能体配置并提交实验。`,
+        content: `✅ 推演任务已生成，已形成 ${this.tasks.length} 项子任务。请点击「下一步」进入实验推演。`,
         timestamp: new Date(),
         completionData: {
           totalTasks: this.tasks.length,
@@ -1502,10 +1491,10 @@ export default {
 
         this.pushMessage({
           type: 'system',
-          content: `✅ 目标分析完成，已生成 ${tasks.length} 个拆解任务`,
+          content: `✅ 需求分析完成，已生成 ${tasks.length} 个推演任务`,
           timestamp: new Date(),
           analysisData: {
-            understanding: goalDecomp.goal_understanding || '系统将分步骤完成您的需求分析',
+            understanding: goalDecomp.goal_understanding || '系统将根据供需约束与业务参数开展多方案协同推演',
             subtasks: subtasks,
             selectedEntities: typeof this.extractSelectedEntities === 'function'
               ? this.extractSelectedEntities(parsedApiResult)
@@ -1720,7 +1709,7 @@ export default {
 
         this.pushMessage({
           type: 'system',
-          content: '✅ 已根据您的反馈更新任务内容',
+          content: '✅ 已根据补充条件更新推演任务',
           timestamp: new Date()
         })
 
@@ -1789,7 +1778,19 @@ export default {
 
       const pinia = this.store
       pinia.setCurrentSessionId(this.sessionId)
-      this.$router.push({ path: SCNET_ROUTES.agentSimulationStudio, query: { view: 'workflow' } })
+      this.$router.push({ path: SCNET_ROUTES.agentSimulationStudio, query: { ...this.$route.query, view: 'workflow' } })
+    },
+
+    async goToExperimentManager() {
+      if (this.isProcessing) return;
+      if (!this.agentDesignSynced && !this.agentDesignSyncing) {
+        this.syncAgentDesignForCurrentSession('next-step').catch(() => {})
+      }
+      const pinia = this.store
+      if (this.sessionId && pinia) {
+        pinia.setCurrentSessionId(this.sessionId)
+      }
+      this.$router.push({ path: SCNET_ROUTES.experimentManager, query: { ...this.$route.query, scenario: 'uranium' } })
     },
 
     async modifyPlan() {
@@ -1844,7 +1845,7 @@ export default {
         }
         this.pushMessage({
           type: 'system',
-          content: `✅ 方案已按诉求调整: ${proposal.slice(0, 60)}${proposal.length > 60 ? '…' : ''}`,
+          content: `✅ 方案已按要求更新: ${proposal.slice(0, 60)}${proposal.length > 60 ? '…' : ''}`,
           timestamp: new Date()
         })
         this.$message?.success?.('方案已更新, 可继续迭代或点「确认并提交实验」')

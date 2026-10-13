@@ -1,14 +1,5 @@
 <template>
-  <div class="mid-stage-bg dt-page dt-cockpit analysis-workspace">
-    <AnalysisLinkTabs active="decisionTree">
-      <template #right>
-        <el-button type="primary" size="small" @click="resetTreeView" :disabled="!isTreeReady">
-          <el-icon><Refresh /></el-icon>
-          <span>复位视图</span>
-        </el-button>
-      </template>
-    </AnalysisLinkTabs>
-
+  <div class="mid-stage-bg dt-page dt-cockpit analysis-workspace" :class="{ 'is-embedded': embedded }">
     <el-empty
       v-if="!hasDecisionContext"
       class="decision-empty"
@@ -17,52 +8,95 @@
     />
 
     <template v-else>
-      <AnalysisPageHero
-        eyebrow="对策分析"
-        :title="decisionVm.decisionHero.title"
-        :headline="decisionVm.decisionHero.headline"
-        :summary="decisionVm.decisionHero.summary"
-        :tags="heroTags"
+      <!-- 嵌入决策分析时的极简单行控制条 (避免双层 Header 占用首屏视口) -->
+      <div v-if="embedded" class="embedded-dt-hud-bar glass-panel">
+        <div class="embedded-hud-left">
+          <span class="hud-mini-label">约束时空：</span>
+          <el-tag size="small" type="primary" effect="dark">{{ decisionVm.scenarioKey }}</el-tag>
+          <el-tag size="small" type="success" effect="plain">{{ timeNodeOptions[decisionVm.timeIndex]?.label || '当前时点' }}</el-tag>
+        </div>
+        <div class="embedded-hud-right">
+          <div class="hud-chip-group">
+            <span class="hud-control-label">情景：</span>
+            <button
+              v-for="item in scenarioOptionList"
+              :key="item.key"
+              type="button"
+              class="hud-chip"
+              :class="{ active: item.key === decisionVm.scenarioKey }"
+              :disabled="snapshotMode"
+              @click="manualScenarioKey = item.key"
+            >
+              {{ item.label }}
+            </button>
+          </div>
+          <div class="hud-chip-group">
+            <span class="hud-control-label">时点：</span>
+            <button
+              v-for="(item, index) in timeNodeOptions"
+              :key="item.label"
+              type="button"
+              class="hud-chip"
+              :class="{ active: index === decisionVm.timeIndex }"
+              :disabled="snapshotMode"
+              @click="manualTimeIndex = index"
+            >
+              {{ item.label }}
+            </button>
+          </div>
+          <el-button type="primary" size="small" @click="resetTreeView" :disabled="!isTreeReady">
+            <el-icon><Refresh /></el-icon>
+            <span>重置视图</span>
+          </el-button>
+        </div>
+      </div>
+
+      <!-- 独立访问模式下展示统一紫色目标横幅 -->
+      <StageGoalStrip
+        v-else
+        badge="决策树寻优目标"
+        title="对比不干预基线与多调控路径，扩展式博弈求解最优对策并核验审批前置"
+        desc="基于情景演化输入的供需缺口与断点约束，多分支展开干预行动，综合评估履约率、完全采购成本与停堆风险，输出可执行的应对调度措施。"
+        popover-title="博弈决策树寻优核心目标"
       >
         <template #side>
-          <article class="hud-control-card">
-            <span class="hud-control-label">场景</span>
-            <div class="hud-chip-row">
-              <button
-                v-for="item in scenarioOptionList"
-                :key="item.key"
-                type="button"
-                class="hud-chip"
-                :class="{ active: item.key === decisionVm.scenarioKey }"
-                :disabled="snapshotMode"
-                @click="manualScenarioKey = item.key"
-              >
-                {{ item.label }}
-              </button>
-            </div>
-          </article>
-
-          <article class="hud-control-card">
-            <span class="hud-control-label">时点</span>
-            <div class="hud-chip-row">
-              <button
-                v-for="(item, index) in timeNodeOptions"
-                :key="item.label"
-                type="button"
-                class="hud-chip"
-                :class="{ active: index === decisionVm.timeIndex }"
-                :disabled="snapshotMode"
-                @click="manualTimeIndex = index"
-              >
-                {{ item.label }}
-              </button>
-            </div>
-          </article>
+          <div class="hud-chip-group">
+            <span class="hud-control-label">情景：</span>
+            <button
+              v-for="item in scenarioOptionList"
+              :key="item.key"
+              type="button"
+              class="hud-chip"
+              :class="{ active: item.key === decisionVm.scenarioKey }"
+              :disabled="snapshotMode"
+              @click="manualScenarioKey = item.key"
+            >
+              {{ item.label }}
+            </button>
+          </div>
+          <div class="hud-chip-group">
+            <span class="hud-control-label">时点：</span>
+            <button
+              v-for="(item, index) in timeNodeOptions"
+              :key="item.label"
+              type="button"
+              class="hud-chip"
+              :class="{ active: index === decisionVm.timeIndex }"
+              :disabled="snapshotMode"
+              @click="manualTimeIndex = index"
+            >
+              {{ item.label }}
+            </button>
+          </div>
+          <el-button type="primary" size="small" @click="resetTreeView" :disabled="!isTreeReady">
+            <el-icon><Refresh /></el-icon>
+            <span>重置视图</span>
+          </el-button>
         </template>
-      </AnalysisPageHero>
+      </StageGoalStrip>
 
       <section class="key-conclusion-strip glass-panel">
-        <div class="key-conclusion-label">关键性结论</div>
+        <div class="key-conclusion-label">主要结论</div>
         <article v-for="item in keyConclusions" :key="item.label" :class="['key-conclusion-item', item.tone]">
           <span>{{ item.label }}</span>
           <strong>{{ item.value }}</strong>
@@ -70,40 +104,32 @@
         </article>
       </section>
 
-      <section class="decision-handoff-strip glass-panel">
-        <article v-for="item in decisionHandoffCards" :key="item.label">
-          <span>{{ item.label }}</span>
-          <strong>{{ item.value }}</strong>
-          <p>{{ item.detail }}</p>
-        </article>
-      </section>
-
       <div class="dt-console">
+        <!-- 01 决策输入 -->
         <aside class="dt-side glass-panel">
           <div class="analysis-column-head">
             <span class="analysis-column-index">01</span>
             <div>
-              <h3>决策输入台</h3>
-              <p>汇总当前情景、基线参照与推荐对策。</p>
+              <h3>决策输入</h3>
+              <p>汇总当前情景、基线参照与推荐策略。</p>
             </div>
           </div>
 
           <div class="dt-source-card">
-            <span>当前对策任务</span>
-            <strong>{{ decisionVm.inputBridge.eventName }}</strong>
-            <p>{{ decisionVm.inputBridge.sourceSummary }}</p>
+            <div class="source-card-badge-row">
+              <span class="source-badge">任务依据</span>
+              <span class="source-scenario-tag">{{ decisionVm.inputBridge.scenarioLabel }} · {{ decisionVm.inputBridge.timeLabel }}</span>
+            </div>
+            <strong class="source-event-title">{{ decisionVm.inputBridge.eventName }}</strong>
+            <p class="source-summary-text">{{ decisionVm.inputBridge.sourceSummary }}</p>
             <div class="dt-source-grid">
               <div>
-                <small>情景窗口</small>
-                <p>{{ decisionVm.inputBridge.scenarioLabel }} / {{ decisionVm.inputBridge.timeLabel }}</p>
-              </div>
-              <div>
                 <small>当前风险等级</small>
-                <p>{{ decisionVm.decisionHero.stageLabel }}</p>
-              </div>
-              <div>
-                <small>决策事件</small>
-                <p>{{ decisionVm.inputBridge.eventName }}</p>
+                <p>
+                  <el-tag size="small" :type="decisionVm.decisionHero.stageLabel?.includes('高') ? 'danger' : 'warning'" effect="light">
+                    {{ decisionVm.decisionHero.stageLabel }}
+                  </el-tag>
+                </p>
               </div>
               <div>
                 <small>展开原则</small>
@@ -125,46 +151,34 @@
           </div>
 
           <div v-if="baselineMetrics" class="dt-baseline-card">
-            <span>未干预基线</span>
-            <strong>{{ baselineMetrics.event }}</strong>
-            <p>履约 {{ baselineMetrics.fulfillmentRate }}% · 缺口率 {{ baselineMetrics.stockoutRate }}% · 得分 {{ baselineMetrics.score }} 分</p>
-          </div>
-
-          <article class="dt-read-order-card">
-            <div class="dt-read-order-head">
-              <span>当前阶段判断</span>
-              <el-tag size="small" :type="decisionVm.stage?.tone === 'danger' ? 'danger' : decisionVm.stage?.tone === 'warning' ? 'warning' : 'success'" effect="light">
-                {{ decisionVm.decisionHero.stageLabel }}
-              </el-tag>
+            <div class="dt-baseline-head">
+              <span>未干预基线状态</span>
+              <el-tag size="small" type="danger" effect="plain">未干预基准</el-tag>
             </div>
-            <strong>{{ decisionVm.decisionHero.stageDetail }}</strong>
-            <ol>
-              <li>先看未干预基线，确认不动作的代价。</li>
-              <li>再看候选动作排序，定位高概率改善路径。</li>
-              <li>最后点击节点，核对证据、概率与结果差异。</li>
-            </ol>
-          </article>
-
+            <strong>{{ decisionVm.inputBridge.eventName }}</strong>
+            <p>履约率 <b>{{ baselineMetrics.fulfillmentRate }}%</b> · 缺口率 <b>{{ baselineMetrics.stockoutRate }}%</b> · 基线得分 <b>{{ baselineMetrics.score }} 分</b></p>
+          </div>
         </aside>
 
+        <!-- 02 策略决策树 -->
         <main class="tree-panel glass-panel" :style="treePanelStyle">
           <div class="panel-header">
             <div class="panel-header-main">
               <span class="analysis-column-index">02</span>
               <div class="tree-panel-title">
-                <strong>对策证据树</strong>
-                <small>未干预基线 vs 调控路径对比</small>
+                <strong>策略决策树</strong>
+                <small>未干预基线与调控路径对比</small>
               </div>
             </div>
             <div class="tree-panel-legend">
-              <span class="legend-chip baseline">未干预基线</span>
-              <span class="legend-chip controlled">调控路径</span>
+              <button class="tree-branch-tab" :class="{ active: activeTreeBranch === 'baseline' }" :aria-pressed="activeTreeBranch === 'baseline'" @click="activeTreeBranch = 'baseline'">未干预基线</button>
+              <button class="tree-branch-tab" :class="{ active: activeTreeBranch === 'controlled' }" :aria-pressed="activeTreeBranch === 'controlled'" @click="activeTreeBranch = 'controlled'">调控路径</button>
               <span class="tree-hint">滚轮缩放 · 拖拽平移 · 点击节点看详情</span>
             </div>
           </div>
           <div class="tree-canvas-wrapper">
             <div v-if="isTreeReady" class="tree-lane-stack">
-              <section class="tree-lane baseline-lane">
+              <section v-if="activeTreeBranch === 'baseline'" class="tree-lane baseline-lane">
                 <div class="tree-lane-head">
                   <div>
                     <strong class="tree-lane-title">未干预基线树</strong>
@@ -176,7 +190,7 @@
                 </div>
               </section>
 
-              <section class="tree-lane controlled-lane">
+              <section v-else class="tree-lane controlled-lane">
                 <div class="tree-lane-head">
                   <div>
                     <strong class="tree-lane-title">调控路径树</strong>
@@ -188,10 +202,11 @@
                 </div>
               </section>
             </div>
-            <el-empty v-else description="该场景时点对策路径待建设" :image-size="120" />
+            <el-empty v-else description="当前情景暂无对策路径" :image-size="120" />
           </div>
         </main>
 
+        <!-- 03 方案优先级排序 -->
         <aside class="dt-rail glass-panel">
           <div class="dt-rail-inner">
             <div class="analysis-column-head">
@@ -202,48 +217,32 @@
               </div>
             </div>
 
-            <el-table
-              :data="strategyScreeningRows"
-              size="small"
-              stripe
-              class="strategy-screening-table"
-              empty-text="暂无方案排序"
-            >
-              <el-table-column prop="rankText" label="序" width="44" />
-              <el-table-column prop="name" label="方案" min-width="112" show-overflow-tooltip />
-              <el-table-column prop="scoreText" label="评分" width="70" />
-              <el-table-column prop="decision" label="状态" width="82">
-                <template #default="{ row }">
-                  <el-tag size="small" :type="row.tagType" effect="light">{{ row.decision }}</el-tag>
-                </template>
-              </el-table-column>
-            </el-table>
-
+            <!-- 推荐优选动作卡片 -->
             <article class="dt-focus-card" :class="{ muted: !bestStrategy }">
               <div class="dt-focus-head">
                 <div>
-                  <span>当前推荐</span>
-                  <strong>{{ bestStrategy?.name || '等待推荐动作' }}</strong>
+                  <span class="dt-focus-label">推荐优选动作</span>
+                  <strong class="dt-focus-name">{{ bestStrategy?.name || '等待推荐动作' }}</strong>
                 </div>
                 <el-button
                   v-if="bestStrategy"
-                  link
+                  size="small"
                   type="primary"
                   class="dt-focus-action"
                   @click="openStrategyNode(bestStrategy.id)"
                 >
-                  查看路径
+                  定位路径
                 </el-button>
               </div>
-              <p>{{ bestStrategy?.note || '当前场景尚未返回动作评分，候选排序生成后会自动聚焦推荐动作。' }}</p>
+              <p class="dt-focus-desc">{{ bestStrategy?.note || '当前场景尚未返回动作评分，候选排序生成后会自动聚焦推荐动作。' }}</p>
               <div class="dt-focus-grid">
                 <div>
                   <small>预计得分</small>
-                  <strong>{{ bestStrategy ? `${bestStrategy.score} 分` : '--' }}</strong>
+                  <strong class="score-num">{{ bestStrategy ? `${bestStrategy.score} 分` : '--' }}</strong>
                 </div>
                 <div>
-                  <small>较基线</small>
-                  <strong>{{ bestStrategyImprovementText }}</strong>
+                  <small>较基线提升</small>
+                  <strong class="imp-num">{{ bestStrategyImprovementText }}</strong>
                 </div>
                 <div>
                   <small>高概率结果</small>
@@ -251,49 +250,66 @@
                 </div>
                 <div>
                   <small>结果指向</small>
-                  <strong>{{ bestStrategyOutcomeText }}</strong>
+                  <strong class="outcome-num">{{ bestStrategyOutcomeText }}</strong>
                 </div>
               </div>
             </article>
 
-            <div v-if="decisionVm.strategyDeck.length" class="sb-items">
-              <article
-                v-for="item in decisionVm.strategyDeck"
-                :key="item.id"
-                class="sb-item"
-                :class="{ best: item.isBest, active: selectedStrategyId === item.id }"
-                tabindex="0"
-                @click="openStrategyNode(item.id)"
-                @keydown.enter.prevent="openStrategyNode(item.id)"
-                @keydown.space.prevent="openStrategyNode(item.id)"
+            <!-- 候选排序清单表格 -->
+            <div class="strategy-list-box">
+              <div class="strategy-list-head">
+                <span class="strategy-list-title">候选策略评价排序</span>
+                <span class="strategy-list-hint">点击行可高亮树节点</span>
+              </div>
+              <el-table
+                :data="strategyScreeningRows"
+                size="small"
+                stripe
+                highlight-current-row
+                class="strategy-screening-table"
+                empty-text="暂无方案排序"
+                @row-click="(row) => openStrategyNode(row.id)"
               >
-                <div class="sb-row">
-                  <span class="sb-name">#{{ item.rank }} {{ item.title }}</span>
-                  <span class="sb-score">{{ item.scoreText }}</span>
-                </div>
-                <el-progress
-                  :percentage="item.percent"
-                  :show-text="false"
-                  :stroke-width="8"
-                  :color="item.isBest ? '#f59e0b' : '#94a3b8'"
-                />
-                <p class="sb-note">{{ item.note }}</p>
-                <div class="sb-metrics">
-                  <span>{{ item.improvementText }}</span>
-                  <span>{{ item.successText }}</span>
-                </div>
-                <div class="sb-outcome">{{ item.outcomeText }}</div>
-                <el-tag v-if="item.isBest" type="warning" size="small" effect="dark" class="best-tag">推荐</el-tag>
-              </article>
+                <el-table-column prop="rankText" label="序" width="44" align="center" />
+                <el-table-column prop="name" label="策略方案" min-width="112" show-overflow-tooltip>
+                  <template #default="{ row }">
+                    <span :class="{ 'best-name': row.decision === '优选' }">{{ row.name }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="scoreText" label="评分" width="70" align="center">
+                  <template #default="{ row }">
+                    <span class="score-badge">{{ row.scoreText }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="decision" label="状态" width="76" align="center">
+                  <template #default="{ row }">
+                    <el-tag size="small" :type="row.tagType" effect="light">{{ row.decision }}</el-tag>
+                  </template>
+                </el-table-column>
+              </el-table>
             </div>
-            <el-empty v-else description="当前场景与时点暂未生成策略评分" :image-size="60" />
+
+            <!-- 落地依赖条目卡 -->
+            <div class="side-dependency-card">
+              <div class="side-dep-head">
+                <strong>执行前置依赖约束</strong>
+                <el-tag size="small" type="info" effect="plain">{{ dependencyCards.length }}项约束</el-tag>
+              </div>
+              <div class="side-dep-items">
+                <div v-for="item in dependencyCards" :key="item.label" class="side-dep-row">
+                  <span class="dep-row-type">{{ item.type }}</span>
+                  <span class="dep-row-label">{{ item.label }}</span>
+                  <el-tag size="small" :type="item.tagType" effect="light">{{ item.level }}</el-tag>
+                </div>
+              </div>
+            </div>
           </div>
         </aside>
       </div>
 
       <section class="dependency-panel glass-panel">
         <header class="dependency-head">
-          <div><span>04 · 落地依赖</span><h3>推荐对策所需的资源、协同主体与执行顺序</h3></div>
+          <div><span>04 · 落地依赖</span><h3>推荐策略所需的资源、协同主体与执行顺序</h3></div>
           <el-tag type="info" effect="plain">{{ dependencyCards.length }} 项关键依赖</el-tag>
         </header>
         <div class="dependency-flow">
@@ -418,7 +434,7 @@
                   <strong>{{ nodePanel.node.outcome.fulfillmentRate }}</strong>
                 </div>
                 <div v-if="nodePanel.node.track !== 'baseline'" class="result-item">
-                  <span>综合评分</span>
+                  <span>对策评分</span>
                   <strong>{{ nodePanel.node.outcome.score }} 分</strong>
                 </div>
 
@@ -429,18 +445,18 @@
                     <span>履约完成率</span>
                     <span>
                       {{ controlledLeafComparison.current.fulfillmentRate }}%
-                      （较未干预 {{ formatSigned(controlledLeafComparison.delta.fulfillmentRate, 1) }}%）
+                      （较未干预 {{ formatSigned(controlledLeafComparison.delta.fulfillmentRate, 1) }} 个百分点）
                     </span>
                   </div>
                   <div class="compare-metric-row">
                     <span>供给缺口率</span>
                     <span>
                       {{ controlledLeafComparison.current.stockoutRate }}%
-                      （较未干预下降 {{ controlledLeafComparison.delta.stockoutDrop.toFixed(2) }}%）
+                      （较未干预下降 {{ controlledLeafComparison.delta.stockoutDrop.toFixed(2) }} 个百分点）
                     </span>
                   </div>
                   <div class="compare-metric-row">
-                    <span>综合评分</span>
+                    <span>对策评分</span>
                     <span>
                       {{ controlledLeafComparison.current.score }} 分
                       （较未干预 {{ formatSigned(controlledLeafComparison.delta.score) }} 分）
@@ -448,13 +464,6 @@
                   </div>
                 </div>
 
-                <div v-if="leafTrendData" class="density-trend-panel">
-                  <h5 class="result-sub-title">履约完成率变化对比</h5>
-                  <p class="density-trend-note">
-                    {{ leafTrendData.baselineLabel }} vs {{ leafTrendData.methodLabel }} · 24小时内履约完成率提升 {{ leafTrendData.gain }} 个点
-                  </p>
-                  <div ref="trendChartRef" class="density-trend-chart"></div>
-                </div>
               </el-collapse-item>
             </el-collapse>
           </div>
@@ -466,51 +475,71 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+
+const props = defineProps({
+  embedded: {
+    type: Boolean,
+    default: false
+  }
+})
 import * as echarts from 'echarts'
 import { storeToRefs } from 'pinia'
 import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAnalysisSnapshotStore } from '@/stores/scnet/useAnalysisSnapshotStore'
 import { useUraniumDemoStore } from '@/stores/scnet/useUraniumDemoStore'
-import AnalysisLinkTabs from './components/shared/AnalysisLinkTabs.vue'
-import AnalysisPageHero from './components/shared/AnalysisPageHero.vue'
+import StageGoalStrip from './components/shared/StageGoalStrip.vue'
 import './components/shared/midStage.css'
+import { useUraniumAnalysisExperiment } from './composables/useUraniumAnalysisExperiment'
 import {
-  buildKnowledgeSources,
-  buildThinkingSteps,
-  generateFulfillmentTrend,
   findParentNodeByChildId,
-  SCENARIO_OPTIONS,
   TIME_NODE_OPTIONS
 } from './mock/decisionTreeMock.js'
+import { uraniumDecisionReasoning } from './adapters/uraniumDecisionCopy'
 import {
-  buildUraniumDecisionTreeViewModel
+  buildUraniumDecisionTreeViewModel,
+  URANIUM_SCENARIO_OPTIONS
 } from '@/views/SCnet/adapters/uraniumMockAnalysisAdapter'
+import { createUraniumDemoSeed } from '@/views/SCnet/mock/uraniumDemoLab'
 
+useUraniumAnalysisExperiment()
 const snapshotStore = useAnalysisSnapshotStore()
 const uraniumStore = useUraniumDemoStore()
 const { selectedExperiment } = storeToRefs(uraniumStore)
 
 const snapshotMode = computed(() => !!snapshotStore.activeSnapshotId)
 const activeSnapshot = computed(() => snapshotStore.getActiveSnapshot())
-const hasDecisionContext = computed(() => !!selectedExperiment.value || !!activeSnapshot.value)
+
+// 稳健实验回退保障
+const effectiveExperiment = computed(() => {
+  if (selectedExperiment.value) return selectedExperiment.value
+  if (activeSnapshot.value?.experiment) return activeSnapshot.value.experiment
+  const list = Object.values(uraniumStore.experiments || {})
+  if (list.length) return list[0]
+  try {
+    const seed = createUraniumDemoSeed()
+    return seed?.experiments?.['uranium-security-first-20260708-131000'] || (seed?.experiments ? Object.values(seed.experiments)[0] : null)
+  } catch (e) {
+    return null
+  }
+})
+const hasDecisionContext = computed(() => !!effectiveExperiment.value)
 const manualScenarioKey = ref('')
 const manualTimeIndex = ref(null)
-const scenarioOptionList = Object.entries(SCENARIO_OPTIONS).map(([key, label]) => ({ key, label }))
+const scenarioOptionList = Object.entries(URANIUM_SCENARIO_OPTIONS).map(([key, label]) => ({ key, label }))
 const timeNodeOptions = TIME_NODE_OPTIONS
 const decisionVm = computed(() => buildUraniumDecisionTreeViewModel({
-  experiment: selectedExperiment.value,
+  experiment: effectiveExperiment.value,
   snapshot: activeSnapshot.value,
   manualScenarioKey: manualScenarioKey.value,
   manualTimeIndex: manualTimeIndex.value
 }))
 
+const activeTreeBranch = ref('controlled')
 const baselineTreeChartRef = ref(null)
 const controlledTreeChartRef = ref(null)
-const trendChartRef = ref(null)
 let baselineTreeChart = null
 let controlledTreeChart = null
-let trendChart = null
 
 const nodePanel = reactive({ visible: false, node: null })
 const drawerActivePanels = ref(['overview'])
@@ -561,15 +590,15 @@ const keyConclusions = computed(() => {
     },
     {
       label: '优先对策', value: best?.name || '等待推荐',
-      detail: best ? `综合得分 ${best.score} 分，较基线提升 ${formatSigned(best.improvement)} 分。` : '等待候选动作评分。', tone: 'primary'
+      detail: best ? `对策评分 ${best.score} 分，较基线提升 ${formatSigned(best.improvement)} 分。` : '等待候选动作评分。', tone: 'primary'
     },
     {
       label: '最可能结果', value: best ? `${best.successProbability || 0}%` : '--',
       detail: best?.bestLeafSituation || '等待结果分支。', tone: 'success'
     },
     {
-      label: '执行时间 / 成本', value: best ? `${Math.max(3, Math.round(18 - best.score * .12))} 天` : '--',
-      detail: best ? `预计执行成本指数 ${Math.max(10, Math.round(82 - best.score * .55))}，需联动库存、合同与运输资源。` : '等待对策评估。', tone: 'warning'
+      label: '执行窗口', value: selectedExperiment.value?.plan ? `${selectedExperiment.value.plan.start_year}–${selectedExperiment.value.plan.end_year} 年` : '待选择实验',
+      detail: '按年度协调采购、库存和运输安排，持续观察需求缺口与风险。', tone: 'warning'
     }
   ]
 })
@@ -578,7 +607,7 @@ const dependencyCards = computed(() => {
   const action = bestStrategy.value?.name || '推荐对策'
   return [
     { type: '前置资源', label: '库存与替代货源', detail: `${action}需预留安全库存，并确认替代供给可调用。`, level: '强依赖', tagType: 'danger' },
-    { type: '协同主体', label: '供给方—运输方—制造方', detail: '锁定交付窗口、运输槽位和加工能力，避免局部最优造成链路阻塞。', level: '强依赖', tagType: 'danger' },
+    { type: '协同主体', label: '供给方—运输方—制造方', detail: '锁定交付窗口、运输安排和可用供给，避免局部最优造成链路阻塞。', level: '强依赖', tagType: 'danger' },
     { type: '信息条件', label: '风险预警与需求预测', detail: `围绕${currentTimeLabel.value}持续更新缺口、履约和库存覆盖。`, level: '中依赖', tagType: 'warning' },
     { type: '执行约束', label: '预算、合同与审批', detail: '成本上限、长协条款和应急审批决定对策启动速度。', level: '中依赖', tagType: 'warning' }
   ]
@@ -608,7 +637,7 @@ const decisionHandoffCards = computed(() => [
 const strategyScreeningRows = computed(() => {
   const rows = decisionVm.value?.strategyDeck || []
   return rows.map((item, index) => {
-    const isBest = item.isBest || index === 0
+    const isBest = item.isBest
     const isRejected = item.score < 62 || index > 3
     return {
       rankText: `${index + 1}`,
@@ -684,22 +713,10 @@ const leafNarrative = computed(() => {
   return { method, phenomenon }
 })
 
-const leafTrendData = computed(() => {
-  const node = nodePanel.node
-  const baseline = baselineMetrics.value
-  if (!node?.isLeaf || !baseline || node.track === 'baseline') return null
-  const parent = findParentNodeByChildId(currentTree.value, node.id)
-  const parentAction = parent?.action || ''
-  return generateFulfillmentTrend(node, baseline, decisionVm.value?.timeIndex ?? 1, parentAction)
-})
-
 const decisionNodeDetails = computed(() => {
   const node = nodePanel.node
   if (!node || node.isLeaf) return null
-  return node.reasoning || {
-    thinkingSteps: buildThinkingSteps(node.action || node.name, node.desc || ''),
-    sources: buildKnowledgeSources(node.id)
-  }
+  return node.reasoning || uraniumDecisionReasoning(node.action || node.name, node.desc || '')
 })
 
 function collectNextLeafNodes(node, baseProb = 1) {
@@ -745,17 +762,17 @@ function buildBranchMetrics(node, options = {}) {
   const leafCount = countLeafNodes(node)
   const depth = countTreeDepth(node)
   const compact = !!options.compact
-  const chartHeight = Math.max(options.minHeight || 360, 180 + leafCount * (compact ? 80 : 94))
+  const chartHeight = Math.max(options.minHeight || 360, 100 + leafCount * (compact ? 70 : 78))
   const nodeGap = leafCount >= 8 ? 70 : leafCount >= 6 ? 60 : leafCount >= 4 ? 52 : 44
   const layerPadding = compact ? 122 : depth >= 4 ? 156 : 144
   return { chartHeight, nodeGap, layerPadding }
 }
 
-const baselineTreeMetrics = computed(() => buildBranchMetrics(baselineBranchTree.value, { minHeight: 320, compact: true }))
-const controlledTreeMetrics = computed(() => buildBranchMetrics(controlledBranchTree.value, { minHeight: 620 }))
+const baselineTreeMetrics = computed(() => buildBranchMetrics(baselineBranchTree.value, { minHeight: 280, compact: true }))
+const controlledTreeMetrics = computed(() => buildBranchMetrics(controlledBranchTree.value, { minHeight: 520 }))
 
 const treePanelStyle = computed(() => ({
-  minHeight: `${baselineTreeMetrics.value.chartHeight + controlledTreeMetrics.value.chartHeight + 190}px`
+  minHeight: `${(activeTreeBranch.value === 'baseline' ? baselineTreeMetrics.value.chartHeight : controlledTreeMetrics.value.chartHeight) + 140}px`
 }))
 
 const baselineCanvasStyle = computed(() => ({
@@ -834,7 +851,7 @@ function toEcNode(node, compact = false) {
     symbolSize: isRoot
       ? (compact ? [176, 64] : [184, 68])
       : (isLeaf ? (compact ? [146, 58] : [152, 62]) : (compact ? [156, 60] : [164, 64])),
-    itemStyle: { color, borderColor: border, borderWidth: isRoot ? 2.6 : 2, borderRadius: 14, shadowBlur: isRoot ? 22 : 14, shadowOffsetY: 3, shadowColor: shadow },
+    itemStyle: { color, borderColor: border, borderWidth: isRoot ? 2.6 : 2, borderRadius: 14, shadowBlur: 4, shadowOffsetY: 3, shadowColor: shadow },
     label: {
       lineHeight: compact ? 16 : 18,
       rich: {
@@ -857,9 +874,7 @@ function renderBranchTree(chart, branchTree, metrics, options = {}) {
   if (!chart || !branchTree) return
   const ecRoot = toEcNode(branchTree, !!options.compact)
   chart.setOption({
-    backgroundColor: { type: 'radial', x: 0.5, y: 0.25, r: 0.95, colorStops: [
-      { offset: 0, color: '#f8fbff' }, { offset: 0.62, color: '#eef4ff' }, { offset: 1, color: '#e6edf9' }
-    ]},
+    backgroundColor: '#ffffff',
     tooltip: {
       trigger: 'item',
       backgroundColor: 'rgba(15,23,42,0.92)',
@@ -871,13 +886,13 @@ function renderBranchTree(chart, branchTree, metrics, options = {}) {
         const raw = params.data?._raw
         if (!raw) return ''
         const probability = raw.prob < 1 ? `<br/>分支概率：${Math.round(raw.prob * 100)}%` : ''
-        const score = raw.outcome?.score && raw.track !== 'baseline' ? `<br/>综合评分：${raw.outcome.score} 分` : ''
+        const score = raw.outcome?.score && raw.track !== 'baseline' ? `<br/>对策评分：${raw.outcome.score} 分` : ''
         return `<b style="font-size:13px;color:#f8fafc;">${raw.action || raw.name}</b><br/><span style="color:#cbd5e1;">${raw.desc}</span>${probability}${score}`
       }
     },
     series: [{
       type: 'tree', data: [ecRoot],
-      top: '8%', left: '4%', bottom: '8%', right: '4%',
+      top: 50, left: 110, bottom: 50, right: 100,
       orient: 'LR', roam: true,
       scaleLimit: { min: 0.65, max: 1.8 },
       edgeShape: 'curve', edgeForkPosition: '50%',
@@ -940,43 +955,6 @@ function initBranchCharts(force = false) {
   }
 }
 
-function renderTrendChart() {
-  if (!trendChartRef.value || !leafTrendData.value) return
-  if (!trendChart) trendChart = echarts.init(trendChartRef.value)
-  const trend = leafTrendData.value
-  trendChart.setOption({
-    grid: { left: 48, right: 18, top: 30, bottom: 26 },
-    legend: { top: 2, itemWidth: 10, itemHeight: 6, textStyle: { fontSize: 11, color: '#475569' }, data: ['未干预', '调控后'] },
-    tooltip: { trigger: 'axis', valueFormatter: (v) => `${v}%` },
-    xAxis: {
-      type: 'category', boundaryGap: false, data: trend.timeline,
-      axisLabel: { fontSize: 10, color: '#64748b' },
-      axisLine: { lineStyle: { color: '#cbd5e1' } }
-    },
-    yAxis: {
-      type: 'value', name: '履约完成率',
-      nameTextStyle: { color: '#64748b', fontSize: 10, padding: [0, 0, 0, -24] },
-      axisLabel: { fontSize: 10, color: '#64748b', formatter: '{value}%' },
-      splitLine: { lineStyle: { color: '#e2e8f0' } }
-    },
-    series: [
-      { name: '未干预', type: 'line', smooth: true, data: trend.baselineSeries, symbolSize: 6, lineStyle: { width: 2, color: '#ef4444' }, itemStyle: { color: '#ef4444' }, areaStyle: { color: 'rgba(239,68,68,0.09)' } },
-      { name: '调控后', type: 'line', smooth: true, data: trend.controlledSeries, symbolSize: 6, lineStyle: { width: 2, color: '#16a34a' }, itemStyle: { color: '#16a34a' }, areaStyle: { color: 'rgba(22,163,74,0.10)' } }
-    ]
-  }, true)
-}
-
-watch(
-  () => [nodePanel.visible, nodePanel.node?.id, leafTrendData.value?.gain],
-  () => {
-    if (!nodePanel.visible || !leafTrendData.value) {
-      if (trendChart) { trendChart.dispose(); trendChart = null }
-      return
-    }
-    nextTick(() => renderTrendChart())
-  }
-)
-
 watch(
   () => nodePanel.node?.id,
   () => {
@@ -999,6 +977,8 @@ watch(
   }
 )
 
+watch(activeTreeBranch, () => nextTick(() => initBranchCharts(true)))
+
 function resetTreeView() {
   if (!isTreeReady.value) return
   nodePanel.visible = false
@@ -1011,18 +991,11 @@ function resetTreeView() {
 function onResize() {
   if (baselineTreeChart) baselineTreeChart.resize()
   if (controlledTreeChart) controlledTreeChart.resize()
-  if (trendChart) trendChart.resize()
 }
 
 onMounted(() => {
   window.addEventListener('resize', onResize)
-  uraniumStore.ensureInitialized()
-    .then(() => uraniumStore.reloadSelectedExperiment())
-    .finally(() => {
-      nextTick(() => {
-        if (isTreeReady.value) initBranchCharts(true)
-      })
-    })
+  nextTick(() => { if (isTreeReady.value) initBranchCharts(true) })
 })
 
 watch(() => currentTree.value?.id, (next, prev) => {
@@ -1047,11 +1020,12 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', onResize)
   if (baselineTreeChart) baselineTreeChart.dispose()
   if (controlledTreeChart) controlledTreeChart.dispose()
-  if (trendChart) trendChart.dispose()
 })
 </script>
 
 <style scoped>
+.tree-branch-tab { border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 12px; color: #64748b; background: #fff; cursor: pointer; }
+.tree-branch-tab.active { color: #2563eb; background: #eff6ff; border-color: #bfdbfe; }
 .dt-page {
   padding: 8px 0 32px;
   min-height: 100%;
@@ -1156,6 +1130,46 @@ onBeforeUnmount(() => {
 .dependency-card :deep(.el-tag) { align-self: start; }
 .dependency-conclusion { margin: 10px 0 0; padding: 8px 10px; border-radius: 7px; background: #eff6ff; color: #1e3a8a; font-size: var(--mid-fs-label); line-height: 1.55; }
 
+.embedded-dt-hud-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 14px;
+  margin-bottom: 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+.embedded-hud-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hud-mini-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+.embedded-hud-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.hud-chip-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.hud-chip-group .hud-control-label {
+  display: inline;
+  font-size: 11.5px;
+  color: #64748b;
+  font-weight: 600;
+}
+
 .hud-control-card {
   flex: 1;
   min-width: 0;
@@ -1210,21 +1224,85 @@ onBeforeUnmount(() => {
 
 .dt-console {
   display: grid;
-  grid-template-columns: minmax(280px, 0.78fr) minmax(0, 2.05fr) minmax(320px, 0.9fr);
-  gap: 12px;
+  grid-template-columns: 310px minmax(0, 1fr) 350px;
+  gap: 14px;
   align-items: start;
 }
 
+@media (max-width: 1399px) {
+  .dt-console {
+    grid-template-columns: 280px minmax(0, 1fr) 320px;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 1080px) {
+  .dt-console {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .dt-side {
-  padding: 12px 14px;
+  position: sticky;
+  top: 8px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
+  border-radius: 12px;
+}
+
+.source-card-badge-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.source-badge {
+  font-size: 10px;
+  font-weight: 800;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 1px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+}
+
+.source-scenario-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.source-event-title {
+  display: block;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.source-summary-text {
+  margin: 6px 0 10px;
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.dt-baseline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
 }
 
 .dt-source-card {
-  padding: 10px 12px;
+  padding: 12px 14px;
   border-radius: var(--mid-radius-md);
   border: 1px solid #dbeafe;
   background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
@@ -1605,37 +1683,100 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-.sb-items { display: flex; flex-direction: column; gap: 10px; }
-.sb-item {
-  padding: 12px 14px;
+.strategy-list-box {
+  margin-top: 10px;
+  border-radius: var(--mid-radius-md);
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  background: rgba(248, 250, 252, 0.78);
-  position: relative;
-  cursor: pointer;
-  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+  background: #ffffff;
+  padding: 10px 12px;
 }
-.sb-item:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+
+.strategy-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
 }
-.sb-item:focus-visible {
-  outline: 2px solid #2563eb;
-  outline-offset: 2px;
+
+.strategy-list-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: #0f172a;
 }
-.sb-item.best { border-color: #f59e0b; background: rgba(255, 251, 235, 0.9); }
-.sb-item.active {
-  border-color: #2563eb;
-  background: linear-gradient(180deg, rgba(239, 246, 255, 0.96) 0%, rgba(255, 255, 255, 0.98) 100%);
-  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.12);
+
+.strategy-list-hint {
+  font-size: 11px;
+  color: #94a3b8;
 }
-.sb-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
-.sb-name { font-size: 13px; font-weight: 600; color: #334155; overflow-wrap: anywhere; }
-.sb-score { font-size: var(--mid-fs-strong); font-weight: 800; color: #0f172a; white-space: nowrap; }
-.sb-note { margin: 8px 0 0; font-size: var(--mid-fs-label); color: #64748b; line-height: 1.55; overflow-wrap: anywhere; }
-.sb-metrics { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; color: #475569; font-size: 11px; }
-.sb-outcome { margin-top: 8px; color: #0f172a; font-size: var(--mid-fs-label); line-height: 1.55; font-weight: 600; overflow-wrap: anywhere; }
-.best-tag { position: absolute; top: 8px; right: 8px; }
+
+.best-name {
+  font-weight: 800;
+  color: #1d4ed8;
+}
+
+.score-badge {
+  font-weight: 800;
+  font-family: var(--mid-font-mono, monospace);
+  color: #0f172a;
+}
+
+.side-dependency-card {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: var(--mid-radius-md);
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.side-dep-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.side-dep-head strong {
+  font-size: 12px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.side-dep-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.side-dep-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: #ffffff;
+  border: 1px solid #eef2f7;
+  border-radius: 6px;
+}
+
+.dep-row-type {
+  font-size: 10px;
+  font-weight: 700;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  padding: 1px 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.dep-row-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .reasoning-drawer :deep(.el-drawer__body) { padding: 0; }
 .drawer-header {

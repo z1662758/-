@@ -55,10 +55,14 @@ function buildTaskId(status = 'completed', createdAt = '', suffix = '') {
 
 function normalizeDisplayText(value = '') {
   return String(value || '')
+    .replace(/等待队列执行的实验任务，用于展示排队与配置查看界面。/g, '实验已加入队列，将按顺序执行。')
     .replace(/演示数据/g, '实验数据')
     .replace(/演示任务/g, '实验任务')
     .replace(/演示实验/g, '实验')
     .replace(/待执行演示/g, '待执行窗口')
+    .replace(/制造节点|制造端|制造方/g, '采购主体')
+    .replace(/目标覆盖年数保持在 1\.2 年以上。/g, '结合预算逐步向 3 年库存覆盖目标补充。')
+    .replace(/在美国禁俄铀法案和 2025-2026 新产能爬坡期间，提前锁定接卸窗口和船期。/g, '结合制裁与新增供给情景，提前锁定接卸窗口和船期。')
 }
 
 const SUPPLIERS = Object.freeze([
@@ -268,6 +272,22 @@ const YEARLY_SUPPLIER_ROUTE_MULTIPLIERS = Object.freeze({
     sup_aus: 1.08,
     sup_uzb: 1.06,
     sup_niger: 1.06
+  },
+  2029: {
+    sup_kaz: 0.92,
+    sup_can: 1.20,
+    sup_nam: 1.15,
+    sup_aus: 1.10,
+    sup_uzb: 1.05,
+    sup_niger: 1.08
+  },
+  2030: {
+    sup_kaz: 0.90,
+    sup_can: 1.22,
+    sup_nam: 1.20,
+    sup_aus: 1.12,
+    sup_uzb: 1.05,
+    sup_niger: 1.10
   }
 })
 
@@ -279,7 +299,7 @@ const BASE_YEAR_ROWS = Object.freeze([
     total_procured_tU: 10860,
     total_demand_tU: 11120,
     unmet_demand_tU: 260,
-    average_cost_usd_kgU: 486,
+    average_cost_usd_kgU: 242.5,
     average_risk_exposure: 0.228,
     inventory_coverage_years: 0.93,
     supply_concentration_hhi: 0.248,
@@ -293,7 +313,7 @@ const BASE_YEAR_ROWS = Object.freeze([
     total_procured_tU: 11480,
     total_demand_tU: 11730,
     unmet_demand_tU: 250,
-    average_cost_usd_kgU: 491,
+    average_cost_usd_kgU: 248.8,
     average_risk_exposure: 0.222,
     inventory_coverage_years: 0.98,
     supply_concentration_hhi: 0.243,
@@ -307,7 +327,7 @@ const BASE_YEAR_ROWS = Object.freeze([
     total_procured_tU: 12040,
     total_demand_tU: 12190,
     unmet_demand_tU: 150,
-    average_cost_usd_kgU: 488,
+    average_cost_usd_kgU: 241.6,
     average_risk_exposure: 0.214,
     inventory_coverage_years: 1.02,
     supply_concentration_hhi: 0.239,
@@ -321,7 +341,7 @@ const BASE_YEAR_ROWS = Object.freeze([
     total_procured_tU: 12520,
     total_demand_tU: 12780,
     unmet_demand_tU: 260,
-    average_cost_usd_kgU: 492,
+    average_cost_usd_kgU: 245.2,
     average_risk_exposure: 0.221,
     inventory_coverage_years: 1.04,
     supply_concentration_hhi: 0.236,
@@ -335,12 +355,40 @@ const BASE_YEAR_ROWS = Object.freeze([
     total_procured_tU: 12950,
     total_demand_tU: 13360,
     unmet_demand_tU: 410,
-    average_cost_usd_kgU: 497,
+    average_cost_usd_kgU: 253.4,
     average_risk_exposure: 0.231,
     inventory_coverage_years: 1.01,
     supply_concentration_hhi: 0.233,
     dominant_supplier_share: 0.32,
     active_events: ['美国禁俄铀完全生效']
+  },
+  {
+    year: 2029,
+    market_price_usd_lb: 87.2,
+    total_supply_tU: 13620,
+    total_procured_tU: 13400,
+    total_demand_tU: 13680,
+    unmet_demand_tU: 280,
+    average_cost_usd_kgU: 250.8,
+    average_risk_exposure: 0.218,
+    inventory_coverage_years: 1.08,
+    supply_concentration_hhi: 0.228,
+    dominant_supplier_share: 0.31,
+    active_events: ['新一代天然铀中长期长协生效', '纳米比亚深海运力扩容']
+  },
+  {
+    year: 2030,
+    market_price_usd_lb: 85.0,
+    total_supply_tU: 14100,
+    total_procured_tU: 13950,
+    total_demand_tU: 14100,
+    unmet_demand_tU: 150,
+    average_cost_usd_kgU: 246.5,
+    average_risk_exposure: 0.205,
+    inventory_coverage_years: 1.15,
+    supply_concentration_hhi: 0.221,
+    dominant_supplier_share: 0.30,
+    active_events: ['华龙一号批量化稳定商运', '双源双通道保供格局全面成熟']
   }
 ])
 
@@ -391,7 +439,7 @@ const VARIANT_PROFILES = Object.freeze({
     preset_name: 'security_first',
     title: '保供优先',
     event_suffix: '',
-    cost_shift: 13,
+    cost_shift: 6.5,
     risk_shift: -0.028,
     inventory_shift: 0.24,
     unmet_multiplier: 0.58,
@@ -410,13 +458,13 @@ const VARIANT_PROFILES = Object.freeze({
       { contract_type: '灵活调剂', share: 0.12 }
     ],
     recommendations: [
-      '优先补足南北两个关键制造节点的安全库存，目标覆盖年数保持在 1.2 年以上。',
-      '把加拿大与纳米比亚长协配比前移，用海运替代部分受哈酸短缺影响的陆路份额。',
-      '在美国禁俄铀法案和 2025-2026 新产能爬坡期间，提前锁定接卸窗口和船期。'
+      '优先从中哈陆路当季到货中，定向拨付 70%（1,680 tU）至包头北方基地，确保 2026Q2 华龙一号燃料交付不违约。',
+      '激活纳米比亚湖山铀矿 Q3 船运批次提前 20 天装船（锁定鲸湾港-连云港航线 1,000 tU），平抑南方沿海基地需求增量。',
+      '从陕西中核储备库紧急借调 200 tU 天然铀原料应对现货溢价高点，6 个月内利用纳米比亚海运到货全额回补。'
     ],
     alerts: [
-      '保供优先会抬高年度采购成本，若不约束现货窗口，后续预算压力会快速累积。',
-      '南方制造方对纳米比亚海运依赖上升，需同步准备东部口岸作为替代接卸窗口。'
+      '保供优先策略适度放宽预算，预计产生应急超额支出约 +$1,280 万，但关键机组停堆风险归零（0.0%）。',
+      '南方制造基地对纳米比亚海运依赖上升，已联动连云港与大连港作为备用接卸窗口。'
     ],
     policy_profiles: [
       { manufacturer_id: 'mfg_cnnc', label: '北方安全库存优先', target_inventory_years: 1.28, contract_preference: 0.74 },
@@ -425,15 +473,15 @@ const VARIANT_PROFILES = Object.freeze({
     ],
     feedback_signals: [
       ['提高安全库存', '扩充长协份额'],
-      ['分散口岸接卸', '缩小缺口'],
-      ['稳定保供策略', '削弱事件冲击']
+      ['分散口岸接卸', '消除局部缺口'],
+      ['稳定保供策略', '削弱地缘冲击']
     ]
   },
   cost_first: {
     preset_name: 'cost_first',
     title: '成本优先',
     event_suffix: '',
-    cost_shift: -17,
+    cost_shift: -8.5,
     risk_shift: 0.018,
     inventory_shift: -0.12,
     unmet_multiplier: 1.18,
@@ -643,18 +691,25 @@ function buildContractMix(totalProcured, variant) {
   }))
 }
 
-function buildTimelineRows(variantKey) {
+function buildTimelineRows(variantKey, draft = {}) {
   const variant = VARIANT_PROFILES[variantKey] || VARIANT_PROFILES.balanced
-
-  return BASE_YEAR_ROWS.map((row, index) => {
+  const start = Number.isInteger(draft.start_year) ? draft.start_year : 2024
+  const end = Number.isInteger(draft.end_year) ? draft.end_year : 2030
+  const severity = Number.isFinite(draft.event_severity_multiplier) ? draft.event_severity_multiplier : 1
+  const baseRows = Array.from({ length: Math.max(0, Math.min(44, end - start + 1)) }, (_, index) => {
+    const year = start + index
+    const existing = BASE_YEAR_ROWS.find(row => row.year === year)
+    return existing || { ...BASE_YEAR_ROWS[year < 2024 ? 0 : BASE_YEAR_ROWS.length - 1], year, active_events: [] }
+  })
+  return baseRows.map((row, index) => {
     const activeEvents = row.active_events.map((item) => `${item}${variant.event_suffix}`)
     const supplierShares = buildYearSupplierShares(row.year, variant.route_share_adjust)
-    const totalProcured = round(row.total_procured_tU * (1 + variant.inventory_shift * 0.02))
-    const totalSupply = round(row.total_supply_tU * (1 + variant.inventory_shift * 0.015))
-    const totalDemand = row.total_demand_tU
-    const unmetDemand = round(Math.max(0, row.unmet_demand_tU * variant.unmet_multiplier))
-    const averageCost = round(row.average_cost_usd_kgU + variant.cost_shift + index * 0.6)
-    const averageRisk = round(Math.max(0.07, row.average_risk_exposure + variant.risk_shift), 3)
+    const totalProcured = Math.round(row.total_procured_tU * (1 + variant.inventory_shift * 0.02))
+    const totalSupply = Math.round(row.total_supply_tU * (1 + variant.inventory_shift * 0.015))
+    const totalDemand = Math.round(row.total_demand_tU)
+    const unmetDemand = Math.round(Math.max(0, row.unmet_demand_tU * variant.unmet_multiplier * severity))
+    const averageCost = round(row.average_cost_usd_kgU + variant.cost_shift + index * 0.5, 2)
+    const averageRisk = round(Math.min(1, Math.max(0.07, (row.average_risk_exposure + variant.risk_shift) * severity)), 3)
     const inventoryYears = round(Math.max(0.7, row.inventory_coverage_years + variant.inventory_shift), 2)
     const dynamicConcentration = buildSupplierConcentration(supplierShares)
     const dynamicDominantShare = buildDominantShare(supplierShares)
@@ -667,7 +722,7 @@ function buildTimelineRows(variantKey) {
     return {
       year: row.year,
       active_events: activeEvents,
-      market_price_usd_lb: row.market_price_usd_lb,
+      market_price_usd_lb: round((draft.starting_price_usd_per_lb ?? row.market_price_usd_lb) * (1 + (severity - 1) * 0.1)),
       total_supply_tU: totalSupply,
       total_procured_tU: totalProcured,
       total_demand_tU: totalDemand,
@@ -687,14 +742,22 @@ function buildTimelineRows(variantKey) {
 }
 
 function buildSummary(timeline) {
+  const weighted = key => {
+    const weight = timeline.reduce((sum, row) => sum + Number(row.total_procured_tU || 0), 0)
+    return weight > 0 ? timeline.reduce((sum, row) => sum + Number(row[key] || 0) * Number(row.total_procured_tU || 0), 0) / weight : average(timeline.map(row => row[key]))
+  }
+  const totalDemand = timeline.reduce((sum, row) => sum + Number(row.total_demand_tU || 0), 0)
+  const totalUnmet = timeline.reduce((sum, row) => sum + Number(row.unmet_demand_tU || 0), 0)
   const latest = timeline[timeline.length - 1] || {}
   return {
-    avg_cost_usd_kgU: round(average(timeline.map((item) => item.average_cost_usd_kgU)) || 0, 2),
-    avg_risk_exposure: round(average(timeline.map((item) => item.average_risk_exposure)) || 0, 3),
+    avg_cost_usd_kgU: round(weighted('average_cost_usd_kgU') || 0, 2),
+    avg_risk_exposure: round(weighted('average_risk_exposure') || 0, 3),
+    avg_unmet_ratio: totalDemand > 0 ? totalUnmet / totalDemand : null,
+    avg_supply_hhi: average(timeline.map(row => row.supply_concentration_hhi)),
     final_inventory_coverage_years: latest.inventory_coverage_years ?? null,
-    max_unmet_demand_tU: Math.max(...timeline.map((item) => Number(item.unmet_demand_tU || 0))),
+    max_unmet_demand_tU: Math.round(Math.max(...timeline.map((item) => Number(item.unmet_demand_tU || 0)))),
     final_supply_concentration_hhi: latest.supply_concentration_hhi ?? null,
-    final_total_inventory_tU: round((latest.total_procured_tU || 0) * (latest.inventory_coverage_years || 0) * 0.84, 2),
+    final_total_inventory_tU: (latest.total_demand_tU || 0) * (latest.inventory_coverage_years || 0),
     final_dominant_supplier_share: latest.dominant_supplier_share ?? null
   }
 }
@@ -702,11 +765,15 @@ function buildSummary(timeline) {
 function buildIterationHistory(summary, variantKey, optimizationIterations) {
   const variant = VARIANT_PROFILES[variantKey] || VARIANT_PROFILES.balanced
   const steps = optimizationIterations > 1
-    ? [
-        { iteration: 0, cost: 14, risk: 0.028, inventory: -0.18, unmet: 150, hhi: 0.02, label: '初始方案', signalIndex: 0 },
-        { iteration: 1, cost: 7, risk: 0.013, inventory: -0.08, unmet: 60, hhi: 0.01, label: '第一轮调整', signalIndex: 1 },
-        { iteration: 2, cost: 0, risk: 0, inventory: 0, unmet: 0, hhi: 0, label: '收敛方案', signalIndex: 2 }
-      ]
+    ? Array.from({ length: optimizationIterations + 1 }, (_, iteration) => {
+        const remaining = 1 - iteration / optimizationIterations
+        return {
+          iteration, cost: 14 * remaining, risk: 0.028 * remaining,
+          inventory: -0.18 * remaining, unmet: 150 * remaining, hhi: 0.02 * remaining,
+          label: iteration === 0 ? '初始方案' : remaining === 0 ? '收敛方案' : `第 ${iteration} 轮调整`,
+          signalIndex: iteration === 0 ? 0 : remaining === 0 ? 2 : 1,
+        }
+      })
     : [
         { iteration: 0, cost: 0, risk: 0, inventory: 0, unmet: 0, hhi: 0, label: '单次仿真', signalIndex: 2 }
       ]
@@ -746,8 +813,8 @@ function buildReport(experiment, variantKey) {
 
   return {
     generated_at: experiment.completed_at,
-    alerts: deepClone(variant.alerts),
-    recommendations: deepClone(variant.recommendations),
+    alerts: variant.alerts.map(normalizeDisplayText),
+    recommendations: variant.recommendations.map(normalizeDisplayText),
     yearly_overview: timeline.map((item) => ({
       year: item.year,
       active_events: item.active_events,
@@ -783,11 +850,12 @@ function createUraniumDemoExperiment({
   description,
   optimizationIterations = 2,
   createdAt = '2026-07-08 09:20:00',
-  completedAt = '2026-07-08 11:00:00'
+  completedAt = '2026-07-08 11:00:00',
+  draft = {}
 } = {}) {
   const variantKey = normalizeVariantKey(presetName)
   const variant = VARIANT_PROFILES[variantKey] || VARIANT_PROFILES.balanced
-  const timeline = buildTimelineRows(variantKey)
+  const timeline = buildTimelineRows(variantKey, draft)
   const summary = buildSummary(timeline)
 
   const experiment = {
@@ -805,8 +873,9 @@ function createUraniumDemoExperiment({
       description: description || '围绕长协、现货与库存目标做年度演化评估。',
       template_used: variant.preset_name,
       preset_name: variant.preset_name,
-      start_year: 2024,
-      end_year: 2028,
+      start_year: timeline[0]?.year,
+      end_year: timeline.at(-1)?.year,
+      event_severity_multiplier: draft.event_severity_multiplier ?? 1,
       optimization_iterations: optimizationIterations,
       policy_profiles: deepClone(variant.policy_profiles)
     },
@@ -834,14 +903,24 @@ function buildUraniumDemoTask(experiment, {
   createdAt = experiment.created_at,
   startedAt = experiment.created_at,
   completedAt = experiment.completed_at,
-  progress = null
+  progress = null,
+  lineageTag = ''
 } = {}) {
+  const defaultLineageMap = {
+    balanced: '基准参数: 长协85%, 现货15%, 安全库存1.5年',
+    security_first: '对比基准: 现货限额+20%, 海运配额55%, 启用战略储备',
+    cost_first: '对比基准: 现货限价$80/lb, 陆运占比65%, 压降安全库存',
+    shock_response: '对比基准: 模拟中哈陆路-30%扰动, 跨基地横向调拨'
+  }
+  const resolvedLineage = lineageTag || defaultLineageMap[experiment.preset_name] || '基准推演配置'
+
   return {
     task_id: taskId,
     experiment_id: experiment.experiment_id,
     session_id: sessionId,
     user_goal: userGoal || experiment.description || experiment.name,
     status,
+    lineage_tag: resolvedLineage,
     created_at: createdAt,
     started_at: startedAt,
     completed_at: completedAt,
@@ -853,7 +932,7 @@ function buildUraniumDemoTask(experiment, {
       template_name: experiment.template_name,
       optimization_iterations: experiment.plan?.optimization_iterations ?? experiment.optimization_iterations ?? 1,
       start_year: experiment.plan?.start_year ?? 2024,
-      end_year: experiment.plan?.end_year ?? 2028,
+      end_year: experiment.plan?.end_year ?? 2030,
       experiment_id: experiment.experiment_id
     },
     summary: deepClone(experiment.summary || {}),
@@ -863,16 +942,22 @@ function buildUraniumDemoTask(experiment, {
 }
 
 function buildProgressPayload(currentLabel, nextLabel, currentIteration, total, elapsedTime) {
+  const mcTotal = 1000
+  const mcCompleted = Math.min(mcTotal, Math.round((currentIteration / total) * 650 + 120))
   return {
     is_running: true,
     status: 'running',
     completed: currentIteration - 1,
     total,
     current_iteration: currentIteration,
-    elapsed_time: elapsedTime,
-    estimated_remaining: Math.max(0, (total - currentIteration + 1) * 540),
+    elapsed_time: elapsedTime || 22,
+    estimated_remaining: Math.max(0, (total - currentIteration + 1) * 11),
     percentage: round(((currentIteration - 1) / total) * 100, 1),
-    current_task: '年度供给分配与风险评估',
+    current_task: '多智能体数值推演与蒙特卡洛抽样收敛评估',
+    monte_carlo_status: `已完成 Monte-Carlo 采样: ${mcCompleted}/${mcTotal} 次 · 95% 置信区间收敛中`,
+    mc_completed: mcCompleted,
+    mc_total: mcTotal,
+    ci_status: '95% 置信区间收敛中',
     current_parameters: {
       inventory_target_years: currentLabel,
       long_term_contract_weight: 0.64,
@@ -892,7 +977,7 @@ export function createUraniumDemoSeed() {
     experimentId: buildExperimentId('balanced', balancedCreatedAt),
     presetName: 'balanced',
     name: '平衡方案 · 三港口分流校准',
-    description: '评估在 2024-2028 年窗口下，长协与现货平衡配置对供应稳定性的影响。',
+    description: '评估在 2024-2030 年窗口下，长协与现货平衡配置对供应稳定性的影响。',
     optimizationIterations: 2,
     createdAt: balancedCreatedAt,
     completedAt: '2026-07-08 11:02:00'
@@ -936,7 +1021,7 @@ export function createUraniumDemoSeed() {
     experimentId: buildExperimentId('balanced', pendingCreatedAt, 'q1'),
     presetName: 'balanced',
     name: '平衡方案 · 待执行窗口',
-    description: '等待队列执行的实验任务，用于展示排队与配置查看界面。',
+    description: '实验已加入队列，将按顺序执行。',
     optimizationIterations: 2,
     createdAt: pendingCreatedAt,
     completedAt: '2026-07-10 12:10:00'
@@ -961,7 +1046,7 @@ export function createUraniumDemoSeed() {
         createdAt: runningCreatedAt,
         startedAt: '2026-07-10 09:18:00',
         completedAt: '',
-        progress: buildProgressPayload(1.08, 1.16, 2, 4, 980)
+        progress: buildProgressPayload(1.08, 1.16, 2, 4, 22)
       }),
       buildUraniumDemoTask(pending, {
         taskId: buildTaskId('pending', pendingCreatedAt),
@@ -1002,7 +1087,8 @@ export function createLaunchedUraniumDemoExperiment({
   presetName = 'balanced',
   optimizationIterations = 2,
   createdAt = '2026-07-10 13:00:00',
-  sessionId = 'demo-session-uranium'
+  sessionId = 'demo-session-uranium',
+  draft = {}
 } = {}) {
   const goalText = String(userGoal || '').trim() || '分析铀供应链在地缘冲击下的保供与成本平衡策略'
   const experimentId = buildExperimentId(presetName, createdAt, index)
@@ -1013,7 +1099,8 @@ export function createLaunchedUraniumDemoExperiment({
     description: goalText,
     optimizationIterations,
     createdAt,
-    completedAt: createdAt
+    completedAt: createdAt,
+    draft
   })
 
   const task = buildUraniumDemoTask(experiment, {
@@ -1053,15 +1140,21 @@ export function normalizeUraniumDemoState(payload = {}) {
         }
       : rawExperiment.plan
 
+    const annualRows = rawExperiment.result?.timeline
+    const summary = Array.isArray(annualRows) && annualRows.length
+      ? { ...rawExperiment.summary, ...buildSummary(annualRows) } : rawExperiment.summary
     normalizedExperiments[nextId] = {
       ...rawExperiment,
       experiment_id: nextId,
+      summary,
       name: normalizeDisplayText(rawExperiment.name || ''),
       description: normalizeDisplayText(rawExperiment.description || ''),
       plan,
       report: rawExperiment.report && typeof rawExperiment.report === 'object'
         ? {
             ...rawExperiment.report,
+            recommendations: rawExperiment.report.recommendations?.map(normalizeDisplayText),
+            alerts: rawExperiment.report.alerts?.map(normalizeDisplayText),
             generated_at: rawExperiment.report.generated_at || rawExperiment.completed_at
           }
         : rawExperiment.report
@@ -1101,4 +1194,12 @@ export function normalizeUraniumDemoState(payload = {}) {
   }
 }
 
-export { buildExperimentId, buildTaskId, deepClone }
+export {
+  buildExperimentId,
+  buildTaskId,
+  deepClone,
+  // 建模设定页展示的仿真主体名单，与实验运行数据同源
+  SUPPLIERS as URANIUM_SUPPLIER_ACTORS,
+  MANUFACTURERS as URANIUM_MANUFACTURER_ACTORS,
+  BASE_YEAR_ROWS as URANIUM_BASE_YEAR_ROWS
+}

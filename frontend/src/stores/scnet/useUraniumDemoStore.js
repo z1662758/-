@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { writeScnetActiveContext } from '@/utils/session'
 import { buildIterationRows, summarizeExperimentHistoryRow } from '@/utils/uraniumDuringAdapter'
+import { validateUraniumModelingDraft } from '@/utils/uraniumModeling'
 import {
   createLaunchedUraniumDemoExperiment,
   createUraniumDemoSeed,
@@ -170,6 +171,13 @@ export const useUraniumDemoStore = defineStore('scnetUraniumDemo', () => {
     return experiments.value[selectedExperimentId.value] || null
   })
 
+  function getExperiment(id) {
+    const experiment = experiments.value[String(id || '')]
+    if (!experiment) return null
+    const task = taskRowsRaw.value.find(row => row.experiment_id === experiment.experiment_id)
+    return { ...deepClone(experiment), status: task?.status || 'completed' }
+  }
+
   function setSelectedExperiment(id = '') {
     selectedExperimentId.value = String(id || '')
     ensureSelected()
@@ -271,6 +279,10 @@ export const useUraniumDemoStore = defineStore('scnetUraniumDemo', () => {
   }
 
   async function launchExperiment({ sessionId = '', userGoal = '', draft = null } = {}) {
+    if (draft) {
+      const error = validateUraniumModelingDraft(draft, 50)
+      if (error) throw new Error(error)
+    }
     await ensureInitialized()
     launchCount.value += 1
     const presetName = String(
@@ -292,7 +304,8 @@ export const useUraniumDemoStore = defineStore('scnetUraniumDemo', () => {
       userGoal,
       presetName,
       optimizationIterations: Number.isFinite(optimizationIterations) ? optimizationIterations : 2,
-      createdAt: timestamp
+      createdAt: timestamp,
+      draft: draft || {}
     })
 
     experiments.value = {
@@ -382,6 +395,7 @@ export const useUraniumDemoStore = defineStore('scnetUraniumDemo', () => {
     history,
     taskRows,
     selectedExperiment,
+    getExperiment,
     selectedExperimentId,
     ensureInitialized,
     fetchHistory,

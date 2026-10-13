@@ -9,14 +9,17 @@ export const SCNET_BASE = '/home/SCnet'
 export const SCNET_ROUTES = Object.freeze({
   chatHome: '/chatHome',
   // 事中入口 = 对话首页的「事中决策」模式：用户在这里输入问题，
-  // 直接建会话并跳到想定生成分析（智能对话），不再有单独的「想定生成」输入步骤。
+  // 对话形成需求后，由用户进入建模设定，再依次完成想定生成与实体建模。
   duringEntry: '/chatHome?mode=during',
   total: `${SCNET_BASE}/total`,
+  // 事中（铀）· 建模设定：想定生成之前展示 Agent 设定与数量等建模内容
+  modelingSetup: `${SCNET_BASE}/modelingSetup`,
   scenarioModeling: `${SCNET_BASE}/scenarioModeling`,
   scenarioAnalysis: `${SCNET_BASE}/scenarioAnalysis`,
   agentSimulationStudio: `${SCNET_BASE}/agentSimulationStudio`,
   agentSimulationWorkbench: `${SCNET_BASE}/agentSimulationStudio/workbench`,
   experimentManager: `${SCNET_BASE}/experimentManager`,
+  decisionGeneration: `${SCNET_BASE}/decisionGeneration`,
   interface: `${SCNET_BASE}/interface`,
   EXreport: `${SCNET_BASE}/EXreport`,
 
@@ -42,14 +45,19 @@ export const SCNET_ROUTES = Object.freeze({
   expAnalysisObserve: `${SCNET_BASE}/expAnalysisObserve`,
   expAnalysisIntervention: `${SCNET_BASE}/expAnalysisIntervention`,
   expAnalysisMechanism: `${SCNET_BASE}/expAnalysisMechanism`,
+  // 事后第一步：把对话研判的结论落成实验目的 + 实验方案（干预变量 / 指标 / 轮次）
+  experimentPlan: `${SCNET_BASE}/experimentPlan`,
   counterfactualExperiment: `${SCNET_BASE}/counterfactualExperiment`,
 })
 
 export const SCNET_DECISION_ROUTE_BY_TAB = Object.freeze({
+  strategy: SCNET_ROUTES.expAnalysisScenario,
   scenario: SCNET_ROUTES.expAnalysisScenario,
   gameTheory: SCNET_ROUTES.expAnalysisGameTheory,
   decisionTree: SCNET_ROUTES.expAnalysisDecisionTree,
+  decision: SCNET_ROUTES.decisionGeneration,
   report: SCNET_ROUTES.expAnalysisOverview,
+  overview: SCNET_ROUTES.expAnalysisOverview,
 })
 
 /** 专家模式各步骤的路由键,顺序即流程顺序 */

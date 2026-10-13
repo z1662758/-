@@ -1,3 +1,5 @@
+import { formatUraniumEvent } from './uraniumScene.js'
+
 const COUNTRY_COORDINATES = Object.freeze({
   '哈萨克斯坦': [71.43, 51.17],
   '乌兹别克': [69.24, 41.31],
@@ -96,6 +98,7 @@ function uniqueStrings(values = []) {
 }
 
 function safeNumber(value, fallback = null) {
+  if (value == null || value === '') return fallback
   const num = Number(value)
   return Number.isFinite(num) ? num : fallback
 }
@@ -277,7 +280,7 @@ function buildDomesticLeg(manufacturer = {}, destinationCoord = null, { includeP
   const points = []
   const portWaypoint = includePort ? getChinaPortWaypoint(manufacturer?.port_tag) : null
   const destination = destinationCoord
-    ? createWaypoint(manufacturer?.name || manufacturer?.location || '国内制造节点', destinationCoord, 'land_hub')
+    ? createWaypoint(manufacturer?.name || manufacturer?.location || '国内采购主体', destinationCoord, 'land_hub')
     : null
 
   if (portWaypoint) pushWaypoint(points, portWaypoint)
@@ -541,16 +544,19 @@ export function formatUraniumPercent(value, digits = 1) {
 }
 
 export function formatUraniumMetricValue(key, value) {
+  if (value == null || (typeof value === 'string' && !value.trim())) return '-'
   const num = toFiniteNumber(value)
   if (num == null) return '-'
 
   switch (key) {
     case 'market_price_usd_lb':
+      return `$${num.toFixed(2)}/lb`
     case 'average_cost_usd_kgU':
     case 'avg_cost_usd_kgU':
-      return `$${num.toFixed(2)}`
+      return `$${num.toFixed(2)}/kgU`
     case 'average_risk_exposure':
     case 'avg_risk_exposure':
+      return num.toFixed(3)
     case 'dominant_supplier_share':
     case 'final_dominant_supplier_share':
       return formatUraniumPercent(num)
@@ -560,7 +566,7 @@ export function formatUraniumMetricValue(key, value) {
     case 'total_procured_tU':
     case 'total_demand_tU':
     case 'final_total_inventory_tU':
-      return `${formatUraniumNumber(num)} tU`
+      return `${formatUraniumNumber(Math.round(num), 0)} tU`
     case 'inventory_coverage_years':
     case 'final_inventory_coverage_years':
       return `${num.toFixed(2)} 年`
@@ -577,7 +583,8 @@ export function buildUraniumTimelineRows(experiment) {
   return timeline.map((item, index) => ({
     id: `${experiment?.experiment_id || 'exp'}-year-${index}`,
     year: safeNumber(item?.year, index + 1),
-    active_events: Array.isArray(item?.active_events) ? item.active_events : [],
+    active_events: Array.isArray(item?.active_events) ? item.active_events.map(formatUraniumEvent).filter(Boolean) : [],
+    raw_active_events: Array.isArray(item?.active_events) ? item.active_events : [],
     active_event_count: Array.isArray(item?.active_events) ? item.active_events.length : 0,
     market_price_usd_lb: safeNumber(item?.market_price_usd_lb),
     market_price_usd_kgU: safeNumber(item?.market_price_usd_kgU),
@@ -629,6 +636,7 @@ export function summarizeExperimentHistoryRow(experiment) {
     supplier_count: safeNumber(scenarioContext.supplier_count, latest.supplier_count ?? null),
     manufacturer_count: safeNumber(scenarioContext.manufacturer_count, latest.manufacturer_count ?? null),
     selected_profile_labels: uniqueStrings((experiment?.plan?.policy_profiles || []).map((item) => item?.label || item?.manufacturer_id)),
+    lineage_tag: experiment?.lineage_tag || experiment?.plan?.lineage_tag || '',
     iteration_count: getIterationCount(experiment),
     iteration_rows: buildIterationRows(experiment)
   }

@@ -46,27 +46,34 @@ const MANUFACTURING_METHODS = ['订单分配', '工厂协作', '产能优化']
 const FACTORY_METHODS = ['生产执行', '质量控制', '产能切换']
 const RETAILER_METHODS = ['需求预测', '库存管理', '渠道协同']
 
-// 实验设计页的轻量参考图：仅在当前会话方案尚未返回时展示。
-// 节点控制在 6 个，覆盖供应、运输、加工、需求四个关键环节，避免参考数据喧宾夺主。
+// 实验设计与实体建模的参考拓扑：
+// 涵盖供给矿山、关键通道（中哈陆路/远洋海运）、南北制造基地、战略原料储备与核电机组需求
 export const URANIUM_REFERENCE_GRAPH = {
-  title: '铀资源供应保障参考关系',
+  title: '天然铀战略供给与跨基地应急分配拓扑',
   agents: [
-    agent('supplier_kazakhstan', '哈萨克斯坦铀矿', 'supply', '主要进口来源，承担基础供给。'),
-    agent('supplier_namibia', '纳米比亚铀矿', 'supply', '补充进口来源，用于分散供给风险。'),
-    agent('transport_ocean', '国际海运通道', 'transport', '连接海外矿区与国内接收节点。'),
-    agent('supplier_reserve', '国内铀资源储备', 'supply', '供应中断时释放库存并平抑缺口。'),
-    agent('factory_fuel', '核燃料加工企业', 'manufacturing', '将天然铀转化为核燃料产品。'),
-    agent('retailer_nuclear', '核电需求端', 'sales', '形成需求计划并反馈库存消耗。')
+    agent('supplier_kazakhstan', '哈萨克斯坦地浸矿(Inkai)', 'supply', '主要陆运进口来源，中方锁定长协1,600tU/年，受硫酸配额(0.85)制约。'),
+    agent('supplier_namibia', '纳米比亚湖山矿(Husab)', 'supply', '中广核全资海运主力矿山，产能5,500tU/年，鲸湾港FOB交付。'),
+    agent('supplier_reserve', '国家战略原料储备库(陕西/兰州)', 'supply', '中央战略铀储备基地，提供应急借调平抑及关键机组首炉保供缓冲。'),
+    agent('transport_land', '中哈铁路专用走廊(阿拉山口)', 'transport', '中哈铁路专线，周期15-20天，设计运力15,000tU/年，月度上限1,200tU(负荷率94%)。'),
+    agent('transport_ocean', '远洋海运放射性危化专线(IMO Class 7)', 'transport', 'IMO Class 7专船专线，周期40-50天，运力弹性高但调度周期长。'),
+    agent('factory_fuel_north', '中核北方燃料元件基地(包头)', 'manufacturing', '承接北方机组换料制造，受中哈铁路直达保障，当前安全库存预警14周。'),
+    agent('factory_fuel_south', '中广核南方燃料基地(沿海)', 'manufacturing', '承接南方沿海机组组件加工，经海运港口接卸分流，当前安全库存36周稳定。'),
+    agent('retailer_nuclear', '全国核电机组运营群(华龙一号)', 'sales', '基线年需求11,500tU，华龙一号提前装料增量+1,600tU，跟踪停堆断料风险。')
   ],
   relationship_net: [
-    edge('supplier_kazakhstan', 'transport_ocean', '进口供应'),
-    edge('supplier_namibia', 'transport_ocean', '补充供应'),
-    edge('transport_ocean', 'factory_fuel', '运输交付'),
-    edge('supplier_reserve', 'factory_fuel', '储备补位'),
-    edge('factory_fuel', 'retailer_nuclear', '核燃料供应'),
-    edge('retailer_nuclear', 'supplier_reserve', '库存反馈')
+    edge('supplier_kazakhstan', 'transport_land', '铁路直发 (CIP阿拉山口)'),
+    edge('supplier_namibia', 'transport_ocean', '远洋集运 (FOB鲸湾港)'),
+    edge('transport_land', 'factory_fuel_north', '专列直达接卸 (1,680 tU/年)'),
+    edge('transport_ocean', 'factory_fuel_south', '海港接卸分流 (Class 7)'),
+    edge('supplier_reserve', 'factory_fuel_north', '战略储备紧急调运'),
+    edge('supplier_reserve', 'factory_fuel_south', '储备借调平抑配额'),
+    edge('factory_fuel_north', 'retailer_nuclear', '北方机组装料交付'),
+    edge('factory_fuel_south', 'retailer_nuclear', '南方沿海机组装料交付'),
+    edge('retailer_nuclear', 'factory_fuel_north', '换料大修提前需求 (+20%)'),
+    edge('retailer_nuclear', 'factory_fuel_south', '大修工期消耗与库存反馈')
   ]
 }
+
 
 const STEEL_SUPPLIER_PARAMS = [
   { key: 'delivery_lead_time', label: '交付周期(天)', type: 'number', default: 7, min: 1, max: 30 },

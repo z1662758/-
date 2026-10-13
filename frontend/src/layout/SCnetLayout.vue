@@ -3,7 +3,7 @@
     <!--	左侧菜单栏 -->
     <div class="menu-pos">
       <el-menu :default-active="activeIndex" class="el-menu-vertical-demo"
-               :collapse="isCollapse" ref="menuRef" router @select="onMenuSelect">
+               :collapse="isCollapse" ref="menuRef" router>
         <div style="display: flex; width: 100%; justify-content: space-between; margin-top: 0.5rem; height: 40px; margin-bottom: 1rem; padding: 10px">
           <div style="display: flex">
             <img style="height: 18px" src="../assets/images/logo.png" alt="logo"/>
@@ -95,14 +95,7 @@
             <el-icon size="18"><component :is="item.icon" /></el-icon>
             <template #title>{{ item.label }}</template>
           </el-menu-item>
-          <el-menu-item
-            v-for="item in duringDecisionMenuItems"
-            :key="item.index"
-            :index="item.index"
-          >
-            <el-icon size="18"><component :is="item.icon" /></el-icon>
-            <template #title>{{ item.label }}</template>
-          </el-menu-item>
+          <!-- 调整顺序：先对现有/历史决策做分析评估，再基于评估结果做创新决策生成 -->
           <el-sub-menu index="during-analysis">
             <template #title>
               <el-icon size="18"><DataAnalysis/></el-icon>
@@ -117,6 +110,14 @@
               <template #title>{{ item.label }}</template>
             </el-menu-item>
           </el-sub-menu>
+          <el-menu-item
+            v-for="item in duringDecisionMenuItems"
+            :key="item.index"
+            :index="item.index"
+          >
+            <el-icon size="18"><component :is="item.icon" /></el-icon>
+            <template #title>{{ item.label }}</template>
+          </el-menu-item>
           <el-menu-item
             v-for="item in duringTailMenuItems"
             :key="item.index"
@@ -161,7 +162,7 @@
           </el-menu-item>
         </template>
 
-        <!-- 附加功能位于当前阶段的报告之后，不参与阶段工作流 -->
+        <!-- 专家研讨厅在各阶段都可访问，不占用阶段工作流位置 -->
         <el-sub-menu v-if="currentPhase" index="additional-functions">
           <template #title>
             <el-icon size="18"><FolderOpened/></el-icon>
@@ -211,24 +212,72 @@
     <!-- 专家模式:全局运行进度浮窗(只读真实任务状态,不随案例切换变化) -->
     <ExpertWorkflowProgressFloat v-if="showExpertProgress" />
 
-    <!-- 浮动切换按钮：转到对话模式 -->
-    <el-tooltip content="切换到AI对话模式" placement="left" effect="dark">
-      <button class="chat-toggle-float-btn" @click="$router.push('/chatHome')">
-        <el-icon :size="20"><ChatDotSquare /></el-icon>
-      </button>
-    </el-tooltip>
+    <!-- 浮动切换按钮：转到对话模式（支持“继续当前对话”与“开启全新对话”） -->
+    <el-popover
+      placement="left-end"
+      :width="280"
+      trigger="hover"
+      popper-class="chat-toggle-popover"
+      :show-after="80"
+    >
+      <template #reference>
+        <button class="chat-toggle-float-btn" :class="{ 'has-active': hasActiveConversation }" @click="handleFloatClick">
+          <span v-if="hasActiveConversation" class="chat-toggle-active-dot" title="当前有绑定的研判任务"></span>
+          <el-icon :size="20"><ChatDotSquare /></el-icon>
+        </button>
+      </template>
+
+      <div class="chat-popover-panel">
+        <div class="cpp-header">
+          <span class="cpp-title">AI 智能对话</span>
+          <span class="cpp-badge" :class="'phase-' + (currentPhase || 'pre')">{{ phaseLabels[currentPhase] || '研判分析' }}</span>
+        </div>
+
+        <div v-if="hasActiveConversation" class="cpp-options">
+          <p class="cpp-hint">检测到当前有正在进行的分析任务：</p>
+          <button class="cpp-item cpp-primary" type="button" @click="continueCurrentChat">
+            <div class="cpp-item-icon">💬</div>
+            <div class="cpp-item-body">
+              <span class="cpp-item-title">继续本次研判对话</span>
+              <span class="cpp-item-desc">保留推演参数与历史上下文</span>
+            </div>
+            <el-icon class="cpp-arrow"><ArrowRight /></el-icon>
+          </button>
+
+          <button class="cpp-item cpp-secondary" type="button" @click="startFreshChat">
+            <div class="cpp-item-icon">✨</div>
+            <div class="cpp-item-body">
+              <span class="cpp-item-title">开启全新对话</span>
+              <span class="cpp-item-desc">清空上下文，探讨其他独立需求</span>
+            </div>
+            <el-icon class="cpp-arrow"><ArrowRight /></el-icon>
+          </button>
+        </div>
+
+        <div v-else class="cpp-options">
+          <button class="cpp-item cpp-primary" type="button" @click="startFreshChat">
+            <div class="cpp-item-icon">✨</div>
+            <div class="cpp-item-body">
+              <span class="cpp-item-title">进入 AI 对话模式</span>
+              <span class="cpp-item-desc">输入供应链问题，启动智能分析</span>
+            </div>
+            <el-icon class="cpp-arrow"><ArrowRight /></el-icon>
+          </button>
+        </div>
+      </div>
+    </el-popover>
   </div>
 </template>
 
 <script>
 import {
-  Aim, Box, Coin, Collection, Connection, DataAnalysis, DataLine, Document, DocumentDelete, Edit,
+  Aim, Box, Coin, Collection, Connection, Cpu, DataAnalysis, DataLine, Document, DocumentDelete, Edit,
   FolderOpened, Grid, House, MapLocation, Memo, Monitor, Notification, Operation, Orange,
   PieChart, Place, Postcard, Promotion, ScaleToOriginal, Search as SearchIcon, Setting,
-  SwitchButton, TrendCharts, User, WarningFilled, ChatDotSquare, CircleCheck
+  SwitchButton, TrendCharts, User, WarningFilled, ChatDotSquare, CircleCheck, VideoPlay, ArrowRight
 } from "@element-plus/icons-vue";
 import {ref, onMounted, onUnmounted, computed, watch} from "vue";
-import {useRoute} from "vue-router";
+import {useRoute, useRouter} from "vue-router";
 import {Files, Refresh} from "@element-plus/icons-vue";
 import AppHeader from "@/components/Header.vue";
 import ScnetPhaseNav from "@/components/ScnetPhaseNav.vue";
@@ -262,12 +311,15 @@ const PRE_TAIL_MENU_ITEMS = Object.freeze([
 ])
 
 const DURING_MAIN_MENU_ITEMS = Object.freeze([
+  // 铀场景事中主线：沙盘模型 → 想定生成 → 实验管理 → 沙盘推演 → 决策方案 → 决策分析
+  { index: '/home/SCnet/modelingSetup', label: '沙盘模型', icon: Cpu, uraniumOnly: true },
   { path: 'scenario', key: 'scenario', label: '想定生成', icon: Edit },
-  { index: '/home/SCnet/experimentManager', label: '实验推演', icon: Monitor }
+  { index: '/home/SCnet/experimentManager', label: '实验管理', icon: Monitor },
+  { index: '/home/SCnet/interface', label: '沙盘推演', icon: VideoPlay, extraQuery: 'view=simulation' }
 ])
 
 const DURING_DECISION_MENU_ITEMS = Object.freeze([
-  { path: 'decision', key: 'decision', label: '决策生成', icon: Promotion }
+  { path: 'decision', key: 'decision', label: '决策方案', icon: Promotion }
 ])
 
 const DURING_TAIL_MENU_ITEMS = Object.freeze([
@@ -275,27 +327,61 @@ const DURING_TAIL_MENU_ITEMS = Object.freeze([
 ])
 
 const DURING_ANALYSIS_MENU_ITEMS = Object.freeze([
-  { index: '/home/SCnet/expAnalysisScenario', label: '情景分析', icon: TrendCharts },
   { index: '/home/SCnet/expAnalysisGameTheory', label: '脆弱性分析', icon: Grid },
+  { index: '/home/SCnet/expAnalysisScenario', label: '决策分析', icon: TrendCharts },
   { index: '/home/SCnet/expAnalysisDecisionTree', label: '对策分析', icon: Promotion }
 ])
 
 // 实验分析子菜单之前展示的主菜单项
 const POST_MAIN_MENU_ITEMS = Object.freeze([
-  { index: '/home/SCnet/counterfactualExperiment', label: '反事实实验', icon: PieChart }
+  { index: '/home/SCnet/experimentPlan', label: '实验方案设计', icon: Edit },
+  { index: '/home/SCnet/counterfactualExperiment', label: '反事实实验平台', icon: PieChart }
 ])
 
 const POST_ANALYSIS_MENU_ITEMS = Object.freeze([
   { index: '/home/SCnet/expAnalysisObserve', label: '观察分析', icon: SearchIcon },
   { index: '/home/SCnet/expAnalysisIntervention', label: '干预分析', icon: Operation },
-  { index: '/home/SCnet/expAnalysisMechanism', label: '机制与因果', icon: ScaleToOriginal }
+  { index: '/home/SCnet/expAnalysisMechanism', label: '机制分析', icon: ScaleToOriginal }
 ])
 
 // 实验分析子菜单之后展示的主菜单项
 const POST_TAIL_MENU_ITEMS = Object.freeze([
   { index: '/home/SCnet/expAnalysisMap', label: '供应链态势地图', icon: MapLocation },
-  { index: '/home/SCnet/EXreport', label: '供应链实验报告', icon: Postcard }
+  { index: '/home/SCnet/EXreport', label: '复盘报告', icon: Postcard }
 ])
+
+/**
+ * 按当前路由反查应高亮的菜单项。
+ * 菜单 index 形如 `/home/SCnet/experimentManager?scenario=uranium&view=decision`，
+ * 而 route.path 不带 query，直接比较永远不相等，导致刷新 / 「下一步」跳转后菜单失去高亮。
+ * 规则：path 相同，且菜单 index 上除 scenario 以外的 query 都与当前路由一致；
+ * 多个候选时取 query 条件最多的（decision 视图优先匹配「决策生成」而非「实验推演」）。
+ */
+function resolveActiveMenuIndex(route, items) {
+  const routePath = String(route?.path || '')
+  const routeQuery = route?.query || {}
+  let best = null
+  let bestScore = -1
+  for (const item of items) {
+    const raw = String(item?.index || '')
+    if (!raw) continue
+    const [itemPath, search = ''] = raw.split('?')
+    if (itemPath !== routePath) continue
+    const params = new URLSearchParams(search)
+    let score = 0
+    let matched = true
+    for (const [key, value] of params.entries()) {
+      if (key === 'scenario' || key === 'session_id') continue
+      if (String(routeQuery[key] ?? '') !== value) { matched = false; break }
+      score += 1
+    }
+    if (matched && score > bestScore) {
+      best = raw
+      bestScore = score
+    }
+  }
+  return best || routePath
+}
 
 export default {
   name: "SCnetLayout",
@@ -304,22 +390,25 @@ export default {
     Monitor,
     Place,
     Edit,
+    Cpu,
+    Connection,
     ExpertWorkflowProgressFloat,
-    Refresh, Files, DataAnalysis, DataLine, DocumentDelete, House, Aim, Box, Collection, Connection,
+    Refresh, Files, DataAnalysis, DataLine, DocumentDelete, House, Aim, Box, Collection,
     Document, Notification, Operation, Postcard, Promotion, ScaleToOriginal, SearchIcon, Setting,
-    Coin, PieChart, FolderOpened, Grid, SwitchButton, Orange, TrendCharts, User, AppHeader, WarningFilled, ChatDotSquare, CircleCheck,
-    ScnetPhaseNav
+    Coin, PieChart, FolderOpened, Grid, MapLocation, SwitchButton, Orange, TrendCharts, User, AppHeader, WarningFilled, ChatDotSquare, CircleCheck,
+    ScnetPhaseNav, VideoPlay, ArrowRight
   },
   setup() {
     const route = useRoute()
-    const activeIndex = ref('1')
+    const router = useRouter()
     const storedPhase = ref(localStorage.getItem(PHASE_STORAGE_KEY) || '')
 
-    // 阶段页以路由为准；独立的专家研讨厅沿用离开前的阶段菜单。
-    // 直接打开研讨厅且没有历史阶段时，默认展示事前菜单。
+    // currentPhase 优先按当前路由推断，避免旧的 localStorage 状态把菜单带偏；
+    // 仅当路由无法识别时再回落到 localStorage。
     const currentPhase = computed(() => {
       if (route.path === '/home/SCnet/total') return ''
-      return ROUTE_TO_PHASE[route.path] || storedPhase.value || 'pre'
+      if (route.path === '/home/SCnet/expertSeminar') return 'pre'
+      return ROUTE_TO_PHASE[route.path] || storedPhase.value || ''
     })
     watch(() => route.path, (path) => {
       const phase = ROUTE_TO_PHASE[path]
@@ -418,6 +507,99 @@ export default {
       window.removeEventListener(PHASE_EVENT, handleCustomChange)
     })
 
+    const withScenario = (item) => ({
+      ...item,
+      index: `${item.index}?scenario=${currentScenario.value}${item.extraQuery ? `&${item.extraQuery}` : ''}`
+    })
+    const preMainMenuItems = computed(() => PRE_MAIN_MENU_ITEMS.map(item => ({
+      ...item,
+      index: withTaskContext(item.index)
+    })))
+    const preAnalysisMenuItems = computed(() => PRE_ANALYSIS_MENU_ITEMS.map(item => ({
+      ...item,
+      index: withTaskContext(item.index)
+    })))
+    const preTailMenuItems = computed(() => PRE_TAIL_MENU_ITEMS.map(item => ({
+      ...item,
+      index: withTaskContext(item.index)
+    })))
+    const duringMainMenuItems = computed(() => DURING_MAIN_MENU_ITEMS
+      .filter((item) => !item.uraniumOnly || isUraniumScenario.value)
+      .map((item) => {
+        if (item.path === 'scenario') {
+          return {
+            ...item,
+            index: `/home/SCnet/${isUraniumScenario.value ? 'scenarioAnalysis' : 'scenarioModeling'}?scenario=${currentScenario.value}`
+          }
+        }
+        if (item.path === 'decision') {
+          return { ...item, index: `/home/SCnet/experimentManager?scenario=${currentScenario.value}&view=decision` }
+        }
+        return withScenario(item)
+      }))
+    const duringAnalysisMenuItems = computed(() => DURING_ANALYSIS_MENU_ITEMS.map(withScenario))
+    const duringDecisionMenuItems = computed(() => DURING_DECISION_MENU_ITEMS.map((item) => ({
+      ...item,
+      index: `/home/SCnet/experimentManager?scenario=${currentScenario.value}&view=decision`
+    })))
+    const duringTailMenuItems = computed(() => DURING_TAIL_MENU_ITEMS.map(withScenario))
+
+    // 当前高亮项：按路由反查（见 resolveActiveMenuIndex），不再依赖点击事件维护
+    const activeIndex = computed(() => resolveActiveMenuIndex(route, [
+      ...preMainMenuItems.value,
+      ...preAnalysisMenuItems.value,
+      ...preTailMenuItems.value,
+      ...duringMainMenuItems.value,
+      ...duringDecisionMenuItems.value,
+      ...duringAnalysisMenuItems.value,
+      ...duringTailMenuItems.value,
+      ...POST_MAIN_MENU_ITEMS,
+      ...POST_ANALYSIS_MENU_ITEMS,
+      ...POST_TAIL_MENU_ITEMS
+    ]))
+
+    // 当前活跃任务会话 ID
+    const activeConvId = computed(() => {
+      return String(
+        route.query.conversation_id
+        || route.query.session_id
+        || expertWorkflowStore.sessionId
+        || (typeof window !== 'undefined' ? localStorage.getItem('scnet_active_conversation_id') : '')
+        || (typeof window !== 'undefined' ? localStorage.getItem('scnet_expert_session_id') : '')
+        || ''
+      ).trim()
+    })
+    const hasActiveConversation = computed(() => Boolean(activeConvId.value))
+
+    // 1. 继续本次研判对话（携带参数返回原对话，恢复上下文）
+    const continueCurrentChat = () => {
+      const query = {
+        conversation_id: activeConvId.value
+      }
+      if (currentPhase.value) query.mode = currentPhase.value
+      if (currentScenario.value) query.scenario = currentScenario.value
+      router.push({ path: '/chatHome', query })
+    }
+
+    // 2. 开启全新对话（清空上下文，开启独立新提问）
+    const startFreshChat = () => {
+      const query = {
+        new: '1'
+      }
+      if (currentPhase.value) query.mode = currentPhase.value
+      if (currentScenario.value) query.scenario = currentScenario.value
+      router.push({ path: '/chatHome', query })
+    }
+
+    // 点击按钮本身的快捷响应
+    const handleFloatClick = () => {
+      if (hasActiveConversation.value) {
+        continueCurrentChat()
+      } else {
+        startFreshChat()
+      }
+    }
+
     return {
       activeIndex,
       currentPhase,
@@ -428,42 +610,22 @@ export default {
       openKnowledgePlatform,
       closeKnowledgePlatform,
       currentLocation,
-      preMainMenuItems: computed(() => PRE_MAIN_MENU_ITEMS.map((item) => ({
-        ...item,
-        index: withTaskContext(item.index)
-      }))),
-      preAnalysisMenuItems: computed(() => PRE_ANALYSIS_MENU_ITEMS.map((item) => ({
-        ...item,
-        index: withTaskContext(item.index)
-      }))),
-      preTailMenuItems: computed(() => PRE_TAIL_MENU_ITEMS.map((item) => ({
-        ...item,
-        index: withTaskContext(item.index)
-      }))),
-      duringMainMenuItems: computed(() => DURING_MAIN_MENU_ITEMS.map((item) => ({
-        ...item,
-        index: item.path === 'scenario'
-          ? `/home/SCnet/${isUraniumScenario.value ? 'scenarioAnalysis' : 'scenarioModeling'}?scenario=${currentScenario.value}`
-          : item.path === 'decision'
-            ? `/home/SCnet/experimentManager?scenario=${currentScenario.value}&view=decision`
-            : `${item.index}?scenario=${currentScenario.value}`
-      }))),
-      duringAnalysisMenuItems: computed(() => DURING_ANALYSIS_MENU_ITEMS.map((item) => ({
-        ...item,
-        index: `${item.index}?scenario=${currentScenario.value}`
-      }))),
-      duringDecisionMenuItems: computed(() => DURING_DECISION_MENU_ITEMS.map((item) => ({
-        ...item,
-        index: `/home/SCnet/experimentManager?scenario=${currentScenario.value}&view=decision`
-      }))),
-      duringTailMenuItems: computed(() => DURING_TAIL_MENU_ITEMS.map((item) => ({
-        ...item,
-        index: `${item.index}?scenario=${currentScenario.value}`
-      }))),
+      preMainMenuItems,
+      preAnalysisMenuItems,
+      preTailMenuItems,
+      duringMainMenuItems,
+      duringAnalysisMenuItems,
+      duringDecisionMenuItems,
+      duringTailMenuItems,
       postMainMenuItems: POST_MAIN_MENU_ITEMS,
       postAnalysisMenuItems: POST_ANALYSIS_MENU_ITEMS,
       postTailMenuItems: POST_TAIL_MENU_ITEMS,
-      showExpertProgress
+      showExpertProgress,
+      activeConvId,
+      hasActiveConversation,
+      continueCurrentChat,
+      startFreshChat,
+      handleFloatClick
     }
   },
   data() {
@@ -476,35 +638,11 @@ export default {
       }
     }
   },
-  created() {
-    this.syncActiveIndex()
-  },
-  watch: {
-    '$route.fullPath'() {
-      this.$nextTick(() => this.syncActiveIndex())
-    }
-  },
   methods: {
-    syncActiveIndex() {
-      const items = [
-        ...this.preMainMenuItems,
-        ...this.preAnalysisMenuItems,
-        ...this.preTailMenuItems,
-        ...this.duringMainMenuItems,
-        ...this.duringDecisionMenuItems,
-        ...this.duringAnalysisMenuItems,
-        ...this.duringTailMenuItems,
-        ...this.postMainMenuItems,
-        ...this.postAnalysisMenuItems,
-        ...this.postTailMenuItems
-      ]
-      const match = items.find(item => item.index?.split('?')[0] === this.$route.path)
-      this.activeIndex = match?.index || this.$route.path
-    },
     onMenuSelect(index) {
       // 退出系统是跳转项、知识库是浮层项，两者都不改变当前页，别让它们抢走高亮
       if (index && index !== 'scnet-menu-exit' && index !== KNOWLEDGE_PLATFORM_INDEX) {
-        this.activeIndex = index
+        // activeIndex 由当前路由及 resolveActiveMenuIndex 自动驱动计算
       }
     },
     exit() {
@@ -590,6 +728,7 @@ export default {
   min-height: 100%;
   box-sizing: border-box;
 }
+
 
 .fade-delay-enter-active {
   transition: opacity 0.3s ease 0.3s;
@@ -704,11 +843,123 @@ export default {
   border-color: rgba(99, 102, 241, 0.2);
 }
 
+/* 浮动切换按钮激活蓝点 */
+.chat-toggle-active-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #3b82f6;
+  box-shadow: 0 0 0 2px #ffffff, 0 0 6px rgba(59, 130, 246, 0.6);
+  animation: pulseDot 2s infinite ease-in-out;
+}
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.8; }
+}
+
 /* 窄屏(与 ExpertWorkflowProgressFloat 的 is-narrow 断点一致):
    进度浮窗也收到右下角(bottom:96px),切换按钮要再抬一层,避免压住它 */
 @media (max-width: 1280px) {
   .chat-toggle-float-btn {
     bottom: 152px;
   }
+}
+
+/* 浮动面板样式 */
+.chat-popover-panel {
+  padding: 4px;
+}
+.cpp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.cpp-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+}
+.cpp-badge {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #3b82f6;
+  background: #eff6ff;
+}
+.cpp-hint {
+  font-size: 11px;
+  color: #64748b;
+  margin: 0 0 6px 2px;
+}
+.cpp-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cpp-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+  background: #ffffff;
+}
+.cpp-item-icon {
+  font-size: 16px;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+.cpp-item-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cpp-item-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #1e293b;
+}
+.cpp-item-desc {
+  font-size: 10.5px;
+  color: #94a3b8;
+}
+.cpp-arrow {
+  font-size: 12px;
+  color: #cbd5e1;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+.cpp-item:hover .cpp-arrow {
+  transform: translateX(3px);
+  color: #3b82f6;
+}
+.cpp-item.cpp-primary {
+  background: linear-gradient(135deg, #f0f7ff 0%, #f5f3ff 100%);
+  border-color: #dbeafe;
+}
+.cpp-item.cpp-primary:hover {
+  background: linear-gradient(135deg, #e0f2fe 0%, #ede9fe 100%);
+  border-color: #93c5fd;
+  transform: translateY(-1px);
+}
+.cpp-item.cpp-secondary {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+.cpp-item.cpp-secondary:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
 }
 </style>

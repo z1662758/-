@@ -1,17 +1,11 @@
 <template>
   <div class="right-column">
     <div class="agent-studio-wrapper">
-      <div class="right-inner-layout">
-        <div class="sidebar left-sidebar">
-          <div class="panel-header">
-            <div class="panel-heading-copy">
-              <strong>{{ readOnly ? '方案实体' : '企业实体' }}</strong>
-              <span>按业务层级浏览</span>
-            </div>
-            <span class="panel-count">{{ totalAgentCount }}</span>
-          </div>
+      <div class="right-inner-layout" :class="{ 'canvas-focused': canvasFocused }">
+        <div v-show="!canvasFocused" class="sidebar left-sidebar">
+          <MidStagePanelHeader title="Agent 列表" description="按供应链层级分组" :count="totalAgentCount" />
           <div class="search-box">
-            <el-input v-model="searchKeywordProxy" placeholder="搜索实体名称" :prefix-icon="Search" clearable size="small" />
+            <el-input v-model="searchKeywordProxy" placeholder="搜索 Agent 名称" :prefix-icon="Search" clearable size="small" />
           </div>
           <el-scrollbar class="sidebar-scroll">
             <div class="agent-list">
@@ -46,7 +40,7 @@
                   <span class="agent-locate">›</span>
                 </button>
               </div>
-              <el-empty v-if="totalAgentCount === 0" description="暂无匹配实体" :image-size="70" />
+              <el-empty v-if="totalAgentCount === 0" description="暂无匹配 Agent" :image-size="70" />
             </div>
           </el-scrollbar>
         </div>
@@ -55,8 +49,8 @@
           <div class="canvas-area">
             <div class="canvas-toolbar">
               <div class="canvas-summary">
-                <strong>实体关系</strong>
-                <span>{{ nodesProxy.length }} 个实体</span>
+                <strong>关系总览</strong>
+                <span>{{ nodesProxy.length }} 个 Agent</span>
                 <span>{{ edgesProxy.length }} 条关系</span>
               </div>
               <div class="canvas-actions">
@@ -65,6 +59,7 @@
                     <i :class="item.key"></i>{{ item.label }}
                   </span>
                 </div>
+                <el-button size="small" :aria-pressed="canvasFocused" @click="toggleCanvasFocus">{{ canvasFocused ? '显示目录与属性' : '专注关系图' }}</el-button>
                 <el-button size="small" plain :icon="FullScreen" @click="fitCanvas">适配视图</el-button>
               </div>
             </div>
@@ -74,8 +69,11 @@
                 v-model:edges="edgesProxy"
                 style="width: 100%; height: 100%;"
                 :fit-view-on-init="true"
-                :min-zoom="0.6"
-                :max-zoom="1.2"
+                :nodes-draggable="!readOnly"
+                :nodes-connectable="!readOnly"
+                :edges-updatable="!readOnly"
+                :min-zoom="0.2"
+                :max-zoom="1.6"
                 @node-click="payload => $emit('select-node', payload)"
               >
                 <template #node-CardNode="nodeProps">
@@ -88,8 +86,12 @@
                       <div class="node-tag">{{ categoryLabelMap[nodeProps.data.category] || nodeProps.data.category }}</div>
                     </div>
                     <div class="node-body">
+                      <div class="node-meta">
+                        <span class="node-method-tag" :class="nodeProps.data.category">{{ roleOf(nodeProps.data).modelingMethod }}</span>
+                        <span class="node-model">{{ roleOf(nodeProps.data).decision_posture.style }}</span>
+                      </div>
                       <div v-if="nodeProps.data.selectedMethod" class="node-method">方法：{{ nodeProps.data.selectedMethod }}</div>
-                      <div v-else class="node-method muted">点击查看实体详情</div>
+                      <div v-else class="node-method muted">{{ roleOf(nodeProps.data).role.goal ? truncate(roleOf(nodeProps.data).role.goal, 26) : '点击查看 Agent 属性' }}</div>
                     </div>
                     <Handle id="t-top" type="target" :position="Position.Top" class="handle-top" />
                     <Handle id="s-bottom" type="source" :position="Position.Bottom" class="handle-bottom" />
@@ -109,15 +111,12 @@
             </div>
           </div>
 
-          <div class="properties-panel">
-            <div class="panel-header">
-              <span>实体详情</span>
-              <span class="panel-header-hint">{{ selectedNode ? '已选择' : '未选择' }}</span>
-            </div>
+          <div v-show="!canvasFocused" class="properties-panel">
+            <MidStagePanelHeader title="Agent 属性" :description="selectedNode ? selectedNode.data?.name : '选择目录或关系图中的 Agent'" />
             <el-scrollbar class="properties-scroll">
               <div v-if="!selectedNode" class="empty-tip">
                 <div class="empty-tip-icon">◎</div>
-                <strong>选择一个实体</strong>
+                <strong>选择一个 Agent</strong>
                 <span>{{ readOnly ? '点击左侧目录或画布节点，查看实体参数与说明' : '点击节点配置企业实体参数' }}</span>
               </div>
               <div v-else class="property-card">
@@ -128,8 +127,13 @@
                     </div>
                     <div>
                       <strong>{{ selectedNode?.data?.name || selectedNode?.id }}</strong>
-                      <span>{{ categoryLabelMap[selectedNode?.data?.category] || selectedNode?.data?.category || '未分类' }}</span>
+                      <span>{{ categoryLabelMap[selectedNode?.data?.category] || selectedNode?.data?.category || '未分类' }} · {{ selectedRole.label }}</span>
                     </div>
+                  </div>
+                  <div class="property-tag-row">
+                    <span class="property-tag method">{{ selectedRole.modelingMethod }}</span>
+
+                    <span class="property-tag">{{ selectedRole.camp }}</span>
                   </div>
                   <div class="property-summary-row">
                     <span>参数数量</span>
@@ -142,59 +146,191 @@
                     <span v-for="tag in selectedNode.data.tags" :key="tag" class="property-chip">{{ tag }}</span>
                   </div>
                 </div>
-                <template v-if="getConfigurableParams(selectedNode.id).length > 0">
-                  <div class="property-section-title">{{ readOnly ? '实体参数（只读）' : '实体参数' }}</div>
-                  <el-form size="small" label-position="top" class="property-form">
-                    <el-form-item
-                      v-for="param in getConfigurableParams(selectedNode.id)"
-                      :key="param.key"
-                      :label="param.label"
-                      class="property-form-item"
-                    >
-                      <template v-if="param.type === 'range'">
-                        <div class="range-inputs">
-                          <el-input-number
-                            size="small"
-                            :model-value="getParamValue(selectedNode.id, param.key, 0, param)"
-                            :min="param.min"
-                            :max="param.max"
-                            :step="param.step"
-                            controls-position="right"
-                            class="range-input"
-                            :disabled="readOnly"
-                            @update:model-value="val => emitParamUpdate(selectedNode.id, param.key, 0, val, param)"
-                          />
-                          <span class="range-divider">至</span>
-                          <el-input-number
-                            size="small"
-                            :model-value="getParamValue(selectedNode.id, param.key, 1, param)"
-                            :min="param.min"
-                            :max="param.max"
-                            :step="param.step"
-                            controls-position="right"
-                            class="range-input"
-                            :disabled="readOnly"
-                            @update:model-value="val => emitParamUpdate(selectedNode.id, param.key, 1, val, param)"
-                          />
+
+                <!-- 参考 MACE Agent 工作室：角色设定 / 决策姿态 / 属性 / 参数 / 认知模型 分段折叠 -->
+                <el-collapse v-model="activeSections" class="property-collapse">
+                  <el-collapse-item name="role" title="角色设定">
+                    <dl class="role-list">
+                      <div v-if="selectedRole.role.identity"><dt>身份与背景</dt><dd>{{ selectedRole.role.identity }}</dd></div>
+                      <div v-if="selectedRole.role.institutional_context"><dt>制度背景</dt><dd>{{ selectedRole.role.institutional_context }}</dd></div>
+                      <div v-if="selectedRole.role.goal"><dt>核心目标</dt><dd>{{ selectedRole.role.goal }}</dd></div>
+                      <div v-if="selectedRole.role.constraints?.length">
+                        <dt>行为底线</dt>
+                        <dd>
+                          <ul class="role-bullets">
+                            <li v-for="item in selectedRole.role.constraints" :key="item">{{ item }}</li>
+                          </ul>
+                        </dd>
+                      </div>
+                    </dl>
+                    <dl v-if="selectedRole.facts.length" class="role-facts">
+                      <div v-for="fact in selectedRole.facts" :key="fact.label">
+                        <dt>{{ fact.label }}</dt>
+                        <dd>{{ fact.type === 'risk' ? formatRisk(fact.value) : fact.value }}</dd>
+                      </div>
+                    </dl>
+                  </el-collapse-item>
+
+                  <el-collapse-item name="dispatchRules" title="应急调度分配规则引擎">
+                    <div class="dispatch-engine-box">
+                      <div class="dispatch-rule-item" :class="{ active: selectedDispatchRule === 'ruleA' }" @click="selectedDispatchRule = 'ruleA'">
+                        <div class="rule-radio"><span class="radio-dot"></span></div>
+                        <div class="rule-content">
+                          <strong>规则 A：关键堆型换料截止期倒排优先（推荐）</strong>
+                          <p>华龙一号首炉装料 > 商业大修换料 > 常规备料储备，优先向北方包头基地定向倾斜铁路配额。</p>
                         </div>
+                      </div>
+                      <div class="dispatch-rule-item" :class="{ active: selectedDispatchRule === 'ruleB' }" @click="selectedDispatchRule = 'ruleB'">
+                        <div class="rule-radio"><span class="radio-dot"></span></div>
+                        <div class="rule-content">
+                          <strong>规则 B：全网核电机组停堆电量损失最小化</strong>
+                          <p>按机组单日停机发电损失动态权衡，向满功率负荷机组集中调配天然铀原料。</p>
+                        </div>
+                      </div>
+                      <div class="dispatch-rule-item" :class="{ active: selectedDispatchRule === 'ruleC' }" @click="selectedDispatchRule = 'ruleC'">
+                        <div class="rule-radio"><span class="radio-dot"></span></div>
+                        <div class="rule-content">
+                          <strong>规则 C：各基地安全库存可用周数均衡平摊</strong>
+                          <p>动态拉平北方基地（14周）与南方基地（36周）的库存水位，实施横向跨基地协同调拨。</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="multi-base-status-board">
+                      <span class="board-title">各基地库存与调剂运行状态</span>
+                      <div class="base-status-row">
+                        <div class="base-status-item">
+                          <span>北方包头基地</span>
+                          <strong class="warn">14 周 (预警)</strong>
+                          <small>缺口约 1,380 tU · 中哈直达直供中</small>
+                        </div>
+                        <div class="base-status-item">
+                          <span>南方沿海基地</span>
+                          <strong class="safe">36 周 (安全)</strong>
+                          <small>海运港口接卸 · 可调拨备用</small>
+                        </div>
+                        <div class="base-status-item">
+                          <span>战略原料储备库</span>
+                          <strong class="normal">2,800 tU (充足)</strong>
+                          <small>应急借调限额 600 tU · 审批即发</small>
+                        </div>
+                      </div>
+                    </div>
+                  </el-collapse-item>
+
+                  <el-collapse-item name="posture" title="决策姿态">
+                    <div class="posture-grid">
+                      <div><span>决策风格</span><b>{{ selectedRole.decision_posture.style || '—' }}</b></div>
+                      <div><span>风险偏好</span><b>{{ selectedRole.decision_posture.risk_appetite || '—' }}</b></div>
+                    </div>
+                    <div v-if="selectedRole.decision_posture.information_priority?.length" class="posture-block">
+                      <span>关注信息优先级</span>
+                      <ol>
+                        <li v-for="item in selectedRole.decision_posture.information_priority" :key="item">{{ item }}</li>
+                      </ol>
+                    </div>
+                    <div v-if="selectedRole.decision_posture.typical_actions?.length" class="posture-block">
+                      <span>典型行动</span>
+                      <div class="property-chip-row">
+                        <span v-for="item in selectedRole.decision_posture.typical_actions" :key="item" class="property-chip">{{ item }}</span>
+                      </div>
+                    </div>
+                  </el-collapse-item>
+
+                  <el-collapse-item name="attributes" title="属性范围">
+                    <div v-if="selectedRole.attributes.length" class="attr-grid">
+                      <div v-for="attr in selectedRole.attributes" :key="attr.key" class="attr-card">
+                        <div class="attr-card-head">
+                          <span>{{ attr.label }}<small v-if="attr.unit"> · {{ attr.unit }}</small></span>
+                          <b>{{ formatRange(attr) }}</b>
+                        </div>
+                        <div class="attr-card-bar">
+                          <i :style="attrBarStyle(attr)"></i>
+                        </div>
+                      </div>
+                    </div>
+                    <el-empty v-else description="该层级未声明属性范围" :image-size="48" />
+                    <div v-for="group in selectedRole.enums" :key="group.label" class="attr-enum">
+                      <span>{{ group.label }}</span>
+                      <div class="property-chip-row">
+                        <span v-for="value in group.values" :key="value" class="property-chip">{{ value }}</span>
+                      </div>
+                    </div>
+                  </el-collapse-item>
+
+                  <el-collapse-item name="params" :title="readOnly ? '实体参数（只读）' : '实体参数'">
+                    <template v-if="getConfigurableParams(selectedNode.id).length > 0">
+                      <el-form size="small" label-position="top" class="property-form">
+                        <el-form-item
+                          v-for="param in getConfigurableParams(selectedNode.id)"
+                          :key="param.key"
+                          :label="param.label"
+                          class="property-form-item"
+                        >
+                          <template v-if="param.type === 'range'">
+                            <div class="range-inputs">
+                              <el-input-number
+                                size="small"
+                                :model-value="getParamValue(selectedNode.id, param.key, 0, param)"
+                                :min="param.min"
+                                :max="param.max"
+                                :step="param.step"
+                                controls-position="right"
+                                class="range-input"
+                                :disabled="readOnly"
+                                @update:model-value="val => emitParamUpdate(selectedNode.id, param.key, 0, val, param)"
+                              />
+                              <span class="range-divider">至</span>
+                              <el-input-number
+                                size="small"
+                                :model-value="getParamValue(selectedNode.id, param.key, 1, param)"
+                                :min="param.min"
+                                :max="param.max"
+                                :step="param.step"
+                                controls-position="right"
+                                class="range-input"
+                                :disabled="readOnly"
+                                @update:model-value="val => emitParamUpdate(selectedNode.id, param.key, 1, val, param)"
+                              />
+                            </div>
+                          </template>
+                          <template v-else>
+                            <el-input-number
+                              size="small"
+                              :model-value="getParamValue(selectedNode.id, param.key, null, param)"
+                              :min="param.min"
+                              :max="param.max"
+                              :step="param.step"
+                              controls-position="right"
+                              class="number-input"
+                              :disabled="readOnly"
+                              @update:model-value="val => emitParamUpdate(selectedNode.id, param.key, null, val, param)"
+                            />
+                          </template>
+                        </el-form-item>
+                      </el-form>
+                    </template>
+                    <el-empty v-else description="该实体暂无可配置参数" :image-size="48" />
+                  </el-collapse-item>
+
+                  <el-collapse-item name="cognition" title="认知模型">
+                    <div class="ooda-strip">
+                      <template v-for="(stage, index) in oodaStages" :key="stage.key">
+                        <span class="ooda-stage" :style="{ '--stage-color': stage.color }">
+                          <b>{{ stage.label }}</b>
+                          <small>{{ stage.zh }}</small>
+                        </span>
+                        <i v-if="index < oodaStages.length - 1" class="ooda-arrow">→</i>
                       </template>
-                      <template v-else>
-                        <el-input-number
-                          size="small"
-                          :model-value="getParamValue(selectedNode.id, param.key, null, param)"
-                          :min="param.min"
-                          :max="param.max"
-                          :step="param.step"
-                          controls-position="right"
-                          class="number-input"
-                          :disabled="readOnly"
-                          @update:model-value="val => emitParamUpdate(selectedNode.id, param.key, null, val, param)"
-                        />
-                      </template>
-                    </el-form-item>
-                  </el-form>
-                </template>
-                <el-empty v-else description="该实体暂无可配置参数" :image-size="64" />
+                    </div>
+                    <dl class="ooda-detail">
+                      <div v-for="stage in oodaStages" :key="stage.key">
+                        <dt><i :style="{ background: stage.color }"></i>{{ stage.zh }}</dt>
+                        <dd>{{ (selectedRole.cognition[stage.key] || []).join('、') || '—' }}</dd>
+                      </div>
+                    </dl>
+                    <p class="ooda-note">按年度读取价格、事件与库存，评估候选供应来源并调整采购策略。</p>
+                  </el-collapse-item>
+                </el-collapse>
               </div>
             </el-scrollbar>
           </div>
@@ -233,6 +369,7 @@
 </template>
 
 <script setup>
+import MidStagePanelHeader from '../shared/MidStagePanelHeader.vue'
 import { computed, onMounted, onBeforeUnmount, nextTick, ref } from 'vue'
 import { Search, Folder, OfficeBuilding, Grid, Box, Sell, Guide, FullScreen } from '@element-plus/icons-vue'
 import { VueFlow, Handle, Position, useVueFlow } from '@vue-flow/core'
@@ -240,6 +377,7 @@ import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/controls/dist/style.css'
+import { URANIUM_OODA_STAGES, resolveUraniumAgentRole } from '@/views/SCnet/mock/uraniumAgentRoleLibrary'
 
 const props = defineProps({
   nodes: {
@@ -306,10 +444,44 @@ const emit = defineEmits([
 ])
 
 const { fitView } = useVueFlow()
+const canvasFocused = ref(false)
+function toggleCanvasFocus() { canvasFocused.value = !canvasFocused.value; nextTick(fitCanvas) }
 const totalAgentCount = computed(() => Object.values(props.groupedAgents || {}).reduce((sum, group) => sum + (group?.length || 0), 0))
 const visibleCategories = computed(() => Object.entries(props.groupedAgents || {})
   .filter(([, group]) => Array.isArray(group) && group.length)
   .map(([key]) => ({ key, label: props.categoryLabelMap[key] || key })))
+
+// ---------- 角色卡（参考 MACE AgentSpec） ----------
+const oodaStages = URANIUM_OODA_STAGES
+const activeSections = ref(['role', 'dispatchRules', 'params'])
+const selectedDispatchRule = ref('ruleA')
+const roleCache = new Map()
+const roleOf = (agentLike) => {
+  const key = `${agentLike?.id || ''}|${agentLike?.name || ''}|${agentLike?.category || ''}`
+  if (!roleCache.has(key)) roleCache.set(key, resolveUraniumAgentRole(agentLike || {}))
+  return roleCache.get(key)
+}
+const selectedRole = computed(() => roleOf(props.selectedNode?.data || {}))
+
+const truncate = (text, max) => {
+  const value = String(text || '')
+  return value.length > max ? `${value.slice(0, max)}…` : value
+}
+const formatRisk = (value) => (Number.isFinite(Number(value)) ? Number(value).toFixed(3) : '—')
+const formatRange = (attr) => {
+  const [min, max] = attr.range || []
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return '—'
+  const fmtNum = (n) => (attr.type === 'float' ? n.toFixed(2) : n.toLocaleString('zh-CN'))
+  return `${fmtNum(min)} – ${fmtNum(max)}`
+}
+// 属性条：展示取值范围在 [0, 上界的 1.2 倍] 尺度上的位置，只做相对示意
+const attrBarStyle = (attr) => {
+  const [min, max] = attr.range || [0, 0]
+  const scaleMax = attr.type === 'float' && max <= 1 ? 1 : max * 1.2
+  const left = scaleMax > 0 ? Math.max(0, (min / scaleMax) * 100) : 0
+  const width = scaleMax > 0 ? Math.max(4, ((max - min) / scaleMax) * 100) : 0
+  return { left: `${left.toFixed(1)}%`, width: `${Math.min(100 - left, width).toFixed(1)}%` }
+}
 
 const nodesProxy = computed({
   get: () => props.nodes,
@@ -339,7 +511,7 @@ const methodDialogSelectedProxy = computed({
 const handleLocateAgent = (nodeId) => {
   emit('locate-agent', nodeId)
   nextTick(() => {
-    fitView({ padding: 0.1, duration: 500 })
+    fitView({ nodes: [nodeId], padding: 0.3, maxZoom: 1, duration: 400 })
   })
 }
 
@@ -997,9 +1169,328 @@ onBeforeUnmount(() => {
   .canvas-legend { display: none; }
 }
 
+/* ---------- 节点卡：建模方法与模型信息（参考 MACE CardNode） ---------- */
+.node-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.node-method-tag {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #c7d7f5;
+}
+.node-method-tag.supply { color: #4338ca; background: #eef2ff; border-color: #c7d2fe; }
+.node-method-tag.transport { color: #0e7490; background: #ecfeff; border-color: #a5f3fc; }
+.node-method-tag.manufacturing { color: #c2410c; background: #fff7ed; border-color: #fed7aa; }
+.node-method-tag.sales { color: #be185d; background: #fdf2f8; border-color: #fbcfe8; }
+.node-model {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--mid-font-mono, monospace);
+  font-size: 10px;
+  color: #64748b;
+}
+
+/* ---------- 属性面板：角色卡分段 ---------- */
+.property-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 6px 0 8px;
+}
+.property-tag {
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  font-size: 10px;
+  color: #475569;
+}
+.property-tag.method { color: #1d4ed8; background: #eff6ff; border-color: #c7d7f5; font-weight: 700; }
+.property-tag.mono { font-family: var(--mid-font-mono, monospace); }
+
+.property-collapse { border-top: none; border-bottom: none; }
+.property-collapse :deep(.el-collapse-item__header) {
+  height: 34px;
+  line-height: 34px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+  border-bottom-color: #eef2f7;
+}
+.property-collapse :deep(.el-collapse-item__wrap) { border-bottom-color: #eef2f7; }
+.property-collapse :deep(.el-collapse-item__content) { padding: 8px 2px 12px; }
+
+.role-list,
+.role-facts,
+.ooda-detail {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.role-list dt,
+.role-facts dt,
+.posture-block > span,
+.attr-enum > span {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  color: #94a3b8;
+}
+.role-list dd {
+  margin: 2px 0 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #334155;
+}
+.role-bullets {
+  margin: 0;
+  padding-left: 14px;
+}
+.role-bullets li { margin: 1px 0; }
+.role-facts {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed #e2e8f0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.role-facts > div {
+  padding: 5px 7px;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+.role-facts dd {
+  margin: 1px 0 0;
+  font-size: 11px;
+  color: #0f172a;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.posture-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.posture-grid > div {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+.posture-grid span { display: block; font-size: 10px; color: #94a3b8; font-weight: 700; }
+.posture-grid b { display: block; margin-top: 2px; font-size: 11px; color: #0f172a; }
+.posture-block { margin-top: 8px; }
+.posture-block ol {
+  margin: 4px 0 0;
+  padding-left: 16px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #334155;
+}
+
+.attr-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.attr-card {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+}
+.attr-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+  color: #334155;
+}
+.attr-card-head small { color: #94a3b8; font-size: 10px; }
+.attr-card-head b {
+  font-family: var(--mid-font-mono, monospace);
+  font-size: 11px;
+  color: #0f172a;
+  white-space: nowrap;
+}
+.attr-card-bar {
+  position: relative;
+  height: 6px;
+  margin-top: 5px;
+  border-radius: 4px;
+  background: #edf2f7;
+  overflow: hidden;
+}
+.attr-card-bar i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #86b6ef, #2a78d6);
+}
+.attr-enum { margin-top: 10px; }
+
+.ooda-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+.ooda-stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 5px 4px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  border-top: 3px solid var(--stage-color, #2a78d6);
+  background: #fff;
+}
+.ooda-stage b { font-size: 10px; color: #0f172a; }
+.ooda-stage small { font-size: 9px; color: #94a3b8; }
+.ooda-arrow { color: #a8b5c4; font-style: normal; font-size: 11px; }
+.ooda-detail { margin-top: 8px; }
+.ooda-detail dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #475569;
+}
+.ooda-detail dt i { width: 8px; height: 8px; border-radius: 2px; }
+.ooda-detail dd { margin: 1px 0 0 13px; font-size: 11px; color: #334155; line-height: 1.5; }
+.ooda-note { margin: 8px 0 0; font-size: 10px; color: #94a3b8; line-height: 1.5; }
+
+/* 底部留白：避免角色卡最后一段被页面右下角「下一步」按钮遮挡 */
+.properties-panel .property-card { padding-bottom: 72px; }
+
 @media (max-width: 760px) {
   .right-content-area { flex-direction: column; }
   .properties-panel { width: 100%; min-width: 0; height: 280px; }
   .canvas-summary span { display: none; }
+}
+
+/* 应急调度分配规则引擎与多基地状态看板 */
+.dispatch-engine-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 6px 0 12px;
+}
+.dispatch-rule-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.dispatch-rule-item:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+.dispatch-rule-item.active {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 1px #3b82f6;
+}
+.rule-radio {
+  margin-top: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dispatch-rule-item.active .rule-radio {
+  border-color: #3b82f6;
+}
+.dispatch-rule-item.active .radio-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #3b82f6;
+}
+.rule-content strong {
+  display: block;
+  font-size: 11px;
+  color: #1e293b;
+  margin-bottom: 2px;
+}
+.rule-content p {
+  margin: 0;
+  font-size: 10px;
+  color: #64748b;
+  line-height: 1.4;
+}
+.multi-base-status-board {
+  border-top: 1px solid #f1f5f9;
+  padding-top: 10px;
+}
+.board-title {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 6px;
+}
+.base-status-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.base-status-item {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 5px;
+  padding: 6px 8px;
+}
+.base-status-item span {
+  display: block;
+  font-size: 11px;
+  color: #334155;
+  font-weight: 500;
+}
+.base-status-item strong {
+  display: inline-block;
+  font-size: 12px;
+  margin: 2px 0;
+}
+.base-status-item strong.warn {
+  color: #b45309;
+}
+.base-status-item strong.safe {
+  color: #15803d;
+}
+.base-status-item strong.normal {
+  color: #0369a1;
+}
+.base-status-item small {
+  display: block;
+  font-size: 10px;
+  color: #94a3b8;
 }
 </style>

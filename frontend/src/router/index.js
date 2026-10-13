@@ -58,6 +58,12 @@ const routes = [
         redirect: '/home/SCnet/total'
       },
       {
+        // 事中（铀）· 建模设定：位于想定生成之前
+        path: 'modelingSetup',
+        name: 'SCnet_ModelingSetup',
+        component: () => import("../views/SCnet/ModelingSetupWrapper.vue")
+      },
+      {
         path: 'scenarioModeling',
         name: 'SCnet_ScenarioModeling',
         component: ScenarioModeling
@@ -206,6 +212,14 @@ const routes = [
         name: 'SCnet_ExpAnalysisGameTheory',
         component: () => import("../views/SCnet/ExpAnalysis_GameTheoryWrapper.vue")
       },
+      {
+        path: 'decisionGeneration',
+        name: 'SCnet_DecisionGeneration',
+        redirect: (to) => ({
+          path: '/home/SCnet/experimentManager',
+          query: { ...to.query, scenario: to.query.scenario || 'uranium', view: 'decision' }
+        })
+      },
 
       // ========== 事后 · 实验分析 placeholder ==========
       {
@@ -232,6 +246,12 @@ const routes = [
         path: 'expAnalysisMap',
         name: 'SCnet_ExpAnalysisMap',
         component: () => import("../views/SCnet/ExpAnalysisMap.vue")
+      },
+      {
+        // 事后闭环第一步：实验目的 + 实验方案设计（对话里的 ①② 两张向导卡合并到这里）
+        path: 'experimentPlan',
+        name: 'SCnet_ExperimentPlan',
+        component: () => import("../views/SCnet/ExperimentPlanDesign.vue")
       }
 
     ]
