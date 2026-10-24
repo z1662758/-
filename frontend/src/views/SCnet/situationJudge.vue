@@ -7,11 +7,13 @@
     </div>
 
     <template v-if="!error && chartData">
+      <div class="sj-stage-heading sj-stage-heading--first"><b>1. 态势图</b></div>
       <!-- ====== 世界地图态势图（含趋势分析 + 解释 + 结论 + 验证 + 关键事件演化） ======
            三种研判视角共用这一个地图容器,只是注入的数据与口径不同。
            子标签行由 SituationMap 渲染在地图上方、供应来源占比栏之上,
            切换事件从这里原样上报给上一层(状态由 useExpertWorkflowStore 持有)。 -->
       <SituationMap
+        :hide-side-panel="true"
         :scenario="scenario"
         :situation-map="chartData.situationMap"
         :map-evolution="chartData.mapEvolution"
@@ -29,16 +31,23 @@
         @open-verify="verifyDrawer = true"
       />
 
-      <!-- ====== 研判过程（地图下方、详情分析上方） ====== -->
-      <JudgmentProcessFlow
-        :title="flowTitle"
-        :source-label="meta.sourceLabel"
-        :steps="flowSteps"
-        :pending-count="flowPendingCount"
-        :accent="meta.accent"
-        :note="flowNote"
-      />
+      <AdvancedSupplyJudgment v-if="scenario === 'uranium'" :network="activeNetwork" />
+      <!-- 原流程保留，铀案例改由专业研判组件展示。 -->
+      <template v-else>
+      <div class="sj-stage-heading"><b>2 · 基础研判过程</b><span>{{ mode === 'llm' ? '查看大模型如何使用情报形成定性判断。' : mode === 'dual' ? '查看大模型与固定态势模型链怎样形成双驱动研判；专项方法的网络影响另行计算。' : '固定态势模型链处理网络、情报和风险；专项方法另行计算供应影响。' }}</span></div>
+      <details class="sj-base-flow">
+        <summary>查看{{ flowTitle }}：{{ flowSteps.length }} 个环节</summary>
+        <JudgmentProcessFlow
+          :title="flowTitle"
+          :source-label="meta.sourceLabel"
+          :steps="flowSteps"
+          :pending-count="flowPendingCount"
+          :accent="meta.accent"
+          :note="flowNote"
+        />
+      </details>
 
+      <div v-if="mode !== 'llm' && scenario === 'uranium'" class="sj-stage-heading"><b>3 · 供应影响评估</b><span>选择一种方法，确认后展示本次输入、公式、计算过程和输出。</span></div>
       <section v-if="mode !== 'llm' && scenario === 'uranium'" class="sj-model-picker" aria-label="选择研判模型">
         <div class="sj-model-picker-head">
           <label for="judgment-model-select">选择供应链态势研判方法</label>
@@ -58,88 +67,104 @@
         <p v-if="pendingJudgmentModel !== selectedJudgmentModel">已展示的结果尚未切换；点击“确认运行”后更新地图和路线分析。</p>
         <p v-if="snapshotSourceNote" class="sj-model-snapshot-note">{{ snapshotSourceNote }}</p>
         <div v-if="selectedRiskAssessment" class="sj-model-parameters">
-          <details :key="`${selectedJudgmentModel}-input`" class="sj-model-parameter-fold">
-            <summary>{{ selectedJudgmentMethod.label }} · 查看供应链输入</summary>
-            <dl>
-              <div v-for="item in selectedModelParameters.inputs" :key="item.key">
-                <dt>{{ item.label }} <small>{{ item.key }}</small></dt>
-                <dd>{{ item.value }}</dd>
-              </div>
-            </dl>
-            <details class="sj-model-technical-fold">
-              <summary>查看计算口径与技术字段</summary>
-              <dl>
-                <div v-for="item in selectedModelParameters.technicalInputs" :key="item.key">
-                  <dt>{{ item.label }} <small>{{ item.key }}</small></dt>
-                  <dd>{{ item.value }}</dd>
-                </div>
-              </dl>
-            </details>
-          </details>
-          <details :key="`${selectedJudgmentModel}-output`" class="sj-model-parameter-fold">
-            <summary>{{ selectedJudgmentMethod.label }} · 查看供应链输出</summary>
-            <dl>
-              <div v-for="item in selectedModelParameters.outputs" :key="item.key">
-                <dt>{{ item.label }} <small>{{ item.key }}</small></dt>
-                <dd>{{ item.value }}</dd>
-              </div>
-            </dl>
-            <details class="sj-model-technical-fold">
-              <summary>查看计算结果与技术字段</summary>
-              <dl>
-                <div v-for="item in selectedModelParameters.technicalOutputs" :key="item.key">
-                  <dt>{{ item.label }} <small>{{ item.key }}</small></dt>
-                  <dd>{{ item.value }}</dd>
-                </div>
-              </dl>
-            </details>
-          </details>
-          <p class="sj-model-parameter-note">供应量基于历史贸易量代理，不代表铁路或口岸核定运力；容量变化百分比不是中断概率。</p>
+          <div class="sj-calculation">
+            <div class="sj-report-heading">
+              <div><span class="sj-report-eyebrow">SUPPLY NETWORK · MODEL RUN</span><h3>{{ selectedJudgmentMethod.label }}</h3></div>
+              <span class="sj-report-snapshot">快照 {{ assessmentData?.snapshot_id || '未标注' }}</span>
+            </div>
+            <div class="sj-report-facts">
+              <div v-for="fact in selectedModelFacts" :key="fact.label"><span>{{ fact.label }}</span><strong>{{ fact.value }}</strong></div>
+            </div>
+            <p v-if="!assessmentData?.model_inputs" class="sj-report-stale">当前运行的后端尚未返回逐路线和逐连接参数，需重启后端服务后重新点击“确认运行”查看完整计算报告。</p>
+            <div class="sj-model-spec">
+              <div><b>模型定义</b><p>{{ selectedModelSpecification.definition }}</p></div>
+              <div><b>数学表达</b><code v-for="formula in selectedModelSpecification.formulas" :key="formula">{{ formula }}</code></div>
+              <p class="sj-model-spec-boundary">{{ selectedModelSpecification.boundary }}</p>
+            </div>
+            <section v-for="section in selectedCalculationSections" :key="section.key" class="sj-report-section">
+              <h4><span>{{ section.index }}</span>{{ section.label }}<small>{{ section.subtitle }}</small></h4>
+              <ol>
+                <li v-for="step in section.steps" :key="step.title">
+                  <b>{{ step.title.replace(/^输入|^过程|^输出|^解释/, '').replace(/^\s*[①②③④⑤⑥⑦]\s*·\s*/, '') }}</b>
+                  <div class="sj-calculation-body">
+                    <p>{{ step.detail }}</p>
+                    <div v-if="step.formula" class="sj-calculation-formula"><span>计算式</span><code>{{ step.formula }}</code></div>
+                    <p v-if="step.meaning" class="sj-calculation-meaning">{{ step.meaning }}</p>
+                    <p v-if="step.actual" class="sj-calculation-actual"><strong>本次计算</strong>{{ step.actual }}</p>
+                    <details v-if="step.inputTable" class="sj-input-details" :open="section.key === 'input' && step.inputTable.rows.length <= 10">
+                      <summary>{{ step.inputTable.title }}（{{ step.inputTable.rows.length }} 条）</summary>
+                      <div class="sj-input-scroll">
+                        <table>
+                          <thead><tr><th v-for="column in step.inputTable.columns" :key="column">{{ column }}</th></tr></thead>
+                          <tbody>
+                            <tr v-for="(row, index) in step.inputTable.rows" :key="index">
+                              <td v-for="(cell, index) in row" :key="index">{{ cell }}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </details>
+                    <details v-if="step.fields" class="sj-field-details"><summary>查看接口字段</summary><code>{{ step.fields }}</code></details>
+                  </div>
+                </li>
+              </ol>
+            </section>
+          </div>
+          <p class="sj-model-parameter-note">容量以历史贸易量作代理，不代表铁路或口岸核定运力；进口代理量为 0 表示该年份、该商品口径下没有对应进口量，并非路线实际运力为零。本页的百分比是容量变化，不是中断概率。</p>
         </div>
       </section>
 
       <p v-if="mode !== 'llm' && assessmentError" class="sj-assessment-error">{{ assessmentError }}</p>
 
+      <div class="sj-stage-heading"><b>4 · 研判结果</b><span>先读结论，再按需展开路线、节点和模型明细；专项方法的供应影响与原风险分分别标注。</span></div>
+      <p v-if="!selectedRiskAssessment" class="sj-result-brief">{{ baseResultSummary }}</p>
       <!-- ====== 各视角自己的结果区 ====== -->
-      <LlmJudgmentPanel
-        v-if="mode === 'llm'"
-        :llm="llm"
-        :events="osintEvents"
-        :route-names="routeNames"
-      />
-      <DomainJudgmentPanel
-        v-else-if="mode === 'domain' && !selectedRiskAssessment"
-        :routes="domainRoutes"
-        :nodes="domainNodes"
-        :critical-nodes="criticalNodes"
-        :edges="edges"
-        :metrics="networkMetrics"
-        :model-runs="modelRuns"
-      />
-      <DualJudgmentPanel
-        v-else-if="mode === 'dual' && !selectedRiskAssessment"
-        :dual="dual"
-        :llm="llm"
-        :routes="domainRoutes"
-        :critical-nodes="criticalNodes"
-        :risk-nodes="highRiskNodes"
-      />
+      <details v-if="!selectedRiskAssessment" class="sj-result-details">
+        <summary>查看{{ mode === 'llm' ? '大模型' : mode === 'dual' ? '双驱动' : '态势模型' }}完整分析</summary>
+        <LlmJudgmentPanel
+          v-if="mode === 'llm'"
+          :llm="llm"
+          :events="osintEvents"
+          :route-names="routeNames"
+        />
+        <DomainJudgmentPanel
+          v-else-if="mode === 'domain'"
+          :routes="domainRoutes"
+          :nodes="domainNodes"
+          :critical-nodes="criticalNodes"
+          :edges="edges"
+          :metrics="networkMetrics"
+          :model-runs="modelRuns"
+        />
+        <DualJudgmentPanel
+          v-else-if="mode === 'dual'"
+          :dual="dual"
+          :llm="llm"
+          :routes="domainRoutes"
+          :critical-nodes="criticalNodes"
+          :risk-nodes="highRiskNodes"
+        />
+      </details>
 
       <section v-if="mode !== 'llm' && selectedRiskAssessment" class="sj-model-focus">
         <h3>{{ selectedJudgmentMethod.label }} · 路线研判</h3>
-        <p class="sj-model-focus-method">{{ selectedJudgmentMethod.description }}</p>
-        <p class="sj-model-focus-plain">{{ selectedRiskAssessment.plainExplanation }}</p>
-        <p class="sj-model-focus-algorithm">{{ selectedJudgmentMethod.basis }}</p>
+        <p class="sj-model-main-conclusion">{{ selectedAssessmentConclusion }}</p>
         <p class="sj-model-focus-summary">覆盖 {{ selectedRiskAssessment.routes.length }} 条路线；{{ selectedRiskAssessment.summary }}</p>
-        <p class="sj-model-focus-note">“原路线风险”来自固定领域模型的展示分，供对照；它不是当前所选方法的输出，也不是中断概率。</p>
+        <p class="sj-model-focus-note">“原路线风险”来自固定态势模型的展示分，供对照；它不是当前所选方法的输出，也不是中断概率。</p>
         <p v-if="mode === 'dual'" class="sj-model-focus-note">大模型原有研判仍是独立结果；本方法的网络指标不直接等同于大模型风险等级。</p>
-        <div class="sj-model-focus-rows">
-          <div v-for="route in selectedRiskAssessment.routes" :key="route.id">
-            <span>{{ route.country }}</span>
-            <span>原路线风险 {{ route.baselineScore == null ? '—' : route.baselineScore.toFixed(1) + '/100' }}</span>
-            <b>{{ route.displayValue }} · {{ route.description }}</b>
+        <details class="sj-model-explanation">
+          <summary>查看方法说明与全部路线结果</summary>
+          <p class="sj-model-focus-method">{{ selectedJudgmentMethod.description }}</p>
+          <p class="sj-model-focus-plain">{{ selectedRiskAssessment.plainExplanation }}</p>
+          <p class="sj-model-focus-algorithm">{{ selectedJudgmentMethod.basis }}</p>
+          <div class="sj-model-focus-rows">
+            <div v-for="route in selectedRiskAssessment.routes" :key="route.id">
+              <span>{{ route.country }}</span>
+              <span>原路线风险 {{ route.baselineScore == null ? '—' : route.baselineScore.toFixed(1) + '/100' }}</span>
+              <b>{{ route.displayValue }} · {{ route.description }}</b>
+            </div>
           </div>
-        </div>
+        </details>
         <div v-if="mode === 'dual'" class="sj-dual-conclusion">
           <strong>态势结论</strong>
           <p v-for="(line, index) in selectedDualConclusion" :key="index">{{ line }}</p>
@@ -154,18 +179,19 @@
       -->
 
       <!-- ====== 下半部分：详情分析 ====== -->
-      <div v-if="mode === 'llm' || !selectedRiskAssessment" class="sj-detail-section">
-        <div class="sj-detail-header">
+      <details v-if="mode === 'llm' || !selectedRiskAssessment" class="sj-detail-section" @toggle="onDetailToggle">
+        <summary class="sj-detail-header">
           <span class="sj-detail-title">📊 详情分析</span>
           <span class="sj-detail-source" :style="{ color: meta.accent }">{{ meta.sourceLabel }}</span>
-        </div>
+          <span class="sj-detail-hint">展开查看{{ mode === 'llm' ? '结果说明' : '周期、拐点、情景与价格趋势图' }}</span>
+        </summary>
 
         <!-- 大模型视角没有对应的图表结果:保留容器与布局,明确说明暂无,不用别处的数据顶替 -->
-        <div v-if="mode === 'llm'" class="sj-detail-empty">
+        <div v-if="detailOpen && mode === 'llm'" class="sj-detail-empty">
           {{ detailEmptyText }}
         </div>
 
-        <div v-else class="sj-detail-grid">
+        <div v-else-if="detailOpen" class="sj-detail-grid">
           <el-card shadow="hover">
             <template #header><div class="sj-card-title"><span>🔄 周期分析 — 价格历史周期波动</span></div></template>
             <div ref="cycleChart" class="sj-chart"></div>
@@ -183,7 +209,8 @@
             <div ref="trendChart" class="sj-chart"></div>
           </el-card>
         </div>
-      </div>
+      </details>
+      </template>
     </template>
 
     <!-- 详细验证报告抽屉 -->
@@ -211,6 +238,7 @@ import DomainJudgmentPanel from './components/judgment/DomainJudgmentPanel.vue'
 import DualJudgmentPanel from './components/judgment/DualJudgmentPanel.vue'
 import VerificationReport from './PreScene/VerificationReport.vue'
 import SituationMap from './PreScene/SituationMap.vue'
+import AdvancedSupplyJudgment from './PreScene/AdvancedSupplyJudgment.vue'
 import SupplyNetworkPanel from './PreScene/SupplyNetworkPanel.vue'
 
 const props = defineProps({
@@ -231,7 +259,7 @@ const props = defineProps({
   /**
    * 大模型研判结果(artifact.result.llm)。
    * 由后端真实调用大模型产出,只含理解层结论,不含风险分数;
-   * 缺失时为 null,页面显示"暂无大模型研判结果",不用领域模型结果顶替。
+   * 缺失时为 null,页面显示"暂无大模型研判结果",不用态势模型结果顶替。
    */
   llmJudgment: { type: Object, default: null },
   dualJudgment: { type: Object, default: null },
@@ -256,7 +284,7 @@ const dualAvailable = computed(() => Boolean(dual.value?.status === 'completed'
   && dual.value?.prompt_version === 'dual_judgment_v1'
   && dual.value?.conclusion && dual.value?.tool_calls?.length && dual.value?.model_runs?.length))
 
-/* ── 领域模型数据(任何视角都原样保留,不做削弱) ──
+/* ── 态势模型数据(任何视角都原样保留,不做削弱) ──
    有会话时用 artifact 注入的 global 网络;无会话(左侧菜单直接进入)时
    下面这段回退拉一次最新快照,保证三个视角在两种入口下都能拿到同一套网络。 */
 const fallbackNetwork = ref(null)
@@ -359,6 +387,8 @@ const selectedRiskAssessment = computed(() => {
   if (!data || !selectedJudgmentMethod.value) return null
   const id = selectedJudgmentModel.value
   const baselineByRoute = new Map((data.network?.routes || []).map(route => [route.id, route]))
+  const positiveCapacityRoutes = new Set((data.model_inputs?.routes || [])
+    .filter(route => Number(route.observed_import_kg_284410) > 0).map(route => String(route.route_id)))
   let rows = []
   let unit = '%'
   if (id === 'min_cut') {
@@ -387,10 +417,15 @@ const selectedRiskAssessment = computed(() => {
   rows = rows.map(r => ({ ...r, level: r.score <= 0 ? 'unknown' : r.score === maxImpact ? 'high' : 'medium' }))
   rows = rows.filter(r => r.id && Number.isFinite(r.score)).map(r => ({
     ...r, country: routeNames.value[r.id] || baselineByRoute.get(r.id)?.country || r.id,
+    capacityUnavailable: Boolean(data.model_inputs) && !positiveCapacityRoutes.has(String(r.id)),
+    description: Boolean(data.model_inputs) && !positiveCapacityRoutes.has(String(r.id))
+      ? '本商品与年份口径下没有正值进口量，不能据此判为低风险' : r.description,
     baselineScore: baselineByRoute.get(r.id)?.display_risk_score != null && Number.isFinite(Number(baselineByRoute.get(r.id).display_risk_score))
       ? Number(baselineByRoute.get(r.id).display_risk_score) : null,
-    displayValue: r.score > 0 ? `${r.score.toFixed(id === 'min_cut' ? 0 : 1)}${unit}`
-      : id === 'min_cut' ? '非当前瓶颈' : '无新增容量损失',
+    displayValue: Boolean(data.model_inputs) && !positiveCapacityRoutes.has(String(r.id))
+      ? '无正值容量代理'
+      : r.score > 0 ? `${r.score.toFixed(id === 'min_cut' ? 0 : 1)}${unit}`
+        : id === 'min_cut' ? '非当前瓶颈' : '无新增容量损失',
   })).sort((a, b) => b.score - a.score)
   const affectedCount = rows.filter(r => r.score > 0).length
   const sharedCut = (data.min_cut?.cut_edges || []).find(edge => (edge.affected_route_ids || []).length > 1)
@@ -407,88 +442,169 @@ const selectedRiskAssessment = computed(() => {
   }[id]
   return { routes: rows, unit, summary, plainExplanation }
 })
-const selectedModelParameters = computed(() => {
+const baseResultSummary = computed(() => {
+  if (mode.value === 'llm') return llmAvailable.value
+    ? llm.value.conclusion : '本次尚无可核验的大模型研判结论；展开可查看情报输入和缺失原因。'
+  if (mode.value === 'dual') return dualAvailable.value
+    ? dual.value.conclusion : '本次尚无完整的双驱动结论；展开可对照独立大模型与态势模型结果。'
+  const routes = domainRoutes.value
+  const high = routes.filter(route => (route.riskLevel || route.risk_level) === 'high')
+  return routes.length
+    ? `固定态势模型已评估 ${routes.length} 条供应路线，其中 ${high.length} 条为高风险${high.length ? `（${high.map(route => route.country || route.id).join('、')}）` : ''}。路线分数汇总节点、运输边及情报影响；详细排名和模型执行记录可展开查看。`
+    : '当前快照没有可展示的态势模型路线结果。'
+})
+const selectedAssessmentConclusion = computed(() => {
   const data = assessmentData.value
-  if (!data || !selectedRiskAssessment.value) return { inputs: [], outputs: [], technicalInputs: [], technicalOutputs: [] }
-  const method = selectedJudgmentModel.value
+  const assessment = selectedRiskAssessment.value
+  if (!data || !assessment) return ''
+  const top = assessment.routes.find(route => route.score > 0)
+  if (selectedJudgmentModel.value === 'min_cut') {
+    const count = data.min_cut?.cut_edges?.length || 0
+    return count
+      ? `本次识别 ${count} 段限制网络总体供给的通道；${top?.country || '相关供应路线'}关联其中的瓶颈。它表示结构约束，不表示该路线一定中断。`
+      : '本次未识别到正容量瓶颈通道；请展开完整输入与输出核对网络数据。'
+  }
+  if (selectedJudgmentModel.value === 'n1_capacity') return top
+    ? `逐条停运重算后，${top.country}路线中断造成的全网代理供应量降幅最大，为 ${top.displayValue}；其余路线的补位能力见明细。`
+    : '逐条停运情景下，当前代理网络未显示新增总量缺口；这不等于实际交付没有风险。'
+  const loss = data.event_driven?.current_availability_loss_pct
+  return loss == null
+    ? '当前事件情景尚无可计算的全网供应影响结果。'
+    : `生效情报共同作用后，全网代理可达供应量相对无事件基线减少 ${Number(loss).toFixed(1)}%；${top ? `${top.country}单独受影响时的全网降幅为 ${top.displayValue}。` : '单路线影响见明细。'}`
+})
+const selectedModelFacts = computed(() => {
+  const data = assessmentData.value || {}
+  const inputs = data.model_inputs || {}
+  const supplied = (inputs.routes || []).filter(route => Number(route.observed_import_kg_284410) > 0).length
+  const common = [
+    { label: '商品与年份', value: `HS${inputs.commodity_layer || '284410'} · ${inputs.trade_data_year || '未返回'} 年` },
+    { label: '网络规模', value: `${inputs.routes?.length ?? '—'} 条路线 / ${inputs.edges?.length ?? '—'} 段连接` },
+    { label: '有进口量记录', value: inputs.routes ? `${supplied} / ${inputs.routes.length} 条路线` : '接口未返回' },
+  ]
+  const specific = selectedJudgmentModel.value === 'min_cut'
+    ? { label: '本次割边', value: `${data.min_cut?.cut_edges?.length ?? '—'} 段` }
+    : selectedJudgmentModel.value === 'n1_capacity'
+      ? { label: '独立停运情景', value: `${data.n1_capacity?.length ?? '—'} 组` }
+      : { label: '有效负向事件', value: `${inputs.events?.length ?? '—'} 条` }
+  return [...common, specific]
+})
+const selectedModelSpecification = computed(() => {
+  const specs = {
+    min_cut: {
+      definition: '有向容量网络 G=(V,E)。来源节点接超级源，国内接收节点接超级汇；每段连接的容量来自按来源国历史进口量构造的代理值。求使源端与接收端分离且容量总和最小的一组连接。',
+      formulas: ['max F = Σ(s,v)∈E f(s,v)', '0 ≤ f(u,v) ≤ c(u,v)；Σ进入(v) f = Σ离开(v) f', 'min C(S,T) = Σu∈S,v∈T c(u,v) = max F'],
+      boundary: '最小割是当前容量口径下的一组结构瓶颈；它不包含通行故障概率、铁路核定运力或合同交付量。',
+    },
+    n1_capacity: {
+      definition: 'N‑1 确定性压力测试。依次令一条供应路线完全失效，其余路线保持基线状态；每个情景重新求解全网最大流，比较失效前后的可达供应上限。',
+      formulas: ['F₀ = MaxFlow(G, c)', 'cₑ(−r) = Σⱼ∈R(e) qₑⱼ · 1[j ≠ r]；F₋ᵣ = MaxFlow(G, c(−r))', '损失量 Lᵣ = F₀ − F₋ᵣ；降幅 Dᵣ = 100 Lᵣ / F₀'],
+      boundary: '路线中断是人为设定的压力情景；降幅描述供应容量后果，不是该路线中断的概率。共享连接按各路线容量贡献分别折减。',
+    },
+    event_driven: {
+      definition: '以已核验且仍生效的负向情报构造确定性供应冲击情景。先按事件状态、类型和严重度算路线可用系数，再据此折减连接的代理容量并重算最大流。',
+      formulas: ['pₑ = 状态残余ₑ × 类型权重ₑ × 严重度系数ₑ', 'aᵣ = clip(1 − maxₑ∈路线r pₑ, 0, 1)', 'c′ₗ = Σᵣ∈R(l) qₗᵣ aᵣ；D = 100 (F₀ − MaxFlow(G,c′)) / F₀'],
+      boundary: '事件系数是项目规则映射的情景参数，不是实测通行率；模型没有预测未来事件或校准中断概率。',
+    },
+  }
+  return specs[selectedJudgmentModel.value] || { definition: '', formulas: [], boundary: '' }
+})
+const selectedCalculationSteps = computed(() => {
+  const data = assessmentData.value
+  if (!data || !selectedRiskAssessment.value) return []
   const routes = data.network?.routes || []
-  const nameById = new Map(routes.map(route => [String(route.id), route.country || route.id]))
-  const routeName = id => nameById.get(String(id)) || String(id)
-  const number = value => value == null || !Number.isFinite(Number(value))
-    ? '—' : Number(value).toLocaleString('zh-CN', { maximumFractionDigits: 2 })
-  const percent = value => `${number(value)}%`
-  const unit = data.min_cut?.capacity_unit || data.event_driven?.unit || '未提供'
-  const capacityBasis = data.event_driven?.capacity_basis || '未提供'
-  const item = (key, label, value) => ({ key, label, value: String(value ?? '—') })
-  const focusIds = new Set(focusedRouteIds.value.map(String))
-  const caseRoutes = routes.filter(route => focusIds.has(String(route.id)))
-  const routePath = route => (route.nodes || []).map(node => node.name).filter(Boolean).join(' → ')
-  const effectiveEvents = (data.network?.events || []).filter(event => event.runtime_status === 'EFFECTIVE' || event.risk_effective)
-  const inputs = [
-    item('routes[].country / material', '供应来源与物资', routes.map(route => `${route.country || route.id}：${route.material || '物资未标注'}`).join('；') || '未提供'),
-    item('routes[].transport', '运输路线与方式', routes.map(route => `${route.country || route.id}（${route.transport || '方式未标注'}）`).join('；') || '未提供'),
-    item('routes[].nodes', caseRoutes.length ? '本案关注路线的沿途节点' : '路线沿途节点示例', (caseRoutes.length ? caseRoutes : routes.slice(0, 2))
-      .map(route => `${route.country || route.id}：${routePath(route) || '节点未标注'}`).join('；') || '未提供'),
-  ]
-  const technicalInputs = [
-    item('snapshot_id', '网络快照编号', data.snapshot_id),
-    item('network', '路线、节点与连接数', `${routes.length} 条路线 / ${data.network?.nodes?.length || 0} 个节点 / ${data.network?.metrics?.edges?.length || 0} 条连接`),
-    item('capacity_basis', '供应量计算依据', capacityBasis === 'OBSERVED_TRADE_PROXY' ? '历史贸易量代理（OBSERVED_TRADE_PROXY）' : capacityBasis),
-  ]
-  let outputs = []
-  let technicalOutputs = []
-  if (method === 'min_cut') {
+  const routeName = id => routes.find(route => String(route.id) === String(id))?.country || id
+  const quantity = value => value == null || !Number.isFinite(Number(value))
+    ? '未提供' : Number(value).toLocaleString('zh-CN', { maximumFractionDigits: 2 })
+  const percent = value => value == null || !Number.isFinite(Number(value)) ? '未提供' : `${quantity(value)}%`
+  const unit = data.event_driven?.unit || data.min_cut?.capacity_unit || '单位未返回'
+  const tradeYear = data.model_inputs?.trade_data_year || data.network?.metrics?.dataProvenance?.trade_data_year || '未返回'
+  const capacityBasis = data.model_inputs?.capacity_basis || data.event_driven?.capacity_basis
+  const basis = capacityBasis === 'OBSERVED_TRADE_PROXY'
+    ? '历史进口量代理（OBSERVED_TRADE_PROXY）' : capacityBasis || '未标注'
+  const snapshot = data.snapshot_id || '未标注'
+  const inputs = data.model_inputs || {}
+  const routeTable = inputs.routes ? {
+    title: '查看逐路线输入',
+    columns: ['供应来源', '运输方式', `HS${inputs.commodity_layer || '284410'} 进口代理量（${inputs.capacity_unit || 'kg'}）`, '经过节点', '事件可用系数'],
+    rows: inputs.routes.map(row => [routeName(row.route_id), row.transport_mode || '未提供',
+      quantity(row.observed_import_kg_284410), (row.nodes || []).join(' → ') || '未提供', quantity(row.availability_factor)]),
+  } : null
+  const edgeTable = inputs.edges ? {
+    title: '查看计算图逐连接输入',
+    columns: ['起点', '终点', `合计代理容量（${inputs.capacity_unit || 'kg'}）`, '路线容量贡献', '共享路线'],
+    rows: inputs.edges.map(row => [row.from_node, row.to_node, quantity(row.capacity),
+      Object.entries(row.capacity_by_route || {}).map(([id, value]) => `${routeName(id)} ${quantity(value)}`).join('；') || '未返回',
+      (row.aggregated_routes || []).map(routeName).join('、') || '无']),
+  } : null
+  const eventTable = inputs.events ? {
+    title: '查看逐事件输入与参数',
+    columns: ['事件', '状态', '类型', '严重度', '状态残余', '类型权重', '严重度系数', '惩罚值', '涉及路线'],
+    rows: inputs.events.map(row => [row.title || row.event_id, row.event_state, row.event_type,
+      row.severity_class, quantity(row.state_residual), quantity(row.event_type_weight),
+      quantity(row.severity_scale), quantity(row.availability_penalty),
+      (row.affected_route_ids || []).map(routeName).join('、') || '未提供']),
+  } : null
+  if (selectedJudgmentModel.value === 'min_cut') {
     const cut = data.min_cut || {}
-    const cutEdges = cut.cut_edges || []
-    const affectedIds = [...new Set(cutEdges.flatMap(edge => edge.affected_route_ids || []))]
-    inputs.push(item('assessment_question', '评估问题', '哪些供应通道限制了从来源国到国内接收网络的整体供应量'))
-    outputs = [
-      item('cut_edges[].affected_route_ids', '涉及瓶颈的供应来源', affectedIds.map(routeName).join('、') || '本次未识别'),
-      item('routes[].cut_edge_count', '各来源关联的瓶颈段数', (cut.routes || []).map(route => `${routeName(route.route_id)}：${number(route.cut_edge_count)} 段`).join('；') || '未提供'),
-      item('routes[].key_risk_points', '相关路线的关键节点（网络快照）', routes.filter(route => affectedIds.map(String).includes(String(route.id)))
-        .map(route => `${route.country || route.id}：${(route.key_risk_points || []).map(point => point.name).filter(Boolean).join('、') || '未标注'}`).join('；') || '未提供'),
-      item('cut_edges.length', '限制全网供应的通道段', `${cutEdges.length} 段；没有出现在本次瓶颈集合中的路线仍可能存在其他风险`),
-    ]
-    technicalInputs.push(item('source → sink', '计算起点与终点', '综合供应源 → 国内接收网络'))
-    technicalOutputs = [
-      item('cut_capacity', '最小割对应的代理供应量', `${number(cut.cut_capacity)} ${unit}`),
-      item('cut_edges[]', '模型识别的具体连接', cutEdges.length
-        ? cutEdges.map(edge => `${edge.from_node} → ${edge.to_node}（${(edge.affected_route_ids || []).map(routeName).join('、') || '路线未标注'}）`).join('；') : '无'),
-    ]
-  } else if (method === 'n1_capacity') {
-    const scenarios = data.n1_capacity || []
-    inputs.push(item('blocked_route_id', '停运情景', `分别假设 ${scenarios.map(scenario => routeName(scenario.route_id)).join('、') || '各供应路线'} 完全中断，每次只停一条`))
-    outputs = [
-      item('capacity_loss_ratio', '各来源停运后的全网供应缺口', scenarios.map(scenario => `${routeName(scenario.route_id)}：${percent(scenario.capacity_loss_ratio)}`).join('；') || '未提供'),
-      item('available_alternatives', '仍可使用的其他来源', scenarios.map(scenario => `${routeName(scenario.route_id)}停运：${(scenario.available_alternatives || []).map(routeName).join('、') || '未列出'}`).join('；') || '未提供'),
-    ]
-    technicalInputs.push(item('scenario_count', '逐条停运的独立情景数', scenarios.length))
-    technicalOutputs = [
-      item('baseline_supply_capacity', '正常情景的全网代理供应量', `${number(scenarios[0]?.baseline_supply_capacity)} ${unit}`),
-      item('post_disruption_capacity', '停运后的全网代理供应量', scenarios.map(scenario => `${routeName(scenario.route_id)}：${number(scenario.post_disruption_capacity)} ${scenario.unit || unit}`).join('；') || '无'),
-      item('capacity_loss', '停运造成的代理供应量差额', scenarios.map(scenario => `${routeName(scenario.route_id)}：${number(scenario.capacity_loss)} ${scenario.unit || unit}`).join('；') || '无'),
-    ]
-  } else if (method === 'event_driven') {
-    const event = data.event_driven || {}
-    const impacts = event.route_impacts || []
-    const osint = data.network?.metrics?.osintInfo || {}
-    inputs.push(item('network.events[]', '当前生效的供应链事件', effectiveEvents.length
-      ? `${effectiveEvents.length} 条；${effectiveEvents.slice(0, 5).map(e => e.title || e.event_id).join('；')}${effectiveEvents.length > 5 ? '等' : ''}` : '本次快照未列出生效事件'))
-    inputs.push(item('network.events[].affected_route_ids', '事件关联的供应来源', [...new Set(effectiveEvents.flatMap(e => e.affected_route_ids || []))].map(routeName).join('、') || '未标注关联路线'))
-    outputs = [
-      item('current_availability_loss_pct', '当前事件情景下的全网供应缺口', percent(event.current_availability_loss_pct)),
-      item('route_impacts[].single_route_loss_pct', '各来源单独受影响时的全网缺口', impacts.map(route => `${routeName(route.route_id)}：${percent(route.single_route_loss_pct)}`).join('；') || '未提供'),
-      item('route_impacts[].availability_factor', '各路线情景可用比例', impacts.map(route => `${routeName(route.route_id)}：${percent(Number(route.availability_factor) * 100)}`).join('；') || '未提供'),
-    ]
-    technicalInputs.push(item('osint_events', '登记与生效事件数', `${osint.registered_total ?? '—'} 条 / ${osint.effective_count ?? '—'} 条`))
-    technicalInputs.push(item('assumptions.availability', '事件到路线可用系数的映射规则', event.assumptions?.['availability 推导'] || '未提供'))
-    technicalOutputs = [
-      item('baseline_flow', '事件折减前的全网代理供应量', `${number(event.baseline_flow)} ${event.unit || unit}`),
-      item('current_availability_flow', '事件折减后的全网代理供应量', `${number(event.current_availability_flow)} ${event.unit || unit}`),
-      item('current_availability_loss', '全网代理供应量差额', `${number(event.current_availability_loss)} ${event.unit || unit}`),
+    const edges = cut.cut_edges || []
+    const affected = [...new Set(edges.flatMap(edge => edge.affected_route_ids || []))]
+    const counts = (cut.routes || []).map(row => `${routeName(row.route_id)} ${quantity(row.cut_edge_count)} 段`).join('；')
+    const edgeTotal = edges.reduce((sum, edge) => sum + (Number(edge.capacity) || 0), 0)
+    return [
+      { title: '输入 ① · 供应网络', detail: '读取供应来源、运输方式和经过节点。计算图把各来源接到统一供应源，把国内接收端接到统一终点；地图展示节点数不等于计算图节点数。', fields: 'model_inputs.routes[].route_id / transport_mode / nodes；supplier_nodes；receiving_nodes', actual: `快照 ${snapshot}；${inputs.routes?.length ?? routes.length} 条供应路线；供应端 ${inputs.supplier_nodes?.length ?? '未返回'} 个，接收端 ${inputs.receiving_nodes?.length ?? '未返回'} 个`, inputTable: routeTable },
+      { title: '输入 ② · 连接容量', detail: `当前实现采用 ${tradeYear} HS284410 国家层面的进口数量，给同一来源路线的各段连接赋代理容量；多条路线共用一段时，图构建器将这些路线的容量求和。`, fields: 'model_inputs.routes[].observed_import_kg_284410；model_inputs.edges[].capacity / route_id / aggregated_routes', formula: 'cₑ = qᵣ（单路线段）；cₑ = Σᵣ qᵣ（共用段）', meaning: 'qᵣ 是来源国历史进口量代理，cₑ 是计算图中的连接容量；共用段按聚合容量计算。', actual: `容量口径：${basis}；单位 ${unit}；${inputs.edges?.length ?? '未返回'} 段计算连接`, inputTable: edgeTable },
+      { title: '过程 ③ · 最大流约束', detail: '从统一供应源向国内接收端分配流量。任何连接上的流量不能超过其容量；中间节点的流入与流出守恒，然后求可达总量的最大值。', fields: 'graph.capacity；__super_source__；__super_sink__', formula: '0 ≤ fₑ ≤ cₑ；中间节点 Σ流入 f = Σ流出 f；Fₘₐₓ = max Σ源端流出 f', meaning: 'fₑ 是分配到连接 e 的代理流量。该方法只给出网络上限，不等于实际铁路吞吐。' },
+      { title: '过程 ④ · 最小割', detail: 'NetworkX minimum_cut 在供应源所在集合 S 与接收端所在集合 T 之间找容量和最小的跨界连接组；最大流最小割定理给出两者容量相等。', fields: 'min_cut.cut_capacity；min_cut.cut_edges[].capacity', formula: 'C(S,T) = Σ₍ᵤ∈S,ᵥ∈T₎ c(u,v)；Cₘᵢₙ = min C(S,T) = Fₘₐₓ', actual: `本次最小割容量 ${quantity(cut.cut_capacity)} ${unit}；返回的 ${edges.length} 段割边容量合计 ${quantity(edgeTotal)} ${unit}` },
+      { title: '输出 ⑤ · 瓶颈与路线', detail: '跨越最小割的连接构成本次识别的瓶颈集合，再按连接关联的路线统计各来源的瓶颈段数。', fields: 'min_cut.cut_edges[].affected_route_ids；min_cut.routes[].cut_edge_count', formula: 'bᵣ = Σₑ∈最小割 1{路线 r 关联连接 e}', meaning: 'bᵣ 是路线关联的割边数量，不是风险分，也不是中断概率。', actual: `涉及 ${affected.map(routeName).join('、') || '未标注路线'}；各路线：${counts || '未返回'}` },
+      { title: '解释 ⑥ · 结果边界', detail: '最小割只给出当前容量代理下的一组限制通道。没有进入这组割边的路线仍可能因事件、交付或其他结构问题受阻；供应网络若变化，应重新计算。', fields: 'min_cut.algorithm = minimum_cut', actual: '当前接口未提供逐边实测物理运力，也未提供未来中断概率。' },
     ]
   }
-  return { inputs, outputs, technicalInputs, technicalOutputs }
+  if (selectedJudgmentModel.value === 'n1_capacity') {
+    const scenarios = data.n1_capacity || []
+    const focus = new Set(focusedRouteIds.value.map(String))
+    const selected = scenarios.find(row => focus.has(String(row.route_id)))
+      || [...scenarios].sort((a, b) => Number(b.capacity_loss_ratio || 0) - Number(a.capacity_loss_ratio || 0))[0]
+    const sample = selected ? routeName(selected.route_id) : '未选出示例路线'
+    const whySample = selected && focus.has(String(selected.route_id)) ? '本案关注路线' : '本次降幅最大的路线'
+    return [
+      { title: '输入 ① · 基线网络', detail: `使用与其他方法相同的供应网络和 ${tradeYear} HS284410 历史进口量代理容量，不把路线风险分或事件概率当作容量。`, fields: 'model_inputs.routes[].observed_import_kg_284410 / nodes / transport_mode；capacity_basis', actual: `快照 ${snapshot}；${inputs.routes?.length ?? routes.length} 条路线；容量口径 ${basis}，单位 ${unit}`, inputTable: routeTable },
+      { title: '输入 ② · N‑1 情景', detail: '每次只指定一条路线 r 完全失效，逐条独立运行；其它路线仍留在网络。这样比较的是移除不同来源后的网络后果。', fields: 'n1_capacity[].route_id；model_inputs.edges[].capacity_by_route / aggregated_routes', formula: 'aᵣ = 0；对其它路线 aⱼ = 1', meaning: 'aᵣ 是情景可用系数；共享连接按各路线的容量贡献分别折减，其他路线的贡献保留。', actual: `${scenarios.length} 个情景；停运路线：${scenarios.map(row => routeName(row.route_id)).join('、') || '未返回'}；以下按${whySample} ${sample} 展示代入值`, inputTable: edgeTable },
+      { title: '过程 ③ · 正常网络最大流', detail: '先在未停运的图上，按容量上限和中间节点流量守恒约束，求来源国到国内接收端的最大可达代理供应量。', fields: 'n1_capacity[].baseline_supply_capacity', formula: 'F₀ = MaxFlow(G, c)', meaning: 'G 是原网络，c 是各连接的代理容量。', actual: selected ? `F₀ = ${quantity(selected.baseline_supply_capacity)} ${unit}` : '接口未返回可用情景' },
+      { title: '过程 ④ · 停运后重算', detail: '指定路线的逐段容量贡献置零，其它路线贡献保留；在扰动后的容量图上重新求最大流。', fields: 'n1_capacity[].post_disruption_capacity；model_inputs.edges[].capacity_by_route', formula: 'cₑ(−r) = Σⱼ∈R(e) qₑⱼ × 1[j ≠ r]；F₋ᵣ = MaxFlow(G, c(−r))', meaning: 'qₑⱼ 是路线 j 对连接 e 的代理容量贡献；F₋ᵣ 是路线 r 停运后的全网剩余代理供应量。', actual: selected ? `F₋ᵣ = ${quantity(selected.post_disruption_capacity)} ${unit}` : '' },
+      { title: '过程 ⑤ · 绝对缺口', detail: '用正常状态与停运状态的最大流相减，得到整个网络的代理供应量减少值。', fields: 'n1_capacity[].capacity_loss', formula: 'Lᵣ = F₀ − F₋ᵣ', actual: selected ? `${quantity(selected.baseline_supply_capacity)} − ${quantity(selected.post_disruption_capacity)} = ${quantity(selected.capacity_loss)} ${unit}` : '' },
+      { title: '输出 ⑥ · 损失率与替代来源', detail: '将绝对缺口除以正常最大流，得到全网降幅；同时列出扰动后模型中仍有正容量的其他路线。', fields: 'n1_capacity[].capacity_loss_ratio；n1_capacity[].available_alternatives', formula: 'Dᵣ = Lᵣ / F₀ × 100%（仅 F₀ > 0 时）', meaning: '可用替代来源不一定有足够余量完全补上缺口。', actual: selected ? `${sample}：${quantity(selected.capacity_loss)} / ${quantity(selected.baseline_supply_capacity)} × 100% = ${percent(selected.capacity_loss_ratio)}；其他来源 ${(selected.available_alternatives || []).map(routeName).join('、') || '未列出'}` : '' },
+      { title: '解释 ⑦ · 比较范围', detail: '下面的逐路线结果来自相互独立的停运情景，不能把各行损失率相加，也不能把损失率解释为路线中断概率。', fields: 'n1_capacity[]', actual: '物理铁路能力、可用合同量和真实补货时间未进入当前代理网络。' },
+    ]
+  }
+  const event = data.event_driven || {}
+  const impacts = event.route_impacts || []
+  const focus = new Set(focusedRouteIds.value.map(String))
+  const selected = impacts.find(row => focus.has(String(row.route_id)))
+    || [...impacts].sort((a, b) => Number(b.single_route_loss_pct || 0) - Number(a.single_route_loss_pct || 0))[0]
+  const effectiveEvents = (data.network?.events || []).filter(row => row.verification_status === 'VERIFIED'
+    && String(row.direction).toUpperCase() === 'NEGATIVE'
+    && ['ACTIVE', 'ONGOING', 'RECOVERED'].includes(String(row.event_state).toUpperCase())
+    && (row.affected_route_ids || []).length)
+  const relatedEvents = selected ? effectiveEvents.filter(row => (row.affected_route_ids || []).includes(selected.route_id)) : []
+  const sample = selected ? routeName(selected.route_id) : '未选出示例路线'
+  const availability = selected?.availability_factor == null ? null : Number(selected.availability_factor)
+  return [
+    { title: '输入 ① · 网络与情报', detail: `使用 ${tradeYear} HS284410 历史进口量构造容量代理，并读取已核验、方向为负向且仍有影响的事件。`, fields: 'model_inputs.routes[].observed_import_kg_284410 / nodes / transport_mode；model_inputs.events[]', actual: `快照 ${snapshot}；${inputs.routes?.length ?? routes.length} 条路线；${inputs.events?.length ?? effectiveEvents.length} 条当前有效负向情报；容量口径 ${basis}`, inputTable: routeTable },
+    { title: '输入 ② · 事件状态与参数', detail: '每条事件取状态残余、事件类型权重和严重度系数。ACTIVE/ONGOING 的状态残余为 1；RECOVERED 为 0.15；RESOLVED 为 0；严重度 HIGH/MEDIUM/LOW 系数依次为 1/0.7/0.4。', fields: 'model_inputs.events[].event_state / event_type / severity_class / state_residual / event_type_weight / severity_scale / availability_penalty', formula: 'pₑ = 状态残余ₑ × 事件类型权重ₑ × 严重度系数ₑ', meaning: '事件类型权重按后端规则表读取；逐事件系数和惩罚值均由本次计算接口返回。', actual: selected ? `${sample}关联事件 ${relatedEvents.length} 条：${relatedEvents.slice(0, 3).map(row => row.title || row.event_id).join('、') || '未列出'}${relatedEvents.length > 3 ? '等' : ''}` : '', inputTable: eventTable },
+    { title: '过程 ③ · 路线可用系数', detail: '对同一路线的负向事件取最大惩罚，不累加事件惩罚；没有有效负向事件的路线按系数 1 计算。系数是规则推导的情景假设，不是实测可用率。', fields: 'event_driven.route_impacts[].availability_factor', formula: 'pᵣ = maxₑ∈路线r pₑ；aᵣ = clip(1 − pᵣ, 0, 1)', meaning: 'pᵣ 表示该路线的最大事件惩罚，aᵣ 是情景可用系数。', actual: selected ? `${sample}：aᵣ = ${quantity(availability)}；由返回系数反推 pᵣ = ${availability == null ? '未提供' : quantity(1 - availability)}` : '' },
+    { title: '过程 ④ · 容量折减', detail: '对每段连接分别折减关联路线的容量贡献；共用段保留其他路线的剩余贡献，然后重算全网最大流。', fields: 'model_inputs.edges[].capacity_by_route；event_driven.current_availability_flow', formula: 'c′ₑ = Σᵣ∈R(e) qₑᵣ × aᵣ；F事件后 = MaxFlow(G, c′)', meaning: '该步是确定性情景重算，没有抽样未来事件概率。', actual: `无事件基线 F₀ = ${quantity(event.baseline_flow)} ${unit}；全部事件共同作用后 F事件后 = ${quantity(event.current_availability_flow)} ${unit}` },
+    { title: '过程 ⑤ · 全网变化', detail: '比较无事件基线与全部有效事件共同作用后的网络可达供应量，先求差额，再换算成相对降幅。', fields: 'event_driven.current_availability_loss；current_availability_loss_pct', formula: 'L = F₀ − F事件后；D = L / F₀ × 100%（仅 F₀ > 0 时）', actual: `${quantity(event.baseline_flow)} − ${quantity(event.current_availability_flow)} = ${quantity(event.current_availability_loss)} ${unit}；全网降幅 ${percent(event.current_availability_loss_pct)}` },
+    { title: '输出 ⑥ · 单路线对照', detail: '另让一条路线按其事件系数折减，其他路线保持原容量，重算该路线单独受影响时的全网损失。这是对照情景，不可与共同作用的结果相加。', fields: 'event_driven.route_impacts[].single_route_loss_pct', formula: 'Dᵣ = [F₀ − MaxFlow(G, 仅路线 r 使用 aᵣ)] / F₀ × 100%', actual: selected ? `${sample}单独折减：${percent(selected.single_route_loss_pct)}；可用系数 ${quantity(availability)}` : '接口未返回可展示的单路线影响' },
+    { title: '解释 ⑦ · 适用边界', detail: '这一结果是“按当前情报规则折减容量后会怎样”的情景计算，不表示事件未来发生的概率；事件状态更新、路线结构或贸易量变更后应重新运行。', fields: 'event_driven.scenario_type = EVENT_DRIVEN', actual: '未纳入已核验铁路物理运力、实际合同可用量及未来新增事件。' },
+  ]
+})
+const selectedCalculationSections = computed(() => {
+  const steps = selectedCalculationSteps.value
+  return [
+    { key: 'input', index: '01', label: '输入数据', subtitle: '逐项核对本次使用的路线、容量和事件参数', steps: steps.filter(step => step.title.startsWith('输入')) },
+    { key: 'process', index: '02', label: '求解过程', subtitle: '目标函数、约束条件及情景变换', steps: steps.filter(step => step.title.startsWith('过程')) },
+    { key: 'output', index: '03', label: '结果与边界', subtitle: '本次输出及其可解释范围', steps: steps.filter(step => step.title.startsWith('输出') || step.title.startsWith('解释')) },
+  ].filter(section => section.steps.length)
 })
 const networkMetrics = computed(() => ({
   ...(activeNetwork.value?.metrics || {}),
@@ -513,7 +629,7 @@ const highRiskNodes = computed(() =>
 /* ── 研判过程流程图 ───────────────────────── */
 const flowTitle = computed(() => {
   if (mode.value === 'llm') return '大模型研判过程'
-  if (mode.value === 'domain') return '领域模型研判过程'
+  if (mode.value === 'domain') return '态势模型研判过程'
   return '双驱动研判过程'
 })
 
@@ -541,11 +657,11 @@ const flowPendingCount = computed(() => flowSteps.value.filter((s) => s.pending 
 
 const flowNote = computed(() => {
   if (mode.value === 'dual') return dual.value?.status === 'completed'
-    ? '大模型实际发起领域模型工具调用，并基于返回的执行记录形成独立双驱动结论。'
-    : '本次没有完整的双驱动执行产物；不会把独立大模型结论和领域模型分数拼接成第三份结论。'
+    ? '大模型实际发起态势模型工具调用，并基于返回的执行记录形成独立双驱动结论。'
+    : '本次没有完整的双驱动执行产物；不会把独立大模型结论和态势模型分数拼接成第三份结论。'
   if (llmAvailable.value) return ''
   if (mode.value === 'domain') return ''
-  return '标灰的环节依赖大模型产出，本次没有大模型研判结果，因此未执行 —— 不会用领域模型的结果填充这两步。'
+  return '标灰的环节依赖大模型产出，本次没有大模型研判结果，因此未执行 —— 不会用态势模型的结果填充这两步。'
 })
 
 /** 详情分析在大模型视角下的说明 */
@@ -677,6 +793,7 @@ const trendChart = ref(null)
 const cycleChart = ref(null)
 const turningChart = ref(null)
 const scenarioChart = ref(null)
+const detailOpen = ref(false)
 const chartData = ref(null)
 const loading = ref(true)
 const error = ref(null)
@@ -890,6 +1007,17 @@ function handleResize() {
   charts.forEach(c => { try { c.resize() } catch {} })
 }
 
+async function onDetailToggle(event) {
+  detailOpen.value = event.target.open
+  if (!detailOpen.value) {
+    charts.forEach(c => { try { c.dispose() } catch {} })
+    charts = []
+    return
+  }
+  await nextTick()
+  if (mode.value !== 'llm') initAllCharts()
+}
+
 // ResizeObserver：侧边栏折叠/展开时不触发 window.resize，需要用 ResizeObserver
 let resizeObserver = null
 
@@ -907,6 +1035,7 @@ watch(() => props.globalNetwork, () => {
 })
 watch(() => props.initialData, () => fetchData(), { deep: true })
 watch(selectedJudgmentModel, async () => {
+  detailOpen.value = false
   await nextTick()
   initAllCharts()
 })
@@ -940,10 +1069,20 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.sj-root { padding: 1.5rem; height: calc(100vh - 60px); overflow-y: auto; }
+.sj-root { padding: 0.25rem 1.5rem 1.5rem; height: calc(100vh - 60px); overflow-y: auto; }
 
 .sj-error { text-align: center; padding: 3rem; color: #ef4444; }
 .sj-error p { margin-bottom: 1rem; }
+.sj-stage-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px 12px; margin: 16px 0 8px; }
+.sj-stage-heading--first { margin-top: 0; }
+.sj-stage-heading b { color: #172554; font-size: 0.92rem; }
+.sj-stage-heading span { color: #64748b; font-size: 0.73rem; line-height: 1.5; }
+.sj-base-flow, .sj-result-details { margin-bottom: 16px; border: 1px solid #dbe4f0; border-radius: 9px; background: #fff; }
+.sj-base-flow > summary, .sj-result-details > summary { cursor: pointer; padding: 11px 14px; color: #1e3a8a; font-size: 0.81rem; font-weight: 600; }
+.sj-base-flow > summary:focus-visible, .sj-result-details > summary:focus-visible { outline: 2px solid #93c5fd; }
+.sj-base-flow .jp-flow { margin: 0 10px 10px; }
+.sj-result-details > :not(summary) { margin: 0 10px 10px; }
+.sj-result-brief { margin: 0 0 9px; padding: 12px 15px; border-left: 3px solid #2563eb; border-radius: 7px; background: #eff6ff; color: #1e293b; font-size: 0.84rem; line-height: 1.65; }
 
 .sj-model-picker, .sj-model-focus { margin-bottom: 1rem; padding: 13px 16px; border: 1px solid #dbe4f0; border-radius: 12px; background: #f8fbff; }
 .sj-model-picker-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
@@ -961,23 +1100,70 @@ onUnmounted(() => {
 .sj-model-sources div { overflow-wrap: anywhere; }
 .sj-model-sources a { color: #2563eb; text-decoration: underline; }
 .sj-model-parameters { display: grid; gap: 7px; margin-top: 11px; }
-.sj-model-parameter-fold { border: 1px solid #dbeafe; border-radius: 8px; background: #fff; }
-.sj-model-parameter-fold summary { cursor: pointer; padding: 8px 10px; color: #1e3a8a; font-size: 0.76rem; font-weight: 600; }
-.sj-model-parameter-fold summary:focus-visible { outline: 2px solid #93c5fd; }
-.sj-model-parameter-fold dl { margin: 0; padding: 0 10px 8px; }
-.sj-model-parameter-fold dl > div { display: grid; grid-template-columns: minmax(190px, 1fr) minmax(0, 2fr); gap: 9px; padding: 7px 0; border-top: 1px solid #eff6ff; font-size: 0.72rem; line-height: 1.55; }
-.sj-model-parameter-fold dt { color: #1e3a8a; font-weight: 600; overflow-wrap: anywhere; }
-.sj-model-parameter-fold dt small { display: block; color: #64748b; font-size: 0.66rem; font-weight: 400; }
-.sj-model-parameter-fold dd { margin: 0; color: #334155; overflow-wrap: anywhere; }
-.sj-model-technical-fold { margin: 0 10px 8px; border-top: 1px solid #e2e8f0; }
-.sj-model-technical-fold summary { padding: 7px 0; color: #64748b; font-size: 0.7rem; font-weight: 400; }
-.sj-model-technical-fold dl { padding: 0; }
+.sj-calculation { border: 1px solid #bfdbfe; border-radius: 9px; background: #fff; padding: 12px 14px; }
+.sj-report-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid #dbe4f0; }
+.sj-report-eyebrow { display: block; margin-bottom: 4px; color: #64748b; font: 700 0.65rem/1.3 ui-monospace, Consolas, monospace; letter-spacing: 0.09em; }
+.sj-calculation .sj-report-heading h3 { color: #0f2747; font-size: 1.05rem; line-height: 1.4; }
+.sj-report-snapshot { color: #64748b; font: 0.69rem/1.5 ui-monospace, Consolas, monospace; overflow-wrap: anywhere; text-align: right; }
+.sj-report-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin: 14px 0; border: 1px solid #dbe4f0; background: #dbe4f0; }
+.sj-report-facts > div { min-width: 0; padding: 10px 12px; background: #f8fbff; }
+.sj-report-facts span { display: block; color: #64748b; font-size: 0.69rem; }
+.sj-report-facts strong { display: block; margin-top: 5px; color: #102a43; font-size: 0.86rem; overflow-wrap: anywhere; }
+.sj-model-picker .sj-report-stale { padding: 8px 10px; border-left: 3px solid #d97706; background: #fffbeb; color: #92400e; }
+.sj-model-spec { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; padding: 13px 15px; border: 1px solid #cbd5e1; background: #f8fafc; }
+.sj-model-spec b { display: block; margin-bottom: 6px; color: #1e3a5f; font-size: 0.77rem; }
+.sj-model-picker .sj-model-spec p { margin: 0; color: #334155; font-size: 0.75rem; line-height: 1.7; }
+.sj-model-spec code { display: block; padding: 3px 0; color: #0f766e; font: 0.74rem/1.6 ui-monospace, Consolas, monospace; overflow-wrap: anywhere; }
+.sj-model-picker .sj-model-spec .sj-model-spec-boundary { grid-column: 1 / -1; padding-top: 9px; border-top: 1px solid #dbe4f0; color: #64748b; }
+.sj-report-section { margin-top: 21px; }
+.sj-report-section h4 { display: flex; align-items: baseline; gap: 8px; margin: 0 0 7px; color: #0f2747; font-size: 0.9rem; }
+.sj-report-section h4 span { color: #0f766e; font: 700 0.75rem ui-monospace, Consolas, monospace; }
+.sj-report-section h4 small { color: #64748b; font-size: 0.7rem; font-weight: 400; }
+.sj-report-section ol { border-top: 1px solid #cbd5e1; }
+.sj-calculation .sj-report-section li { grid-template-columns: minmax(130px, 0.22fr) minmax(0, 1fr); padding: 14px 0; font-size: 0.81rem; }
+.sj-report-section li > b { color: #1e3a5f; }
+.sj-calculation h3 { margin: 0; color: #1e3a8a; font-size: 0.84rem; }
+.sj-model-picker .sj-calculation > p { margin: 4px 0 11px; font-size: 0.72rem; }
+.sj-calculation ol { margin: 0; padding: 0; list-style: none; }
+.sj-calculation li { display: grid; grid-template-columns: minmax(165px, 0.27fr) minmax(0, 1fr); gap: 12px; padding: 13px 0; border-top: 1px solid #e2e8f0; align-items: start; font-size: 0.75rem; line-height: 1.6; }
+.sj-calculation li > b { color: #1e3a8a; font-size: 0.78rem; }
+.sj-calculation-body { min-width: 0; }
+.sj-model-picker .sj-calculation-body p { margin: 0 0 7px; font-size: 0.8rem; line-height: 1.65; color: #334155; }
+.sj-model-picker .sj-calculation-body .sj-calculation-fields { color: #64748b; font-size: 0.69rem; }
+.sj-calculation code { font: 0.77rem/1.6 ui-monospace, Consolas, monospace; overflow-wrap: anywhere; }
+.sj-calculation-formula { display: flex; align-items: baseline; gap: 10px; margin: 7px 0; padding: 7px 10px; border-left: 3px solid #14b8a6; background: #f0fdfa; }
+.sj-calculation-formula span { flex: none; color: #0f766e; font-size: 0.7rem; font-weight: 700; }
+.sj-calculation-formula code { color: #115e59; }
+.sj-model-picker .sj-calculation-body .sj-calculation-meaning { color: #475569; }
+.sj-model-picker .sj-calculation-body .sj-calculation-actual { margin: 7px 0 0; color: #172554; font-weight: 500; }
+.sj-calculation-actual strong { color: #1d4ed8; }
+.sj-model-picker .sj-calculation-body .sj-calculation-actual { padding: 7px 10px; border-left: 3px solid #2563eb; background: #eff6ff; }
+.sj-calculation-actual strong { margin-right: 10px; }
+.sj-field-details { margin-top: 7px; color: #64748b; font-size: 0.68rem; }
+.sj-field-details summary { cursor: pointer; width: fit-content; }
+.sj-field-details code { display: block; margin-top: 4px; }
+.sj-input-details { margin-top: 9px; border: 1px solid #dbeafe; border-radius: 6px; background: #f8fbff; }
+.sj-input-details summary { cursor: pointer; padding: 7px 9px; color: #1d4ed8; font-weight: 600; }
+.sj-input-scroll { overflow-x: auto; max-height: 330px; overflow-y: auto; }
+.sj-input-scroll table { width: 100%; min-width: 650px; border-collapse: collapse; font-size: 0.76rem; }
+.sj-input-scroll th, .sj-input-scroll td { padding: 6px 8px; border-top: 1px solid #e2e8f0; text-align: left; vertical-align: top; white-space: nowrap; }
+.sj-input-scroll th { color: #475569; background: #eff6ff; position: sticky; top: 0; }
+@media (max-width: 780px) {
+  .sj-report-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sj-model-spec { grid-template-columns: 1fr; }
+  .sj-report-section h4 { flex-wrap: wrap; }
+  .sj-report-heading { align-items: start; flex-direction: column; }
+  .sj-calculation .sj-report-section li { grid-template-columns: 1fr; }
+}
 .sj-model-picker .sj-model-parameter-note { margin-top: 1px; font-size: 0.7rem; }
 .sj-model-source { display: inline-block; margin: 2px 0 8px; font-size: 0.75rem; color: #2563eb; }
 .sj-assessment-error { color: #b91c1c; font-size: 0.8rem; }
 .sj-model-focus { background: #fff; }
 .sj-model-focus h3 { margin: 0 0 9px; font-size: 0.98rem; color: #1e293b; }
 .sj-model-focus p { margin: 6px 0; font-size: 0.82rem; line-height: 1.7; color: #334155; }
+.sj-model-focus .sj-model-main-conclusion { padding: 10px 12px; border-radius: 7px; background: #eff6ff; color: #1e3a8a; font-weight: 600; }
+.sj-model-explanation { margin-top: 10px; border-top: 1px solid #e2e8f0; }
+.sj-model-explanation > summary { cursor: pointer; padding: 8px 0; color: #1d4ed8; font-size: 0.76rem; font-weight: 600; }
 .sj-model-focus .sj-model-focus-method, .sj-model-focus .sj-model-focus-algorithm, .sj-model-focus .sj-model-focus-note { font-size: 0.75rem; color: #64748b; }
 .sj-model-focus-meta { margin: 9px 0; font-size: 0.73rem; color: #475569; }
 .sj-model-focus-io { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
@@ -1036,10 +1222,12 @@ onUnmounted(() => {
 /* ====== 下半部分：详情分析 ====== */
 .sj-detail-section {
   background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px;
-  padding: 1.2rem 1.2rem 0.4rem; margin-bottom: 1rem;
+  padding: 0 1.2rem; margin-bottom: 1rem;
 }
-.sj-detail-header { margin-bottom: 1rem; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.sj-detail-header { cursor: pointer; padding: 1rem 0; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.sj-detail-header:focus-visible { outline: 2px solid #93c5fd; }
 .sj-detail-title { font-size: 1.05rem; font-weight: 700; color: #1e293b; }
+.sj-detail-hint { margin-left: auto; color: #64748b; font-size: 0.73rem; }
 /* 详情分析也要标清当前是哪种研判视角的数据来源 */
 .sj-detail-source {
   font-size: 11.5px; font-weight: 600;
@@ -1072,8 +1260,9 @@ onUnmounted(() => {
 }
 
 @media (max-width: 900px) {
+  .sj-calculation li { grid-template-columns: 1fr; }
   .sj-chart { height: 240px; min-height: 200px; }
   .sj-model-focus-io { grid-template-columns: 1fr; }
-  .sj-model-parameter-fold dl > div { grid-template-columns: 1fr; gap: 2px; }
 }
+.sj-root { background: #f7f9fc; }
 </style>

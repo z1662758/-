@@ -9,7 +9,7 @@ const num = (v) => (v == null || Number.isNaN(Number(v)) ? '—' : Number(v))
 
 /**
  * 大模型研判过程。
- * 步骤 1-4 的输入来自真实快照(与领域模型同源);步骤 5-6 只有大模型真的跑出结论才成立。
+ * 步骤 1-4 的输入来自真实快照(与态势模型同源);步骤 5-6 只有大模型真的跑出结论才成立。
  */
 export function llmFlowSteps({ metrics = {}, llm = null, llmAvailable = false } = {}) {
   const osint = metrics.osintInfo || {}
@@ -54,7 +54,7 @@ export function llmFlowSteps({ metrics = {}, llm = null, llmAvailable = false } 
   ]
 }
 
-/** 领域模型研判过程:结构化 OSINT → 网络风险传导 → 路线风险聚合 → 态势图输出 */
+/** 态势模型研判过程:结构化 OSINT → 网络风险传导 → 路线风险聚合 → 态势图输出 */
 export function domainFlowSteps({ metrics = {}, routes = [], nodes = [], edges = [] } = {}) {
   const osint = metrics.osintInfo || {}
   const chain = metrics.modelChain || {}
@@ -105,9 +105,9 @@ export function dualFlowSteps({ metrics = {}, dual = null, dualAvailable = false
   const called = calls.some((call) => call.status === 'completed')
   return [
     { title: 'OSINT 原始情报与用户问题', detail: `登记 ${num(osint.registered_total)} 条情报`, pending: false },
-    { title: '大模型识别分析需求', detail: called ? '已选择领域模型工具' : '暂无工具选择记录', pending: !called },
-    { title: '大模型调用领域模型', detail: called ? `实际调用 ${calls.length} 次` : '暂无真实调用记录', pending: !called },
-    { title: '领域模型网络风险计算', detail: runs.length ? `${runs.filter((r) => r.status === 'success').length}/${runs.length} 个模型步骤成功` : '暂无本次执行轨迹', pending: !runs.length },
+    { title: '大模型识别分析需求', detail: called ? '已选择态势模型工具' : '暂无工具选择记录', pending: !called },
+    { title: '大模型调用态势模型', detail: called ? `实际调用 ${calls.length} 次` : '暂无真实调用记录', pending: !called },
+    { title: '态势模型网络风险计算', detail: runs.length ? `${runs.filter((r) => r.status === 'success').length}/${runs.length} 个模型步骤成功` : '暂无本次执行轨迹', pending: !runs.length },
     { title: '大模型读取计算结果', detail: dualAvailable ? '已结合模型输出与情报证据' : '等待双驱动产物', pending: !dualAvailable },
     { title: '形成双驱动最终研判', detail: dualAvailable ? '结论、三方对比与保留意见已生成' : '暂无双驱动研判结论', pending: !dualAvailable },
   ]

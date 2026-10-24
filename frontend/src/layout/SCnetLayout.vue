@@ -162,18 +162,6 @@
           </el-menu-item>
         </template>
 
-        <!-- 专家研讨厅在各阶段都可访问，不占用阶段工作流位置 -->
-        <el-sub-menu v-if="currentPhase" index="additional-functions">
-          <template #title>
-            <el-icon size="18"><FolderOpened/></el-icon>
-            <span>附加功能</span>
-          </template>
-          <el-menu-item index="/home/SCnet/expertSeminar">
-            <el-icon size="18"><Connection/></el-icon>
-            <template #title>专家研讨厅</template>
-          </el-menu-item>
-        </el-sub-menu>
-
         <!-- index 不可为 "0"：router 模式下会执行 router.push("0") 导致无法访问 -->
         <el-menu-item v-if="currentPhase" index="scnet-menu-exit" :route="'/home'">
           <el-icon size="18"><SwitchButton/></el-icon>
@@ -194,11 +182,6 @@
     </div>
     <div :class="isCollapse ? 'body-pos-shrink' : 'body-pos-expand'">
       <AppHeader style="flex-shrink: 0; z-index: 2000"/>
-      <!-- 阶段 / 知识平台快捷导航：零高度锚点 + 绝对定位浮层。
-           锚点必须放在滚动容器之外：放进 .scnet-router-host 里的话，
-           浮层向上越出容器顶部的那部分会被 overflow-y: auto 直接裁掉。
-           它 flex: 0 0 auto + height: 0，既不占高度也不推挤页面内容。 -->
-      <ScnetPhaseNav />
       <div class="scnet-router-host">
         <router-view />
       </div>
@@ -272,7 +255,7 @@
 <script>
 import {
   Aim, Box, Coin, Collection, Connection, Cpu, DataAnalysis, DataLine, Document, DocumentDelete, Edit,
-  FolderOpened, Grid, House, MapLocation, Memo, Monitor, Notification, Operation, Orange,
+  FolderOpened, Grid, House, Memo, Monitor, Notification, Operation, Orange,
   PieChart, Place, Postcard, Promotion, ScaleToOriginal, Search as SearchIcon, Setting,
   SwitchButton, TrendCharts, User, WarningFilled, ChatDotSquare, CircleCheck, VideoPlay, ArrowRight
 } from "@element-plus/icons-vue";
@@ -280,7 +263,6 @@ import {ref, onMounted, onUnmounted, computed, watch} from "vue";
 import {useRoute, useRouter} from "vue-router";
 import {Files, Refresh} from "@element-plus/icons-vue";
 import AppHeader from "@/components/Header.vue";
-import ScnetPhaseNav from "@/components/ScnetPhaseNav.vue";
 import ExpertWorkflowProgressFloat from "@/views/SCnet/components/ExpertWorkflowProgressFloat.vue";
 import { useExpertWorkflowStore } from "@/stores/scnet/useExpertWorkflowStore";
 import { useScenarioStore } from "@/stores/scenario";
@@ -296,14 +278,16 @@ const PRE_MAIN_MENU_ITEMS = Object.freeze([
   // 页面和路由都还在，去掉下面两行注释即可恢复。
   // { index: '/home/SCnet/knowledgeGraph', label: '知识库', icon: Collection },
   { index: '/home/SCnet/scenarioSetting', label: '场景设定', icon: Setting },
-  // 方案确认位于场景设定与知识库之间:场景设定后先生成方案,确认后才进入正式分析
-  { index: '/home/SCnet/planConfirmation', label: '事前方案确认', icon: Memo },
+  // 场景设定后先确认方案，再进入领域模型与正式分析
+  { index: '/home/SCnet/planConfirmation', label: '方案预览', icon: Memo },
+  { index: '/home/SCnet/domainModel', label: '领域模型', icon: Connection },
   // { index: '/home/SCnet/openSourceIntelligence', label: '开源情报', icon: WarningFilled },
 ])
 
 const PRE_ANALYSIS_MENU_ITEMS = Object.freeze([
   { index: '/home/SCnet/situationJudge', label: '态势研判', icon: DataLine },
-  { index: '/home/SCnet/situationResearch-main', label: '态势预测', icon: Promotion }
+  { index: '/home/SCnet/situationResearch-main', label: '态势预测', icon: Promotion },
+  { index: '/home/SCnet/expertSeminar', label: '专家研讨厅', icon: Connection }
 ])
 
 const PRE_TAIL_MENU_ITEMS = Object.freeze([
@@ -328,8 +312,7 @@ const DURING_TAIL_MENU_ITEMS = Object.freeze([
 
 const DURING_ANALYSIS_MENU_ITEMS = Object.freeze([
   { index: '/home/SCnet/expAnalysisGameTheory', label: '脆弱性分析', icon: Grid },
-  { index: '/home/SCnet/expAnalysisScenario', label: '决策分析', icon: TrendCharts },
-  { index: '/home/SCnet/expAnalysisDecisionTree', label: '对策分析', icon: Promotion }
+  { index: '/home/SCnet/expAnalysisScenario', label: '决策分析', icon: TrendCharts }
 ])
 
 // 实验分析子菜单之前展示的主菜单项
@@ -346,7 +329,6 @@ const POST_ANALYSIS_MENU_ITEMS = Object.freeze([
 
 // 实验分析子菜单之后展示的主菜单项
 const POST_TAIL_MENU_ITEMS = Object.freeze([
-  { index: '/home/SCnet/expAnalysisMap', label: '供应链态势地图', icon: MapLocation },
   { index: '/home/SCnet/EXreport', label: '复盘报告', icon: Postcard }
 ])
 
@@ -395,8 +377,8 @@ export default {
     ExpertWorkflowProgressFloat,
     Refresh, Files, DataAnalysis, DataLine, DocumentDelete, House, Aim, Box, Collection,
     Document, Notification, Operation, Postcard, Promotion, ScaleToOriginal, SearchIcon, Setting,
-    Coin, PieChart, FolderOpened, Grid, MapLocation, SwitchButton, Orange, TrendCharts, User, AppHeader, WarningFilled, ChatDotSquare, CircleCheck,
-    ScnetPhaseNav, VideoPlay, ArrowRight
+    Coin, PieChart, FolderOpened, Grid, SwitchButton, Orange, TrendCharts, User, AppHeader, WarningFilled, ChatDotSquare, CircleCheck,
+    VideoPlay, ArrowRight
   },
   setup() {
     const route = useRoute()
@@ -410,10 +392,6 @@ export default {
       if (route.path === '/home/SCnet/expertSeminar') return 'pre'
       return ROUTE_TO_PHASE[route.path] || storedPhase.value || ''
     })
-    watch(() => route.path, (path) => {
-      const phase = ROUTE_TO_PHASE[path]
-      if (phase) storedPhase.value = phase
-    }, { immediate: true })
 
     // ── 场景感知：从 URL 或 store 获取当前场景 ──
     const scenarioStore = useScenarioStore()
@@ -665,15 +643,10 @@ export default {
   position: fixed;
   justify-content: space-between;
   height: 100vh;
-  z-index: 2201;
-  background: #fff;
 }
 
 .el-menu-vertical-demo{
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  min-height: calc(100vh - 60px);
 }
 .el-menu-vertical-demo:not(.el-menu--collapse) {
   width: 200px;

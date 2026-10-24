@@ -1,7 +1,13 @@
 <template>
   <div class="scenario-setting">
-    <div class="page-wrap">
-      <!-- ===== 顶部标题栏 ===== -->
+    <PreScenarioAssistant
+      :form="assistantForm" :scenario="assistantScenario" :confirmed="outlineConfirmed"
+      :session-id="String(route.query.session_id || '')" :is-example="route.query.view === 'example' || (store.detail?.session_id === route.query.session_id && store.detail?.plan?.plan_mode === 'example')"
+      :example-plan="store.detail?.plan?.content || null" :initial-outline="existingOutline"
+      :reset-token="assistantResetToken" @confirm="confirmAssistantOutline"
+      @invalidated="invalidateAssistantOutline"
+    >
+      <template #toolbar>
       <header class="page-head">
         <div class="head-titles">
           <div class="head-eyebrow">
@@ -9,7 +15,7 @@
             <i class="head-eyebrow__divider"></i>
             <span>{{ scenarioStore.label }}</span>
           </div>
-          <h1 class="head-title">场景设定</h1>
+          <h1 class="head-title"></h1>
           <p class="head-desc">定义本次供应链研判的对象、范围与决策目标</p>
         </div>
 
@@ -35,7 +41,8 @@
           </ol>
         </div>
       </header>
-
+      </template>
+      <template #settings>
       <el-form
         ref="formRef"
         :model="form"
@@ -46,7 +53,8 @@
       >
         <div class="page-body">
           <!-- ===== 左：配置区 ===== -->
-          <main class="config">
+          <div class="config">
+            <DomainModelContext v-model="domainBinding" :industry="assistantScenario" :question="form.question" @analysis-change="domainAnalysis = $event" />
             <!-- A. 核心研判问题 -->
             <section class="panel">
               <div class="panel-head">
@@ -179,7 +187,7 @@
                 该问题涉及盈亏测算，建议补充采购量、采购价格与运输成本等信息，以提高测算精度。
               </p>
             </section>
-          </main>
+          </div>
 
           <!-- ===== 右：场景任务摘要 ===== -->
           <aside class="summary">
@@ -239,16 +247,16 @@
           </aside>
         </div>
       </el-form>
-    </div>
-
-    <!-- ===== 底部操作区 ===== -->
+      </template>
+      <template #actions>
     <footer class="action-bar">
       <div class="action-bar__inner">
         <div class="action-info">
           <template v-if="!submitted">
             <span class="action-info__dot"></span>
-            <span v-if="canSubmit">提交后将生成分析方案，确认方案后再启动正式分析。</span>
-            <span v-else>请先填写核心研判问题；补充分析条件均为选填，可以留空。</span>
+            <span v-if="canSubmit">大纲已确认，可生成分析方案。</span>
+            <span v-else-if="!form.question.trim()">先在中间描述需求，或编辑场景参数。</span>
+            <span v-else>整理并确认上方大纲后，可生成分析方案。</span>
           </template>
           <template v-else>
             <span class="action-info__dot" :class="`is-${statusTag?.tone}`"></span>
@@ -283,11 +291,13 @@
         </div>
       </div>
     </footer>
+      </template>
+    </PreScenarioAssistant>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { SCNET_ROUTES } from '@/constants/scnetRoutes'
@@ -297,15 +307,38 @@ import { useExpertPlanStore } from '@/stores/scnet/useExpertPlanStore'
 import { useExpertExampleStore } from '@/stores/scnet/useExpertExampleStore'
 import { importExpertExampleWorkflow } from '@/api/expertWorkflow'
 import ExpertWorkflowNav from '@/views/SCnet/components/ExpertWorkflowNav.vue'
+import PreScenarioAssistant from '@/views/SCnet/PreScene/PreScenarioAssistant.vue'
+import DomainModelContext from '@/components/SCnet/DomainModelContext.vue'
+import { readDomainBinding, selectionPayload } from '@/utils/domainModelBinding'
+import { getDomainModel } from '@/api/domainModel'
 
 const route = useRoute()
 const router = useRouter()
 const scenarioStore = useScenarioStore()
+// Direct links must use the same scenario as the surrounding Layout menu.
+if (['uranium', 'supply_chain'].includes(String(route.query.scenario || ''))) {
+  scenarioStore.setScenario(String(route.query.scenario))
+}
 const store = useExpertWorkflowStore()
 const planStore = useExpertPlanStore()
 const exampleStore = useExpertExampleStore()
 const formRef = ref(null)
 const submitted = ref(false)
+const outlineConfirmed = ref(false)
+const confirmedOutline = ref(null)
+const existingOutline = ref(null)
+const assistantResetToken = ref(0)
+const applyingOutline = ref(false)
+const readyForPersistence = ref(false)
+const assistantScenario = computed(() => scenarioStore.isSupplyChain ? 'auto' : 'uranium')
+const domainBinding = ref(readDomainBinding(assistantScenario.value))
+const domainAnalysis = ref(null)
+const assistantForm = computed(() => ({ ...form, domain_model_analysis: domainAnalysis.value }))
+watch(assistantScenario, value => { domainBinding.value = readDomainBinding(value); domainAnalysis.value = null })
+watch(domainBinding, () => { if (readyForPersistence.value) invalidateAssistantOutline() }, { deep: true })
+const draftStateKey = computed(() => `scnet-pre-page:draft:${assistantScenario.value}`)
+const pageStateKey = computed(() => route.query.session_id
+  ? `scnet-pre-page:session:${String(route.query.session_id)}` : draftStateKey.value)
 
 /* ---------- 选项数据（沿用原有取值，仅调整呈现方式） ---------- */
 const countryOptions = ['哈萨克斯坦', '俄罗斯', '加拿大', '澳大利亚', '纳米比亚', '尼日尔', '乌兹别克斯坦']
@@ -389,6 +422,73 @@ const createDefaultForm = () => ({
 })
 
 const form = reactive(createDefaultForm())
+function savePageState(key = pageStateKey.value) {
+  if (!readyForPersistence.value) return
+  try {
+    sessionStorage.setItem(key, JSON.stringify({
+      form: { ...form }, outlineConfirmed: outlineConfirmed.value,
+      confirmedOutline: confirmedOutline.value, domainBinding: domainBinding.value,
+    }))
+  } catch { /* 会话存储不可用时仍保留当前页面状态 */ }
+}
+function restorePageState(key = pageStateKey.value) {
+  let saved = null
+  try { saved = JSON.parse(sessionStorage.getItem(key) || 'null') } catch { /* 忽略损坏记录 */ }
+  if (!saved || !saved.form || typeof saved.form !== 'object') return
+  Object.assign(form, saved.form)
+  if ('domainBinding' in saved && !route.query.domain_model_id) domainBinding.value = saved.domainBinding
+  confirmedOutline.value = saved.confirmedOutline || null
+  outlineConfirmed.value = Boolean(saved.outlineConfirmed && confirmedOutline.value?.steps?.length)
+  if (outlineConfirmed.value && confirmedOutline.value?.sections?.length) {
+    existingOutline.value = {
+      version: 2,
+      scenario_spec: { question: form.question, background_event: form.backgroundEvent, commodity: form.commodity,
+        source_countries: form.sourceCountries, route_ids: form.routeIds,
+        time_window: { start: form.timeRange?.[0] || '', end: form.timeRange?.[1] || '' },
+        quantity: form.quantity, unit: form.unit },
+      outline: confirmedOutline.value.steps,
+      sections: confirmedOutline.value.sections,
+      open_questions: confirmedOutline.value.open_questions || [],
+    }
+  }
+}
+watch([form, outlineConfirmed, confirmedOutline, domainBinding], () => savePageState(), { deep: true })
+onBeforeUnmount(() => savePageState())
+function invalidateAssistantOutline() {
+  outlineConfirmed.value = false
+  confirmedOutline.value = null
+  existingOutline.value = null
+}
+watch(form, () => {
+  if (readyForPersistence.value && !applyingOutline.value && outlineConfirmed.value) invalidateAssistantOutline()
+}, { deep: true })
+
+async function confirmAssistantOutline(outline) {
+  const spec = outline?.scenario_spec || {}
+  if (!String(spec.question || '').trim()) return
+  applyingOutline.value = true
+  Object.assign(form, {
+    question: String(spec.question).trim(),
+    backgroundEvent: String(spec.background_event || ''),
+    commodity: String(spec.commodity || ''),
+    sourceCountries: Array.isArray(spec.source_countries) ? spec.source_countries : [],
+    routeIds: Array.isArray(spec.route_ids) ? spec.route_ids.filter(id => routeOptions.some(route => route.value === id)) : [],
+    timeRange: spec.time_window?.start && spec.time_window?.end ? [spec.time_window.start, spec.time_window.end] : [],
+    quantity: spec.quantity ?? null,
+    unit: spec.unit || 'tU',
+  })
+  formRef.value?.clearValidate()
+  await nextTick()
+  confirmedOutline.value = {
+    steps: [...(outline.outline || [])],
+    sections: Array.isArray(outline.sections) ? outline.sections : [],
+    open_questions: [...(outline.open_questions || [])],
+  }
+  existingOutline.value = outline
+  outlineConfirmed.value = true
+  applyingOutline.value = false
+  ElMessage.success('大纲已确认并填入场景设定，可生成分析方案')
+}
 const rules = { question: [{ required: true, message: '请填写需要研判的问题', trigger: 'blur' }] }
 
 /* ---------- 摘要展示 ---------- */
@@ -467,7 +567,7 @@ const startStateText = computed(() => {
 
 /* ---------- 交互 ---------- */
 /** 补充分析条件全部选填，只有核心研判问题会决定提交按钮是否可用 */
-const canSubmit = computed(() => Boolean(form.question.trim()))
+const canSubmit = computed(() => Boolean(form.question.trim()) && outlineConfirmed.value)
 
 /** 仅在问题明确要求测算盈亏时，才提示补充数量 / 价格 / 运输成本 */
 const COST_KEYWORDS = ['盈亏', '成本', '利润', '收益', '亏损', '测算']
@@ -530,6 +630,14 @@ async function onNewAnalysis() {
   // 4) 清空场景设定表单(不复制旧任务的问题/国家/路线/时间/数量)
   formRef.value?.clearValidate()
   Object.assign(form, createDefaultForm())
+  domainBinding.value = null
+  domainAnalysis.value = null
+  invalidateAssistantOutline()
+  assistantResetToken.value += 1
+  try {
+    sessionStorage.removeItem(draftStateKey.value)
+    sessionStorage.removeItem(`scnet-pre-assistant:draft:${assistantScenario.value}`)
+  } catch { /* 无存储权限 */ }
   submitted.value = false
 
   // 5) 移除 URL 上的旧任务参数,进入空白新建状态(保留场景类型)
@@ -557,6 +665,8 @@ async function applyScenarioExample() {
     const response = await importExpertExampleWorkflow()
     const data = response?.data || response
     const spec = data?.scenario_spec || {}
+    domainBinding.value = null
+    domainAnalysis.value = null
     Object.assign(form, {
       question: spec.question || SCENARIO_EXAMPLE.question,
       backgroundEvent: spec.background_event || '',
@@ -565,10 +675,16 @@ async function applyScenarioExample() {
       routeIds: [...(spec.route_ids || [])],
       timeRange: [spec.time_window?.start || '', spec.time_window?.end || ''],
       quantity: spec.quantity ?? null,
+      unit: spec.unit || 'tU',
     })
+    invalidateAssistantOutline()
+    existingOutline.value = null
+    assistantResetToken.value += 1
     formRef.value?.clearValidate()
     await store.refresh(data.session_id)
     submitted.value = true
+    await nextTick()
+    try { sessionStorage.removeItem(draftStateKey.value) } catch { /* 无存储权限 */ }
     await router.replace({ path: SCNET_ROUTES.scenarioSetting,
       query: { scenario: 'uranium', session_id: data.session_id, view: 'example' } })
     ElMessage.success('设定案例已导入，点击下一步依次查看方案、研判、预测和报告。')
@@ -594,11 +710,19 @@ async function resetForm() {
   }
   formRef.value?.clearValidate()
   Object.assign(form, createDefaultForm())
+  domainBinding.value = null
+  domainAnalysis.value = null
+  invalidateAssistantOutline()
+  assistantResetToken.value += 1
   if (hadInput) ElMessage.success('已重置为默认场景设定')
 }
 
 /** 提交只负责保存场景并创建任务,不等待方案生成;方案在「方案确认」页再拉起 */
 async function submitScenario() {
+  if (!outlineConfirmed.value) {
+    ElMessage.warning('请先在事前方案助手中确认研判大纲')
+    return
+  }
   if (!formRef.value) return
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) {
@@ -612,6 +736,7 @@ async function submitScenario() {
       scenario,
       scenario_spec: {
         question: form.question.trim(),
+        domain_model_selection: selectionPayload(domainBinding.value),
         background_event: form.backgroundEvent.trim(),
         commodity: form.commodity.trim(),
         source_countries: form.sourceCountries,
@@ -622,6 +747,8 @@ async function submitScenario() {
         unit: form.unit,
         objectives: deriveObjectives(form.question),
         counterfactual: deriveScenario(form.question),
+        analysis_outline: confirmedOutline.value?.steps || [],
+        open_questions: confirmedOutline.value?.open_questions || [],
       },
     })
     submitted.value = true
@@ -629,6 +756,13 @@ async function submitScenario() {
     // 先 replace 把 session_id 写进当前记录,再 push 到方案确认页:
     // 这样浏览器「返回上一步」能带着 session_id 回到本页并保留已填内容。
     const query = { ...route.query, session_id: result.session_id, scenario }
+    savePageState(`scnet-pre-page:session:${result.session_id}`)
+    try {
+      const assistantDraftKey = `scnet-pre-assistant:draft:${assistantScenario.value}`
+      const assistantSessionKey = `scnet-pre-assistant:session:${result.session_id}`
+      const snapshot = sessionStorage.getItem(assistantDraftKey)
+      if (snapshot) sessionStorage.setItem(assistantSessionKey, snapshot)
+    } catch { /* 无存储权限 */ }
     await router.replace({ query })
     await router.push({ path: SCNET_ROUTES.planConfirmation, query })
   } catch (e) {
@@ -652,10 +786,27 @@ async function resubmitScenario() {
 
 onMounted(async () => {
   const sid = String(route.query.session_id || '')
-  if (!sid) return
+  if (!sid) {
+    restorePageState()
+    if (route.query.domain_model_id) {
+      try {
+        const id = String(route.query.domain_model_id), version = Number(route.query.domain_model_version)
+        if (domainBinding.value?.model_id !== id || domainBinding.value?.version !== version) {
+          const selected = await getDomainModel(id, version)
+          domainBinding.value = { model_id: selected.id, version: selected.version, name: selected.name, model: selected, instance: null }
+        }
+        if (domainBinding.value?.question) form.question = domainBinding.value.question
+        invalidateAssistantOutline()
+      } catch (e) { ElMessage.error(e.message) }
+    }
+    await nextTick()
+    readyForPersistence.value = true
+    return
+  }
   try {
     const data = await store.refresh(sid)
     const spec = data?.scenario_spec || {}
+    domainBinding.value = spec.domain_model_snapshot ? { ...spec.domain_model_selection, name: spec.domain_model_snapshot.name, model: spec.domain_model_snapshot, analysis: spec.domain_model_analysis } : null
     form.question = spec.question || ''
     form.backgroundEvent = spec.background_event || ''
     form.commodity = spec.commodity || ''
@@ -664,11 +815,25 @@ onMounted(async () => {
     form.timeRange = [spec.time_window?.start, spec.time_window?.end].filter(Boolean)
     form.quantity = spec.quantity ?? null
     form.unit = spec.unit || 'tU'
+    if (Array.isArray(spec.analysis_outline) && spec.analysis_outline.length) {
+      confirmedOutline.value = { steps: spec.analysis_outline, open_questions: spec.open_questions || [] }
+      outlineConfirmed.value = true
+      existingOutline.value = {
+        scenario_spec: spec, outline: spec.analysis_outline,
+        open_questions: spec.open_questions || [],
+      }
+    }
+    restorePageState()
+    if (!outlineConfirmed.value) existingOutline.value = null
     // 兼容字段（objectives / counterfactual）不再回填到界面，提交时由核心问题推断
     submitted.value = true
     // 回到本页时按会话恢复全局进度;轮询由布局统一持有
     store.ensurePolling(sid)
-  } catch { /* 保留表单供重新提交 */ }
+  } catch { restorePageState() /* 后端临时不可用时恢复本地草稿 */ }
+  finally {
+    await nextTick()
+    readyForPersistence.value = true
+  }
 })
 </script>
 
@@ -710,6 +875,8 @@ onMounted(async () => {
   padding: 22px 28px 20px;
   box-sizing: border-box;
 }
+
+
 
 /* ============ 顶部标题栏 ============ */
 .page-head {
@@ -1168,6 +1335,8 @@ onMounted(async () => {
   .page-body { grid-template-columns: minmax(0, 1fr) minmax(300px, 0.5fr); }
 }
 
+
+
 @media (max-width: 1100px) {
   .page-body { grid-template-columns: minmax(0, 1fr); }
   .summary-card { position: static; max-height: none; }
@@ -1183,4 +1352,29 @@ onMounted(async () => {
   .action-info__sub,
   .action-info__sep { display: none; }
 }
+
+/* Embed the discussion and outline rail under the existing pre-analysis Layout. */
+.scenario-setting { height: 100%; min-height: 0; background: #fff; }
+.page-head { flex: none; align-items: center; gap: 12px; padding: 16px 26px; margin: 0; border-bottom: 1px solid #f0f2f5; }
+.head-title { margin: 0; font-size: 16px; font-weight: 600; color: #4b596b; }
+.head-eyebrow, .head-desc, .flow-steps { display: none; }
+.head-side { align-items: flex-end; }
+.head-actions { flex-wrap: wrap; gap: 7px; }
+.case-button { font-size: 11px; }
+.status-chip { font-size: 10px; }
+.page-body { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.panel { padding: 14px; border-radius: 9px; }
+.panel-title { font-size: 13px; }
+.panel-desc, .example-row__note { font-size: 11px; }
+.field-grid { grid-template-columns: minmax(0, 1fr); }
+.summary-card { position: static; max-height: none; border-radius: 9px; }
+.summary-body { overflow: visible; }
+.action-bar { flex: none; position: static; border-top: 1px solid #e6eaf0; background: #fff; box-shadow: none; backdrop-filter: none; }
+.action-bar__inner { flex-direction: column; align-items: stretch; gap: 10px; padding: 14px 20px; }
+.action-info { font-size: 11px; line-height: 1.7; }
+.action-info__sub, .action-info__sep { display: none; }
+.action-buttons { justify-content: flex-end; flex-wrap: wrap; gap: 7px; }
+.action-buttons :deep(.el-button) { font-size: 12px; }
+@media (max-width: 1100px) { .page-head { flex-direction: row; align-items: center; } }
+@media (max-width: 760px) { .scenario-setting { height: auto; } .page-head { padding: 14px 16px; } .head-actions { justify-content: flex-end; } }
 </style>

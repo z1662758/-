@@ -70,6 +70,12 @@ export default defineConfig({
         target: 'http://localhost:9091/',
         changeOrigin: true
       },
+      '/api/domain-models': {
+        target: 'http://localhost:9091/',
+        changeOrigin: true,
+        timeout: 90000,
+        proxyTimeout: 90000
+      },
       '/api/ontology': {
         target: 'http://localhost:9091/',
         changeOrigin: true

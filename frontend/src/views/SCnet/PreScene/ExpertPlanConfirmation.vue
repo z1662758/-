@@ -1,6 +1,7 @@
 <template>
   <div class="plan-page">
     <div class="page-wrap">
+      <DomainModelSummary :analysis="domainWorkflowStore.detail?.scenario_spec?.domain_model_analysis" />
       <!-- ===== 顶部标题栏 ===== -->
       <header class="page-head">
         <div class="head-titles">
@@ -256,6 +257,8 @@ import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 import { useScenarioStore } from '@/stores/scenario'
 import { useExpertPlanStore } from '@/stores/scnet/useExpertPlanStore'
 import PlanTaskSummary from '@/views/SCnet/components/plan/PlanTaskSummary.vue'
+import DomainModelSummary from '@/components/SCnet/DomainModelSummary.vue'
+import { useExpertWorkflowStore } from '@/stores/scnet/useExpertWorkflowStore'
 import PlanQuestionList from '@/views/SCnet/components/plan/PlanQuestionList.vue'
 import PlanResourceList from '@/views/SCnet/components/plan/PlanResourceList.vue'
 import PlanModelList from '@/views/SCnet/components/plan/PlanModelList.vue'
@@ -269,6 +272,7 @@ import PlanPrintSheet from '@/views/SCnet/components/plan/PlanPrintSheet.vue'
 const route = useRoute()
 const router = useRouter()
 const scenarioStore = useScenarioStore()
+const domainWorkflowStore = useExpertWorkflowStore()
 const store = useExpertPlanStore()
 
 const bootstrapping = ref(false)

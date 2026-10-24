@@ -22,6 +22,7 @@
       />
     </template>
     <template #default="{ artifact, mode }">
+      <DomainModelSummary :analysis="artifact?.result?.domainModelAnalysis" />
       <SituationJudge
         :scenario="scenario"
         :initial-data="legacyPayload(artifact)"
@@ -47,6 +48,7 @@ import SituationJudge from './situationJudge.vue'
 import ExpertStageGate from './components/ExpertStageGate.vue'
 import ExpertWorkflowNav from './components/ExpertWorkflowNav.vue'
 import JudgmentScopeSwitch from './components/JudgmentScopeSwitch.vue'
+import DomainModelSummary from '@/components/SCnet/DomainModelSummary.vue'
 import { SCNET_ROUTES } from '@/constants/scnetRoutes'
 import { useExpertWorkflowStore } from '@/stores/scnet/useExpertWorkflowStore'
 
@@ -138,7 +140,7 @@ function focusedPayload(artifact) {
  * 由后端 llm_judgment_service 真实调用大模型产出,只含理解层结论
  * (风险主题/影响方向/影响路径/置信度/待核验问题),不含任何风险分数。
  * 旧任务与案例包没有这一块 —— 返回 null,页面显示"暂无大模型研判结果",
- * 绝不用领域模型结果顶替。
+ * 绝不用态势模型结果顶替。
  */
 function llmJudgment(artifact) {
   return result(artifact)?.llm || null

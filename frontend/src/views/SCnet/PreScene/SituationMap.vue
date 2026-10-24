@@ -29,7 +29,7 @@
 
     
 
-    <main class="main-layout">
+    <main class="main-layout" :class="{ 'main-layout--map-only': hideSidePanel }">
       <section class="map-panel">
         <div class="map-topbar">
           <div class="filter-buttons">
@@ -79,7 +79,7 @@
         </div>
       </section>
 
-      <aside class="side-panel">
+      <aside v-show="!hideSidePanel" class="side-panel">
         <!-- 只在确实不是当前任务真实结果时提示,且不暴露内部字段 -->
         
 
@@ -106,7 +106,7 @@
               <b>{{ riskText(llm.risk_level) }}</b>
               <em v-if="dualJudgment.risk_level !== llm.risk_level">判断不同</em>
             </div>
-            <p>地图着色和路线统计来自领域模型计算。</p>
+            <p>地图着色和路线统计来自态势模型计算。</p>
             <button v-if="dualOn" class="k2-dual-detail-link" type="button" @click="scrollToDualResult">
               查看完整双驱动结论与三方对比 ↓
             </button>
@@ -115,7 +115,7 @@
           <!-- 全局态势(§20-21) -->
           <div v-if="activeRouteId === 'all'" class="k2-global-overview">
             <div class="k2-route-stats">
-              <span v-if="viewMode === 'dual'">领域模型路线统计</span>
+              <span v-if="viewMode === 'dual'">态势模型路线统计</span>
               <span>路线 <b>{{ viewRoutes.length }}</b></span>
               <template v-if="assessmentKind">
                 <span>有模型影响 <b class="high">{{ routeStats.high + routeStats.medium }}</b></span>
@@ -164,7 +164,7 @@
               </span>
             </div>
 
-            <!-- 领域模型 / 双驱动:展示真实风险数值(双驱动地图着色同样来自领域模型) -->
+            <!-- 态势模型 / 双驱动:展示真实风险数值(双驱动地图着色同样来自态势模型) -->
             <template v-if="viewMode !== 'llm'">
               <div class="k2-scores">
                 <span>{{ assessmentMetricName }}<b>{{ assessmentKind ? metricValueText(currentRoute.assessment_score) : num(currentRoute.display_risk_score ?? currentRoute.risk_score) }}</b></span>
@@ -191,7 +191,7 @@
                 <span class="k2-emp-method">历史实证校准未就绪(样本不足),不显示假 0%(§49)</span>
               </div>
 
-              <!-- 双驱动:把大模型对该路线的判断与领域模型并排摆出来 -->
+              <!-- 双驱动:把大模型对该路线的判断与态势模型并排摆出来 -->
               <div v-if="viewMode === 'dual'" class="k2-dual-line">
                 <div class="k2-dual-row">
                   <span>大模型判断</span>
@@ -202,7 +202,7 @@
                   <em v-else class="k2-dual-none">暂无大模型对该路线的判断</em>
                 </div>
                 <div class="k2-dual-row">
-                  <span>领域模型评分</span>
+                  <span>态势模型评分</span>
                   <b class="k2-dual-score">{{ num(currentRoute.display_risk_score ?? currentRoute.risk_score) }} / 100</b>
                   <span class="risk-tag" :class="currentRoute.riskLevel">{{ riskText(currentRoute.riskLevel) }}</span>
                 </div>
@@ -218,10 +218,10 @@
                 </div>
                 <p v-if="currentRoute.llmReason" class="k2-llm-reason">{{ currentRoute.llmReason }}</p>
                 <p v-else class="k2-llm-none">
-                  大模型本次没有点名这条路线,因此这里不显示风险等级 —— 不会借用领域模型的计算结果。
+                  大模型本次没有点名这条路线,因此这里不显示风险等级 —— 不会借用态势模型的计算结果。
                 </p>
                 <div v-if="currentRoute.domainRiskHint" class="k2-llm-trace">
-                  （追溯说明：该路线的领域模型结果为 {{ riskText(currentRoute.domainRiskHint) }}，仅供对照，不作为大模型结论）
+                  （追溯说明：该路线的态势模型结果为 {{ riskText(currentRoute.domainRiskHint) }}，仅供对照，不作为大模型结论）
                 </div>
               </div>
             </template>
@@ -277,7 +277,7 @@
             </div>
 
             <div v-if="viewMode === 'llm' && !llmOn" class="k2-view-empty">
-              {{ llmEmptyReason }}。本标签不使用领域模型的风险等级或分数填充大模型结果。
+              {{ llmEmptyReason }}。本标签不使用态势模型的风险等级或分数填充大模型结果。
             </div>
 
             <!-- 全局态势:路线风险排行榜(§21-23/§48) -->
@@ -337,7 +337,7 @@
                 </p>
               </div>
 
-              <!-- 网络关键性是领域模型的结构指标,大模型视角不展示,避免误当大模型结论 -->
+              <!-- 网络关键性是态势模型的结构指标,大模型视角不展示,避免误当大模型结论 -->
               <template v-if="viewMode !== 'llm'">
                 <div class="k2-sec-title">网络关键节点</div>
                 <div class="k2-crit-toggle">
@@ -362,7 +362,7 @@
               </p>
             </div>
 
-            <!-- 节点详情:领域模型视角看数值,大模型视角看是否被点名 -->
+            <!-- 节点详情:态势模型视角看数值,大模型视角看是否被点名 -->
             <div v-if="selectedNodeDetail" class="node-detail">
               <div class="nd-head">
                 <strong>{{ selectedNodeDetail.name }}</strong>
@@ -393,7 +393,7 @@
                 </p>
                 <p v-else class="nd-none">大模型本次没有点名该节点。</p>
                 <p v-if="selectedNodeDetail.domainLevel" class="nd-trace">
-                  追溯说明：该节点的领域模型等级为 {{ riskText(selectedNodeDetail.domainLevel) }}（仅供对照，不作为大模型结论）。
+                  追溯说明：该节点的态势模型等级为 {{ riskText(selectedNodeDetail.domainLevel) }}（仅供对照，不作为大模型结论）。
                 </p>
               </template>
             </div>
@@ -420,7 +420,7 @@
                   <p class="re-note">
                     {{ route.llmLevel
                       ? (route.llmReason || '大模型未给出该路线的判断理由。')
-                      : '大模型本次没有点名这条路线，因此不显示风险等级，也不会借用领域模型的计算结果。' }}
+                      : '大模型本次没有点名这条路线，因此不显示风险等级，也不会借用态势模型的计算结果。' }}
                   </p>
                   <p class="re-note k2-trace-note">
                     数据来源：大模型研判。大模型只给定性等级，不产出风险分数。
@@ -534,8 +534,8 @@
           <!-- Tab3 模型链 -->
           <div v-if="activeTab === 'chain'" class="tab-body">
             <div v-if="viewMode === 'llm'" class="chain-empty">
-              大模型独立研判没有领域模型执行链
-              <span>本视图仅展示大模型基于 OSINT 情报、知识库和用户问题形成的判断。领域模型的运行记录请切换到“领域模型研判”查看。</span>
+              大模型独立研判没有态势模型执行链
+              <span>本视图仅展示大模型基于 OSINT 情报、知识库和用户问题形成的判断。态势模型的运行记录请切换到“态势模型研判”查看。</span>
             </div>
             <template v-else>
             <div v-if="modelChainSummary" class="chain-summary">
@@ -1166,6 +1166,7 @@ const MOCK_ROUTES = [
 // 两种视图共用同一套网络:聚焦视图只是把无关路线与节点降低视觉权重,
 // 不另造一份网络数据,也不改动任何风险颜色语义。
 const props = defineProps({
+  hideSidePanel: { type: Boolean, default: false },
   /**
    * 外部注入的网络数据。传入时不再自行拉取 live 快照 ——
    * 案例模式必须展示案例包里的那一份快照,而不是当前 live 快照。
@@ -1177,13 +1178,13 @@ const props = defineProps({
   /** 是否处于「与本次需求相关」视图 */
   focusedMode: { type: Boolean, default: false },
   /**
-   * 当前研判视角:'llm' 大模型研判 | 'domain' 领域模型研判 | 'dual' 双驱动研判。
+   * 当前研判视角:'llm' 大模型研判 | 'domain' 态势模型研判 | 'dual' 双驱动研判。
    * 三个视角共用本组件,只切换注入的等级/数值口径与来源标识。
    */
   judgmentMode: { type: String, default: 'dual' },
   /**
    * 大模型研判结果(artifact.result.llm)。缺失时为 null ——
-   * 大模型视角显示"暂无大模型研判结果",绝不用领域模型分数顶替。
+   * 大模型视角显示"暂无大模型研判结果",绝不用态势模型分数顶替。
    */
   llmJudgment: { type: Object, default: null },
   dualJudgment: { type: Object, default: null },
@@ -1249,7 +1250,7 @@ const selectedEventId = ref('')
 const emphasizedNodeNames = ref([])
 const emphasizedEdgeKeys = ref([])
 const expandedModelRun = ref('')
-/** 模型注册表(模型卡)由共享 composable 提供,与「领域模型研判」结果区共用同一份缓存 */
+/** 模型注册表(模型卡)由共享 composable 提供,与「态势模型研判」结果区共用同一份缓存 */
 const { cards: modelCards, error: modelRegistryError, ensureLoaded: ensureModelCards } = useModelRegistry()
 const showModelCard = ref(false)
 const selectedModelCard = ref(null)
@@ -1267,16 +1268,16 @@ const visibleRoutes = computed(() => {
 /* ══════════════════════════════════════════════════════════
    研判视角视图模型
    ──────────────────────────────────────────────────────────
-   三个子标签(大模型 / 领域模型 / 双驱动)共用这一个地图组件、
+   三个子标签(大模型 / 态势模型 / 双驱动)共用这一个地图组件、
    这一套路线绘制方式与这一套节点交互,只在下面这一层把
    「喂给 createLineData / createNodeData 的等级与数值」换掉。
 
    着色口径:
-     domain —— 领域模型算出的真实等级与分数,原样透传,一个字不改
-     dual   —— 地图仍用领域模型等级(领域模型负责计算),额外挂上大模型
+     domain —— 态势模型算出的真实等级与分数,原样透传,一个字不改
+     dual   —— 地图仍用态势模型等级(态势模型负责计算),额外挂上大模型
                的定性判断与一致性,供右侧面板与排行展示
      llm    —— 只用大模型点名过的定性等级;大模型没提的路线记为
-               'unknown'(未研判),绝不借用领域模型的风险等级来顶上。
+               'unknown'(未研判),绝不借用态势模型的风险等级来顶上。
                大模型不给风险分数,因此数值位一律为空(显示为 —)。
    ══════════════════════════════════════════════════════════ */
 const viewMode = computed(() =>
@@ -1298,7 +1299,7 @@ function scrollToDualResult() {
 }
 const llmEmptyReason = computed(() =>
   llm.value?.status === 'completed' && llm.value?.prompt_version !== 'llm_judgment_v2'
-    ? '旧版结果曾使用领域模型分数，需重新生成独立大模型研判'
+    ? '旧版结果曾使用态势模型分数，需重新生成独立大模型研判'
     : '暂无大模型研判结果')
 const llmLevels = computed(() => llmRouteLevelMap(llm.value))
 const llmReasons = computed(() => llmRouteReasonMap(llm.value))
@@ -1326,20 +1327,20 @@ const viewRoutes = computed(() => {
       ...route,
       riskLevel: level,
       risk_level: level,
-      // 大模型不产出风险分数,数值位留空,不能沿用领域模型的分
+      // 大模型不产出风险分数,数值位留空,不能沿用态势模型的分
       display_risk_score: null,
       raw_risk_score: null,
       risk_score: null,
       llmLevel,
       llmReason: llmReasons.value[route.id] || '',
       llmInScope: llmImpactRoutes.value.has(route.id),
-      // 领域模型等级只作为"追溯说明"保留,不参与着色与排序
+      // 态势模型等级只作为"追溯说明"保留,不参与着色与排序
       domainRiskHint: route.riskLevel || route.risk_level || null,
       nodes: (route.nodes || []).map(node => ({
         ...node,
         risk: level,
         risk_level: level,
-        // 领域模型等级/分数只保留在 domainRisk / domainScore 里供追溯说明,
+        // 态势模型等级/分数只保留在 domainRisk / domainScore 里供追溯说明,
         // 原来的数值字段一律清空 —— 否则会顺着 tooltip 与节点详情漏成大模型的风险分数
         domainRisk: node.risk,
         domainScore: node.score ?? node.risk_score ?? null,
@@ -1389,7 +1390,7 @@ const llmRouteReasons = computed(() => {
 const riskSectionTitle = computed(() => {
   if (viewMode.value === 'llm') return '大模型路线/节点判断'
   if (viewMode.value === 'dual') return '融合风险解释'
-  return '领域模型风险解释'
+  return '态势模型风险解释'
 })
 
 const allRiskNodes = computed(() => {
@@ -1720,7 +1721,7 @@ function runtimeStatusClass(s) {
 }
 
 function nodeOsintDetail(node) {
-  // 大模型视角下这些领域模型数值已被清空 → 统一落到 null,由 num() 显示为 —,
+  // 大模型视角下这些态势模型数值已被清空 → 统一落到 null,由 num() 显示为 —,
   // 不能落回 0(0 会被读成"低风险")。
   const pick = (...vals) => {
     for (const v of vals) if (v !== null && v !== undefined) return v
@@ -1741,7 +1742,7 @@ function nodeOsintDetail(node) {
     routeCount: pick(node.route_count),
     reason: node.risk_level_reason || '',
     description: node.description || node.reason || '',
-    // 大模型视角:该节点是否被大模型点名,以及它的领域模型等级(仅作追溯说明)
+    // 大模型视角:该节点是否被大模型点名,以及它的态势模型等级(仅作追溯说明)
     llmMentioned: Boolean(node.llmMentioned),
     domainLevel: node.domainRisk || null,
     llmReason: node.llmReason || ''
@@ -2161,7 +2162,7 @@ function createNodeData(route) {
       cons: node.consequence_score ?? 0,
       osintDelta: Number(node.osint_risk_delta ?? 0),
       osintCount: Number(node.osint_event_count ?? 0),
-      // 大模型视角:该节点是否被大模型点名;以及它的领域模型等级(仅供追溯说明)
+      // 大模型视角:该节点是否被大模型点名;以及它的态势模型等级(仅供追溯说明)
       llmMentioned: Boolean(node.llmMentioned),
       llmReason: route.llmReason || '',
       domainLevel: node.domainRisk || null,
@@ -2322,7 +2323,7 @@ function renderChart() {
         formatter(params) {
           if (params.seriesType === 'effectScatter') {
             const d = params.data
-            // 领域模型侧的口径(脆弱性/后果/OSINT 增量/证据等级)只属于领域模型视角,
+            // 态势模型侧的口径(脆弱性/后果/OSINT 增量/证据等级)只属于态势模型视角,
             // 大模型视角不产出这些量,不显示 —— 免得被读成大模型的风险判断。
             const domainLines = showScores.value
               ? [
@@ -2854,6 +2855,9 @@ onBeforeUnmount(() => {
 .summary-card.total strong {
   color: #dc2626;
 }
+
+.main-layout.main-layout--map-only { grid-template-columns: minmax(0, 1fr); }
+.main-layout--map-only .map-panel { min-height: 0; height: 100%; }
 
 .main-layout {
   display: grid;
@@ -3699,7 +3703,7 @@ onBeforeUnmount(() => {
 
 .k2-rank-none { color: #94a3b8; }
 
-/* 双驱动:路线级大模型 vs 领域模型并排 */
+/* 双驱动:路线级大模型 vs 态势模型并排 */
 .k2-dual-line {
   margin-top: 8px;
   padding: 8px 10px;

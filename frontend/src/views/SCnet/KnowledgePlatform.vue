@@ -1,13 +1,28 @@
 <template>
   <div class="kp-shell">
-    <!-- ===== 单行顶栏：平台名 + 模块页签 + 上下文操作 + 关闭 ===== -->
+    <!-- 混合数据与专题分析各占一行 -->
     <header class="kp-bar" :style="{ height: BAR_HEIGHT + 'px' }">
+      <div class="kp-nav-row kp-nav-row--data">
       <div class="kp-brand">
         <el-icon :size="18"><Grid /></el-icon>
         <span>知识平台</span>
       </div>
 
-      <nav class="kp-tabs" role="tablist" aria-label="知识平台模块">
+      <button type="button" class="kp-tab" :class="{ 'is-active': tab === 'home' }" @click="tab = 'home'">
+        <el-icon :size="16"><House /></el-icon><span>混合数据</span>
+      </button>
+      <span class="kp-nav-hint">统一导入与保存原始资料</span>
+      <div class="kp-actions">
+        <button type="button" class="kp-import-btn" @click="openExtractionDialog"><el-icon :size="15"><Upload /></el-icon><span>导入混合文件</span></button>
+        <button type="button" class="kp-close-btn" title="关闭 (Esc)" @click="emit('close')"><el-icon :size="16"><Close /></el-icon><span>关闭</span></button>
+      </div>
+      </div>
+      <div class="kp-nav-row kp-nav-row--analysis">
+      <span class="kp-nav-label">专题分析</span>
+      <select class="kp-scenario-select" :value="scenarioKey" aria-label="分析场景" @change="scenarioStore.setScenario($event.target.value)">
+        <option value="uranium">铀供应链</option><option value="supply_chain">汽车供应链</option>
+      </select>
+      <nav class="kp-tabs" role="tablist" aria-label="专题分析模块">
         <button
           v-for="tabItem in tabs"
           :key="tabItem.key"
@@ -28,16 +43,13 @@
           v-if="tab === 'governance'"
           type="button"
           class="kp-import-btn"
-          title="导入数据（PDF / Word / 表格等）"
+          title="补充当前场景情报"
           @click="openImportDialog"
         >
           <el-icon :size="15"><Upload /></el-icon>
-          <span>导入数据</span>
+          <span>补充情报</span>
         </button>
-        <button type="button" class="kp-close-btn" title="关闭 (Esc)" @click="emit('close')">
-          <el-icon :size="16"><Close /></el-icon>
-          <span>关闭</span>
-        </button>
+      </div>
       </div>
     </header>
 
@@ -48,24 +60,19 @@
         <div class="kp-home-hero">
           <div>
             <span class="kp-eyebrow">KNOWLEDGE PLATFORM</span>
-            <h1>知识抽取与分析</h1>
-            <p>汇聚不同来源的数据，查看已登记的知识、可追溯线索和待处理的数据集。</p>
+            <h1>混合数据</h1>
+            <p>集中保存出版社和用户提供的各类文件，再按具体场景与问题筛选相关内容。</p>
           </div>
-          <button type="button" class="kp-hero-action" @click="openExtractionDialog">导入文件并抽取 →</button>
+          <button type="button" class="kp-hero-action" @click="openExtractionDialog">导入混合文件 →</button>
         </div>
 
         <div class="kp-home-inner">
           <div class="kp-home-section-head">
             <div>
-              <h2>领域概览</h2>
-              <p>根据当前领域切换知识资源统计</p>
+              <h2>原始数据文件</h2>
+              <p>导入时统一存储，分析时再筛选铀、汽车或其他相关内容</p>
             </div>
-            <div class="kp-domain-switch" role="group" aria-label="知识领域">
-              <button v-for="domain in domainOptions" :key="domain.id" type="button"
-                :class="{ active: homeDomain === domain.id }" @click="homeDomain = domain.id">
-                {{ domain.name }}
-              </button>
-            </div>
+            <el-input v-model="mixedSearch" class="kp-mixed-search" clearable placeholder="搜索数据名称或来源" />
             <button type="button" class="kp-refresh" :disabled="homeLoading" @click="loadHome">刷新数据</button>
           </div>
 
@@ -75,52 +82,32 @@
           </div>
           <template v-else>
             <div class="kp-metrics">
-              <div v-for="metric in homeMetrics" :key="metric.label" class="kp-metric">
+              <div v-for="metric in mixedMetrics" :key="metric.label" class="kp-metric">
                 <span>{{ metric.label }}</span>
                 <strong>{{ metric.value }}</strong>
                 <small>{{ metric.note }}</small>
               </div>
             </div>
 
-            <div class="kp-home-grid">
+            <div class="kp-home-grid kp-home-grid--mixed">
               <section class="kp-home-card">
                 <div class="kp-home-section-head">
-                  <div><h2>知识抽取结果</h2><p>从文档、论文、情报和专家观点中提取有用信息</p></div>
+                  <div><h2>混合数据文件列表</h2><p>保留原始文件、来源和解析状态</p></div>
                 </div>
-                <div v-if="domainHighlights.length" class="kp-highlight-list">
-                  <article v-for="item in domainHighlights" :key="`${item.kind}-${item.id}`" class="kp-highlight">
-                    <span class="kp-highlight-kind">{{ { paper: '研究论文', osint: '事件情报', expert_view: '专家观点' }[item.kind] || '知识条目' }}</span>
-                    <h3>{{ item.title }}</h3>
-                    <p>{{ item.summary || '已登记知识条目，可在知识库查看详情。' }}</p>
-                    <small>来源：{{ item.source || '已登记来源' }} · {{ item.verification_status || '待核验' }}</small>
-                    <small class="kp-method">抽取方法：{{ item.method }}</small>
-                  </article>
-                </div>
-                <div v-else class="kp-empty">该领域暂无可展示的已核验抽取条目。</div>
-                <button type="button" class="kp-text-action" @click="tab = 'library'">查看知识库 →</button>
-              </section>
-
-              <section class="kp-home-card">
-                <div class="kp-home-section-head">
-                  <div><h2>数据处理进度</h2><p>导入的数据经过解析后可用于检索与知识构建</p></div>
-                </div>
-                <div class="kp-dataset-summary">
-                  <span>已导入 <strong>{{ currentDatasetStats.total }}</strong> 个</span>
-                  <span>已解析 <strong>{{ currentDatasetStats.analyzed }}</strong> 个</span>
-                </div>
-                <div v-if="currentDatasets.length" class="kp-dataset-list">
-                  <div v-for="dataset in currentDatasets.slice(0, 5)" :key="dataset.name" class="kp-dataset-row">
+                <div v-if="mixedDatasets.length" class="kp-dataset-list">
+                  <div v-for="dataset in mixedDatasets" :key="dataset.name" class="kp-dataset-row">
                     <div>
                       <strong :title="dataset.name">{{ dataset.name }}</strong>
-                      <small>{{ dataset.data_types?.join('、') || '数据文件' }} · {{ dataset.chunk_count }} 个内容片段</small>
+                      <small>{{ dataset.data_types?.join('、') || '数据文件' }} · {{ dataset.file_count == null ? '文件数量未记录' : `${dataset.file_count} 个文件` }} · {{ dataset.chunk_count }} 个内容片段</small>
                       <small>来源：{{ dataset.source }} · {{ dataset.status === 'completed' ? '抽取方法' : '计划方法' }}：{{ dataset.method }}</small>
+                      <small v-if="dataset.last_error" class="kp-parse-error">解析说明：{{ dataset.last_error }}<template v-if="dataset.skipped_files">（未解析：{{ Array.isArray(dataset.skipped_files) ? dataset.skipped_files.join('、') : dataset.skipped_files + ' 个文件' }}）</template></small>
                       <small v-if="dataset.preview?.length" class="kp-preview">抽取片段：{{ dataset.preview[0].text }}</small>
                     </div>
-                    <span>{{ datasetStatus(dataset.status) }}</span>
+                    <div class="kp-dataset-actions"><span>{{ datasetStatus(dataset.status) }}</span><button v-if="dataset.status !== 'completed' && dataset.status !== 'analyzing'" type="button" :disabled="parsingName === dataset.name" @click="parseDataset(dataset.name)">{{ parsingName === dataset.name ? '启动中…' : '解析' }}</button></div>
                   </div>
                 </div>
                 <div v-else class="kp-empty">暂无导入数据集。</div>
-                <button type="button" class="kp-text-action" @click="openExtractionDialog">导入新文件并抽取 →</button>
+                <button type="button" class="kp-text-action" @click="tab = 'governance'">选择问题并分析相关内容 →</button>
               </section>
             </div>
 
@@ -134,30 +121,25 @@
       </div>
 
       <!-- 数据治理：事前开源情报页 + 用户导入 -->
-      <div v-else-if="tab === 'governance'" class="kp-pane kp-pane--fill">
-        <OpenSourceIntelligence
-          :key="`${osintKey}-${scenarioKey}`"
-          :initial-scope="'all'"
-          :scroll-height="osintScrollHeight"
-          :scenario="scenarioKey"
-        />
-      </div>
+      <KeepAlive :max="2">
+        <KnowledgeAnalysisWorkspace v-if="tab === 'governance'" :key="scenarioKey" class="kp-pane kp-pane--scroll" :scenario="scenarioKey" :refresh-key="osintKey" />
+      </KeepAlive>
 
       <!-- 2. 知识库：九库首页 -->
-      <div v-else-if="tab === 'library'" class="kp-pane kp-pane--scroll">
+      <div v-if="tab === 'library'" class="kp-pane kp-pane--scroll">
         <PreKnowledgeGraph />
       </div>
 
       <!-- 3. 本体与知识图谱：九库中「本体网络」库的那个界面 -->
-      <div v-else-if="tab === 'ontology'" class="kp-pane kp-pane--scroll">
+      <div v-if="tab === 'ontology'" class="kp-pane kp-pane--scroll">
         <PreKnowledgeGraph :key="ontologyLibrary" :initial-library="ontologyLibrary" />
       </div>
     </div>
 
-    <el-dialog v-model="extractionVisible" title="导入文件并抽取知识" width="560px" append-to-body>
+    <el-dialog v-model="extractionVisible" title="导入混合数据文件" width="560px" append-to-body>
       <el-form label-width="88px">
         <el-form-item label="数据文件" required>
-          <input :key="extractionInputKey" type="file" accept=".pdf,.txt,.md,.markdown,.csv,.json,.jsonl,.yaml,.yml,.log" @change="onExtractionFileChange" />
+          <input :key="extractionInputKey" type="file" multiple @change="onExtractionFileChange" />
         </el-form-item>
         <el-form-item label="数据名称" required>
           <el-input v-model.trim="extractionForm.name" placeholder="为这份数据起一个名称" />
@@ -165,25 +147,22 @@
         <el-form-item label="来源">
           <el-input v-model.trim="extractionForm.source" placeholder="例如：内部报告 / 公开资料" />
         </el-form-item>
-        <el-form-item label="用途说明">
-          <el-input v-model.trim="extractionForm.description" type="textarea" :rows="2" placeholder="想从这份数据了解什么？" />
+        <el-form-item label="内容说明">
+          <el-input v-model.trim="extractionForm.description" type="textarea" :rows="2" placeholder="可描述文件来源、批次或内容范围" />
         </el-form-item>
-        <el-form-item label="归属领域">
-          <span class="kp-import-domain">{{ homeDomain === 'uranium' ? '铀供应链' : '汽车供应链' }}</span>
-        </el-form-item>
-        <p class="kp-dialog-note">支持可提取文本的 PDF、CSV、JSON 和纯文本文件。导入后自动解析、分块；结果会显示在首页处理进度中。</p>
+        <p class="kp-dialog-note">文件统一存入混合数据区。可解析的文字内容用于后续检索；其他文件保留原件，显示待解析状态。</p>
       </el-form>
       <template #footer>
         <el-button @click="extractionVisible = false">取消</el-button>
-        <el-button type="primary" :loading="extracting" @click="submitExtraction">{{ extracting ? '处理中…' : '导入并开始抽取' }}</el-button>
+        <el-button type="primary" :loading="extracting" @click="submitExtraction">{{ extracting ? '处理中…' : '保存并解析' }}</el-button>
       </template>
     </el-dialog>
 
     <!-- ===== 导入数据 ===== -->
-    <el-dialog v-model="importVisible" title="导入数据" width="560px" append-to-body>
+    <el-dialog v-model="importVisible" title="补充当前场景情报" width="560px" append-to-body>
       <el-form :model="importForm" label-width="88px">
         <el-form-item label="数据文件">
-          <el-upload
+      <el-upload
             ref="uploadRef"
             :auto-upload="false"
             :limit="1"
@@ -241,23 +220,21 @@ import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 
 import { ElMessage } from 'element-plus'
 import { Close, Collection, Connection, DataAnalysis, Grid, House, Upload } from '@element-plus/icons-vue'
 import request from '@/utils/request'
-import { analyzeKnowledgeBook, getKnowledgeBookIndex, importKnowledgeBook } from '@/api/knowledgeBase'
+import { analyzeKnowledgeBook, getKnowledgeBookIndex, getKnowledgeBookProgress, importKnowledgeBook } from '@/api/knowledgeBase'
 import { uploadOsint } from '@/api/powerGame/papers.js'
 import { useScenarioStore } from '@/stores/scenario'
-import OpenSourceIntelligence from './PreScene/OpenSourceIntelligence.vue'
+import KnowledgeAnalysisWorkspace from './knowledge/KnowledgeAnalysisWorkspace.vue'
 
 // 九库 + 本体网络都是巨型组件(知识库单包 678 kB)，按需加载，别拖慢入口页
 const PreKnowledgeGraph = defineAsyncComponent(() => import('./PreScene/PreKnowledgeGraph.vue'))
 
 // 顶栏与内容区的高度必须一致：el-scrollbar 要拿到准确高度才不会出现双层滚动条
-const BAR_HEIGHT = 60
-const osintScrollHeight = `calc(100vh - ${BAR_HEIGHT}px)`
+const BAR_HEIGHT = 112
 
 const emit = defineEmits(['close'])
 const scenarioStore = useScenarioStore()
 
 const tabs = [
-  { key: 'home', label: '首页', icon: House },
   { key: 'governance', label: '数据治理', icon: DataAnalysis },
   { key: 'library', label: '知识库', icon: Collection },
   { key: 'ontology', label: '本体与知识图谱', icon: Connection },
@@ -267,30 +244,26 @@ const tab = ref('home')
 const homeData = ref({ domains: [], datasets: {}, highlights: [] })
 const homeLoading = ref(false)
 const homeError = ref('')
-const homeDomain = ref(scenarioStore.isSupplyChain ? 'automotive' : 'uranium')
+const mixedSearch = ref('')
+const parsingName = ref('')
 const extractionVisible = ref(false)
 const extracting = ref(false)
 const extractionFile = ref(null)
 const extractionInputKey = ref(0)
 const extractionForm = ref({ name: '', source: '', description: '' })
 let homeRefreshTimer = null
-const domainOptions = [
-  { id: 'uranium', name: '铀供应链' },
-  { id: 'automotive', name: '汽车供应链' },
-]
-const currentDomain = computed(() => homeData.value.domains?.find((item) => item.id === homeDomain.value))
-const domainHighlights = computed(() => homeData.value.highlights?.filter((item) => item.domain === homeDomain.value) || [])
-const currentDatasets = computed(() => homeData.value.datasets?.recent?.filter((item) => item.domain === homeDomain.value) || [])
-const currentDatasetStats = computed(() => homeData.value.datasets?.by_domain?.[homeDomain.value] || { total: 0, analyzed: 0 })
-const homeMetrics = computed(() => {
-  const summary = currentDomain.value?.summary || {}
-  const total = (key) => summary[key]?.total ?? 0
+const mixedDatasets = computed(() => {
+  const items = homeData.value.datasets?.items || homeData.value.datasets?.recent || []
+  const keyword = mixedSearch.value.trim().toLowerCase()
+  return items.filter((item) => !keyword || `${item.name} ${item.source}`.toLowerCase().includes(keyword))
+})
+const mixedMetrics = computed(() => {
+  const items = homeData.value.datasets?.items || homeData.value.datasets?.recent || []
   return [
-    { label: '知识文档', value: total('documents'), note: '已登记文档' },
-    { label: '研究论文', value: total('papers'), note: '研究资料' },
-    { label: '事件情报', value: total('osint'), note: '事件线索' },
-    { label: '来源与证据', value: homeDomain.value === 'uranium'
-      ? (summary.evidence?.total ?? 0) : (summary.evidenceLayer?.evidence ?? 0), note: '可追溯证据' },
+    { label: '已存入数据集', value: homeData.value.datasets?.total ?? items.length, note: '统一保留原始文件' },
+    { label: '已解析', value: items.filter((item) => item.status === 'completed').length, note: '可用于相关内容检索' },
+    { label: '解析中', value: items.filter((item) => item.status === 'analyzing').length, note: '后台处理中' },
+    { label: '待处理', value: items.filter((item) => !['completed', 'analyzing'].includes(item.status)).length, note: '保留原件，待解析' },
   ]
 })
 
@@ -301,7 +274,13 @@ async function loadHome() {
     try {
       const result = await request.get('/SCnet/knowledgePlatform/home')
       if (!result?.success) throw new Error(result?.message || '读取失败')
-      homeData.value = result.data || { domains: [], datasets: {}, highlights: [] }
+      const payload = result.data || { domains: [], datasets: {}, highlights: [] }
+      if (!Array.isArray(payload.datasets?.items)) {
+        // Older servers expose only a recent preview here; load the full legacy book list.
+        homeData.value = await loadHomeFromExistingApis()
+      } else {
+        homeData.value = payload
+      }
     } catch (error) {
       // 9091 上仍运行旧版进程时，新首页路由返回 404；沿用已有只读接口生成相同视图。
       if (error?.status !== 404 && error?.response?.status !== 404) throw error
@@ -327,22 +306,26 @@ async function loadHomeFromExistingApis() {
   ]
   const responses = await Promise.allSettled(paths.map((path) => request.get(path)))
   const value = (index) => responses[index].status === 'fulfilled' ? responses[index].value?.data : null
-  if (!value(0) && !value(1)) throw new Error('知识资源接口不可用')
+  if (responses[2].status !== 'fulfilled' || !Array.isArray(value(2))) throw new Error('混合数据列表接口不可用')
 
-  const books = Array.isArray(value(2)) ? value(2) : []
+  const books = value(2)
   const datasets = books.map((book) => {
     const name = book.book_name || book.name || ''
     return {
       name,
-      domain: name.includes('汽车') ? 'automotive' : name.includes('铀') ? 'uranium' : 'general',
-      source: '用户上传',
+      domain: ['uranium', 'automotive'].includes(book.domain) ? book.domain : 'general',
+      source: book.source || '用户上传',
+      description: book.description || '',
       method: book.is_analyzed
         ? (book.vector_indexed === true ? '文本解析 + 分块 + ChromaDB 向量索引'
           : book.vector_indexed === false ? '文本解析 + 分块（未建立向量索引）'
             : '文本解析 + 分块（向量索引状态未记录）')
         : '文本解析 + 分块',
-      status: book.is_analyzed ? 'completed' : 'imported',
-      data_types: [],
+      status: book.parse_status || (book.is_analyzed ? 'completed' : 'imported'),
+      last_error: book.last_error || '',
+      skipped_files: book.skipped_files || 0,
+      file_count: book.file_count ?? null,
+      data_types: book.data_types || [],
       chunk_count: 0,
       preview: [],
       updated_at: book.upload_date || book.date || '',
@@ -399,7 +382,7 @@ async function loadHomeFromExistingApis() {
       { id: 'uranium', name: '铀供应链', summary: value(0) || {} },
       { id: 'automotive', name: '汽车供应链', summary: value(1) || {} },
     ],
-    datasets: { total: datasets.length, by_domain: byDomain, recent },
+    datasets: { total: datasets.length, by_domain: byDomain, recent, items: datasets },
     highlights,
   }
 }
@@ -409,7 +392,34 @@ function datasetStatus(status) {
 }
 
 onMounted(loadHome)
-onBeforeUnmount(() => { if (homeRefreshTimer) clearInterval(homeRefreshTimer) })
+onBeforeUnmount(() => { stopHomeRefresh() })
+
+function stopHomeRefresh() {
+  if (homeRefreshTimer) clearInterval(homeRefreshTimer)
+  homeRefreshTimer = null
+}
+
+function watchParse(name) {
+  stopHomeRefresh()
+  let busy = false
+  let attempts = 0
+  homeRefreshTimer = setInterval(async () => {
+    if (busy) return
+    busy = true
+    try {
+      attempts += 1
+      await loadHome()
+      const items = homeData.value.datasets?.items || homeData.value.datasets?.recent || []
+      const current = items.find((item) => item.name === name)
+      const progress = await getKnowledgeBookProgress({ book_name: name }).catch(() => null)
+      const details = progress?.data || {}
+      const taskStatus = details.parse_status || details.status || current?.parse_status
+      const parseFinished = details.ocr_progress?.完成 === true || ['completed', 'error'].includes(taskStatus)
+      const noText = ['imported', 'pending'].includes(taskStatus) && Boolean(details.last_error || current?.last_error)
+      if (!current || parseFinished || noText || attempts >= 40) stopHomeRefresh()
+    } finally { busy = false }
+  }, 2500)
+}
 
 function openExtractionDialog() {
   extractionForm.value = { name: '', source: '', description: '' }
@@ -419,55 +429,65 @@ function openExtractionDialog() {
 }
 
 function onExtractionFileChange(event) {
-  extractionFile.value = event.target.files?.[0] || null
-  if (extractionFile.value && !extractionForm.value.name) {
-    extractionForm.value.name = extractionFile.value.name.replace(/\.[^.]+$/, '')
+  extractionFile.value = Array.from(event.target.files || [])
+  if (extractionFile.value.length && !extractionForm.value.name) {
+    extractionForm.value.name = extractionFile.value[0].name.replace(/\.[^.]+$/, '')
   }
 }
 
 async function submitExtraction() {
-  const file = extractionFile.value
+  const files = extractionFile.value || []
   const name = extractionForm.value.name.trim()
-  if (!file || !name) {
+  if (!files.length || !name) {
     ElMessage.warning('请选择文件并填写数据名称')
-    return
-  }
-  if (!/\.(pdf|txt|md|markdown|csv|json|jsonl|yaml|yml|log)$/i.test(file.name)) {
-    ElMessage.warning('请选择支持文本抽取的文件类型')
     return
   }
   extracting.value = true
   try {
     const formData = new FormData()
-    formData.append('file', file)
+    files.forEach((file) => formData.append('file', file))
     formData.append('book_name', name)
     formData.append('book_meta', JSON.stringify({
       source: extractionForm.value.source,
       description: extractionForm.value.description,
-      domain: homeDomain.value,
+      domain: 'general',
+      data_scope: 'mixed',
     }))
     const imported = await importKnowledgeBook(formData)
     if (!imported.success) throw new Error(imported.message)
-    const analysis = await analyzeKnowledgeBook({ book_name: name })
-    if (!analysis.success) throw new Error(analysis.message)
+    const supported = homeData.value.capabilities?.parse_extensions || ['.pdf', '.txt', '.md', '.markdown', '.csv', '.json', '.jsonl', '.yaml', '.yml', '.log']
+    const parseableCount = files.filter((file) => supported.includes('.' + file.name.split('.').pop().toLowerCase())).length
+    const supportsSkippingUnsupported = Array.isArray(homeData.value.capabilities?.parse_extensions)
+    const canParse = supportsSkippingUnsupported ? parseableCount > 0 : parseableCount === files.length
+    if (canParse) {
+      const analysis = await analyzeKnowledgeBook({ book_name: name })
+      if (!analysis.success) throw new Error(analysis.message)
+    }
     extractionVisible.value = false
-    ElMessage.success('已导入，正在抽取内容')
+    ElMessage.success(canParse
+      ? parseableCount === files.length ? '文件已保存，正在解析内容' : '可解析文件已进入解析，其他原件已保留'
+        : '原始文件已保存，当前格式尚无直接解析能力')
     await loadHome()
-    if (homeRefreshTimer) clearInterval(homeRefreshTimer)
-    let attempts = 0
-    homeRefreshTimer = setInterval(async () => {
-      attempts += 1
-      await loadHome()
-      const current = homeData.value.datasets?.recent?.find((item) => item.name === name)
-      if (current?.status === 'completed' || current?.status === 'error' || attempts >= 20) {
-        clearInterval(homeRefreshTimer)
-        homeRefreshTimer = null
-      }
-    }, 3000)
+    if (canParse) watchParse(name)
   } catch (error) {
     ElMessage.error(error?.message || '导入或解析失败')
   } finally {
     extracting.value = false
+  }
+}
+
+async function parseDataset(name) {
+  parsingName.value = name
+  try {
+    const result = await analyzeKnowledgeBook({ book_name: name })
+    if (!result.success) throw new Error(result.message)
+    ElMessage.success('已启动解析')
+    await loadHome()
+    watchParse(name)
+  } catch (error) {
+    ElMessage.error(error?.message || '解析启动失败')
+  } finally {
+    parsingName.value = ''
   }
 }
 
@@ -560,13 +580,22 @@ async function submitImport() {
 .kp-bar {
   flex: 0 0 auto;
   display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 0 16px;
+  flex-direction: column;
+  padding: 0;
   background: #fff;
   border-bottom: 1px solid #e2e8f0;
   box-sizing: border-box;
 }
+.kp-nav-row { display: flex; align-items: center; gap: 16px; min-height: 56px; width: 100%; padding: 0 18px; box-sizing: border-box; }
+.kp-nav-row--data { border-bottom: 1px solid #e2e8f0; }
+.kp-nav-row--analysis { background: #f8fafc; }
+.kp-nav-hint { flex: 1; color: #94a3b8; font-size: 12px; }
+.kp-nav-label { flex-shrink: 0; color: #64748b; font-size: 12px; font-weight: 700; }
+.kp-scenario-select { padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #334155; font-size: 12px; }
+.kp-mixed-search { max-width: 280px; }
+.kp-home-grid.kp-home-grid--mixed { grid-template-columns: 1fr; }
+.kp-dataset-actions { align-items: flex-end; flex-shrink: 0; color: #2563eb; }
+.kp-dataset-actions button { border: 0; background: #eff6ff; color: #1d4ed8; border-radius: 5px; padding: 4px 12px; cursor: pointer; }
 .kp-brand {
   display: inline-flex;
   align-items: center;
@@ -716,7 +745,9 @@ async function submitImport() {
 .kp-import-domain { font-size: 13px; font-weight: 600; color: #475569; }
 
 @media (max-width: 1100px) {
-  .kp-bar { gap: 10px; padding: 0 10px; }
+  .kp-nav-row { gap: 8px; padding: 0 10px; }
+  .kp-nav-hint { display: none; }
+  .kp-nav-row--data .kp-actions { margin-left: auto; }
   .kp-tab { padding: 6px 10px; }
   .kp-import-btn span, .kp-close-btn span { display: none; }
 }

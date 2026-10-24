@@ -6,10 +6,10 @@
  *
  * 数据诚实性约束(与后端 llm_judgment_service 一致):
  *   1. 大模型视角只呈现大模型真实产出(artifact.result.llm,status='completed');
- *      没有产出时显示"暂无大模型研判结果",绝不用领域模型分数顶替。
+ *      没有产出时显示"暂无大模型研判结果",绝不用态势模型分数顶替。
  *   2. 大模型不给风险分数,只给定性等级;大模型视角下所有数值位显示"—"。
- *   3. 领域模型视角沿用真实快照数值,不做任何削弱或替换。
- *   4. 双驱动视角的地图颜色对应实际工具调用产生的领域模型快照；
+ *   3. 态势模型视角沿用真实快照数值,不做任何削弱或替换。
+ *   4. 双驱动视角的地图颜色对应实际工具调用产生的态势模型快照；
  *      独立双驱动结论取自 artifact.result.dual,不能由两条基线临时拼接。
  */
 
@@ -32,22 +32,22 @@ export const JUDGMENT_MODE_META = Object.freeze({
   },
   domain: {
     key: 'domain',
-    label: '领域模型研判',
-    shortLabel: '领域模型',
-    sourceLabel: '数据来源：领域模型 / 复杂网络模型',
-    sourceShort: '领域模型',
+    label: '态势模型研判',
+    shortLabel: '态势模型',
+    sourceLabel: '数据来源：态势模型 / 复杂网络模型',
+    sourceShort: '态势模型',
     method: '结构化 OSINT 事件 → 网络风险传导 → 节点/边/路线风险数值',
     accent: '#2563EB',
     accentSoft: 'rgba(37,99,235,0.10)',
-    emptyText: '暂无领域模型研判结果',
+    emptyText: '暂无态势模型研判结果',
   },
   dual: {
     key: 'dual',
     label: '双驱动研判',
     shortLabel: '双驱动',
-    sourceLabel: '数据来源：双驱动研判（大模型调用领域模型）',
-    sourceShort: '双驱动研判 · 地图着色来自领域模型',
-    method: 'OSINT 与用户问题 → 大模型发起领域模型调用 → 读取真实计算结果 → 形成独立双驱动结论',
+    sourceLabel: '数据来源：双驱动研判（大模型调用态势模型）',
+    sourceShort: '双驱动研判 · 地图着色来自态势模型',
+    method: 'OSINT 与用户问题 → 大模型发起态势模型调用 → 读取真实计算结果 → 形成独立双驱动结论',
     accent: '#0EA5E9',
     accentSoft: 'rgba(14,165,233,0.10)',
     emptyText: '暂无双驱动研判结果',
@@ -63,7 +63,7 @@ export function modeMeta(mode) {
 
 /** 大模型研判是否产出了可用结论 */
 export function isLlmAvailable(llm) {
-  // v1 的提示词读入过领域模型风险分数,不能作为独立大模型研判展示。
+  // v1 的提示词读入过态势模型风险分数,不能作为独立大模型研判展示。
   return Boolean(llm && llm.status === 'completed' && llm.prompt_version === 'llm_judgment_v2'
     && (llm.conclusion || (llm.key_routes || []).length))
 }
@@ -132,7 +132,7 @@ export function levelRank(level) {
 }
 
 /**
- * 一致性判定:大模型定性等级 vs 领域模型数值等级。
+ * 一致性判定:大模型定性等级 vs 态势模型数值等级。
  *   consistent 一致   —— 等级相同
  *   partial    部分一致 —— 相差一级
  *   divergent  存在分歧 —— 相差两级

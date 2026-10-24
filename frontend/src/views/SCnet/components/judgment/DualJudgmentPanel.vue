@@ -6,15 +6,15 @@
     </header>
 
     <p class="dup-method">
-      <b>大模型根据情报与研判问题发起领域模型调用，读取节点、边和路线的实际计算结果，再形成双驱动结论。</b>
+      <b>大模型根据情报与研判问题发起态势模型调用，读取节点、边和路线的实际计算结果，再形成双驱动结论。</b>
     </p>
 
     <article class="dup-card dup-card--conclusion">
       <div class="dup-card-label">双驱动最终研判结论</div>
       <p v-if="dualAvailable" class="dup-conclusion">{{ dual.conclusion }}</p>
-      <p v-else class="dup-none">暂无双驱动研判结果{{ dual?.reason ? '：' + dual.reason : '；本任务没有保存大模型调用领域模型后的结论' }}</p>
+      <p v-else class="dup-none">暂无双驱动研判结果{{ dual?.reason ? '：' + dual.reason : '；本任务没有保存大模型调用态势模型后的结论' }}</p>
       <p v-if="dualAvailable" class="dup-execution">
-        实际调用 {{ dual.tool_calls?.length || 0 }} 次领域模型工具 ·
+        实际调用 {{ dual.tool_calls?.length || 0 }} 次态势模型工具 ·
         模型链成功 {{ dual.model_runs?.filter((run) => run.status === 'success').length || 0 }} 步 ·
         引用情报 {{ dual.cited_event_ids?.length || 0 }} 条
       </p>
@@ -58,7 +58,7 @@
           <b :class="llmLevel">{{ llmAvailable ? levelText(llmLevel) : '暂无大模型研判结果' }}</b>
         </div>
         <div>
-          <span>领域模型评分</span>
+          <span>态势模型评分</span>
           <b>{{ domainTop ? domainTop.score + ' / 100' : '—' }}</b>
         </div>
         <div>
@@ -95,7 +95,7 @@
     <article class="dup-card">
       <div class="dup-card-label">
         三方研判结果对比
-        <span class="dup-card-sub">大模型独立研判 / 领域模型研判 / 大模型调用领域模型的双驱动研判</span>
+        <span class="dup-card-sub">大模型独立研判 / 态势模型研判 / 大模型调用态势模型的双驱动研判</span>
       </div>
       <div class="dup-table-wrap">
         <table class="dup-table">
@@ -103,7 +103,7 @@
             <tr>
               <th class="col-dim">对比维度</th>
               <th>大模型研判</th>
-              <th>领域模型研判</th>
+              <th>态势模型研判</th>
               <th>双驱动研判</th>
             </tr>
           </thead>
@@ -123,7 +123,7 @@
     <article class="dup-card">
       <div class="dup-card-label">
         两条基线的逐路线一致性对照
-        <span class="dup-card-sub">大模型定性等级 vs 领域模型数值等级</span>
+        <span class="dup-card-sub">大模型定性等级 vs 态势模型数值等级</span>
       </div>
       <div v-if="!routeRows.length" class="dup-none">暂无可比对的路线</div>
       <div v-else class="dup-rows">
@@ -135,7 +135,7 @@
             <span v-else class="dup-none-inline">未研判</span>
           </span>
           <span class="dup-cell">
-            <span class="dup-cell-label">领域模型</span>
+            <span class="dup-cell-label">态势模型</span>
             <span class="dup-level" :class="r.domainLevel">{{ levelText(r.domainLevel) }}</span>
             <span class="dup-cell-score">{{ r.domainScore }}</span>
           </span>
@@ -163,7 +163,7 @@ import { JUDGMENT_MODE_META, agreementText, isLlmAvailable, judgeAgreement } fro
 const props = defineProps({
   dual: { type: Object, default: null },
   llm: { type: Object, default: null },
-  /** 领域模型路线(原样传入) */
+  /** 态势模型路线(原样传入) */
   routes: { type: Array, default: () => [] },
   /** 网络关键节点(来自快照 critical_nodes) */
   criticalNodes: { type: Array, default: () => [] },

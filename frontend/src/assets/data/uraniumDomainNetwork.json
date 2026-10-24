@@ -1,0 +1,3066 @@
+{
+  "data_revision": 3,
+  "source": "知识库证据支持路线",
+  "as_of": "2026-08-31",
+  "nodes": [
+    {
+      "entity_id": "kazakhstan_n1",
+      "name": "哈萨克斯坦铀供应区",
+      "english_name": "Kazatomprom Uranium Operations",
+      "type": "supplier",
+      "node_kind": "海外供应商",
+      "country_id": "KAZ",
+      "country_name": "哈萨克斯坦",
+      "supplier_country": "KAZ",
+      "longitude": 67.0,
+      "latitude": 48.0,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "REGIONAL_AGGREGATE",
+      "evidence_level": "DIRECT",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [
+        "Kazatomprom 2024 Annual Report",
+        "Kazatomprom 1H2023 Investor Handout"
+      ],
+      "as_of": "2026-08-31",
+      "description": "企业级聚合节点;Inkai/Tortkuduk/Muyunkum 等具体矿来源需 shipment-level 证据,不做断言。",
+      "real_entity": "Kazatomprom JSC(铀矿群,不具体断言某矿对华批次)",
+      "routes": [
+        "哈萨克斯坦铀供应"
+      ],
+      "material": "天然铀 / 铀矿石浓缩物（具体批次形态待绑定）",
+      "transport_mode": "铁路联运",
+      "route_context": "主要天然铀供应国(2024 天然铀对华份额 63.5%)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ],
+      "related_entities": [
+        {
+          "name": "Inkai Mine",
+          "subject_id": "mine_inkai",
+          "subject_type": "MINE",
+          "sources": [
+            "src_cameco"
+          ],
+          "facts": [
+            {
+              "data_class": "EXTERNAL",
+              "data_year": 2024,
+              "document_id": "cameco_ar_2024",
+              "end_date": null,
+              "evidence_ids": [
+                "ev_cameco_ar_2024_p88"
+              ],
+              "fact_id": "fact_inkai_production_2024",
+              "fact_type": "PRODUCTION",
+              "indicator": "uranium_production",
+              "qualifiers": [],
+              "reported_by": "cameco_ar_2024",
+              "self_reported": true,
+              "source_id": "src_cameco",
+              "source_reliability": "TIER_1_PRIMARY_SELF_REPORTED",
+              "start_date": null,
+              "status": "reported",
+              "subject_id": "mine_inkai",
+              "subject_type": "mine",
+              "unit": "million lbs U3O8",
+              "value": 7.8,
+              "value_semantics": "100%_basis_annual",
+              "verification_status": "VERIFIED"
+            },
+            {
+              "data_class": "EXTERNAL",
+              "data_year": 2024,
+              "document_id": "cameco_ar_2024",
+              "end_date": null,
+              "evidence_ids": [
+                "ev_cameco_ar_2024_p90"
+              ],
+              "fact_id": "fact_inkai_sulphuric_acid_constraint_2024",
+              "fact_type": "INPUT_CONSTRAINT",
+              "indicator": "sulphuric_acid_supply_constraint",
+              "qualifiers": [
+                "procurement and supply chain issues;stability of sulphuric acid deliveries"
+              ],
+              "reported_by": "cameco_ar_2024",
+              "self_reported": true,
+              "source_id": "src_cameco",
+              "source_reliability": "TIER_1_PRIMARY_SELF_REPORTED",
+              "start_date": null,
+              "status": "reported",
+              "subject_id": "mine_inkai",
+              "subject_type": "mine",
+              "unit": null,
+              "value": "constrained",
+              "value_semantics": "supply_constraint",
+              "verification_status": "VERIFIED"
+            },
+            {
+              "data_class": "EXTERNAL",
+              "data_year": 2024,
+              "document_id": "cameco_ar_2024",
+              "end_date": null,
+              "evidence_ids": [
+                "ev_cameco_ar_2024_p87"
+              ],
+              "fact_id": "fact_inkai_ownership_2024",
+              "fact_type": "OWNERSHIP",
+              "indicator": "cameco_share",
+              "qualifiers": [],
+              "reported_by": "cameco_ar_2024",
+              "self_reported": true,
+              "source_id": "src_cameco",
+              "source_reliability": "TIER_1_PRIMARY_SELF_REPORTED",
+              "start_date": null,
+              "status": "reported",
+              "subject_id": "mine_inkai",
+              "subject_type": "mine",
+              "unit": "percent",
+              "value": 40.0,
+              "value_semantics": "ownership_share_2024",
+              "verification_status": "VERIFIED"
+            },
+            {
+              "data_class": "EXTERNAL",
+              "data_year": 2024,
+              "document_id": "cameco_ar_2024",
+              "end_date": null,
+              "evidence_ids": [
+                "ev_cameco_ar_2024_p87"
+              ],
+              "fact_id": "fact_inkai_kap_ownership_2024",
+              "fact_type": "OWNERSHIP",
+              "indicator": "kazatomprom_share",
+              "qualifiers": [],
+              "reported_by": "cameco_ar_2024",
+              "self_reported": true,
+              "source_id": "src_cameco",
+              "source_reliability": "TIER_1_PRIMARY_SELF_REPORTED",
+              "start_date": null,
+              "status": "reported",
+              "subject_id": "mine_inkai",
+              "subject_type": "mine",
+              "unit": "percent",
+              "value": 60.0,
+              "value_semantics": "ownership_share_2024",
+              "verification_status": "VERIFIED"
+            }
+          ]
+        },
+        {
+          "name": "Ulba-FA Fuel Assembly Plant",
+          "subject_id": "subj_ulba_fa",
+          "subject_type": "FUEL_FABRICATION_FACILITY",
+          "sources": [
+            "src_kazatomprom"
+          ],
+          "facts": []
+        }
+      ]
+    },
+    {
+      "entity_id": "kazakhstan_n2",
+      "name": "中亚铁路网络",
+      "english_name": "Central Asian Rail Network",
+      "type": "logistics",
+      "node_kind": "铁路节点",
+      "country_id": "KAZ",
+      "country_name": "哈萨克斯坦",
+      "supplier_country": "KAZ",
+      "longitude": 76.9,
+      "latitude": 43.2,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "SUPPLY_NETWORK_AGGREGATE",
+      "evidence_level": "INDIRECT",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [
+        "Kazatomprom 2024 Annual Report(铁路运输到阿拉山口)"
+      ],
+      "as_of": "2026-08-31",
+      "description": "铀经铁路集运;具体集运站未公开,保留聚合。",
+      "real_entity": null,
+      "routes": [
+        "哈萨克斯坦铀供应"
+      ],
+      "material": "天然铀 / 铀矿石浓缩物（具体批次形态待绑定）",
+      "transport_mode": "铁路联运",
+      "route_context": "主要天然铀供应国(2024 天然铀对华份额 63.5%)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ]
+    },
+    {
+      "entity_id": "kazakhstan_n3",
+      "name": "多斯特克—阿拉山口铁路口岸",
+      "english_name": "Dostyk–Alashankou Rail Crossing",
+      "type": "logistics",
+      "node_kind": "边境口岸",
+      "country_id": "KAZ/CHN",
+      "country_name": "KAZ/CHN",
+      "supplier_country": "KAZ",
+      "longitude": 82.6,
+      "latitude": 45.2,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "PUBLIC_TRANSPORT_NODE",
+      "evidence_level": "DIRECT",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [
+        "Kazakhstan MFA",
+        "Kazatomprom 2024 Annual Report"
+      ],
+      "as_of": "2026-08-31",
+      "description": "明确跨境铁路 leg;Altynkol–Khorgos 为另一备选口岸。",
+      "real_entity": "Dostyk–Alashankou(多斯特克—阿拉山口)中哈铁路口岸",
+      "routes": [
+        "哈萨克斯坦铀供应"
+      ],
+      "material": "天然铀 / 铀矿石浓缩物（具体批次形态待绑定）",
+      "transport_mode": "铁路联运",
+      "route_context": "主要天然铀供应国(2024 天然铀对华份额 63.5%)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ]
+    },
+    {
+      "entity_id": "kazakhstan_n4",
+      "name": "阿拉山口铀保税仓库",
+      "english_name": "Alashankou Uranium Bonded Warehouse",
+      "type": "warehouse",
+      "node_kind": "国内转运",
+      "country_id": "CHN",
+      "country_name": "中国",
+      "supplier_country": "KAZ",
+      "longitude": 82.6,
+      "latitude": 45.2,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "EXACT_PUBLIC_ENTITY",
+      "evidence_level": "DIRECT",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [
+        "Kazatomprom Investor Handout 1H2023",
+        "Carnegie Endowment 2024"
+      ],
+      "as_of": "2026-08-31",
+      "description": "2023 起 3,000 tU 产能;2026 拟扩至 23,000 tU;首批 Kazatomprom 发运 2023 年 1 月。",
+      "real_entity": "阿拉山口铀保税仓库(Alashankou Uranium Bonded Warehouse,CNNC/CNUC)",
+      "routes": [
+        "哈萨克斯坦铀供应"
+      ],
+      "material": "天然铀 / 铀矿石浓缩物（具体批次形态待绑定）",
+      "transport_mode": "铁路联运",
+      "route_context": "主要天然铀供应国(2024 天然铀对华份额 63.5%)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "公开历史设计库容",
+          "value": 3000,
+          "unit": "tU",
+          "as_of": "2023",
+          "basis": "Kazatomprom 1H2023 Investor Handout；不代表当前库存或已完成扩建"
+        }
+      ]
+    },
+    {
+      "entity_id": "kazakhstan_n5",
+      "name": "中国核燃料接收网络",
+      "english_name": "China Nuclear Fuel Receiving Network",
+      "type": "demander",
+      "node_kind": "国内接收",
+      "country_id": "CHN",
+      "country_name": "中国",
+      "supplier_country": "KAZ",
+      "longitude": 110,
+      "latitude": 35,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "SUPPLY_NETWORK_AGGREGATE",
+      "evidence_level": "INDIRECT",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [],
+      "as_of": "2026-08-31",
+      "description": "后续进入转化/燃料制造的具体厂未公开确认,保留聚合节点。",
+      "real_entity": null,
+      "routes": [
+        "哈萨克斯坦铀供应",
+        "纳米比亚铀供应",
+        "加拿大铀供应",
+        "澳大利亚铀供应",
+        "乌兹别克斯坦铀供应"
+      ],
+      "material": "天然铀 / 铀矿石浓缩物（具体批次形态待绑定）",
+      "transport_mode": "铁路联运",
+      "route_context": "主要天然铀供应国(2024 天然铀对华份额 63.5%)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ]
+    },
+    {
+      "entity_id": "namibia_n1",
+      "name": "纳米比亚铀供应区(Husab / 勒辛)",
+      "english_name": "Husab / Rössing Uranium Operations",
+      "type": "supplier",
+      "node_kind": "海外供应商",
+      "country_id": "NAM",
+      "country_name": "纳米比亚",
+      "supplier_country": "NAM",
+      "longitude": 17.1,
+      "latitude": -22.5,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "REGIONAL_AGGREGATE",
+      "evidence_level": "DIRECT",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [
+        "CNES Geoimage Rössing/Husab",
+        "Swakop Uranium",
+        "Rössing Uranium"
+      ],
+      "as_of": "2026-08-31",
+      "description": "矿群级聚合;具体矿山对华批次来源不做 shipment-level 断言。",
+      "real_entity": "Husab(Swakop Uranium,CNNC 控股)/ Rössing(CNNC 控股)/ Langer Heinrich",
+      "routes": [
+        "纳米比亚铀供应"
+      ],
+      "material": "天然铀 / 铀矿石浓缩物（具体批次形态待绑定）",
+      "transport_mode": "海运为主",
+      "route_context": "主要天然铀供应国(2024 天然铀对华份额 36.5%)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ],
+      "related_entities": []
+    },
+    {
+      "entity_id": "namibia_n2",
+      "name": "沃尔维斯湾港",
+      "english_name": "Port of Walvis Bay",
+      "type": "logistics",
+      "node_kind": "港口",
+      "country_id": "NAM",
+      "country_name": "纳米比亚",
+      "supplier_country": "NAM",
+      "longitude": 14.5,
+      "latitude": -22.9,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "PUBLIC_TRANSPORT_NODE",
+      "evidence_level": "INDIRECT",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [
+        "Namport(服务铀产业物流)",
+        "Rössing/Swakop 物流公开资料"
+      ],
+      "as_of": "2026-08-31",
+      "description": "Walvis Bay 为纳米比亚主要商港并服务铀产业供应链;UOC 直接出口经此港的证据为间接,待 shipment-level 确认。",
+      "real_entity": "Port of Walvis Bay(Namport)",
+      "routes": [
+        "纳米比亚铀供应"
+      ],
+      "material": "天然铀 / 铀矿石浓缩物（具体批次形态待绑定）",
+      "transport_mode": "海运为主",
+      "route_context": "主要天然铀供应国(2024 天然铀对华份额 36.5%)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ]
+    },
+    {
+      "entity_id": "namibia_n3",
+      "name": "南非—东亚海运通道",
+      "english_name": "Southern Africa–East Asia Maritime Leg",
+      "type": "logistics",
+      "node_kind": "海运通道",
+      "country_id": "INTL",
+      "country_name": "国际通道",
+      "supplier_country": "NAM",
+      "longitude": 57.0,
+      "latitude": -20.0,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "SUPPLY_NETWORK_AGGREGATE",
+      "evidence_level": "INDIRECT",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [],
+      "as_of": "2026-08-31",
+      "description": "改用'南部非洲—东亚海运段';不再使用貌似具体但未证实的'印度洋航运通道'。",
+      "real_entity": null,
+      "routes": [
+        "纳米比亚铀供应"
+      ],
+      "material": "天然铀 / 铀矿石浓缩物（具体批次形态待绑定）",
+      "transport_mode": "海运为主",
+      "route_context": "主要天然铀供应国(2024 天然铀对华份额 36.5%)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ]
+    },
+    {
+      "entity_id": "namibia_n4",
+      "name": "中国东部接收港",
+      "english_name": "China East-Coast Receiving Port",
+      "type": "logistics",
+      "node_kind": "港口",
+      "country_id": "CHN",
+      "country_name": "中国",
+      "supplier_country": "NAM",
+      "longitude": 121.5,
+      "latitude": 31.2,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "REGIONAL_AGGREGATE",
+      "evidence_level": "UNKNOWN",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [],
+      "as_of": "2026-08-31",
+      "description": "具体中国接收港未公开;保留区域聚合。",
+      "real_entity": null,
+      "routes": [
+        "纳米比亚铀供应",
+        "加拿大铀供应"
+      ],
+      "material": "天然铀 / 铀矿石浓缩物（具体批次形态待绑定）",
+      "transport_mode": "海运为主",
+      "route_context": "主要天然铀供应国(2024 天然铀对华份额 36.5%)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ]
+    },
+    {
+      "entity_id": "canada_n1",
+      "name": "加拿大铀供应区(Cameco / 萨斯喀彻温)",
+      "english_name": "Cameco / Saskatchewan Uranium Operations",
+      "type": "supplier",
+      "node_kind": "海外供应商",
+      "country_id": "CAN",
+      "country_name": "加拿大",
+      "supplier_country": "CAN",
+      "longitude": -106.3,
+      "latitude": 56.1,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "REGIONAL_AGGREGATE",
+      "evidence_level": "INDIRECT",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [
+        "Cameco 年报",
+        "Saskatchewan Government 2012"
+      ],
+      "as_of": "2026-08-31",
+      "description": "具体矿山对华批次不做断言。",
+      "real_entity": "Cameco 萨斯喀彻温生产网络(Cigar Lake / McArthur River / Key Lake / McClean Lake Mill)",
+      "routes": [
+        "加拿大铀供应"
+      ],
+      "material": "天然铀 / 铀矿石浓缩物（具体批次形态待绑定）",
+      "transport_mode": "铁路 + 海运",
+      "route_context": "铀贸易框架伙伴(对华铀出口框架存在,HS284410 当前查询未报告)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ],
+      "related_entities": [
+        {
+          "name": "JEB Tailings Management Facility",
+          "subject_id": "facility_jeb_tmf",
+          "subject_type": "PROCESSING_FACILITY",
+          "sources": [
+            "src_orano"
+          ],
+          "facts": []
+        },
+        {
+          "name": "JEB Water Treatment Plant",
+          "subject_id": "facility_jeb_wtp",
+          "subject_type": "PROCESSING_FACILITY",
+          "sources": [
+            "src_orano"
+          ],
+          "facts": [
+            {
+              "data_class": "EXTERNAL",
+              "data_year": 2024,
+              "document_id": "orano_mcclean_lake_2024",
+              "end_date": "2024-03-31",
+              "evidence_ids": [
+                "ev_mcclean_lake_2024_p56"
+              ],
+              "fact_id": "fact_mcclean_wtp_shutdown_2024",
+              "fact_type": "OUTAGE",
+              "indicator": "wtp_shutdown",
+              "qualifiers": [
+                "additional shutdown Nov 26-Dec 12"
+              ],
+              "reported_by": "orano_mcclean_lake_2024",
+              "self_reported": true,
+              "source_id": "src_orano",
+              "source_reliability": "TIER_1_PRIMARY_SELF_REPORTED",
+              "start_date": "2024-01-01",
+              "status": "reported",
+              "subject_id": "facility_jeb_wtp",
+              "subject_type": "facility",
+              "unit": null,
+              "value": "scheduled",
+              "value_semantics": "planned_outage",
+              "verification_status": "VERIFIED"
+            }
+          ]
+        },
+        {
+          "name": "Key Lake Mill",
+          "subject_id": "facility_key_lake_mill",
+          "subject_type": "PROCESSING_FACILITY",
+          "sources": [
+            "src_cameco"
+          ],
+          "facts": []
+        },
+        {
+          "name": "McClean Lake Mill",
+          "subject_id": "facility_mcclean_lake_mill",
+          "subject_type": "PROCESSING_FACILITY",
+          "sources": [
+            "src_orano"
+          ],
+          "facts": [
+            {
+              "data_class": "EXTERNAL",
+              "data_year": 2024,
+              "document_id": "orano_mcclean_lake_2024",
+              "end_date": null,
+              "evidence_ids": [
+                "ev_mcclean_lake_2024_p56"
+              ],
+              "fact_id": "fact_mcclean_production_2024",
+              "fact_type": "PRODUCTION",
+              "indicator": "uranium_production",
+              "qualifiers": [],
+              "reported_by": "orano_mcclean_lake_2024",
+              "self_reported": true,
+              "source_id": "src_orano",
+              "source_reliability": "TIER_1_PRIMARY_SELF_REPORTED",
+              "start_date": null,
+              "status": "reported",
+              "subject_id": "facility_mcclean_lake_mill",
+              "subject_type": "facility",
+              "unit": "kg U",
+              "value": 6512237,
+              "value_semantics": "actual_annual_production",
+              "verification_status": "VERIFIED"
+            },
+            {
+              "data_class": "EXTERNAL",
+              "data_year": 2024,
+              "document_id": "orano_mcclean_lake_2024",
+              "end_date": null,
+              "evidence_ids": [
+                "ev_mcclean_lake_2024_p56"
+              ],
+              "fact_id": "fact_mcclean_production_target_2024",
+              "fact_type": "PRODUCTION",
+              "indicator": "uranium_production_target",
+              "qualifiers": [],
+              "reported_by": "orano_mcclean_lake_2024",
+              "self_reported": true,
+              "source_id": "src_orano",
+              "source_reliability": "TIER_1_PRIMARY_SELF_REPORTED",
+              "start_date": null,
+              "status": "reported",
+              "subject_id": "facility_mcclean_lake_mill",
+              "subject_type": "facility",
+              "unit": "kg U",
+              "value": 6923636,
+              "value_semantics": "annual_production_target",
+              "verification_status": "VERIFIED"
+            },
+            {
+              "data_class": "EXTERNAL",
+              "data_year": 2024,
+              "document_id": "orano_mcclean_lake_2024",
+              "end_date": null,
+              "evidence_ids": [
+                "ev_mcclean_lake_2024_p56",
+                "ev_mcclean_lake_2024_p24"
+              ],
+              "fact_id": "fact_mcclean_throughput_2024",
+              "fact_type": "THROUGHPUT",
+              "indicator": "mill_ore_feed",
+              "qualifiers": [],
+              "reported_by": "orano_mcclean_lake_2024",
+              "self_reported": true,
+              "source_id": "src_orano",
+              "source_reliability": "TIER_1_PRIMARY_SELF_REPORTED",
+              "start_date": null,
+              "status": "reported",
+              "subject_id": "facility_mcclean_lake_mill",
+              "subject_type": "facility",
+              "unit": "dry tonnes",
+              "value": 54588,
+              "value_semantics": "annual_ore_fed_to_leaching",
+              "verification_status": "VERIFIED"
+            },
+            {
+              "data_class": "EXTERNAL",
+              "data_year": 2024,
+              "document_id": "orano_mcclean_lake_2024",
+              "end_date": "2024-09-27",
+              "evidence_ids": [
+                "ev_mcclean_lake_2024_p56",
+                "ev_mcclean_lake_2024_p24"
+              ],
+              "fact_id": "fact_mcclean_maintenance_shutdown_2024",
+              "fact_type": "MAINTENANCE",
+              "indicator": "planned_maintenance_shutdown",
+              "qualifiers": [],
+              "reported_by": "orano_mcclean_lake_2024",
+              "self_reported": true,
+              "source_id": "src_orano",
+              "source_reliability": "TIER_1_PRIMARY_SELF_REPORTED",
+              "start_date": "2024-09-02",
+              "status": "reported",
+              "subject_id": "facility_mcclean_lake_mill",
+              "subject_type": "facility",
+              "unit": null,
+              "value": "scheduled",
+              "value_semantics": "planned_outage",
+              "verification_status": "VERIFIED"
+            },
+            {
+              "data_class": "EXTERNAL",
+              "data_year": 2024,
+              "document_id": "orano_mcclean_lake_2024",
+              "end_date": null,
+              "evidence_ids": [
+                "ev_mcclean_lake_2024_p56"
+              ],
+              "fact_id": "fact_mcclean_operator_2024",
+              "fact_type": "OPERATOR",
+              "indicator": "operator",
+              "qualifiers": [],
+              "reported_by": "orano_mcclean_lake_2024",
+              "self_reported": true,
+              "source_id": "src_orano",
+              "source_reliability": "TIER_1_PRIMARY_SELF_REPORTED",
+              "start_date": null,
+              "status": "reported",
+              "subject_id": "facility_mcclean_lake_mill",
+              "subject_type": "facility",
+              "unit": null,
+              "value": "Orano Canada",
+              "value_semantics": "operator_as_of",
+              "verification_status": "VERIFIED"
+            }
+          ]
+        },
+        {
+          "name": "Cigar Lake Mine",
+          "subject_id": "mine_cigar_lake",
+          "subject_type": "MINE",
+          "sources": [
+            "src_cameco",
+            "src_nrcan"
+          ],
+          "facts": [
+            {
+              "data_class": "EXTERNAL",
+              "data_year": 2024,
+              "document_id": "cameco_ar_2024",
+              "end_date": null,
+              "evidence_ids": [
+                "ev_cameco_ar_2024_p19"
+              ],
+              "fact_id": "fact_cigar_lake_production_2024",
+              "fact_type": "PRODUCTION",
+              "indicator": "uranium_production",
+              "qualifiers": [],
+              "reported_by": "cameco_ar_2024",
+              "self_reported": true,
+              "source_id": "src_cameco",
+              "source_reliability": "TIER_1_PRIMARY_SELF_REPORTED",
+              "start_date": null,
+              "status": "reported",
+              "subject_id": "mine_cigar_lake",
+              "subject_type": "mine",
+              "unit": "million lbs U3O8",
+              "value": 16.9,
+              "value_semantics": "100%_basis_annual",
+              "verification_status": "VERIFIED"
+            },
+            {
+              "data_class": "EXTERNAL",
+              "data_year": 2024,
+              "document_id": "cameco_ar_2024",
+              "end_date": null,
+              "evidence_ids": [
+                "ev_cameco_ar_2024_p40",
+                "ev_cameco_ar_2024_p183"
+              ],
+              "fact_id": "fact_cigar_lake_ownership_2024",
+              "fact_type": "OWNERSHIP",
+              "indicator": "cameco_ownership_share",
+              "qualifiers": [],
+              "reported_by": "cameco_ar_2024",
+              "self_reported": true,
+              "source_id": "src_cameco",
+              "source_reliability": "TIER_1_PRIMARY_SELF_REPORTED",
+              "start_date": null,
+              "status": "reported",
+              "subject_id": "mine_cigar_lake",
+              "subject_type": "mine",
+              "unit": "percent",
+              "value": 54.55,
+              "value_semantics": "ownership_share_2024",
+              "verification_status": "VERIFIED"
+            }
+          ]
+        },
+        {
+          "name": "McArthur River Mine",
+          "subject_id": "mine_mcarthur_river",
+          "subject_type": "MINE",
+          "sources": [
+            "src_cameco"
+          ],
+          "facts": [
+            {
+              "data_class": "EXTERNAL",
+              "data_year": 2024,
+              "document_id": "cameco_ar_2024",
+              "end_date": null,
+              "evidence_ids": [
+                "ev_cameco_ar_2024_p19"
+              ],
+              "fact_id": "fact_mcarthur_keylake_production_2024",
+              "fact_type": "PRODUCTION",
+              "indicator": "uranium_production",
+              "qualifiers": [],
+              "reported_by": "cameco_ar_2024",
+              "self_reported": true,
+              "source_id": "src_cameco",
+              "source_reliability": "TIER_1_PRIMARY_SELF_REPORTED",
+              "start_date": null,
+              "status": "reported",
+              "subject_id": "mine_mcarthur_river",
+              "subject_type": "mine",
+              "unit": "million lbs U3O8",
+              "value": 20.3,
+              "value_semantics": "100%_basis_annual",
+              "verification_status": "VERIFIED"
+            }
+          ]
+        },
+        {
+          "name": "McClean Lake Mine",
+          "subject_id": "mine_mcclean_lake",
+          "subject_type": "MINE",
+          "sources": [
+            "src_orano"
+          ],
+          "facts": []
+        },
+        {
+          "name": "Rabbit Lake Mine",
+          "subject_id": "mine_rabbit_lake",
+          "subject_type": "MINE",
+          "sources": [
+            "src_cameco"
+          ],
+          "facts": [
+            {
+              "data_class": "EXTERNAL",
+              "data_year": 2024,
+              "document_id": "cameco_ar_2024",
+              "end_date": null,
+              "evidence_ids": [
+                "ev_cameco_ar_2024_p127"
+              ],
+              "fact_id": "fact_rabbit_lake_status_2024",
+              "fact_type": "OPERATING_STATUS",
+              "indicator": "mine_status",
+              "qualifiers": [],
+              "reported_by": "cameco_ar_2024",
+              "self_reported": true,
+              "source_id": "src_cameco",
+              "source_reliability": "TIER_1_PRIMARY_SELF_REPORTED",
+              "start_date": null,
+              "status": "reported",
+              "subject_id": "mine_rabbit_lake",
+              "subject_type": "mine",
+              "unit": null,
+              "value": "CARE_AND_MAINTENANCE",
+              "value_semantics": "status_as_of",
+              "verification_status": "VERIFIED"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "entity_id": "canada_n2",
+      "name": "加拿大铀出口物流网络",
+      "english_name": "Canadian Uranium Export Logistics",
+      "type": "logistics",
+      "node_kind": "出口物流网络",
+      "country_id": "CAN",
+      "country_name": "加拿大",
+      "supplier_country": "CAN",
+      "longitude": -123.1,
+      "latitude": 49.3,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "SUPPLY_NETWORK_AGGREGATE",
+      "evidence_level": "UNKNOWN",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [],
+      "as_of": "2026-08-31",
+      "description": "具体出口港未公开;不臆造 Vancouver/Prince Rupert。",
+      "real_entity": null,
+      "routes": [
+        "加拿大铀供应"
+      ],
+      "material": "天然铀 / 铀矿石浓缩物（具体批次形态待绑定）",
+      "transport_mode": "铁路 + 海运",
+      "route_context": "铀贸易框架伙伴(对华铀出口框架存在,HS284410 当前查询未报告)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ]
+    },
+    {
+      "entity_id": "canada_n3",
+      "name": "北太平洋海运段",
+      "english_name": "North Pacific Maritime Leg",
+      "type": "logistics",
+      "node_kind": "海运通道",
+      "country_id": "INTL",
+      "country_name": "国际通道",
+      "supplier_country": "CAN",
+      "longitude": -160.0,
+      "latitude": 42.0,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "SUPPLY_NETWORK_AGGREGATE",
+      "evidence_level": "INDIRECT",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [],
+      "as_of": "2026-08-31",
+      "description": "太平洋海运段聚合。",
+      "real_entity": null,
+      "routes": [
+        "加拿大铀供应"
+      ],
+      "material": "天然铀 / 铀矿石浓缩物（具体批次形态待绑定）",
+      "transport_mode": "铁路 + 海运",
+      "route_context": "铀贸易框架伙伴(对华铀出口框架存在,HS284410 当前查询未报告)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ]
+    },
+    {
+      "entity_id": "australia_n1",
+      "name": "澳大利亚铀供应区",
+      "english_name": "Australian Uranium Operations",
+      "type": "supplier",
+      "node_kind": "海外供应商",
+      "country_id": "AUS",
+      "country_name": "澳大利亚",
+      "supplier_country": "AUS",
+      "longitude": 134.0,
+      "latitude": -25.0,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "REGIONAL_AGGREGATE",
+      "evidence_level": "INDIRECT",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [
+        "Geoscience Australia",
+        "ASNO"
+      ],
+      "as_of": "2026-08-31",
+      "description": "",
+      "real_entity": "Olympic Dam / Four Mile / Honeymoon 等活跃铀运营(不默认某矿对华)",
+      "routes": [
+        "澳大利亚铀供应"
+      ],
+      "material": "天然铀 / 铀矿石浓缩物（具体批次形态待绑定）",
+      "transport_mode": "海运为主",
+      "route_context": "铀生产与出口许可国(对华直接或间接出口许可存在,HS284410 当前查询未报告)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ],
+      "related_entities": [
+        {
+          "name": "Four Mile Mine",
+          "subject_id": "mine_four_mile",
+          "subject_type": "MINE",
+          "sources": [
+            "src_geoscience_australia"
+          ],
+          "facts": []
+        },
+        {
+          "name": "Honeymoon Mine",
+          "subject_id": "mine_honeymoon",
+          "subject_type": "MINE",
+          "sources": [
+            "src_geoscience_australia"
+          ],
+          "facts": []
+        },
+        {
+          "name": "Olympic Dam Mine",
+          "subject_id": "mine_olympic_dam",
+          "subject_type": "MINE",
+          "sources": [
+            "src_geoscience_australia"
+          ],
+          "facts": []
+        }
+      ]
+    },
+    {
+      "entity_id": "australia_n2",
+      "name": "澳大利亚铀出口节点",
+      "english_name": "Australian Uranium Export Node",
+      "type": "logistics",
+      "node_kind": "出口物流网络",
+      "country_id": "AUS",
+      "country_name": "澳大利亚",
+      "supplier_country": "AUS",
+      "longitude": 138.6,
+      "latitude": -34.9,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "SUPPLY_NETWORK_AGGREGATE",
+      "evidence_level": "UNKNOWN",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [],
+      "as_of": "2026-08-31",
+      "description": "具体装运港属 commercial-in-confidence;不臆造 Adelaide/Darwin。",
+      "real_entity": null,
+      "routes": [
+        "澳大利亚铀供应"
+      ],
+      "material": "天然铀 / 铀矿石浓缩物（具体批次形态待绑定）",
+      "transport_mode": "海运为主",
+      "route_context": "铀生产与出口许可国(对华直接或间接出口许可存在,HS284410 当前查询未报告)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ]
+    },
+    {
+      "entity_id": "australia_n3",
+      "name": "西太平洋海运段",
+      "english_name": "Western Pacific Maritime Leg",
+      "type": "logistics",
+      "node_kind": "海运通道",
+      "country_id": "INTL",
+      "country_name": "国际通道",
+      "supplier_country": "AUS",
+      "longitude": 150.0,
+      "latitude": -5.0,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "SUPPLY_NETWORK_AGGREGATE",
+      "evidence_level": "INDIRECT",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [],
+      "as_of": "2026-08-31",
+      "description": "",
+      "real_entity": null,
+      "routes": [
+        "澳大利亚铀供应"
+      ],
+      "material": "天然铀 / 铀矿石浓缩物（具体批次形态待绑定）",
+      "transport_mode": "海运为主",
+      "route_context": "铀生产与出口许可国(对华直接或间接出口许可存在,HS284410 当前查询未报告)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ]
+    },
+    {
+      "entity_id": "australia_n4",
+      "name": "中国南部接收港",
+      "english_name": "China South-Coast Receiving Port",
+      "type": "logistics",
+      "node_kind": "港口",
+      "country_id": "CHN",
+      "country_name": "中国",
+      "supplier_country": "AUS",
+      "longitude": 113.3,
+      "latitude": 23.1,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "REGIONAL_AGGREGATE",
+      "evidence_level": "UNKNOWN",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [],
+      "as_of": "2026-08-31",
+      "description": "",
+      "real_entity": null,
+      "routes": [
+        "澳大利亚铀供应",
+        "尼日尔铀供应(出口通道严重受扰)"
+      ],
+      "material": "天然铀 / 铀矿石浓缩物（具体批次形态待绑定）",
+      "transport_mode": "海运为主",
+      "route_context": "铀生产与出口许可国(对华直接或间接出口许可存在,HS284410 当前查询未报告)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ]
+    },
+    {
+      "entity_id": "uzbekistan_n1",
+      "name": "乌兹别克斯坦铀供应区(纳沃伊铀业)",
+      "english_name": "Navoiyuran Uranium Operations",
+      "type": "supplier",
+      "node_kind": "海外供应商",
+      "country_id": "UZB",
+      "country_name": "乌兹别克斯坦",
+      "supplier_country": "UZB",
+      "longitude": 64.6,
+      "latitude": 41.4,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "REGIONAL_AGGREGATE",
+      "evidence_level": "DIRECT",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [
+        "Navoiyuran 官方",
+        "乌兹别克斯坦矿业与地质部"
+      ],
+      "as_of": "2026-08-31",
+      "description": "",
+      "real_entity": "Navoiyuran(Navoi/Uchkuduk/Zafarabad/Nurabad 生产区)",
+      "routes": [
+        "乌兹别克斯坦铀供应"
+      ],
+      "material": "天然铀 / 铀矿石浓缩物（具体批次形态待绑定）",
+      "transport_mode": "铁路联运",
+      "route_context": "天然铀供应国(2022 对华 284410 记录;Navoiyuran 对华合作扩展中)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ],
+      "related_entities": []
+    },
+    {
+      "entity_id": "uzbekistan_n2",
+      "name": "中亚铁路转运节点",
+      "english_name": "Central Asian Rail Transshipment",
+      "type": "logistics",
+      "node_kind": "铁路节点",
+      "country_id": "UZB/INTL",
+      "country_name": "UZB/INTL",
+      "supplier_country": "UZB",
+      "longitude": 69.2,
+      "latitude": 41.3,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "SUPPLY_NETWORK_AGGREGATE",
+      "evidence_level": "INDIRECT",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [],
+      "as_of": "2026-08-31",
+      "description": "具体对华铁路转运点未公开。",
+      "real_entity": null,
+      "routes": [
+        "乌兹别克斯坦铀供应"
+      ],
+      "material": "天然铀 / 铀矿石浓缩物（具体批次形态待绑定）",
+      "transport_mode": "铁路联运",
+      "route_context": "天然铀供应国(2022 对华 284410 记录;Navoiyuran 对华合作扩展中)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ]
+    },
+    {
+      "entity_id": "uzbekistan_n3",
+      "name": "中亚铁路走廊",
+      "english_name": "Central Asian Rail Corridor",
+      "type": "logistics",
+      "node_kind": "铁路通道",
+      "country_id": "INTL",
+      "country_name": "国际通道",
+      "supplier_country": "UZB",
+      "longitude": 74.6,
+      "latitude": 43.0,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "SUPPLY_NETWORK_AGGREGATE",
+      "evidence_level": "INDIRECT",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [],
+      "as_of": "2026-08-31",
+      "description": "",
+      "real_entity": null,
+      "routes": [
+        "乌兹别克斯坦铀供应"
+      ],
+      "material": "天然铀 / 铀矿石浓缩物（具体批次形态待绑定）",
+      "transport_mode": "铁路联运",
+      "route_context": "天然铀供应国(2022 对华 284410 记录;Navoiyuran 对华合作扩展中)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ]
+    },
+    {
+      "entity_id": "uzbekistan_n4",
+      "name": "中哈铁路边境口岸",
+      "english_name": "Kazakhstan–China Rail Interface",
+      "type": "logistics",
+      "node_kind": "边境口岸",
+      "country_id": "KAZ/CHN",
+      "country_name": "KAZ/CHN",
+      "supplier_country": "UZB",
+      "longitude": 82.6,
+      "latitude": 45.2,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "PUBLIC_TRANSPORT_NODE",
+      "evidence_level": "INDIRECT",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [],
+      "as_of": "2026-08-31",
+      "description": "中亚—哈中铁路接口;不声称与 KAZ 路线同一具体口岸。",
+      "real_entity": null,
+      "routes": [
+        "乌兹别克斯坦铀供应"
+      ],
+      "material": "天然铀 / 铀矿石浓缩物（具体批次形态待绑定）",
+      "transport_mode": "铁路联运",
+      "route_context": "天然铀供应国(2022 对华 284410 记录;Navoiyuran 对华合作扩展中)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ]
+    },
+    {
+      "entity_id": "niger_n1",
+      "name": "Somaïr / 阿尔利特铀矿区",
+      "english_name": "Somaïr / Arlit Uranium Area",
+      "type": "supplier",
+      "node_kind": "海外供应商",
+      "country_id": "NER",
+      "country_name": "尼日尔",
+      "supplier_country": "NER",
+      "longitude": 8.1,
+      "latitude": 17.6,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "REGIONAL_AGGREGATE",
+      "evidence_level": "DIRECT",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [
+        "Orano 2024 Annual Report",
+        "World Nuclear News 2024"
+      ],
+      "as_of": "2026-08-31",
+      "description": "生产/出口严重受扰。",
+      "real_entity": "Somaïr(Arlit 矿区)",
+      "routes": [
+        "尼日尔铀供应(出口通道严重受扰)"
+      ],
+      "material": "天然铀 / 铀矿石浓缩物（具体批次形态待绑定）",
+      "transport_mode": "陆路 + 海运(通道受扰)",
+      "route_context": "历史天然铀供应国;2023 政变后出口通道关闭,运营受扰",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ],
+      "related_entities": [
+        {
+          "name": "Somaïr (Arlit uranium mine)",
+          "subject_id": "subj_somair",
+          "subject_type": "MINE",
+          "sources": [
+            "src_orano"
+          ],
+          "facts": []
+        }
+      ]
+    },
+    {
+      "entity_id": "niger_n2",
+      "name": "尼日尔出口通道",
+      "english_name": "Niger Export Corridor",
+      "type": "logistics",
+      "node_kind": "陆路通道",
+      "country_id": "NER",
+      "country_name": "尼日尔",
+      "supplier_country": "NER",
+      "longitude": 3.4,
+      "latitude": 11.8,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "SUPPLY_NETWORK_AGGREGATE",
+      "evidence_level": "DIRECT",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [
+        "Orano 2024 Annual Report"
+      ],
+      "as_of": "2026-08-31",
+      "description": "主要出口走廊自 2023 政变后关闭。",
+      "real_entity": null,
+      "routes": [
+        "尼日尔铀供应(出口通道严重受扰)"
+      ],
+      "material": "天然铀 / 铀矿石浓缩物（具体批次形态待绑定）",
+      "transport_mode": "陆路 + 海运(通道受扰)",
+      "route_context": "历史天然铀供应国;2023 政变后出口通道关闭,运营受扰",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ]
+    },
+    {
+      "entity_id": "niger_n3",
+      "name": "西非出口门户",
+      "english_name": "West African Export Gateway",
+      "type": "logistics",
+      "node_kind": "港口",
+      "country_id": "INTL",
+      "country_name": "国际通道",
+      "supplier_country": "NER",
+      "longitude": 2.4,
+      "latitude": 6.4,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "SUPPLY_NETWORK_AGGREGATE",
+      "evidence_level": "UNKNOWN",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [],
+      "as_of": "2026-08-31",
+      "description": "不臆造 Cotonou/Lomé/Walvis Bay 等港口。",
+      "real_entity": null,
+      "routes": [
+        "尼日尔铀供应(出口通道严重受扰)"
+      ],
+      "material": "天然铀 / 铀矿石浓缩物（具体批次形态待绑定）",
+      "transport_mode": "陆路 + 海运(通道受扰)",
+      "route_context": "历史天然铀供应国;2023 政变后出口通道关闭,运营受扰",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ]
+    },
+    {
+      "entity_id": "niger_n4",
+      "name": "国际海运段",
+      "english_name": "International Maritime Leg",
+      "type": "logistics",
+      "node_kind": "海运通道",
+      "country_id": "INTL",
+      "country_name": "国际通道",
+      "supplier_country": "NER",
+      "longitude": 75.0,
+      "latitude": 5.0,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "SUPPLY_NETWORK_AGGREGATE",
+      "evidence_level": "UNKNOWN",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [],
+      "as_of": "2026-08-31",
+      "description": "",
+      "real_entity": null,
+      "routes": [
+        "尼日尔铀供应(出口通道严重受扰)"
+      ],
+      "material": "天然铀 / 铀矿石浓缩物（具体批次形态待绑定）",
+      "transport_mode": "陆路 + 海运(通道受扰)",
+      "route_context": "历史天然铀供应国;2023 政变后出口通道关闭,运营受扰",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ]
+    },
+    {
+      "entity_id": "russia_n1",
+      "name": "俄罗斯核燃料循环供应网络",
+      "english_name": "Rosatom Fuel-Cycle Supply Network",
+      "type": "supplier",
+      "node_kind": "海外供应商",
+      "country_id": "RUS",
+      "country_name": "俄罗斯",
+      "supplier_country": "RUS",
+      "longitude": 90.0,
+      "latitude": 60.0,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "REGIONAL_AGGREGATE",
+      "evidence_level": "DIRECT",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [
+        "Rosatom",
+        "TVEL",
+        "HS284420 trade"
+      ],
+      "as_of": "2026-08-31",
+      "description": "以浓缩/燃料循环供应为主;不再显示'俄罗斯铀矿供应区'。",
+      "real_entity": "Rosatom / TVEL / TENEX(核燃料循环供应)",
+      "routes": [
+        "俄罗斯核燃料循环供应"
+      ],
+      "material": "燃料组件 / 核燃料产品",
+      "transport_mode": "铁路 / 海运(未公开细节)",
+      "route_context": "浓缩相关材料主要伙伴(2024 HS284420 对华份额 86.3%)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ],
+      "related_entities": [
+        {
+          "name": "Novosibirsk Chemical Concentrates Plant",
+          "subject_id": "subj_nccp",
+          "subject_type": "FUEL_FABRICATION_FACILITY",
+          "sources": [
+            "src_tvel"
+          ],
+          "facts": []
+        }
+      ]
+    },
+    {
+      "entity_id": "russia_n2",
+      "name": "中俄跨境核燃料物流",
+      "english_name": "Russia–China Cross-Border Nuclear Fuel Logistics",
+      "type": "logistics",
+      "node_kind": "铁路通道",
+      "country_id": "RUS/CHN",
+      "country_name": "RUS/CHN",
+      "supplier_country": "RUS",
+      "longitude": 82.0,
+      "latitude": 56.0,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "SUPPLY_NETWORK_AGGREGATE",
+      "evidence_level": "INDIRECT",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [],
+      "as_of": "2026-08-31",
+      "description": "无公开核燃料运输细节;不按 Trans-Siberian/满洲里/后贝加尔斯克常识拼路线。",
+      "real_entity": null,
+      "routes": [
+        "俄罗斯核燃料循环供应"
+      ],
+      "material": "燃料组件 / 核燃料产品",
+      "transport_mode": "铁路 / 海运(未公开细节)",
+      "route_context": "浓缩相关材料主要伙伴(2024 HS284420 对华份额 86.3%)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ]
+    },
+    {
+      "entity_id": "russia_n3",
+      "name": "中俄边境接口",
+      "english_name": "Russia–China Border Interface",
+      "type": "logistics",
+      "node_kind": "边境口岸",
+      "country_id": "RUS/CHN",
+      "country_name": "RUS/CHN",
+      "supplier_country": "RUS",
+      "longitude": 106.0,
+      "latitude": 50.0,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "SUPPLY_NETWORK_AGGREGATE",
+      "evidence_level": "INDIRECT",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [],
+      "as_of": "2026-08-31",
+      "description": "",
+      "real_entity": null,
+      "routes": [
+        "俄罗斯核燃料循环供应"
+      ],
+      "material": "燃料组件 / 核燃料产品",
+      "transport_mode": "铁路 / 海运(未公开细节)",
+      "route_context": "浓缩相关材料主要伙伴(2024 HS284420 对华份额 86.3%)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ]
+    },
+    {
+      "entity_id": "russia_n4",
+      "name": "中国东北核燃料物流节点",
+      "english_name": "China North-East Nuclear Fuel Logistics",
+      "type": "logistics",
+      "node_kind": "国内转运",
+      "country_id": "CHN",
+      "country_name": "中国",
+      "supplier_country": "RUS",
+      "longitude": 126.6,
+      "latitude": 45.8,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "REGIONAL_AGGREGATE",
+      "evidence_level": "INDIRECT",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [],
+      "as_of": "2026-08-31",
+      "description": "徐大堡(辽宁)等俄式堆机组所在区域。",
+      "real_entity": null,
+      "routes": [
+        "俄罗斯核燃料循环供应"
+      ],
+      "material": "燃料组件 / 核燃料产品",
+      "transport_mode": "铁路 / 海运(未公开细节)",
+      "route_context": "浓缩相关材料主要伙伴(2024 HS284420 对华份额 86.3%)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ]
+    },
+    {
+      "entity_id": "russia_n5",
+      "name": "中国核电燃料接收网络（田湾 / 徐大堡）",
+      "english_name": "China NPP Fuel Receiving(Tianwan / Xudapu)",
+      "type": "demander",
+      "node_kind": "国内接收",
+      "country_id": "CHN",
+      "country_name": "中国",
+      "supplier_country": "RUS",
+      "longitude": 116.4,
+      "latitude": 39.9,
+      "coordinate_basis": "公开位置或区域锚点；聚合节点不代表具体设施坐标",
+      "network_basis": "uranium_reference",
+      "data_status": "knowledge_base",
+      "aggregation_level": "SUPPLY_NETWORK_AGGREGATE",
+      "evidence_level": "DIRECT",
+      "source": "knowledge_base/uranium/derived/logistics/china_evidence_backed_routes.json",
+      "source_refs": [
+        "TVEL 徐大堡燃料合同",
+        "NEI 徐大堡3首炉燃料"
+      ],
+      "as_of": "2026-08-31",
+      "description": "燃料组件供应与 HS284420 原材料贸易为不同货流,不混为一谈;两者同属 Rosatom 燃料循环供应。",
+      "real_entity": "田湾 / 徐大堡核电站(TVEL 燃料供应)",
+      "routes": [
+        "俄罗斯核燃料循环供应"
+      ],
+      "material": "燃料组件 / 核燃料产品",
+      "transport_mode": "铁路 / 海运(未公开细节)",
+      "route_context": "浓缩相关材料主要伙伴(2024 HS284420 对华份额 86.3%)",
+      "metrics": [
+        {
+          "label": "年供应 / 处理能力",
+          "value": null,
+          "unit": "tU/年",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "可用库存",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "单位报价",
+          "value": null,
+          "unit": "待绑定币种及产品形态",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "交付周期",
+          "value": null,
+          "unit": "天",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "当前订单量",
+          "value": null,
+          "unit": "tU",
+          "basis": "待绑定业务记录"
+        },
+        {
+          "label": "运输 / 存储成本",
+          "value": null,
+          "unit": "待绑定币种",
+          "basis": "待绑定业务记录"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "kazakhstan_segment_1",
+      "source_id": "kazakhstan_n1",
+      "target_id": "kazakhstan_n2",
+      "label": "哈萨克斯坦铀供应 · 铁路联运",
+      "direction": "supply",
+      "evidence_level": "DIRECT",
+      "source_refs": [
+        "Kazatomprom 2024 Annual Report: Asia (China) uranium materials transported by rail to Alashankou station",
+        "Kazatomprom Investor Handout 1H2023: Alashankou Uranium Bonded Warehouse, 3,000 tU capacity from 2023, 23,000 tU proposed 2026; first shipment Jan 2023",
+        "Kazakhstan MFA: Dostyk–Alashankou 与 Altynkol–Khorgos 为正式中哈铁路口岸",
+        "Carnegie Endowment 2024: CNNC 推进阿拉山口保税铀仓库建设",
+        "Kazakhstan Ministry of Energy: Ulba-FA 2024 Q1 向中国核电站发运 76 组燃料组件;Ulba-FA 达设计产能 200 tU/a(燃料组件)"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "284410",
+        "284420"
+      ],
+      "route_id": "kazakhstan"
+    },
+    {
+      "id": "kazakhstan_segment_2",
+      "source_id": "kazakhstan_n2",
+      "target_id": "kazakhstan_n3",
+      "label": "哈萨克斯坦铀供应 · 铁路联运",
+      "direction": "supply",
+      "evidence_level": "DIRECT",
+      "source_refs": [
+        "Kazatomprom 2024 Annual Report: Asia (China) uranium materials transported by rail to Alashankou station",
+        "Kazatomprom Investor Handout 1H2023: Alashankou Uranium Bonded Warehouse, 3,000 tU capacity from 2023, 23,000 tU proposed 2026; first shipment Jan 2023",
+        "Kazakhstan MFA: Dostyk–Alashankou 与 Altynkol–Khorgos 为正式中哈铁路口岸",
+        "Carnegie Endowment 2024: CNNC 推进阿拉山口保税铀仓库建设",
+        "Kazakhstan Ministry of Energy: Ulba-FA 2024 Q1 向中国核电站发运 76 组燃料组件;Ulba-FA 达设计产能 200 tU/a(燃料组件)"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "284410",
+        "284420"
+      ],
+      "route_id": "kazakhstan"
+    },
+    {
+      "id": "kazakhstan_segment_3",
+      "source_id": "kazakhstan_n3",
+      "target_id": "kazakhstan_n4",
+      "label": "哈萨克斯坦铀供应 · 铁路联运",
+      "direction": "supply",
+      "evidence_level": "DIRECT",
+      "source_refs": [
+        "Kazatomprom 2024 Annual Report: Asia (China) uranium materials transported by rail to Alashankou station",
+        "Kazatomprom Investor Handout 1H2023: Alashankou Uranium Bonded Warehouse, 3,000 tU capacity from 2023, 23,000 tU proposed 2026; first shipment Jan 2023",
+        "Kazakhstan MFA: Dostyk–Alashankou 与 Altynkol–Khorgos 为正式中哈铁路口岸",
+        "Carnegie Endowment 2024: CNNC 推进阿拉山口保税铀仓库建设",
+        "Kazakhstan Ministry of Energy: Ulba-FA 2024 Q1 向中国核电站发运 76 组燃料组件;Ulba-FA 达设计产能 200 tU/a(燃料组件)"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "284410",
+        "284420"
+      ],
+      "route_id": "kazakhstan"
+    },
+    {
+      "id": "kazakhstan_segment_4",
+      "source_id": "kazakhstan_n4",
+      "target_id": "kazakhstan_n5",
+      "label": "哈萨克斯坦铀供应 · 铁路联运",
+      "direction": "supply",
+      "evidence_level": "DIRECT",
+      "source_refs": [
+        "Kazatomprom 2024 Annual Report: Asia (China) uranium materials transported by rail to Alashankou station",
+        "Kazatomprom Investor Handout 1H2023: Alashankou Uranium Bonded Warehouse, 3,000 tU capacity from 2023, 23,000 tU proposed 2026; first shipment Jan 2023",
+        "Kazakhstan MFA: Dostyk–Alashankou 与 Altynkol–Khorgos 为正式中哈铁路口岸",
+        "Carnegie Endowment 2024: CNNC 推进阿拉山口保税铀仓库建设",
+        "Kazakhstan Ministry of Energy: Ulba-FA 2024 Q1 向中国核电站发运 76 组燃料组件;Ulba-FA 达设计产能 200 tU/a(燃料组件)"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "284410",
+        "284420"
+      ],
+      "route_id": "kazakhstan"
+    },
+    {
+      "id": "namibia_segment_1",
+      "source_id": "namibia_n1",
+      "target_id": "namibia_n2",
+      "label": "纳米比亚铀供应 · 海运为主",
+      "direction": "supply",
+      "evidence_level": "DIRECT",
+      "source_refs": [
+        "CNES Geoimage: Namibie, le pôle de l'uranium de Rössing/Husab(罗辛/胡萨布铀矿群,中国寻求非洲战略矿产)",
+        "Swakop Uranium(Husab) / Rössing Uranium / Langer Heinrich 年报",
+        "Namport: Walvis Bay 服务 Swakop Uranium 生产供应链(如 pyrolusite 经 Walvis Bay 运入)",
+        "UN Comtrade 2024: 中国 HS284410 自纳米比亚进口 6,504,190 kg"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "284410",
+        "261210"
+      ],
+      "route_id": "namibia"
+    },
+    {
+      "id": "namibia_segment_2",
+      "source_id": "namibia_n2",
+      "target_id": "namibia_n3",
+      "label": "纳米比亚铀供应 · 海运为主",
+      "direction": "supply",
+      "evidence_level": "DIRECT",
+      "source_refs": [
+        "CNES Geoimage: Namibie, le pôle de l'uranium de Rössing/Husab(罗辛/胡萨布铀矿群,中国寻求非洲战略矿产)",
+        "Swakop Uranium(Husab) / Rössing Uranium / Langer Heinrich 年报",
+        "Namport: Walvis Bay 服务 Swakop Uranium 生产供应链(如 pyrolusite 经 Walvis Bay 运入)",
+        "UN Comtrade 2024: 中国 HS284410 自纳米比亚进口 6,504,190 kg"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "284410",
+        "261210"
+      ],
+      "route_id": "namibia"
+    },
+    {
+      "id": "namibia_segment_3",
+      "source_id": "namibia_n3",
+      "target_id": "namibia_n4",
+      "label": "纳米比亚铀供应 · 海运为主",
+      "direction": "supply",
+      "evidence_level": "DIRECT",
+      "source_refs": [
+        "CNES Geoimage: Namibie, le pôle de l'uranium de Rössing/Husab(罗辛/胡萨布铀矿群,中国寻求非洲战略矿产)",
+        "Swakop Uranium(Husab) / Rössing Uranium / Langer Heinrich 年报",
+        "Namport: Walvis Bay 服务 Swakop Uranium 生产供应链(如 pyrolusite 经 Walvis Bay 运入)",
+        "UN Comtrade 2024: 中国 HS284410 自纳米比亚进口 6,504,190 kg"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "284410",
+        "261210"
+      ],
+      "route_id": "namibia"
+    },
+    {
+      "id": "namibia_segment_4",
+      "source_id": "namibia_n4",
+      "target_id": "kazakhstan_n5",
+      "label": "纳米比亚铀供应 · 海运为主",
+      "direction": "supply",
+      "evidence_level": "DIRECT",
+      "source_refs": [
+        "CNES Geoimage: Namibie, le pôle de l'uranium de Rössing/Husab(罗辛/胡萨布铀矿群,中国寻求非洲战略矿产)",
+        "Swakop Uranium(Husab) / Rössing Uranium / Langer Heinrich 年报",
+        "Namport: Walvis Bay 服务 Swakop Uranium 生产供应链(如 pyrolusite 经 Walvis Bay 运入)",
+        "UN Comtrade 2024: 中国 HS284410 自纳米比亚进口 6,504,190 kg"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "284410",
+        "261210"
+      ],
+      "route_id": "namibia"
+    },
+    {
+      "id": "canada_segment_1",
+      "source_id": "canada_n1",
+      "target_id": "canada_n2",
+      "label": "加拿大铀供应 · 铁路 + 海运",
+      "direction": "supply",
+      "evidence_level": "INDIRECT",
+      "source_refs": [
+        "Canada–China 2012 Supplementary Protocol on Cooperation in the Peaceful Uses of Nuclear Energy(便利加对华铀出口)",
+        "2026 NRCan–China NEA MOU: 加强天然铀贸易合作",
+        "World Nuclear News: Canada-China uranium protocol signed; More Canadian uranium China-bound",
+        "Saskatchewan Government 2012: Cameco 等萨斯喀彻温铀矿受益"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "284410"
+      ],
+      "route_id": "canada"
+    },
+    {
+      "id": "canada_segment_2",
+      "source_id": "canada_n2",
+      "target_id": "canada_n3",
+      "label": "加拿大铀供应 · 铁路 + 海运",
+      "direction": "supply",
+      "evidence_level": "INDIRECT",
+      "source_refs": [
+        "Canada–China 2012 Supplementary Protocol on Cooperation in the Peaceful Uses of Nuclear Energy(便利加对华铀出口)",
+        "2026 NRCan–China NEA MOU: 加强天然铀贸易合作",
+        "World Nuclear News: Canada-China uranium protocol signed; More Canadian uranium China-bound",
+        "Saskatchewan Government 2012: Cameco 等萨斯喀彻温铀矿受益"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "284410"
+      ],
+      "route_id": "canada"
+    },
+    {
+      "id": "canada_segment_3",
+      "source_id": "canada_n3",
+      "target_id": "namibia_n4",
+      "label": "加拿大铀供应 · 铁路 + 海运",
+      "direction": "supply",
+      "evidence_level": "INDIRECT",
+      "source_refs": [
+        "Canada–China 2012 Supplementary Protocol on Cooperation in the Peaceful Uses of Nuclear Energy(便利加对华铀出口)",
+        "2026 NRCan–China NEA MOU: 加强天然铀贸易合作",
+        "World Nuclear News: Canada-China uranium protocol signed; More Canadian uranium China-bound",
+        "Saskatchewan Government 2012: Cameco 等萨斯喀彻温铀矿受益"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "284410"
+      ],
+      "route_id": "canada"
+    },
+    {
+      "id": "canada_segment_4",
+      "source_id": "namibia_n4",
+      "target_id": "kazakhstan_n5",
+      "label": "加拿大铀供应 · 铁路 + 海运",
+      "direction": "supply",
+      "evidence_level": "INDIRECT",
+      "source_refs": [
+        "Canada–China 2012 Supplementary Protocol on Cooperation in the Peaceful Uses of Nuclear Energy(便利加对华铀出口)",
+        "2026 NRCan–China NEA MOU: 加强天然铀贸易合作",
+        "World Nuclear News: Canada-China uranium protocol signed; More Canadian uranium China-bound",
+        "Saskatchewan Government 2012: Cameco 等萨斯喀彻温铀矿受益"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "284410"
+      ],
+      "route_id": "canada"
+    },
+    {
+      "id": "australia_segment_1",
+      "source_id": "australia_n1",
+      "target_id": "australia_n2",
+      "label": "澳大利亚铀供应 · 海运为主",
+      "direction": "supply",
+      "evidence_level": "INDIRECT",
+      "source_refs": [
+        "ASNO 2023-24 Annual Report: Australian-obligated natural uranium location 含中国",
+        "Australian Department of Industry: 铀/受控矿石可依许可直接或间接出口至中国",
+        "Geoscience Australia / 澳大利亚政府 REQ"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "284410"
+      ],
+      "route_id": "australia"
+    },
+    {
+      "id": "australia_segment_2",
+      "source_id": "australia_n2",
+      "target_id": "australia_n3",
+      "label": "澳大利亚铀供应 · 海运为主",
+      "direction": "supply",
+      "evidence_level": "INDIRECT",
+      "source_refs": [
+        "ASNO 2023-24 Annual Report: Australian-obligated natural uranium location 含中国",
+        "Australian Department of Industry: 铀/受控矿石可依许可直接或间接出口至中国",
+        "Geoscience Australia / 澳大利亚政府 REQ"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "284410"
+      ],
+      "route_id": "australia"
+    },
+    {
+      "id": "australia_segment_3",
+      "source_id": "australia_n3",
+      "target_id": "australia_n4",
+      "label": "澳大利亚铀供应 · 海运为主",
+      "direction": "supply",
+      "evidence_level": "INDIRECT",
+      "source_refs": [
+        "ASNO 2023-24 Annual Report: Australian-obligated natural uranium location 含中国",
+        "Australian Department of Industry: 铀/受控矿石可依许可直接或间接出口至中国",
+        "Geoscience Australia / 澳大利亚政府 REQ"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "284410"
+      ],
+      "route_id": "australia"
+    },
+    {
+      "id": "australia_segment_4",
+      "source_id": "australia_n4",
+      "target_id": "kazakhstan_n5",
+      "label": "澳大利亚铀供应 · 海运为主",
+      "direction": "supply",
+      "evidence_level": "INDIRECT",
+      "source_refs": [
+        "ASNO 2023-24 Annual Report: Australian-obligated natural uranium location 含中国",
+        "Australian Department of Industry: 铀/受控矿石可依许可直接或间接出口至中国",
+        "Geoscience Australia / 澳大利亚政府 REQ"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "284410"
+      ],
+      "route_id": "australia"
+    },
+    {
+      "id": "uzbekistan_segment_1",
+      "source_id": "uzbekistan_n1",
+      "target_id": "uzbekistan_n2",
+      "label": "乌兹别克斯坦铀供应 · 铁路联运",
+      "direction": "supply",
+      "evidence_level": "DIRECT",
+      "source_refs": [
+        "Navoiyuran 官方: 2025 与 CNUC、中国核工业集团签署合作,扩大天然铀出口地理",
+        "乌兹别克斯坦矿业与地质部 2024: 与 CNUC 签署合作",
+        "UN Comtrade 2022: 乌对华 284410 = 570,835 kg"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "284410"
+      ],
+      "route_id": "uzbekistan"
+    },
+    {
+      "id": "uzbekistan_segment_2",
+      "source_id": "uzbekistan_n2",
+      "target_id": "uzbekistan_n3",
+      "label": "乌兹别克斯坦铀供应 · 铁路联运",
+      "direction": "supply",
+      "evidence_level": "DIRECT",
+      "source_refs": [
+        "Navoiyuran 官方: 2025 与 CNUC、中国核工业集团签署合作,扩大天然铀出口地理",
+        "乌兹别克斯坦矿业与地质部 2024: 与 CNUC 签署合作",
+        "UN Comtrade 2022: 乌对华 284410 = 570,835 kg"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "284410"
+      ],
+      "route_id": "uzbekistan"
+    },
+    {
+      "id": "uzbekistan_segment_3",
+      "source_id": "uzbekistan_n3",
+      "target_id": "uzbekistan_n4",
+      "label": "乌兹别克斯坦铀供应 · 铁路联运",
+      "direction": "supply",
+      "evidence_level": "DIRECT",
+      "source_refs": [
+        "Navoiyuran 官方: 2025 与 CNUC、中国核工业集团签署合作,扩大天然铀出口地理",
+        "乌兹别克斯坦矿业与地质部 2024: 与 CNUC 签署合作",
+        "UN Comtrade 2022: 乌对华 284410 = 570,835 kg"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "284410"
+      ],
+      "route_id": "uzbekistan"
+    },
+    {
+      "id": "uzbekistan_segment_4",
+      "source_id": "uzbekistan_n4",
+      "target_id": "kazakhstan_n5",
+      "label": "乌兹别克斯坦铀供应 · 铁路联运",
+      "direction": "supply",
+      "evidence_level": "DIRECT",
+      "source_refs": [
+        "Navoiyuran 官方: 2025 与 CNUC、中国核工业集团签署合作,扩大天然铀出口地理",
+        "乌兹别克斯坦矿业与地质部 2024: 与 CNUC 签署合作",
+        "UN Comtrade 2022: 乌对华 284410 = 570,835 kg"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "284410"
+      ],
+      "route_id": "uzbekistan"
+    },
+    {
+      "id": "niger_segment_1",
+      "source_id": "niger_n1",
+      "target_id": "niger_n2",
+      "label": "尼日尔铀供应(出口通道严重受扰) · 陆路 + 海运(通道受扰)",
+      "direction": "supply",
+      "evidence_level": "DIRECT",
+      "source_refs": [
+        "Orano Annual Activity Report 2024: 2023 政变后主要供应/出口走廊关闭;替代出口方案未获尼日尔当局回应;2024 年底失去子公司运营控制",
+        "World Nuclear News 2024: Orano suspends operations at Arlit",
+        "UN Comtrade 2024: 中国 HS261210 自尼日尔 108 kg"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "261210",
+        "284410"
+      ],
+      "route_id": "niger"
+    },
+    {
+      "id": "niger_segment_2",
+      "source_id": "niger_n2",
+      "target_id": "niger_n3",
+      "label": "尼日尔铀供应(出口通道严重受扰) · 陆路 + 海运(通道受扰)",
+      "direction": "supply",
+      "evidence_level": "DIRECT",
+      "source_refs": [
+        "Orano Annual Activity Report 2024: 2023 政变后主要供应/出口走廊关闭;替代出口方案未获尼日尔当局回应;2024 年底失去子公司运营控制",
+        "World Nuclear News 2024: Orano suspends operations at Arlit",
+        "UN Comtrade 2024: 中国 HS261210 自尼日尔 108 kg"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "261210",
+        "284410"
+      ],
+      "route_id": "niger"
+    },
+    {
+      "id": "niger_segment_3",
+      "source_id": "niger_n3",
+      "target_id": "niger_n4",
+      "label": "尼日尔铀供应(出口通道严重受扰) · 陆路 + 海运(通道受扰)",
+      "direction": "supply",
+      "evidence_level": "DIRECT",
+      "source_refs": [
+        "Orano Annual Activity Report 2024: 2023 政变后主要供应/出口走廊关闭;替代出口方案未获尼日尔当局回应;2024 年底失去子公司运营控制",
+        "World Nuclear News 2024: Orano suspends operations at Arlit",
+        "UN Comtrade 2024: 中国 HS261210 自尼日尔 108 kg"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "261210",
+        "284410"
+      ],
+      "route_id": "niger"
+    },
+    {
+      "id": "niger_segment_4",
+      "source_id": "niger_n4",
+      "target_id": "australia_n4",
+      "label": "尼日尔铀供应(出口通道严重受扰) · 陆路 + 海运(通道受扰)",
+      "direction": "supply",
+      "evidence_level": "DIRECT",
+      "source_refs": [
+        "Orano Annual Activity Report 2024: 2023 政变后主要供应/出口走廊关闭;替代出口方案未获尼日尔当局回应;2024 年底失去子公司运营控制",
+        "World Nuclear News 2024: Orano suspends operations at Arlit",
+        "UN Comtrade 2024: 中国 HS261210 自尼日尔 108 kg"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "261210",
+        "284410"
+      ],
+      "route_id": "niger"
+    },
+    {
+      "id": "russia_segment_1",
+      "source_id": "russia_n1",
+      "target_id": "russia_n2",
+      "label": "俄罗斯核燃料循环供应 · 铁路 / 海运(未公开细节)",
+      "direction": "supply",
+      "evidence_level": "DIRECT",
+      "source_refs": [
+        "UN Comtrade 2024: 中国 HS284420 自俄罗斯进口 747,732 kg(86.3%)",
+        "Rosatom Energy / TVEL: TVEL 与中核签徐大堡新机组燃料合同",
+        "Nuclear Engineering International: 徐大堡 3 号机组首炉燃料",
+        "Rosatom: 中俄核技术/物流合作(第八届中俄博览会)"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "284420"
+      ],
+      "route_id": "russia"
+    },
+    {
+      "id": "russia_segment_2",
+      "source_id": "russia_n2",
+      "target_id": "russia_n3",
+      "label": "俄罗斯核燃料循环供应 · 铁路 / 海运(未公开细节)",
+      "direction": "supply",
+      "evidence_level": "DIRECT",
+      "source_refs": [
+        "UN Comtrade 2024: 中国 HS284420 自俄罗斯进口 747,732 kg(86.3%)",
+        "Rosatom Energy / TVEL: TVEL 与中核签徐大堡新机组燃料合同",
+        "Nuclear Engineering International: 徐大堡 3 号机组首炉燃料",
+        "Rosatom: 中俄核技术/物流合作(第八届中俄博览会)"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "284420"
+      ],
+      "route_id": "russia"
+    },
+    {
+      "id": "russia_segment_3",
+      "source_id": "russia_n3",
+      "target_id": "russia_n4",
+      "label": "俄罗斯核燃料循环供应 · 铁路 / 海运(未公开细节)",
+      "direction": "supply",
+      "evidence_level": "DIRECT",
+      "source_refs": [
+        "UN Comtrade 2024: 中国 HS284420 自俄罗斯进口 747,732 kg(86.3%)",
+        "Rosatom Energy / TVEL: TVEL 与中核签徐大堡新机组燃料合同",
+        "Nuclear Engineering International: 徐大堡 3 号机组首炉燃料",
+        "Rosatom: 中俄核技术/物流合作(第八届中俄博览会)"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "284420"
+      ],
+      "route_id": "russia"
+    },
+    {
+      "id": "russia_segment_4",
+      "source_id": "russia_n4",
+      "target_id": "russia_n5",
+      "label": "俄罗斯核燃料循环供应 · 铁路 / 海运(未公开细节)",
+      "direction": "supply",
+      "evidence_level": "DIRECT",
+      "source_refs": [
+        "UN Comtrade 2024: 中国 HS284420 自俄罗斯进口 747,732 kg(86.3%)",
+        "Rosatom Energy / TVEL: TVEL 与中核签徐大堡新机组燃料合同",
+        "Nuclear Engineering International: 徐大堡 3 号机组首炉燃料",
+        "Rosatom: 中俄核技术/物流合作(第八届中俄博览会)"
+      ],
+      "data_status": "knowledge_base",
+      "material": [
+        "284420"
+      ],
+      "route_id": "russia"
+    }
+  ],
+  "countries": [
+    {
+      "id": "KAZ",
+      "name": "哈萨克斯坦",
+      "route_name": "哈萨克斯坦铀供应",
+      "evidence_level": "DIRECT"
+    },
+    {
+      "id": "NAM",
+      "name": "纳米比亚",
+      "route_name": "纳米比亚铀供应",
+      "evidence_level": "DIRECT"
+    },
+    {
+      "id": "CAN",
+      "name": "加拿大",
+      "route_name": "加拿大铀供应",
+      "evidence_level": "INDIRECT"
+    },
+    {
+      "id": "AUS",
+      "name": "澳大利亚",
+      "route_name": "澳大利亚铀供应",
+      "evidence_level": "INDIRECT"
+    },
+    {
+      "id": "UZB",
+      "name": "乌兹别克斯坦",
+      "route_name": "乌兹别克斯坦铀供应",
+      "evidence_level": "DIRECT"
+    },
+    {
+      "id": "NER",
+      "name": "尼日尔",
+      "route_name": "尼日尔铀供应(出口通道严重受扰)",
+      "evidence_level": "DIRECT"
+    },
+    {
+      "id": "RUS",
+      "name": "俄罗斯",
+      "route_name": "俄罗斯核燃料循环供应",
+      "evidence_level": "DIRECT"
+    }
+  ]
+}

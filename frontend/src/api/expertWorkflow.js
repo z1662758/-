@@ -1,5 +1,10 @@
 import request from '@/utils/request'
 
+/** Discuss the pre-analysis scenario or draft a user-confirmable outline. */
+export function discussPreScenario(payload) {
+  return request({ url: '/scenario/expert/scenario-assistant', method: 'post', data: payload, timeout: 55000 })
+}
+
 /**
  * 保存场景设定并创建场景任务(不启动正式分析)。
  * → data: { session_id, scenario, scenario_spec, plan, workflow }

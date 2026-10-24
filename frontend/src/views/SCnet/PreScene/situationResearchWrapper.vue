@@ -7,6 +7,7 @@
   >
     <template #legacy><SituationResearchMain :scenario="scenario" /></template>
     <template #default="{ artifact, mode }">
+      <DomainModelSummary :analysis="artifact?.result?.domainModelAnalysis" />
       <SituationResearchMain
         :scenario="scenario"
         :initial-data="stageResult(artifact)"
@@ -22,6 +23,7 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import SituationResearchMain from './situationResearch-main.vue'
+import DomainModelSummary from '@/components/SCnet/DomainModelSummary.vue'
 import ExpertStageGate from '@/views/SCnet/components/ExpertStageGate.vue'
 import ExpertWorkflowNav from '@/views/SCnet/components/ExpertWorkflowNav.vue'
 import { SCNET_ROUTES } from '@/constants/scnetRoutes'

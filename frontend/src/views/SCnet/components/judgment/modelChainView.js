@@ -3,7 +3,7 @@
  *
  * 两个消费方共用这一份逻辑,避免两处各写一套:
  *   - 右侧「模型链」标签(SituationMap.vue)
- *   - 「领域模型研判」结果区(DomainJudgmentPanel.vue)
+ *   - 「态势模型研判」结果区(DomainJudgmentPanel.vue)
  *
  * 数据来源只有两个,都是本次任务的真实记录:
  *   1. 执行记录 —— 快照 execution_trace / meta.model_runs(哪个模型真的跑了、跑成什么样)

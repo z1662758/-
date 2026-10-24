@@ -81,69 +81,32 @@ const onItemClick = (item) => {
 </script>
 
 <style scoped>
-/*
- * 零高度锚点 + 绝对定位浮层：
- *   - 锚点是 .body-pos 的 flex 子项，flex: 0 0 auto + height: 0，不占高度，
- *     挂载与否都不推挤页面内容；滚动区域与底部 sticky 操作栏都不受影响；
- *   - 浮层绝对定位到锚点上方，只覆盖顶部原有留白；
- *   - 锚点 pointer-events: none，不拦截底下页面内容的点击与滚轮；
- *   - 锚点必须挂在 .scnet-router-host 之外，否则向上越出的部分会被 overflow 裁掉。
- *
- * 纵向位置（实测 1600×900，16 个事前页 + 阶段选择页）：
- *   锚点位置 = 内容区顶部 y=60，顶栏分界线正好压在这一行。
- *   分界线以下、各页面内容以上的留白深度（相对内容区顶部）：
- *     第 1..10 行（y=61..70）完全空白；
- *     第 11..12 行（y=71..72）个别页面已有首个卡片/面板的浅灰上边线；
- *     第 13 行起（y=73）石油情报页的滚动播报文字行开始。
- *   所以按钮带取 y=61..72：紧贴分界线下方，且不压分界线、不压任何文字。
- *   该带只有 12px 高，按「空间不足优先缩小按钮」处理：
- *   按钮外高 12px（height 10 + 上下 1px 描边）、字号 10px、间距 5px。
- *   定位方式决定了页面主体内容顶部 Y 坐标与加导航前完全一致，不会整体下移。
- *
- * z-index 2100：AppHeader 是 flex 子项且带内联 z-index: 2000（flex item 带 z-index 即成为
- * 层叠上下文）。按钮虽已完全落到分界线下方，仍保留该层级，避免被顶栏及其投影盖住上半行。
- */
-.scnet-phase-nav {
-  position: relative;
-  z-index: 2100;
-  flex: 0 0 auto;
-  width: 100%;
-  height: 0;
-  min-height: 0;
-  pointer-events: none;
-}
-
+.scnet-phase-nav,
 .spn-layer {
-  position: absolute;
-  /* 内容区顶部 y=60 是顶栏分界线，+1px 让按钮从分界线下方开始 */
-  top: 1px;
-  left: 0;
-  right: 0;
   display: flex;
+  align-items: center;
   justify-content: center;
-  z-index: 30;
 }
 
 .spn-group {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  /* 只有按钮本身可点，浮层其余部分是透传的 */
-  pointer-events: auto;
+  gap: 8px;
 }
 
 .spn-btn {
-  height: 10px; /* + 上下 1px 描边 = 外高 12px，正好落在 y=61..72 的空白带内 */
-  padding: 0 9px;
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 18px;
   font-family: inherit;
-  font-size: 10px;
+  font-size: 14px;
   line-height: 1;
   color: #475569;
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 6px;
+  border-radius: 16px;
   cursor: pointer;
   white-space: nowrap;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
@@ -174,13 +137,13 @@ const onItemClick = (item) => {
   background: #dbeafe;
 }
 
-/* 窄屏优先压缩间距与水平内边距；高度/纵向位置不动，避免压到分界线或页面内容 */
+/* 窄屏收紧按钮间距与内边距 */
 @media (max-width: 900px) {
   .spn-group {
     gap: 4px;
   }
   .spn-btn {
-    padding: 0 7px;
+    padding: 0 10px;
   }
 }
 </style>

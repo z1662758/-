@@ -104,6 +104,11 @@ const routes = [
         component: EXreport
       },
       {
+        path: 'domainModel',
+        name: 'SCnet_DomainModel',
+        component: () => import("../views/SCnet/PreScene/DomainModel.vue")
+      },
+      {
         path: 'scenarioSetting',
         name: 'SCnet_ScenarioSetting',
         component: () => import("../views/SCnet/PreScene/ScenarioSetting.vue")

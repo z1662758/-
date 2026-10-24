@@ -1,6 +1,6 @@
 <template>
-  <el-scrollbar :height="scrollHeight">
-    <div class="supply-chain-intelligence osint-live">
+  <component :is="flowLayout ? 'div' : 'el-scrollbar'" :class="{ 'osint-flow-scroll': flowLayout }" :height="flowLayout ? undefined : scrollHeight">
+    <div class="supply-chain-intelligence osint-live" :class="{ 'is-flow': flowLayout }">
       <!-- ===== 顶部:实时动态(由本次真实事件驱动,不再是固定新闻) ===== -->
       <div class="header-card">
         <div class="news-ticker-wrap">
@@ -133,7 +133,7 @@
       :event="selected"
       :route-names="routeNames"
     />
-  </el-scrollbar>
+  </component>
 </template>
 
 <script setup>
@@ -172,6 +172,8 @@ const props = defineProps({
    * 知识平台的「数据治理」按当前领域传，否则汽车领域导入的条目取不到。
    */
   scenario: { type: String, default: 'uranium' },
+  /** Use natural document flow when embedded in an outer scrolling workspace. */
+  flowLayout: { type: Boolean, default: false },
 })
 
 /**
@@ -501,6 +503,8 @@ function clearCluster() {
   background: #f1f5f9;
   min-height: 100%;
 }
+.osint-flow-scroll { height: auto; overflow: visible; }
+.osint-live.is-flow { min-height: 0; overflow: visible; }
 
 /* ===== 顶部 ===== */
 .header-card {

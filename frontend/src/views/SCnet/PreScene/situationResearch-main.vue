@@ -10,14 +10,14 @@
     </div>
 
     <template v-if="!error && chartData">
-      <section v-if="chartData.scenarioAssessment" class="pred-section scenario-risk-summary">
+      <section v-if="scenario !== 'uranium' && chartData.scenarioAssessment" class="pred-section scenario-risk-summary">
         <h2>本场景风险展望</h2>
         <p><strong>路线风险：</strong>{{ scenarioRiskSummary }}</p>
         <p class="scenario-risk-basis"><strong>依据：</strong>{{ chartData.scenarioAssessment.riskRoutes?.length || 0 }} 条路线、{{ chartData.scenarioAssessment.relatedEventCount || 0 }} 条情报；风险为当前快照的定性研判，价格曲线为历史价格外推。</p>
       </section>
       <!-- 第一部分：顶部核心指标 -->
       <div class="sj-dashboard">
-        <div v-for="item in dashboardSummary" :key="item.label"
+        <div v-for="item in caseDashboardSummary" :key="item.label"
              class="sj-db-card" :class="item.variant || ''">
           <div class="sj-db-icon">{{ getIcon(item.variant) }}</div>
           <div class="sj-db-info">
@@ -28,6 +28,12 @@
         </div>
       </div>
 
+      <template v-if="scenario === 'uranium'">
+        <ProfessionalForecastPanel :analysis="analysis" />
+        <ProcurementCaseForecast />
+      </template>
+      <!-- 原预测与风险区保留，避免旧案例结论与本次详细案例混用。 -->
+      <template v-else>
       <nav class="analysis-tabs" aria-label="态势预测分析类型">
         <button v-for="tab in analysisTabs" :key="tab.key" type="button" class="analysis-tab"
                 :class="{ active: activeAnalysisTab === tab.key }"
@@ -651,6 +657,7 @@
           </div>
         </div>
       </div>
+      </template>
     </template>
 
     <!-- 详细验证报告抽屉 -->
@@ -666,6 +673,8 @@ import * as echarts from 'echarts'
 import { getResearchData, calculateLoss } from '@/api/situation'
 import ChatHandoffStrip from '@/components/SCnet/ChatHandoffStrip.vue'
 import VerificationReport from './VerificationReport.vue'
+import ProfessionalForecastPanel from './ProfessionalForecastPanel.vue'
+import ProcurementCaseForecast from './ProcurementCaseForecast.vue'
 
 const props = defineProps({
   scenario: { type: String, default: 'uranium' },
@@ -761,6 +770,12 @@ const isAuto = computed(() => props.scenario === 'auto')
 
 // ── 从 API 数据派生 ─────────────────────
 const dashboardSummary = computed(() => chartData.value?.dashboardSummary || [])
+const caseDashboardSummary = computed(() => props.scenario === 'uranium' ? [
+  { label: '新增采购净需求', value: '130 tU', detail: '240 + 40 − 80 − 30 − 40；金属铀含量', variant: 'price' },
+  { label: '不新增采购的首次缺口', value: '11月24日', detail: '按70个自然日均匀消耗，交付日先入库', variant: 'risk' },
+  { label: '建议分批安排', value: '70 + 60 tU', detail: '目标11月10日、12月5日完成验收可用', variant: 'gap' },
+  { label: '分批方案期末库存', value: '40 tU', detail: '各批按期情景；压力测试见下方日库存曲线', variant: 'conclusion' },
+] : dashboardSummary.value)
 const scenarioRiskSummary = computed(() => {
   const forecast = chartData.value?.forecastAssessment || {}
   const basis = forecast.basis || {}

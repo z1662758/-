@@ -23,6 +23,7 @@ export const SCNET_ROUTES = Object.freeze({
   interface: `${SCNET_BASE}/interface`,
   EXreport: `${SCNET_BASE}/EXreport`,
 
+  domainModel: `${SCNET_BASE}/domainModel`,
   scenarioSetting: `${SCNET_BASE}/scenarioSetting`,
   // 场景设定提交后的下一步：确认分析方案；情报在后台处理，不是导航页面
   planConfirmation: `${SCNET_BASE}/planConfirmation`,

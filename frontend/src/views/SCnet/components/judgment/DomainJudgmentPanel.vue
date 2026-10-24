@@ -1,7 +1,7 @@
 <template>
   <section class="djp">
     <header class="djp-head">
-      <h3 class="djp-title">领域模型研判结果</h3>
+      <h3 class="djp-title">态势模型研判结果</h3>
       <span class="djp-source">{{ meta.sourceLabel }}</span>
       <span v-if="modelVersion" class="djp-model">{{ modelVersion }}</span>
     </header>
@@ -9,7 +9,7 @@
     <p class="djp-method">{{ meta.method }}</p>
 
     <article class="djp-card djp-card--conclusion">
-      <div class="djp-card-label">领域模型最终研判结论</div>
+      <div class="djp-card-label">态势模型最终研判结论</div>
       <p class="djp-conclusion">{{ domainConclusion }}</p>
       <p class="djp-card-note">根据本次快照中的路线风险计算结果整理；展示分为快照内校准值。</p>
     </article>
@@ -31,7 +31,7 @@
       </p>
     </article>
 
-    <!-- 本次研判到底用了哪些模型:具体到模型名,不用"领域模型"统称代替 -->
+    <!-- 本次研判到底用了哪些模型:具体到模型名,不用"态势模型"统称代替 -->
     <div class="djp-model-usage">
       <ModelUsagePanel
         :runs="modelRuns"
@@ -166,7 +166,7 @@ import ModelUsagePanel from './ModelUsagePanel.vue'
 import { useModelRegistry } from './useModelRegistry'
 
 const props = defineProps({
-  /** 领域模型路线(来自快照,原样传入,任何视角都不做替换) */
+  /** 态势模型路线(来自快照,原样传入,任何视角都不做替换) */
   routes: { type: Array, default: () => [] },
   nodes: { type: Array, default: () => [] },
   criticalNodes: { type: Array, default: () => [] },
@@ -203,12 +203,12 @@ const ranking = computed(() =>
 
 const topRoute = computed(() => props.routes.find((r) => r.id === ranking.value[0]?.id) || null)
 const domainConclusion = computed(() => {
-  if (!ranking.value.length) return '暂无领域模型研判结果。'
+  if (!ranking.value.length) return '暂无态势模型研判结果。'
   const top = ranking.value[0]
   const high = ranking.value.filter((r) => r.level === 'high').length
   const medium = ranking.value.filter((r) => r.level === 'medium').length
   const low = ranking.value.filter((r) => r.level === 'low').length
-  return `本次领域模型对 ${ranking.value.length} 条供应路线完成风险计算，其中高风险 ${high} 条、中风险 ${medium} 条、低风险 ${low} 条。${top.country}路线的展示风险分最高，为 ${top.display}/100，原始风险分为 ${top.raw}/100，等级为${levelText(top.level)}。该判断来自节点风险、运输边风险和路线聚合的计算结果；展示分不等于实际中断概率。`
+  return `本次态势模型对 ${ranking.value.length} 条供应路线完成风险计算，其中高风险 ${high} 条、中风险 ${medium} 条、低风险 ${low} 条。${top.country}路线的展示风险分最高，为 ${top.display}/100，原始风险分为 ${top.raw}/100，等级为${levelText(top.level)}。该判断来自节点风险、运输边风险和路线聚合的计算结果；展示分不等于实际中断概率。`
 })
 
 const nodeRanking = computed(() =>

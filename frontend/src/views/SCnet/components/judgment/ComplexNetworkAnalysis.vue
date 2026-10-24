@@ -75,7 +75,7 @@
               <p>{{ selectedNode.type || '节点' }} · {{ selectedNode.routes.map(routeName).join('、') || '未归属路线' }}</p>
               <p>连接数 {{ selectedNode.degree }} · 度中心性 {{ degreeCentrality(selectedNode).toFixed(1) }}%</p>
               <p>介数中心性 {{ selectedNode.betweenness.toFixed(1) }}% · {{ selectedNode.isArticulation ? '割点' : '非割点' }} · {{ selectedNode.coreNumber }}-core</p>
-              <p>领域模型关键性 {{ selectedNode.criticality.toFixed(1) }} · {{ selectedNode.domainCritical ? '领域模型标记关键节点' : '领域模型未标记' }}</p>
+              <p>态势模型关键性 {{ selectedNode.criticality.toFixed(1) }} · {{ selectedNode.domainCritical ? '态势模型标记关键节点' : '态势模型未标记' }}</p>
               <p>节点风险 {{ selectedNode.risk.toFixed(1) }} · {{ riskLabel(selectedNode.level) }}</p>
               <p v-if="selectedNode.riskReason">风险依据：{{ selectedNode.riskReason }}</p>
               <p v-if="selectedNode.routes.length">涉及路线：{{ selectedNode.routes.map(routeName).join('、') }}{{ selectedNode.routes.length > 1 ? '（多路线共享）' : '' }}</p>
@@ -94,14 +94,14 @@
         </div>
         <p class="cna-foot">方法：NetworkX 度中心性决定节点大小；Brandes (2001) 计算节点与边的最短路径介数；割点、割边及 k-core 描述网络结构。极高供应后果的割点触发节点高风险保护，割边按边介数计入单点失效影响。风险分不作为路径距离或实际中断概率。</p>
         <section class="cna-overview" aria-label="网络分析概况与说明">
-          <p class="cna-note">这张图与主页使用同一份领域模型快照。节点填充色区分路线、描边表示计算后的节点风险、大小按度中心性；连线颜色表示计算后的运输边风险，粗细表示共用路线数。</p>
+          <p class="cna-note">这张图与主页使用同一份态势模型快照。节点填充色区分路线、描边表示计算后的节点风险、大小按度中心性；连线颜色表示计算后的运输边风险，粗细表示共用路线数。</p>
           <p v-if="snapshot?.as_of_date" class="cna-note">案例网络按截至 {{ snapshot.as_of_date }} 的情报，用现行固定模型链复算；原案例的大模型研判仍是原产物。</p>
           <p v-if="snapshot?.snapshot_id" class="cna-snapshot-id">当前快照 {{ snapshot.snapshot_id }} · {{ snapshot.generated_at || '时间未标注' }}</p>
           <div class="cna-reconcile">
             <div v-if="dualJudgment?.status === 'completed'"><span>双驱动最终判断</span><b :class="dualJudgment.risk_level">{{ riskLabel(dualJudgment.risk_level) }}</b></div>
-            <div><span>领域模型高风险路线</span><b class="high">{{ highRouteCount }} / {{ routeRows.length }}</b></div>
-            <div><span>领域模型高风险节点</span><b>{{ riskCounts.high }} / {{ analysis.nodes.length }}</b></div>
-            <div><span>领域模型高风险运输边</span><b>{{ highEdgeCount }} / {{ analysis.edges.length }}</b></div>
+            <div><span>态势模型高风险路线</span><b class="high">{{ highRouteCount }} / {{ routeRows.length }}</b></div>
+            <div><span>态势模型高风险节点</span><b>{{ riskCounts.high }} / {{ analysis.nodes.length }}</b></div>
+            <div><span>态势模型高风险运输边</span><b>{{ highEdgeCount }} / {{ analysis.edges.length }}</b></div>
             <p>主页红线表示路线总体风险：{{ highRouteExplanation }}。节点描边和连线颜色分别读取同一快照的节点、运输边等级；路线总体等级经过供应占比、关键节点等因素聚合及展示分校准，不能直接当作沿途每个节点或每段运输边的等级。</p>
           </div>
           <div class="cna-stats">

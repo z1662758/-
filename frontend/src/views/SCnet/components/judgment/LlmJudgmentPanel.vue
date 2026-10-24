@@ -17,12 +17,12 @@
         <strong>{{ meta.emptyText }}</strong>
       </div>
       <p>
-        本页不会用领域模型的风险分数冒充大模型结论。大模型结论需要后端在态势研判阶段
+        本页不会用态势模型的风险分数冒充大模型结论。大模型结论需要后端在态势研判阶段
         真实调用大模型后产出；当前这份结果里没有大模型研判数据。
       </p>
       <p v-if="llm && llm.reason" class="ljp-empty-reason">原因：{{ llm.reason }}</p>
       <p v-else-if="llm && llm.prompt_version !== 'llm_judgment_v2'" class="ljp-empty-reason">
-        原因：旧版大模型结果曾读取领域模型分数，不符合独立研判口径；请重新运行态势研判。
+        原因：旧版大模型结果曾读取态势模型分数，不符合独立研判口径；请重新运行态势研判。
       </p>
       <p v-else-if="!llm" class="ljp-empty-reason">
         原因：本次任务(或案例包)未包含大模型研判产物。重新运行「态势研判」阶段会重新生成。
